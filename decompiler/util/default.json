@@ -234,6 +234,20 @@
       "is_hidden_from_gui": false
     }
   },
+  "variable-name-generator": {
+    "mode": {
+      "default": "hungarian",
+      "title": "Variable Naming Convention",
+      "type": "string",
+      "enum": ["default", "hungarian"],
+      "enumDescriptions": [
+        "var_{count}",
+        "{type_prefix}Var{count}"
+      ],
+      "description": "Optimization options for variable renaming in out of SSA",
+      "is_advanced_setting": false
+    }
+  },
   "code-generator": {
     "max_complexity": {
       "default": 100,
