@@ -234,17 +234,45 @@
       "is_hidden_from_gui": false
     }
   },
-  "variable-name-generator": {
-    "mode": {
-      "default": "hungarian",
+  "variable-name-generation": {
+    "notation": {
+      "default": "system_hungarian",
       "title": "Variable Naming Convention",
       "type": "string",
-      "enum": ["default", "hungarian"],
+      "enum": ["default", "system_hungarian"],
       "enumDescriptions": [
-        "var_{count}",
-        "{type_prefix}Var{count}"
+        "Default setting (e.g. int var_0)",
+        "System Hungarian (e.g. int iVar0; float fVar0)"
       ],
-      "description": "Optimization options for variable renaming in out of SSA",
+      "description": "Selects the naming convention for variable names.",
+      "is_advanced_setting": false
+    },
+    "variable_name": {
+      "default": "Var",
+      "title": "Variable Base Name",
+      "type": "string",
+      "description": "",
+      "is_advanced_setting": false
+    },
+    "pointer_base": {
+      "default": true,
+      "title": "Pointer base type prefix",
+      "type": "boolean",
+      "description": "Prefix the basetype of a pointer (e.g. int * piVar0)",
+      "is_advanced_setting": false
+    },
+    "type_separator": {
+      "default": "",
+      "title": "Type Separator",
+      "type": "string",
+      "description": "How to separate the prefix from the variable name (e.g. '_' -> i_Var0)",
+      "is_advanced_setting": false
+    },
+    "counter_separator": {
+      "default": "",
+      "title": "Counter Separator",
+      "type": "string",
+      "description": "How to separate the variable name from its counter (e.g. '_' -> iVar_0)",
       "is_advanced_setting": false
     }
   },
@@ -452,7 +480,8 @@
       "default": [
         "readability-based-refinement",
         "expression-simplification",
-        "instruction-length-handler"
+        "instruction-length-handler",
+        "variable-name-generation"
       ],
       "title": "AST pipeline stages",
       "type": "array",
@@ -463,7 +492,7 @@
   },
   "logging": {
     "log_level": {
-      "default": "DEBUG",
+      "default": "ERROR",
       "title": "Log level",
       "type": "string",
       "elementType": "string",
