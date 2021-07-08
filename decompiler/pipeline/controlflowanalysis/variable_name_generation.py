@@ -12,6 +12,7 @@ from decompiler.util.z3_helper import get_symbols
 def _get_counter(var_name: str) -> Optional[str]:
     if counter := re.match(r".*?([0-9]+)$", var_name):
         return counter.group(1)
+    return None
 
 
 def _get_containing_variables(dfo: DataflowObject) -> List[Variable]:

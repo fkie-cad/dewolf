@@ -492,7 +492,7 @@
   },
   "logging": {
     "log_level": {
-      "default": "ERROR",
+      "default": "DEBUG",
       "title": "Log level",
       "type": "string",
       "elementType": "string",

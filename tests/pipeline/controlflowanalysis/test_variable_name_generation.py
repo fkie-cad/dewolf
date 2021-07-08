@@ -1,5 +1,6 @@
 from typing import List
 
+import pytest
 from dewolf.backend.codegenerator import CodeGenerator
 from dewolf.pipeline.controlflowanalysis import VariableNameGeneration
 from dewolf.structures.pseudo import Assignment, Constant, CustomType, Float, Integer, Pointer, Variable
@@ -55,11 +56,57 @@ def _run_vng(ast: AbstractSyntaxTree, options: Options = _generate_options()):
     DecoratedCode.print_code(CodeGenerator().from_task(task))
 
 
-def test_hungarian_notation_0():
-    ast = AbstractSyntaxTree(CodeNode(_generate_all_type_assignments()), {})
-    _run_vng(ast, _generate_options(type_sep="_", counter_sep="_"))
-
-
-def test_hungarian_notation_1():
-    ast = AbstractSyntaxTree(CodeNode(Assignment(Variable("var_0", I32), Constant(0))), {})
+def test_default_notation_1():
+    ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", I32), Constant(0))), {})
     _run_vng(ast, _generate_options(notation="default"))
+    assert var.name == "var_0"
+
+
+class TestHungarianNotation:
+    def test_hungarian_notation_all_types(self):
+        ast = AbstractSyntaxTree(cn := CodeNode(_generate_all_type_assignments()), {})
+        _run_vng(ast)
+        assert [str(_) for _ in cn.stmts] == [
+            "chVar0 = 0x0",
+            "chpVar0 = 0x0",
+            "sVar1 = 0x0",
+            "spVar1 = 0x0",
+            "iVar2 = 0x0",
+            "ipVar2 = 0x0",
+            "lVar3 = 0x0",
+            "lpVar3 = 0x0",
+            "i128Var4 = 0x0",
+            "i128pVar4 = 0x0",
+            "uchVar5 = 0x0",
+            "uchpVar5 = 0x0",
+            "usVar6 = 0x0",
+            "uspVar6 = 0x0",
+            "uiVar7 = 0x0",
+            "uipVar7 = 0x0",
+            "ulVar8 = 0x0",
+            "ulpVar8 = 0x0",
+            "ui128Var9 = 0x0",
+            "ui128pVar9 = 0x0",
+            "hVar10 = 0x0",
+            "hpVar10 = 0x0",
+            "fVar11 = 0x0",
+            "fpVar11 = 0x0",
+            "dVar12 = 0x0",
+            "dpVar12 = 0x0",
+            "ldVar13 = 0x0",
+            "ldpVar13 = 0x0",
+            "qVar14 = 0x0",
+            "qpVar14 = 0x0",
+            "oVar15 = 0x0",
+            "opVar15 = 0x0",
+            "bVar16 = 0x0",
+            "bpVar16 = 0x0",
+            "vVar17 = 0x0",
+            "vpVar17 = 0x0",
+        ]
+
+    @pytest.mark.parametrize("type_sep, counter_sep", [("", ""), ("_", "_")])
+    def test_hungarian_notation_separators(self, type_sep: str, counter_sep: str):
+        ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", I32), Constant(0))), {})
+        _run_vng(ast, _generate_options(type_sep=type_sep, counter_sep=counter_sep))
+        assert var.name == f"i{type_sep}Var{counter_sep}0"
