@@ -47,6 +47,10 @@ def _generate_options(notation: str = "system_hungarian", pointer_base: bool = T
     options.set(f"{PIPELINE_NAME}.pointer_base", pointer_base)
     options.set(f"{PIPELINE_NAME}.type_separator", type_sep)
     options.set(f"{PIPELINE_NAME}.counter_separator", counter_sep)
+    options.set(f"code-generator.max_complexity", 100)
+    options.set("code-generator.use_increment_int", False)
+    options.set("code-generator.use_increment_float", False)
+    options.set("code-generator.use_compound_assignment", True)
     return options
 
 
@@ -68,41 +72,41 @@ class TestHungarianNotation:
         _run_vng(ast)
         assert [str(_) for _ in cn.stmts] == [
             "chVar0 = 0x0",
-            "pchVar0 = 0x0",
+            "chpVar0 = 0x0",
             "sVar1 = 0x0",
-            "psVar1 = 0x0",
+            "spVar1 = 0x0",
             "iVar2 = 0x0",
-            "piVar2 = 0x0",
+            "ipVar2 = 0x0",
             "lVar3 = 0x0",
-            "plVar3 = 0x0",
+            "lpVar3 = 0x0",
             "i128Var4 = 0x0",
-            "pi128Var4 = 0x0",
+            "ip128Var4 = 0x0",
             "uchVar5 = 0x0",
-            "puchVar5 = 0x0",
+            "uchpVar5 = 0x0",
             "usVar6 = 0x0",
-            "pusVar6 = 0x0",
+            "uspVar6 = 0x0",
             "uiVar7 = 0x0",
-            "puiVar7 = 0x0",
+            "uipVar7 = 0x0",
             "ulVar8 = 0x0",
-            "pulVar8 = 0x0",
+            "ulpVar8 = 0x0",
             "ui128Var9 = 0x0",
-            "pui128Var9 = 0x0",
+            "uip128Var9 = 0x0",
             "hVar10 = 0x0",
-            "phVar10 = 0x0",
+            "hpVar10 = 0x0",
             "fVar11 = 0x0",
-            "pfVar11 = 0x0",
+            "fpVar11 = 0x0",
             "dVar12 = 0x0",
-            "pdVar12 = 0x0",
+            "dpVar12 = 0x0",
             "ldVar13 = 0x0",
-            "pldVar13 = 0x0",
+            "ldpVar13 = 0x0",
             "qVar14 = 0x0",
-            "pqVar14 = 0x0",
+            "qpVar14 = 0x0",
             "oVar15 = 0x0",
-            "poVar15 = 0x0",
+            "opVar15 = 0x0",
             "bVar16 = 0x0",
-            "pbVar16 = 0x0",
+            "bpVar16 = 0x0",
             "vVar17 = 0x0",
-            "pvVar17 = 0x0",
+            "vpVar17 = 0x0",
         ]
 
     @pytest.mark.parametrize("type_sep, counter_sep", [("", ""), ("_", "_")])

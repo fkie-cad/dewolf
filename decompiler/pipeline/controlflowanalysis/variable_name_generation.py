@@ -4,12 +4,12 @@ from typing import List, Optional
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.pseudo import CustomType, DataflowObject, Float, Integer, Pointer, Type, Variable
-from decompiler.structures.syntaxtree import AbstractSyntaxTree, CaseNode, CodeNode, ConditionNode, SwitchNode
+from decompiler.structures.syntaxtree import AbstractSyntaxTree, CaseNode, CodeNode, ConditionNode, ForLoopNode, SwitchNode
 from decompiler.task import DecompilerTask
 from decompiler.util.z3_helper import get_symbols
 
 
-def _get_counter(var_name: str) -> Optional[str]:
+def _get_var_counter(var_name: str) -> Optional[str]:
     if counter := re.match(r".*?([0-9]+)$", var_name):
         return counter.group(1)
     return None
@@ -41,7 +41,7 @@ class VariableNameGeneration(PipelineStage):
     """Pipelinestage in charge of renaming variables to a configured format."""
 
     name = "variable-name-generation"
-
+    for_loop_names = ["i", "j", "k", "l", "m", "n"]
     type_prefix = {
         Float: {16: "h", 32: "f", 64: "d", 80: "ld", 128: "q", 256: "o"},
         Integer: {8: "ch", 16: "s", 32: "i", 64: "l", 128: "i128"},
@@ -73,7 +73,7 @@ class VariableNameGeneration(PipelineStage):
             if isinstance(node, CodeNode):
                 for stmt in node.stmts:
                     self._variables.extend(_get_containing_variables(stmt))
-            elif isinstance(node, ConditionNode):
+            elif isinstance(node, (ConditionNode, ForLoopNode)):
                 for expr in [self._ast.condition_map[symbol] for symbol in get_symbols(node.condition)]:
                     self._variables.extend(_get_containing_variables(expr))
             elif isinstance(node, (SwitchNode, CaseNode)):
@@ -82,8 +82,9 @@ class VariableNameGeneration(PipelineStage):
     def _rename(self):
         if self._notation == NamingConvention.system_hungarian:
             for var in self._variables:
-                counter = _get_counter(var.name)
-                var._name = self._hungarian_notation(var, counter)
+                if var.name not in self.for_loop_names:
+                    counter = _get_var_counter(var.name)
+                    var._name = self._hungarian_notation(var, counter)
 
     def _hungarian_notation(self, var: Variable, counter: int) -> str:
         prefix = self._hungarian_prefix(var.type)
@@ -92,7 +93,7 @@ class VariableNameGeneration(PipelineStage):
     def _hungarian_prefix(self, var_type: Type) -> str:
         if isinstance(var_type, Pointer):
             if self._pointer_base:
-                return f"p{self._hungarian_prefix(var_type.type)}"
+                return f"{self._hungarian_prefix(var_type.type)}p"
             return "p"
         if isinstance(var_type, CustomType):
             if var_type.is_boolean:
