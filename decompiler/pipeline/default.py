@@ -14,8 +14,11 @@ from decompiler.pipeline.dataflowanalysis import (
     RedundantCastsElimination,
     TypePropagation,
 )
+from dewolf.pipeline.expressions import DeadComponentPruner, EdgePruner, GraphExpressionFolding
 
 CFG_STAGES = [
+    GraphExpressionFolding,
+    DeadComponentPruner,
     ExpressionPropagation,
     TypePropagation,
     DeadPathElimination,
@@ -28,6 +31,9 @@ CFG_STAGES = [
     CommonSubexpressionElimination,
     ArrayAccessDetection,
     ExpressionSimplification,
+    DeadComponentPruner,
+    GraphExpressionFolding,
+    EdgePruner,
 ]
 
 AST_STAGES = [ReadabilityBasedRefinement, ExpressionSimplification, InstructionLengthHandler]

@@ -102,6 +102,13 @@ class DataflowObject(ABC):
         """Invoke the appropriate visitor for this DataFlowObject."""
         raise NotImplementedError(f"accept not implemented for {type(self)}")
 
+    def subexpressions(self) -> Iterator[DataflowObject]:
+        """Yield all subexpressions in a depth-first manner."""
+        worklist: List[DataflowObject] = [self]
+        while worklist and (head := worklist.pop()):
+            yield head
+            worklist.extend(head)
+
 
 class Expression(DataflowObject, ABC, Generic[DecompiledType]):
     """Abstract base class for expression types."""

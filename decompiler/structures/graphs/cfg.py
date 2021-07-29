@@ -4,7 +4,8 @@ from __future__ import annotations
 from itertools import chain
 from typing import Dict, Set
 
-from decompiler.structures.pseudo import Condition, Instruction, Variable
+from decompiler.structures.pseudo import Assignment, Condition, Instruction, Variable
+
 from networkx import DiGraph
 
 from .basicblock import BasicBlock
@@ -94,13 +95,29 @@ class ControlFlowGraph(ClassifiedGraph[BasicBlock, BasicBlockEdge]):
         self.notify(block)
         super().add_node(block)
 
-    def remove_node(self, block: NODE):
+    def add_definition(self, variable: Variable, definition: Expression):
+        """Add an definition for an undefined variable at the right location."""
+        blocks: List[BasicBlock] = []
+        for block, dependencies in self._dependencies.items():
+            if variable in dependencies:
+                blocks.append(block)
+        dominator = self.find_common_dominator(*blocks)
+        dominator.add_instruction_where_possible(Assignment(variable, definition))
+
+    def remove_node(self, block: BasicBlock):
         """Remove the given node from the graph, given it is not the head node."""
         super().remove_node(block)
         if block in self._definitions:
             del self._definitions[block]
         if block in self._dependencies:
             del self._dependencies[block]
+
+    def remove_instruction(self, instruction: Instruction):
+        """Remove the given instruction from the cfg once."""
+        for block in self:
+            if instruction in block:
+                block.remove_instruction(instruction)
+                break
 
     def subexpressions(self) -> Iterator[Expression]:
         """Iterate all subexpressions in the graph."""
