@@ -105,7 +105,7 @@ class MockPossibleValues(PossibleValueSet):
 
     def __init__(self, mapping: dict):
         """Create a new MockPossibleValues for testing purposes only."""
-        self.mapping = mapping
+        self._mapping = mapping
 
     @property
     def type(self):
@@ -116,18 +116,20 @@ class MockPossibleValues(PossibleValueSet):
         return MockVariable(values)
 
 
-class MockVariable:
+class MockVariable(Variable):
     """Mock object representing a binaryninja Variable."""
 
     def __init__(self, values, name="var27"):
         """Create a new MockVariable for testing purposes only."""
-        self.__class__ = Variable
         self.possible_values = values
         self._type = Type.int(32)
-        self._source_type = VariableSourceType(1)
-        self._function = MockFunction([])
-        self.name = "var27"
+        object.__setattr__(self, '_source_type', VariableSourceType(0))
+        object.__setattr__(self, '_function', MockFunction([]))
+        self._name = name
         self.type = Type.int(32)
+
+    def name(self) -> str:
+        return self._name
 
 
 class MockSwitch:
