@@ -27,6 +27,7 @@ class ConstantHandler(Handler):
         self._lifter.HANDLERS.update(
             {
                 mediumlevelil.MediumLevelILConst: self.lift_constant,
+                mediumlevelil.MediumLevelILFloat_const: self.lift_constant,
                 mediumlevelil.MediumLevelILExtern_ptr: self.lift_pointer,
                 mediumlevelil.MediumLevelILConst_ptr: self.lift_pointer,
                 mediumlevelil.MediumLevelILImport: self.lift_symbol,
@@ -34,11 +35,11 @@ class ConstantHandler(Handler):
             }
         )
 
-    def lift_constant(self, constant: mediumlevelil.MediumLevelILConst) -> Constant:
+    def lift_constant(self, constant: mediumlevelil.MediumLevelILConst, **kwargs) -> Constant:
         """Lift the given constant value."""
         return Constant(constant.constant, vartype=self._lifter.lift(constant.expr_type))
 
-    def lift_symbol(self, import_constant: mediumlevelil.MediumLevelILImport) -> ImportedFunctionSymbol:
+    def lift_symbol(self, import_constant: mediumlevelil.MediumLevelILImport, **kwargs) -> ImportedFunctionSymbol:
         """Lift a symbol by returning its name."""
         symbol = self._get_symbol(import_constant)
         return ImportedFunctionSymbol(
@@ -47,11 +48,11 @@ class ConstantHandler(Handler):
             Pointer(Integer.char()),
         )
 
-    def lift_pointer(self, constant: mediumlevelil.MediumLevelILConst_ptr) -> Constant:
+    def lift_pointer(self, constant: mediumlevelil.MediumLevelILConst_ptr, **kwargs) -> Constant:
         """Helper method translating a pointer to address and binary view."""
         return self._lift_bn_pointer(constant.constant, constant.function.source_function.view)
 
-    def lift_literal(self, value: int) -> Constant:
+    def lift_literal(self, value: int, **kwargs) -> Constant:
         return Constant(value, vartype=Integer.int32_t())
 
     def _lift_bn_pointer(self, address: int, bv: BinaryView):

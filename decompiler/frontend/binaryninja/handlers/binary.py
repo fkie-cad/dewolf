@@ -37,10 +37,10 @@ class BinaryOperationHandler(Handler):
             {
                 mediumlevelil.MediumLevelILAdd: self.lift_binary_operation,
                 mediumlevelil.MediumLevelILFadd: self.lift_binary_operation,
-                mediumlevelil.MediumLevelILAdc: self.lift_binary_operation,
+                mediumlevelil.MediumLevelILAdc: self._lift_binary_operation_with_carry,
                 mediumlevelil.MediumLevelILSub: self.lift_binary_operation,
                 mediumlevelil.MediumLevelILFsub: self.lift_binary_operation,
-                mediumlevelil.MediumLevelILSbb: self.lift_binary_operation,
+                mediumlevelil.MediumLevelILSbb: self._lift_binary_operation_with_carry,
                 mediumlevelil.MediumLevelILAnd: self.lift_binary_operation,
                 mediumlevelil.MediumLevelILOr: self.lift_binary_operation,
                 mediumlevelil.MediumLevelILXor: self.lift_binary_operation,
@@ -65,19 +65,19 @@ class BinaryOperationHandler(Handler):
             }
         )
 
-    def lift_binary_operation(self, operation: MediumLevelILInstruction) -> BinaryOperation:
+    def lift_binary_operation(self, operation: MediumLevelILInstruction, **kwargs) -> BinaryOperation:
         """Lift the given constant value."""
         return BinaryOperation(
             self.OPERATIONS[operation.operation],
-            [self._lifter.lift(x) for x in operation.operands],
-            vartype=self._lifter.lift(operation.expr_type),
+            [self._lifter.lift(x, parent=operation) for x in operation.operands],
+            vartype=self._lifter.lift(operation.expr_type, parent=operation),
         )
 
-    def _lift_binary_operation_with_carry(self, instruction: MediumLevelILInstruction, **kwargs) -> BinaryOperation:
+    def _lift_binary_operation_with_carry(self, operation: MediumLevelILInstruction, **kwargs) -> BinaryOperation:
         """Lift the adc assembler instruction as two nested BinaryOperations."""
-        operands = [self.lift(x, parent=instruction) for x in instruction.operands]
+        operands = [self._lifter.lift(x, parent=operation) for x in operation.operands]
         return BinaryOperation(
-            self.OPERATIONS[instruction.operation],
+            self.OPERATIONS[operation.operation],
             [operands[0], BinaryOperation(OperationType.plus, [operands[1], operands[2]])],
-            vartype=operands[0].type,
+            vartype=self._lifter.lift(operation.expr_type, parent=operation),
         )

@@ -39,22 +39,22 @@ class ConditionHandler(Handler):
             }
         )
 
-    def lift_condition(self, condition: mediumlevelil.MediumLevelILBinaryBase, operation: OperationType = None) -> Condition:
+    def lift_condition(self, condition: mediumlevelil.MediumLevelILBinaryBase, operation: OperationType = None, **kwargs) -> Condition:
         """Lift the given constant value."""
         assert operation is not None
-        return Condition(operation, [self._lifter.lift(condition.left), self._lifter.lift(condition.right)])
+        return Condition(operation, [self._lifter.lift(condition.left, parent=condition), self._lifter.lift(condition.right, parent=condition)])
 
-    def lift_branch(self, instruction: mediumlevelil.MediumLevelILIf) -> Branch:
+    def lift_branch(self, branch: mediumlevelil.MediumLevelILIf, **kwargs) -> Branch:
         """Lift a branch instruction.. by lifting its condition."""
-        condition = self._lifter.lift(instruction.condition)
+        condition = self._lifter.lift(branch.condition, parent=branch)
         if not isinstance(condition, Condition):
             condition = Condition(OperationType.not_equal, [condition, Constant(0, condition.type.copy())])
         return Branch(condition)
 
-    def lift_branch_indirect(self, instruction: mediumlevelil.MediumLevelILJump_to) -> IndirectBranch:
+    def lift_branch_indirect(self, branch: mediumlevelil.MediumLevelILJump_to, **kwargs) -> IndirectBranch:
         """Lift a non-trivial jump instruction."""
-        return IndirectBranch(self._lifter.lift(instruction.dest))
+        return IndirectBranch(self._lifter.lift(branch.dest, parent=branch))
 
-    def lift_return(self, instruction: mediumlevelil.MediumLevelILRet) -> Return:
+    def lift_return(self, ret_op: mediumlevelil.MediumLevelILRet, **kwargs) -> Return:
         """Lift a return instruction."""
-        return Return([self._lifter.lift(return_value) for return_value in instruction.src])
+        return Return([self._lifter.lift(return_value, parent=ret_op) for return_value in ret_op.src])

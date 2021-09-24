@@ -22,23 +22,23 @@ class TypeHandler(Handler):
             }
         )
 
-    def lift_none(self, expr):
+    def lift_none(self, expr, **kwargs):
         return CustomType("unknown", 32)
 
-    def lift_unknown(self, unknown: Type) -> CustomType:
+    def lift_unknown(self, unknown: Type, **kwargs) -> CustomType:
         return CustomType(str(unknown), unknown.width * self.BYTE_SIZE)
 
-    def lift_void(self, _) -> CustomType:
+    def lift_void(self, _, **kwargs) -> CustomType:
         return CustomType.void()
 
-    def lift_integer(self, integer: IntegerType) -> Integer:
+    def lift_integer(self, integer: IntegerType, **kwargs) -> Integer:
         return Integer(integer.width * self.BYTE_SIZE, signed=integer.signed.value)
 
-    def lift_float(self, float: FloatType) -> Float:
+    def lift_float(self, float: FloatType, **kwargs) -> Float:
         return Float(float.width * self.BYTE_SIZE)
 
-    def lift_bool(self, bool: BoolType) -> CustomType:
+    def lift_bool(self, bool: BoolType, **kwargs) -> CustomType:
         return CustomType.bool()
 
-    def lift_pointer(self, pointer: PointerType) -> Pointer:
-        return Pointer(self._lifter.lift(pointer.target), pointer.width * self.BYTE_SIZE)
+    def lift_pointer(self, pointer: PointerType, **kwargs) -> Pointer:
+        return Pointer(self._lifter.lift(pointer.target, parent=pointer), pointer.width * self.BYTE_SIZE)

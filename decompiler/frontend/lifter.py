@@ -9,7 +9,7 @@ class Lifter(ABC):
     """Represents a basic lifter emmiting decompiler IR."""
 
     @abstractmethod
-    def lift(self, expression) -> Expression:
+    def lift(self, expression, **kwargs) -> Expression:
         """Lift the given expression to pseudo IR."""
 
 
@@ -21,7 +21,7 @@ class ObserverLifter(Lifter):
 
     HANDLERS: Dict[Type[T], Callable[[T], V]] = {}
 
-    def lift(self, expression: T) -> V:
+    def lift(self, expression: T, **kwargs) -> V:
         handler = self.HANDLERS.get(type(expression), self.lift_unknown)
         return handler(expression)
 

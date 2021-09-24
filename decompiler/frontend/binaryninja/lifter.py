@@ -17,15 +17,15 @@ class BinaryninjaLifter(ObserverLifter):
         for handler in HANDLERS:
             handler(self).register()
 
-    def lift(self, expression: MediumLevelILInstruction) -> Optional[DataflowObject]:
+    def lift(self, expression: MediumLevelILInstruction, **kwargs) -> Optional[DataflowObject]:
         """Lift the given Binaryninja instruction to an expression."""
         handler = self.HANDLERS.get(type(expression), self.lift_unknown)
-        if pseudo_expression := handler(expression):
+        if pseudo_expression := handler(expression, **kwargs):
             if isinstance(expression, MediumLevelILInstruction):
                 pseudo_expression.tags = self.lift_tags(expression)
             return pseudo_expression
 
-    def lift_unknown(self, expression: MediumLevelILInstruction) -> UnknownExpression:
+    def lift_unknown(self, expression: MediumLevelILInstruction, **kwargs) -> UnknownExpression:
         with open("log.txt", "a") as log:
             log.write(f"Can not lift {expression} ({type(expression)}\n")
         warning(f"Can not lift {expression} ({type(expression)}")
