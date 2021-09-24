@@ -13,8 +13,8 @@ class Lifter(ABC):
         """Lift the given expression to pseudo IR."""
 
 
-T = TypeVar('T')
-V = TypeVar('V')
+T = TypeVar("T")
+V = TypeVar("V")
 
 
 class ObserverLifter(Lifter):

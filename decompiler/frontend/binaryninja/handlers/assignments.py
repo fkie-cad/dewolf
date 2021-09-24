@@ -11,20 +11,22 @@ class AssignmentHandler(Handler):
 
     def register(self):
         """Register the handler with the parent ObserverLifter."""
-        self._lifter.HANDLERS.update({
-            mediumlevelil.MediumLevelILSet_var: self.lift_assignment,
-            mediumlevelil.MediumLevelILSet_var_ssa: self.lift_assignment,
-            mediumlevelil.MediumLevelILSet_var_field: self.lift_set_field,
-            mediumlevelil.MediumLevelILSet_var_ssa_field: self.lift_set_field,
-            mediumlevelil.MediumLevelILSet_var_split: self.lift_split_assignment,
-            mediumlevelil.MediumLevelILSet_var_split_ssa: self.lift_split_assignment,
-            mediumlevelil.MediumLevelILSet_var_aliased: partial(self.lift_assignment, is_aliased=True),
-            mediumlevelil.MediumLevelILSet_var_aliased_field: partial(self.lift_set_field, is_aliased=True),
-            mediumlevelil.MediumLevelILVar_field: self.lift_get_field,
-            mediumlevelil.MediumLevelILVar_ssa_field: self.lift_get_field,
-            mediumlevelil.MediumLevelILVar_aliased_field: partial(self.lift_get_field, is_aliased=True),
-            mediumlevelil.MediumLevelILStore_ssa: self.lift_store,
-        })
+        self._lifter.HANDLERS.update(
+            {
+                mediumlevelil.MediumLevelILSet_var: self.lift_assignment,
+                mediumlevelil.MediumLevelILSet_var_ssa: self.lift_assignment,
+                mediumlevelil.MediumLevelILSet_var_field: self.lift_set_field,
+                mediumlevelil.MediumLevelILSet_var_ssa_field: self.lift_set_field,
+                mediumlevelil.MediumLevelILSet_var_split: self.lift_split_assignment,
+                mediumlevelil.MediumLevelILSet_var_split_ssa: self.lift_split_assignment,
+                mediumlevelil.MediumLevelILSet_var_aliased: partial(self.lift_assignment, is_aliased=True),
+                mediumlevelil.MediumLevelILSet_var_aliased_field: partial(self.lift_set_field, is_aliased=True),
+                mediumlevelil.MediumLevelILVar_field: self.lift_get_field,
+                mediumlevelil.MediumLevelILVar_ssa_field: self.lift_get_field,
+                mediumlevelil.MediumLevelILVar_aliased_field: partial(self.lift_get_field, is_aliased=True),
+                mediumlevelil.MediumLevelILStore_ssa: self.lift_store,
+            }
+        )
 
     def lift_assignment(self, assignment: SetVar, is_aliased=False) -> Assignment:
         """Lift assignment operations (e.g. eax = ebx)."""
@@ -41,8 +43,10 @@ class AssignmentHandler(Handler):
         e.g. eax.ah = x <=> eax = (eax & 0xffff00ff) + (x << 2)
         """
         return Assignment(
-            self._lifter.lift_variable_ssa(assignment.dest, is_aliased=is_aliased) if not assignment.offset else self._lift_contraction(assignment, is_aliased=is_aliased),
-            self._lifter.lift(assignment.src) if assignment.offset else self._lift_masked_asignment(assignment)
+            self._lifter.lift_variable_ssa(assignment.dest, is_aliased=is_aliased)
+            if not assignment.offset
+            else self._lift_contraction(assignment, is_aliased=is_aliased),
+            self._lifter.lift(assignment.src) if assignment.offset else self._lift_masked_asignment(assignment),
         )
 
     def lift_get_field(self, instruction: mediumlevelil.MediumLevelILVar_field, is_aliased=False) -> Operation:
@@ -54,29 +58,18 @@ class AssignmentHandler(Handler):
         cast_type = source.type.resize(instruction.size * self.BYTE_SIZE)
         if instruction.offset:
             return BinaryOperation(
-            OperationType.bitwise_and,
-            [
-                source,
-                Constant(self._get_all_ones_mask_for_type(instruction.size) << instruction.offset)
-            ],
-            vartype=cast_type,
-        )
-        return UnaryOperation(
-            OperationType.cast,
-            [source],
-            vartype=cast_type,
-            contraction=True
-        )
+                OperationType.bitwise_and,
+                [source, Constant(self._get_all_ones_mask_for_type(instruction.size) << instruction.offset)],
+                vartype=cast_type,
+            )
+        return UnaryOperation(OperationType.cast, [source], vartype=cast_type, contraction=True)
 
     def lift_store(self, assignment: mediumlevelil.MediumLevelILStore_ssa) -> Assignment:
         return Assignment(
             UnaryOperation(
-                OperationType.dereference,
-                [op := self._lifter.lift(assignment.dest)],
-                vartype=op.type,
-                writes_memory=assignment.dest_memory
+                OperationType.dereference, [op := self._lifter.lift(assignment.dest)], vartype=op.type, writes_memory=assignment.dest_memory
             ),
-            self._lifter.lift(assignment.src)
+            self._lifter.lift(assignment.src),
         )
 
     def _lift_contraction(self, assignment: SetVar, is_aliased=False) -> UnaryOperation:
@@ -103,21 +96,19 @@ class AssignmentHandler(Handler):
                         self._lifter.lift(assignment.prev),
                         Constant(
                             self._get_all_ones_mask_for_type(assignment.dest.var.type.width)
-                            - self._get_all_ones_mask_for_type(assignment.size) << (assignment.offset * self.BYTE_SIZE)
-                        )
+                            - self._get_all_ones_mask_for_type(assignment.size)
+                            << (assignment.offset * self.BYTE_SIZE)
+                        ),
                     ],
-                    vartype=self._lifter.lift(assignment.src.type)
+                    vartype=self._lifter.lift(assignment.src.type),
                 ),
                 BinaryOperation(
                     OperationType.left_shift,
-                    [
-                        self._lifter.lift(assignment.src),
-                        Constant(assignment.offset * self.BYTE_SIZE)
-                    ],
-                    vartype=self._lifter.lift(assignment.src.type)
-                )
+                    [self._lifter.lift(assignment.src), Constant(assignment.offset * self.BYTE_SIZE)],
+                    vartype=self._lifter.lift(assignment.src.type),
+                ),
             ],
-            vartype=self._lifter.lift(assignment.dest.type)
+            vartype=self._lifter.lift(assignment.dest.type),
         )
 
     def _lift_mask_high(self, instruction: mediumlevelil.MediumLevelILInstruction, **kwargs) -> BinaryOperation:

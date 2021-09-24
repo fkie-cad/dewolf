@@ -1,5 +1,7 @@
 """Module implementing the ConditionHandler class."""
-from binaryninja import mediumlevelil, MediumLevelILOperation
+from functools import partial
+
+from binaryninja import mediumlevelil
 
 from dewolf.frontend.lifter import Handler
 from dewolf.structures.pseudo import OperationType, Condition, Branch, Return, IndirectBranch, Constant
@@ -8,61 +10,39 @@ from dewolf.structures.pseudo import OperationType, Condition, Branch, Return, I
 class ConditionHandler(Handler):
     """Handler for mlil conditions and branches,"""
 
-    # Dict mapping mlil instruction to pseudo OperationTypes
-    CONDITIONS = {
-        MediumLevelILOperation.MLIL_CMP_E: OperationType.equal,
-        MediumLevelILOperation.MLIL_CMP_NE: OperationType.not_equal,
-        MediumLevelILOperation.MLIL_CMP_SLT: OperationType.less,
-        MediumLevelILOperation.MLIL_CMP_ULT: OperationType.less_us,
-        MediumLevelILOperation.MLIL_CMP_SLE: OperationType.less_or_equal,
-        MediumLevelILOperation.MLIL_CMP_ULE: OperationType.less_or_equal_us,
-        MediumLevelILOperation.MLIL_CMP_SGE: OperationType.greater_or_equal,
-        MediumLevelILOperation.MLIL_CMP_UGE: OperationType.greater_or_equal_us,
-        MediumLevelILOperation.MLIL_CMP_SGT: OperationType.greater,
-        MediumLevelILOperation.MLIL_CMP_UGT: OperationType.greater_us,
-        MediumLevelILOperation.MLIL_FCMP_E: OperationType.equal,
-        MediumLevelILOperation.MLIL_FCMP_NE: OperationType.not_equal,
-        MediumLevelILOperation.MLIL_FCMP_GE: OperationType.greater_or_equal,
-        MediumLevelILOperation.MLIL_FCMP_GT: OperationType.greater,
-        MediumLevelILOperation.MLIL_FCMP_LE: OperationType.less_or_equal,
-        MediumLevelILOperation.MLIL_FCMP_LT: OperationType.less,
-        MediumLevelILOperation.MLIL_FCMP_O: OperationType.power,
-        MediumLevelILOperation.MLIL_FCMP_UO: OperationType.power,
-    }
-
     def register(self):
-        self._lifter.HANDLERS.update({
-            mediumlevelil.MediumLevelILCmp_e: self.lift_condition,
-            mediumlevelil.MediumLevelILCmp_ne: self.lift_condition,
-            mediumlevelil.MediumLevelILCmp_sge: self.lift_condition,
-            mediumlevelil.MediumLevelILCmp_sgt: self.lift_condition,
-            mediumlevelil.MediumLevelILCmp_sle: self.lift_condition,
-            mediumlevelil.MediumLevelILCmp_slt: self.lift_condition,
-            mediumlevelil.MediumLevelILCmp_uge: self.lift_condition,
-            mediumlevelil.MediumLevelILCmp_ugt: self.lift_condition,
-            mediumlevelil.MediumLevelILCmp_ule: self.lift_condition,
-            mediumlevelil.MediumLevelILCmp_ult: self.lift_condition,
-            mediumlevelil.MediumLevelILFcmp_e: self.lift_condition,
-            mediumlevelil.MediumLevelILFcmp_ne: self.lift_condition,
-            mediumlevelil.MediumLevelILFcmp_ge: self.lift_condition,
-            mediumlevelil.MediumLevelILFcmp_gt: self.lift_condition,
-            mediumlevelil.MediumLevelILFcmp_le: self.lift_condition,
-            mediumlevelil.MediumLevelILFcmp_lt: self.lift_condition,
-            mediumlevelil.MediumLevelILFcmp_o: self.lift_condition,
-            mediumlevelil.MediumLevelILFcmp_uo: self.lift_condition,
-            mediumlevelil.MediumLevelILRet: self.lift_return,
-            mediumlevelil.MediumLevelILIf: self.lift_branch,
-            mediumlevelil.MediumLevelILJump_to: self.lift_branch_indirect,
-            mediumlevelil.MediumLevelILGoto: lambda x: None,
-            mediumlevelil.MediumLevelILNoret: lambda x: None,
-        })
-
-    def lift_condition(self, condition: mediumlevelil.MediumLevelILBinaryBase) -> Condition:
-        """Lift the given constant value."""
-        return Condition(
-            self.CONDITIONS[condition.operation],
-            [self._lifter.lift(condition.left), self._lifter.lift(condition.right)],
+        self._lifter.HANDLERS.update(
+            {
+                mediumlevelil.MediumLevelILCmp_e: partial(self.lift_condition, operation=OperationType.equal),
+                mediumlevelil.MediumLevelILCmp_ne: partial(self.lift_condition, operation=OperationType.not_equal),
+                mediumlevelil.MediumLevelILCmp_sge: partial(self.lift_condition, operation=OperationType.greater_or_equal),
+                mediumlevelil.MediumLevelILCmp_sgt: partial(self.lift_condition, operation=OperationType.greater),
+                mediumlevelil.MediumLevelILCmp_sle: partial(self.lift_condition, operation=OperationType.less_or_equal),
+                mediumlevelil.MediumLevelILCmp_slt: partial(self.lift_condition, operation=OperationType.less),
+                mediumlevelil.MediumLevelILCmp_uge: partial(self.lift_condition, operation=OperationType.greater_or_equal_us),
+                mediumlevelil.MediumLevelILCmp_ugt: partial(self.lift_condition, operation=OperationType.greater_us),
+                mediumlevelil.MediumLevelILCmp_ule: partial(self.lift_condition, operation=OperationType.less_or_equal_us),
+                mediumlevelil.MediumLevelILCmp_ult: partial(self.lift_condition, operation=OperationType.less_us),
+                mediumlevelil.MediumLevelILFcmp_e: partial(self.lift_condition, operation=OperationType.equal),
+                mediumlevelil.MediumLevelILFcmp_ne: partial(self.lift_condition, operation=OperationType.not_equal),
+                mediumlevelil.MediumLevelILFcmp_ge: partial(self.lift_condition, operation=OperationType.greater_or_equal),
+                mediumlevelil.MediumLevelILFcmp_gt: partial(self.lift_condition, operation=OperationType.greater),
+                mediumlevelil.MediumLevelILFcmp_le: partial(self.lift_condition, operation=OperationType.less_or_equal),
+                mediumlevelil.MediumLevelILFcmp_lt: partial(self.lift_condition, operation=OperationType.less),
+                mediumlevelil.MediumLevelILFcmp_o: partial(self.lift_condition, operation=OperationType.equal),
+                mediumlevelil.MediumLevelILFcmp_uo: partial(self.lift_condition, operation=OperationType.equal),
+                mediumlevelil.MediumLevelILRet: self.lift_return,
+                mediumlevelil.MediumLevelILIf: self.lift_branch,
+                mediumlevelil.MediumLevelILJump_to: self.lift_branch_indirect,
+                mediumlevelil.MediumLevelILGoto: lambda x: None,
+                mediumlevelil.MediumLevelILNoret: lambda x: None,
+            }
         )
+
+    def lift_condition(self, condition: mediumlevelil.MediumLevelILBinaryBase, operation: OperationType = None) -> Condition:
+        """Lift the given constant value."""
+        assert operation is not None
+        return Condition(operation, [self._lifter.lift(condition.left), self._lifter.lift(condition.right)])
 
     def lift_branch(self, instruction: mediumlevelil.MediumLevelILIf) -> Branch:
         """Lift a branch instruction.. by lifting its condition."""

@@ -1,26 +1,38 @@
+"""Module implementing the ConstantHandler for the binaryninja frontend."""
 from typing import Optional, Union
 
 from binaryninja import mediumlevelil, BinaryView, Symbol as bSymbol, SymbolType, DataVariable, Endianness
 
 from dewolf.frontend.lifter import Handler
-from dewolf.structures.pseudo import Constant, Pointer, Integer, FunctionSymbol, ImportedFunctionSymbol, Symbol, UnaryOperation, GlobalVariable, OperationType, CustomType
+from dewolf.structures.pseudo import (
+    Constant,
+    Pointer,
+    Integer,
+    FunctionSymbol,
+    ImportedFunctionSymbol,
+    Symbol,
+    UnaryOperation,
+    GlobalVariable,
+    OperationType,
+    CustomType,
+)
 
 
 class ConstantHandler(Handler):
 
-    Endian = {
-        Endianness.LittleEndian: "little",
-        Endianness.BigEndian: "big"
-    }
+    # Dict translating endianness between the binaryninja enum and pythons literals
+    Endian = {Endianness.LittleEndian: "little", Endianness.BigEndian: "big"}
 
     def register(self):
-        self._lifter.HANDLERS.update({
-            mediumlevelil.MediumLevelILConst: self.lift_constant,
-            mediumlevelil.MediumLevelILExtern_ptr: self.lift_pointer,
-            mediumlevelil.MediumLevelILConst_ptr: self.lift_pointer,
-            mediumlevelil.MediumLevelILImport: self.lift_symbol,
-            int: self.lift_literal
-        })
+        self._lifter.HANDLERS.update(
+            {
+                mediumlevelil.MediumLevelILConst: self.lift_constant,
+                mediumlevelil.MediumLevelILExtern_ptr: self.lift_pointer,
+                mediumlevelil.MediumLevelILConst_ptr: self.lift_pointer,
+                mediumlevelil.MediumLevelILImport: self.lift_symbol,
+                int: self.lift_literal,
+            }
+        )
 
     def lift_constant(self, constant: mediumlevelil.MediumLevelILConst) -> Constant:
         """Lift the given constant value."""
@@ -32,10 +44,11 @@ class ConstantHandler(Handler):
         return ImportedFunctionSymbol(
             symbol.name.split("@")[0] if symbol.type == SymbolType.ImportAddressSymbol else symbol.name,
             import_constant.constant,
-            Pointer(Integer.char())
+            Pointer(Integer.char()),
         )
 
     def lift_pointer(self, constant: mediumlevelil.MediumLevelILConst_ptr) -> Constant:
+        """Helper method translating a pointer to address and binary view."""
         return self._lift_bn_pointer(constant.constant, constant.function.source_function.view)
 
     def lift_literal(self, value: int) -> Constant:

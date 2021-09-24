@@ -1,9 +1,10 @@
 """Module implementing the binaryninja CallHandler."""
 from typing import List
+from functools import partial
 from binaryninja import mediumlevelil, MediumLevelILInstruction
 
 from dewolf.frontend.lifter import Handler
-from dewolf.structures.pseudo import Call, Assignment, ListOperation, ImportedFunctionSymbol
+from dewolf.structures.pseudo import Call, Assignment, ListOperation, ImportedFunctionSymbol, IntrinsicSymbol
 
 
 class CallHandler(Handler):
@@ -11,81 +12,60 @@ class CallHandler(Handler):
 
     def register(self):
         """Register the handler in its parent lifter."""
-        self._lifter.HANDLERS.update({
-            mediumlevelil.MediumLevelILCall: self.lift_call,
-            mediumlevelil.MediumLevelILCall_ssa: self.lift_call_ssa,
-            mediumlevelil.MediumLevelILCall_untyped: self.lift_call,
-            mediumlevelil.MediumLevelILCall_untyped_ssa: self.lift_call_ssa,
-            mediumlevelil.MediumLevelILSyscall: self.lift_syscall,
-            mediumlevelil.MediumLevelILSyscall_ssa: self.lift_syscall_ssa,
-            mediumlevelil.MediumLevelILSyscall_untyped: self.lift_syscall,
-            mediumlevelil.MediumLevelILSyscall_untyped_ssa: self.lift_call_ssa,
-            mediumlevelil.MediumLevelILTailcall: self.lift_call,
-            mediumlevelil.MediumLevelILTailcall_ssa: self.lift_call_ssa,
-            mediumlevelil.MediumLevelILTailcall_untyped: self.lift_call,
-            mediumlevelil.MediumLevelILTailcall_untyped_ssa: self.lift_call_ssa,
-            mediumlevelil.MediumLevelILIntrinsic: self.lift_intrinsic,
-            mediumlevelil.MediumLevelILIntrinsic_ssa: self.lift_intrinsic,
-        })
+        self._lifter.HANDLERS.update(
+            {
+                mediumlevelil.MediumLevelILCall: self.lift_call,
+                mediumlevelil.MediumLevelILCall_ssa: partial(self.lift_call, ssa=True),
+                mediumlevelil.MediumLevelILCall_untyped: self.lift_call,
+                mediumlevelil.MediumLevelILCall_untyped_ssa: partial(self.lift_call, ssa=True),
+                mediumlevelil.MediumLevelILSyscall: self.lift_syscall,
+                mediumlevelil.MediumLevelILSyscall_ssa: partial(self.lift_syscall, ssa=True),
+                mediumlevelil.MediumLevelILSyscall_untyped: self.lift_syscall,
+                mediumlevelil.MediumLevelILSyscall_untyped_ssa: partial(self.lift_syscall, ssa=True),
+                mediumlevelil.MediumLevelILTailcall: self.lift_call,
+                mediumlevelil.MediumLevelILTailcall_ssa: partial(self.lift_call, ssa=True),
+                mediumlevelil.MediumLevelILTailcall_untyped: self.lift_call,
+                mediumlevelil.MediumLevelILTailcall_untyped_ssa: partial(self.lift_call, ssa=True),
+                mediumlevelil.MediumLevelILIntrinsic: self.lift_intrinsic,
+                mediumlevelil.MediumLevelILIntrinsic_ssa: partial(self.lift_intrinsic, ssa=True),
+            }
+        )
 
-    def lift_call(self, call: MediumLevelILInstruction) -> Assignment:
-        """Lift non-ssa mlil call instructions."""
+    def lift_call(self, call: mediumlevelil.MediumLevelILCall, ssa: bool = False) -> Assignment:
+        """Lift mlil call instructions, remembering the new memory version."""
         return Assignment(
             ListOperation([self._lifter.lift(output) for output in call.output]),
             Call(
                 dest := self._lifter.lift(call.dest),
                 [self._lifter.lift(parameter) for parameter in call.params],
                 vartype=dest.type,
+                writes_memory=call.output_dest_memory if ssa else None,
                 meta_data={"param_names": self._lift_call_parameter_names(call)},
-            )
+            ),
         )
 
-    def lift_call_ssa(self, call: MediumLevelILInstruction) -> Assignment:
-        """Lift ssa mlil call instructions, remembering the new memory version."""
+    def lift_syscall(self, call: mediumlevelil.MediumLevelILSyscall, ssa: bool = False) -> Assignment:
+        """Lift a syscall instructions invoking system level functionality."""
         return Assignment(
             ListOperation([self._lifter.lift(output) for output in call.output]),
             Call(
-                dest := self._lifter.lift(call.dest),
+                dest := ImportedFunctionSymbol("Syscall", value=-1),
                 [self._lifter.lift(parameter) for parameter in call.params],
                 vartype=dest.type,
-                writes_memory=call.output_dest_memory,
+                writes_memory=call.output_dest_memory if ssa else None,
                 meta_data={"param_names": self._lift_call_parameter_names(call)},
-            )
+            ),
         )
 
-    def lift_syscall(self, call: MediumLevelILInstruction) -> Assignment:
-        """Lift non-ssa syscall instructions invoking system level functionality."""
-        return Assignment(
-            ListOperation([self._lifter.lift(output) for output in call.output]),
-            Call(
-                dest := ImportedFunctionSymbol('Syscall', value=-1),
-                [self._lifter.lift(parameter) for parameter in call.params],
-                vartype=dest.type,
-                meta_data={"param_names": self._lift_call_parameter_names(call)},
-            )
-        )
-
-    def lift_syscall_ssa(self, call: MediumLevelILInstruction) -> Assignment:
-        """Lift ssa mlil syscall instructions, remembering the new memory version."""
-        return Assignment(
-            ListOperation([self._lifter.lift(output) for output in call.output]),
-            Call(
-                dest := ImportedFunctionSymbol('Syscall', value=-1),
-                [self._lifter.lift(parameter) for parameter in call.params],
-                vartype=dest.type,
-                writes_memory=call.output_dest_memory,
-                meta_data={"param_names": self._lift_call_parameter_names(call)},
-            )
-        )
-
-    def lift_intrinsic(self, call: MediumLevelILInstruction) -> Assignment:
+    def lift_intrinsic(self, call: mediumlevelil.MediumLevelILIntrinsic, ssa: bool = False) -> Assignment:
         """Lift operations not supported by mlil and modeled as intrinsic operations."""
         return Assignment(
             ListOperation([self._lifter.lift(value) for value in call.output]),
             Call(
-                ImportedFunctionSymbol(str(call.intrinsic), value=-1),
-                [self._lifter.lift(param) for param in call.params]
-            )
+                IntrinsicSymbol(str(call.intrinsic)),
+                [self._lifter.lift(param) for param in call.params],
+                writes_memory=call.output_dest_memory if ssa else None,
+            ),
         )
 
     @staticmethod

@@ -5,12 +5,13 @@ from dewolf.structures.pseudo import Variable, Phi, MemPhi
 
 
 class PhiHandler(Handler):
-
     def register(self):
-        self._lifter.HANDLERS.update({
-            MediumLevelILVar_phi: self.lift_phi,
-            MediumLevelILMem_phi: self.lift_mem_phi,
-        })
+        self._lifter.HANDLERS.update(
+            {
+                MediumLevelILVar_phi: self.lift_phi,
+                MediumLevelILMem_phi: self.lift_mem_phi,
+            }
+        )
 
     def lift_phi(self, phi: MediumLevelILVar_phi) -> Phi:
         """Lift a phi instruction, lifting all subexpressions."""

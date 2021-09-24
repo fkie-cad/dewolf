@@ -7,22 +7,23 @@ from dewolf.structures.pseudo import Pointer, Integer, CustomType, Float
 
 
 class TypeHandler(Handler):
-
     def register(self):
-        self._lifter.HANDLERS.update({
-            IntegerType: self.lift_integer,
-            FloatType: self.lift_float,
-            ArrayType: self.lift_pointer,
-            PointerType: self.lift_pointer,
-            BoolType: self.lift_bool,
-            VoidType: self.lift_void,
-            CharType: self.lift_integer,
-            NamedTypeReferenceType: self.lift_unknown,
-            type(None): self.lift_none,
-        })
+        self._lifter.HANDLERS.update(
+            {
+                IntegerType: self.lift_integer,
+                FloatType: self.lift_float,
+                ArrayType: self.lift_pointer,
+                PointerType: self.lift_pointer,
+                BoolType: self.lift_bool,
+                VoidType: self.lift_void,
+                CharType: self.lift_integer,
+                NamedTypeReferenceType: self.lift_unknown,
+                type(None): self.lift_none,
+            }
+        )
 
     def lift_none(self, expr):
-        return CustomType('unknown', 32)
+        return CustomType("unknown", 32)
 
     def lift_unknown(self, unknown: Type) -> CustomType:
         return CustomType(str(unknown), unknown.width * self.BYTE_SIZE)
@@ -41,4 +42,3 @@ class TypeHandler(Handler):
 
     def lift_pointer(self, pointer: PointerType) -> Pointer:
         return Pointer(self._lifter.lift(pointer.target), pointer.width * self.BYTE_SIZE)
-

@@ -10,4 +10,14 @@ from .assignments import AssignmentHandler
 from .phi import PhiHandler
 
 # List of all available binaryninja handlers
-HANDLERS = [VariableHandler, ConstantHandler, TypeHandler, BinaryOperationHandler, UnaryOperationHandler, ConditionHandler, AssignmentHandler, PhiHandler, CallHandler]
+HANDLERS = [
+    VariableHandler,
+    ConstantHandler,
+    TypeHandler,
+    BinaryOperationHandler,
+    UnaryOperationHandler,
+    ConditionHandler,
+    AssignmentHandler,
+    PhiHandler,
+    CallHandler,
+]

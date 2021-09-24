@@ -26,7 +26,7 @@ class BinaryninjaLifter(ObserverLifter):
             return pseudo_expression
 
     def lift_unknown(self, expression: MediumLevelILInstruction) -> UnknownExpression:
-        with open('log.txt', 'a') as log:
+        with open("log.txt", "a") as log:
             log.write(f"Can not lift {expression} ({type(expression)}\n")
         warning(f"Can not lift {expression} ({type(expression)}")
         return UnknownExpression(str(expression))
