@@ -136,7 +136,7 @@ class AssignmentHandler(Handler):
             RegisterPair(
                 high := self._lifter.lift(assignment.high, parent=assignment),
                 low := self._lifter.lift(assignment.low, parent=assignment),
-                vartype=high.type.resize((high.type.size + low.type.size) * self.BYTE_SIZE),
+                vartype=high.type.resize((high.type.size + low.type.size)),
             ),
             self._lifter.lift(assignment.src, parent=assignment),
         )

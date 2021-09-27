@@ -64,5 +64,5 @@ class VariableHandler(Handler):
         return RegisterPair(
             high := self._lifter.lift(pair.high, parent=pair),
             low := self._lifter.lift(pair.low, parent=pair),
-            vartype=high.type.resize((high.type.size + low.type.size) * self.BYTE_SIZE),
+            vartype=high.type.resize((high.type.size + low.type.size)),
         )
