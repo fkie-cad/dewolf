@@ -1,9 +1,9 @@
 """Module implementing the AssignmentHandler for binaryninja."""
-from binaryninja import mediumlevelil, SetVar
 from functools import partial
 
+from binaryninja import SetVar, mediumlevelil
 from dewolf.frontend.lifter import Handler
-from dewolf.structures.pseudo import Constant, Assignment, RegisterPair, BinaryOperation, OperationType, UnaryOperation, Operation
+from dewolf.structures.pseudo import Assignment, BinaryOperation, Constant, Operation, OperationType, RegisterPair, UnaryOperation
 
 
 class AssignmentHandler(Handler):
@@ -68,7 +68,10 @@ class AssignmentHandler(Handler):
     def lift_store(self, assignment: mediumlevelil.MediumLevelILStore_ssa, **kwargs) -> Assignment:
         return Assignment(
             UnaryOperation(
-                OperationType.dereference, [op := self._lifter.lift(assignment.dest, parent=assignment)], vartype=op.type, writes_memory=assignment.dest_memory
+                OperationType.dereference,
+                [op := self._lifter.lift(assignment.dest, parent=assignment)],
+                vartype=op.type,
+                writes_memory=assignment.dest_memory,
             ),
             self._lifter.lift(assignment.src),
         )

@@ -1,12 +1,12 @@
 """Module implementing the BinaryNinjaLifter of the binaryninja frontend."""
-from typing import Optional, Tuple
 from logging import warning
+from typing import Optional, Tuple
 
 from binaryninja import MediumLevelILInstruction
+from dewolf.frontend.lifter import ObserverLifter
+from dewolf.structures.pseudo import DataflowObject, Tag, UnknownExpression
 
 from .handlers import HANDLERS
-from dewolf.structures.pseudo import UnknownExpression, DataflowObject, Tag
-from dewolf.frontend.lifter import ObserverLifter
 
 
 class BinaryninjaLifter(ObserverLifter):
@@ -26,8 +26,6 @@ class BinaryninjaLifter(ObserverLifter):
             return pseudo_expression
 
     def lift_unknown(self, expression: MediumLevelILInstruction, **kwargs) -> UnknownExpression:
-        with open("log.txt", "a") as log:
-            log.write(f"Can not lift {expression} ({type(expression)}\n")
         warning(f"Can not lift {expression} ({type(expression)}")
         return UnknownExpression(str(expression))
 

@@ -1,15 +1,14 @@
 """Module implementing the UnaryOperationHandler."""
 from functools import partial
 
-from binaryninja import mediumlevelil, MediumLevelILOperation, MediumLevelILInstruction
-
+from binaryninja import MediumLevelILInstruction, MediumLevelILOperation, mediumlevelil
 from dewolf.frontend.lifter import Handler
-from dewolf.structures.pseudo import OperationType, UnaryOperation, Operation, BinaryOperation, Constant
+from dewolf.structures.pseudo import BinaryOperation, Constant, Operation, OperationType, UnaryOperation
 
 
 class UnaryOperationHandler(Handler):
-
     def register(self):
+        """Register the handling functions at the parent observer."""
         self._lifter.HANDLERS.update(
             {
                 mediumlevelil.MediumLevelILNeg: partial(self.lift_unary_operation, OperationType.negate),
@@ -39,12 +38,14 @@ class UnaryOperationHandler(Handler):
         return UnaryOperation(OperationType.cast, [self._lifter.lift(cast.src, parent=cast)], vartype=self._lifter.lift(cast.expr_type))
 
     def lift_address_of_field(self, operation: mediumlevelil.MediumLevelILAddress_of_field, **kwargs) -> Operation:
+        """Lift the address of field operation e.g. &(eax_#1:1)."""
         if operation.offset == 0:
             return self.lift_unary_operation(OperationType.address, operation)
-        return BinaryOperation(OperationType.plus,
+        return BinaryOperation(
+            OperationType.plus,
             [
                 UnaryOperation(OperationType.address, [operand := self._lifter.lift(operation.src, parent=operation)]),
-                Constant(1, vartype=operand.type.copy())
+                Constant(1, vartype=operand.type.copy()),
             ],
-            vartype=self._lifter.lift(operation.expr_type)
+            vartype=self._lifter.lift(operation.expr_type),
         )

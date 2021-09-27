@@ -1,9 +1,8 @@
 from typing import Callable, Dict
 
-from binaryninja.types import Type, IntegerType, FloatType, ArrayType, BoolType, VoidType, CharType, PointerType, NamedTypeReferenceType
-
+from binaryninja.types import ArrayType, BoolType, CharType, FloatType, IntegerType, NamedTypeReferenceType, PointerType, Type, VoidType
 from dewolf.frontend.lifter import Handler
-from dewolf.structures.pseudo import Pointer, Integer, CustomType, Float
+from dewolf.structures.pseudo import CustomType, Float, Integer, Pointer
 
 
 class TypeHandler(Handler):
@@ -12,7 +11,7 @@ class TypeHandler(Handler):
             {
                 IntegerType: self.lift_integer,
                 FloatType: self.lift_float,
-                ArrayType: self.lift_pointer,
+                ArrayType: self.lift_array,
                 PointerType: self.lift_pointer,
                 BoolType: self.lift_bool,
                 VoidType: self.lift_void,
@@ -42,3 +41,6 @@ class TypeHandler(Handler):
 
     def lift_pointer(self, pointer: PointerType, **kwargs) -> Pointer:
         return Pointer(self._lifter.lift(pointer.target, parent=pointer), pointer.width * self.BYTE_SIZE)
+
+    def lift_array(self, array: ArrayType, **kwargs) -> Pointer:
+        return Pointer(self._lifter.lift(array.element_type))

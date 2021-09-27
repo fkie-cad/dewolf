@@ -1,20 +1,21 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
 from typing import Optional, Union
 
-from binaryninja import mediumlevelil, BinaryView, Symbol as bSymbol, SymbolType, DataVariable, Endianness
-
+from binaryninja import BinaryView, DataVariable, Endianness
+from binaryninja import Symbol as bSymbol
+from binaryninja import SymbolType, mediumlevelil
 from dewolf.frontend.lifter import Handler
 from dewolf.structures.pseudo import (
     Constant,
-    Pointer,
-    Integer,
+    CustomType,
     FunctionSymbol,
+    GlobalVariable,
     ImportedFunctionSymbol,
+    Integer,
+    OperationType,
+    Pointer,
     Symbol,
     UnaryOperation,
-    GlobalVariable,
-    OperationType,
-    CustomType,
 )
 
 
@@ -24,6 +25,7 @@ class ConstantHandler(Handler):
     Endian = {Endianness.LittleEndian: "little", Endianness.BigEndian: "big"}
 
     def register(self):
+        """Register the handler at its parent lifter."""
         self._lifter.HANDLERS.update(
             {
                 mediumlevelil.MediumLevelILConst: self.lift_constant,
@@ -53,9 +55,11 @@ class ConstantHandler(Handler):
         return self._lift_bn_pointer(constant.constant, constant.function.source_function.view)
 
     def lift_literal(self, value: int, **kwargs) -> Constant:
+        """Lift the given literal, which is most likely an artefact from shift operations and the like."""
         return Constant(value, vartype=Integer.int32_t())
 
     def _lift_bn_pointer(self, address: int, bv: BinaryView):
+        """Lift the given binaryninja pointer object to a pseudo pointer."""
         if symbol := self._get_symbol(bv, address):
             if symbol_pointer := self._lift_symbol_pointer(address, symbol):
                 return symbol_pointer
@@ -67,6 +71,7 @@ class ConstantHandler(Handler):
         return Constant(address, vartype=Pointer(CustomType.void()))
 
     def _lift_symbol_pointer(self, address: int, symbol: bSymbol) -> Optional[Symbol]:
+        """Try to lift a pointer at the given address with a Symbol as a symbol pointer."""
         if symbol.type == SymbolType.FunctionSymbol:
             return FunctionSymbol(symbol.name, address, vartype=Pointer(Integer.char()))
         if symbol.type in (SymbolType.ImportedFunctionSymbol, SymbolType.ImportAddressSymbol, SymbolType.ExternalSymbol):
@@ -99,6 +104,7 @@ class ConstantHandler(Handler):
 
     @staticmethod
     def _get_symbol(bv: BinaryView, address: int) -> Optional[bSymbol]:
+        """Retrieve the symbol at the given location, if any."""
         if symbol := bv.get_symbol_at(address):
             return symbol
         elif function := bv.get_function_at(address):

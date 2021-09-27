@@ -1,6 +1,6 @@
 """Interface for frontend lifters."""
 from abc import ABC, abstractmethod
-from typing import Type, TypeVar, Callable, Dict
+from typing import Callable, Dict, Type, TypeVar
 
 from decompiler.structures.pseudo import Expression
 

@@ -2,15 +2,15 @@
 from functools import partial
 
 from binaryninja import mediumlevelil
-
 from dewolf.frontend.lifter import Handler
-from dewolf.structures.pseudo import OperationType, Condition, Branch, Return, IndirectBranch, Constant
+from dewolf.structures.pseudo import Branch, Condition, Constant, IndirectBranch, OperationType, Return
 
 
 class ConditionHandler(Handler):
     """Handler for mlil conditions and branches,"""
 
     def register(self):
+        """Register the handler functions at the parent lifter."""
         self._lifter.HANDLERS.update(
             {
                 mediumlevelil.MediumLevelILCmp_e: partial(self.lift_condition, operation=OperationType.equal),
@@ -40,12 +40,13 @@ class ConditionHandler(Handler):
         )
 
     def lift_condition(self, condition: mediumlevelil.MediumLevelILBinaryBase, operation: OperationType = None, **kwargs) -> Condition:
-        """Lift the given constant value."""
-        assert operation is not None
-        return Condition(operation, [self._lifter.lift(condition.left, parent=condition), self._lifter.lift(condition.right, parent=condition)])
+        """Lift the given conditional to a pseudo operation."""
+        return Condition(
+            operation, [self._lifter.lift(condition.left, parent=condition), self._lifter.lift(condition.right, parent=condition)]
+        )
 
     def lift_branch(self, branch: mediumlevelil.MediumLevelILIf, **kwargs) -> Branch:
-        """Lift a branch instruction.. by lifting its condition."""
+        """Lift a branch instruction by lifting its condition."""
         condition = self._lifter.lift(branch.condition, parent=branch)
         if not isinstance(condition, Condition):
             condition = Condition(OperationType.not_equal, [condition, Constant(0, condition.type.copy())])

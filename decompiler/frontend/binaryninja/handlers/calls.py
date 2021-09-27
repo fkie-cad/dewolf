@@ -1,10 +1,10 @@
 """Module implementing the binaryninja CallHandler."""
-from typing import List
 from functools import partial
-from binaryninja import mediumlevelil, MediumLevelILInstruction
+from typing import List
 
+from binaryninja import MediumLevelILInstruction, mediumlevelil
 from dewolf.frontend.lifter import Handler
-from dewolf.structures.pseudo import Call, Assignment, ListOperation, ImportedFunctionSymbol, IntrinsicSymbol
+from dewolf.structures.pseudo import Assignment, Call, ImportedFunctionSymbol, IntrinsicSymbol, ListOperation
 
 
 class CallHandler(Handler):

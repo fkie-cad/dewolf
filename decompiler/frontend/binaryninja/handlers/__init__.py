@@ -1,13 +1,13 @@
 """Main module containing all binaryninja handlers."""
-from .variables import VariableHandler
-from .constants import ConstantHandler
-from .types import TypeHandler
-from .binary import BinaryOperationHandler
-from .unary import UnaryOperationHandler
-from .conditions import ConditionHandler
-from .calls import CallHandler
 from .assignments import AssignmentHandler
+from .binary import BinaryOperationHandler
+from .calls import CallHandler
+from .conditions import ConditionHandler
+from .constants import ConstantHandler
 from .phi import PhiHandler
+from .types import TypeHandler
+from .unary import UnaryOperationHandler
+from .variables import VariableHandler
 
 # List of all available binaryninja handlers
 HANDLERS = [

@@ -1,13 +1,16 @@
+"""Module implementing lifting of phi and memphi instructions."""
 from typing import List
 
-from binaryninja import MediumLevelILVar_phi, MediumLevelILMem_phi
-
+from binaryninja import MediumLevelILMem_phi, MediumLevelILVar_phi
 from dewolf.frontend.lifter import Handler
-from dewolf.structures.pseudo import Variable, Phi, MemPhi
+from dewolf.structures.pseudo import MemPhi, Phi, Variable
 
 
 class PhiHandler(Handler):
+    """Handler for phi instructions emitted by binaryninja."""
+
     def register(self):
+        """Register the handler at the parent lifter."""
         self._lifter.HANDLERS.update(
             {
                 MediumLevelILVar_phi: self.lift_phi,
