@@ -66,7 +66,7 @@ class ConstantHandler(Handler):
             if variable := bv.get_data_var_at(address):
                 return self._lift_global_variable(variable, symbol)
             return Symbol("NULL", 0)
-        if isinstance(address, int) and (string := bv.get_string_at(address, partial=True)):
+        if isinstance(address, int) and (string := bv.get_ascii_string_at(address, min_length=2)):
             return Constant(address, Pointer(Integer.char()), Constant(string.value, Integer.char()))
         return Constant(address, vartype=Pointer(CustomType.void()))
 
@@ -74,7 +74,7 @@ class ConstantHandler(Handler):
         """Try to lift a pointer at the given address with a Symbol as a symbol pointer."""
         if symbol.type == SymbolType.FunctionSymbol:
             return FunctionSymbol(symbol.name, address, vartype=Pointer(Integer.char()))
-        if symbol.type in (SymbolType.ImportedFunctionSymbol, SymbolType.ImportAddressSymbol, SymbolType.ExternalSymbol):
+        if symbol.type in (SymbolType.ImportedFunctionSymbol, SymbolType.ExternalSymbol):
             return ImportedFunctionSymbol(symbol.name, address, vartype=Pointer(Integer.char()))
 
     def _lift_global_variable(self, variable: DataVariable, symbol: bSymbol) -> Union[Symbol, UnaryOperation]:
