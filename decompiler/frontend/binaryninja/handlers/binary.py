@@ -14,10 +14,10 @@ class BinaryOperationHandler(Handler):
         self._lifter.HANDLERS.update(
             {
                 mediumlevelil.MediumLevelILAdd: partial(self.lift_binary_operation, OperationType.plus),
-                mediumlevelil.MediumLevelILFadd: partial(self.lift_binary_operation, OperationType.plus),
+                mediumlevelil.MediumLevelILFadd: partial(self.lift_binary_operation, OperationType.plus_float),
                 mediumlevelil.MediumLevelILAdc: partial(self._lift_binary_operation_with_carry, OperationType.plus),
                 mediumlevelil.MediumLevelILSub: partial(self.lift_binary_operation, OperationType.minus),
-                mediumlevelil.MediumLevelILFsub: partial(self.lift_binary_operation, OperationType.minus),
+                mediumlevelil.MediumLevelILFsub: partial(self.lift_binary_operation, OperationType.minus_float),
                 mediumlevelil.MediumLevelILSbb: partial(self._lift_binary_operation_with_carry, OperationType.minus),
                 mediumlevelil.MediumLevelILAnd: partial(self.lift_binary_operation, OperationType.bitwise_and),
                 mediumlevelil.MediumLevelILOr: partial(self.lift_binary_operation, OperationType.bitwise_or),
@@ -28,7 +28,7 @@ class BinaryOperationHandler(Handler):
                 mediumlevelil.MediumLevelILRol: partial(self.lift_binary_operation, OperationType.left_rotate),
                 mediumlevelil.MediumLevelILRor: partial(self.lift_binary_operation, OperationType.right_rotate),
                 mediumlevelil.MediumLevelILMul: partial(self.lift_binary_operation, OperationType.multiply),
-                mediumlevelil.MediumLevelILFmul: partial(self.lift_binary_operation, OperationType.multiply),
+                mediumlevelil.MediumLevelILFmul: partial(self.lift_binary_operation, OperationType.multiply_float),
                 mediumlevelil.MediumLevelILMuls_dp: partial(self.lift_binary_operation, OperationType.multiply),
                 mediumlevelil.MediumLevelILMulu_dp: partial(self.lift_binary_operation, OperationType.multiply_us),
                 mediumlevelil.MediumLevelILFdiv: partial(self.lift_binary_operation, OperationType.divide_float),

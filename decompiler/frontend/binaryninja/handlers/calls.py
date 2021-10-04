@@ -38,7 +38,7 @@ class CallHandler(Handler):
             Call(
                 dest := self._lifter.lift(call.dest, parent=call),
                 [self._lifter.lift(parameter, parent=call) for parameter in call.params],
-                vartype=dest.type,
+                vartype=dest.type.copy(),
                 writes_memory=call.output_dest_memory if ssa else None,
                 meta_data={"param_names": self._lift_call_parameter_names(call)},
             ),
@@ -51,7 +51,7 @@ class CallHandler(Handler):
             Call(
                 dest := ImportedFunctionSymbol("Syscall", value=-1),
                 [self._lifter.lift(parameter, parent=call) for parameter in call.params],
-                vartype=dest.type,
+                vartype=dest.type.copy(),
                 writes_memory=call.output_dest_memory if ssa else None,
                 meta_data={"param_names": self._lift_call_parameter_names(call)},
             ),
