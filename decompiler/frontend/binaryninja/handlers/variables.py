@@ -38,7 +38,7 @@ class VariableHandler(Handler):
     def lift_variable(
         self, variable: bVariable, is_aliased: bool = True, parent: Optional[MediumLevelILInstruction] = None, **kwargs
     ) -> Variable:
-        """Lift the given non-ssa variable, annotating the memory version pf the parent instruction, if available."""
+        """Lift the given non-ssa variable, annotating the memory version of the parent instruction, if available."""
         return Variable(
             variable.name, self._lifter.lift(variable.type), ssa_label=parent.ssa_memory_version if parent else 0, is_aliased=is_aliased
         )
