@@ -123,8 +123,8 @@ class MockVariable(Variable):
         """Create a new MockVariable for testing purposes only."""
         self.possible_values = values
         self._type = Type.int(32)
-        object.__setattr__(self, '_source_type', VariableSourceType(0))
-        object.__setattr__(self, '_function', MockFunction([]))
+        object.__setattr__(self, "_source_type", VariableSourceType(0))
+        object.__setattr__(self, "_function", MockFunction([]))
         self._name = name
         self.type = Type.int(32)
 

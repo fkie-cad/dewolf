@@ -15,7 +15,7 @@ class UnaryOperationHandler(Handler):
                 mediumlevelil.MediumLevelILFneg: partial(self.lift_unary_operation, OperationType.negate),
                 mediumlevelil.MediumLevelILNot: partial(self.lift_unary_operation, OperationType.bitwise_not),
                 mediumlevelil.MediumLevelILSx: self.lift_cast,
-                mediumlevelil.MediumLevelILZx: self.lift_cast,
+                mediumlevelil.MediumLevelILZx: self._lift_zx_operation,
                 mediumlevelil.MediumLevelILLow_part: self.lift_cast,
                 mediumlevelil.MediumLevelILFloat_conv: self.lift_cast,
                 mediumlevelil.MediumLevelILAddress_of: partial(self.lift_unary_operation, OperationType.address),
@@ -36,6 +36,18 @@ class UnaryOperationHandler(Handler):
     def lift_cast(self, cast: MediumLevelILInstruction, **kwargs) -> UnaryOperation:
         """Lift a cast operation, casting one type to another."""
         return UnaryOperation(OperationType.cast, [self._lifter.lift(cast.src, parent=cast)], vartype=self._lifter.lift(cast.expr_type))
+
+    def _lift_zx_operation(self, instruction: MediumLevelILInstruction, **kwargs) -> UnaryOperation:
+        """Lift zero-extension operation."""
+        inner = self._lifter.lift(instruction.operands[0], parent=instruction)
+        if isinstance(inner.type, Integer) and inner.type.is_signed:
+            unsigned_type = Integer(size=inner.type.size, signed=False)
+            return UnaryOperation(
+                OperationType.cast,
+                [UnaryOperation(OperationType.cast, [inner], unsigned_type)],
+                vartype=self._lifter.lift(instruction.expr_type),
+            )
+        return self.lift_cast(instruction, **kwargs)
 
     def lift_address_of_field(self, operation: mediumlevelil.MediumLevelILAddress_of_field, **kwargs) -> Operation:
         """Lift the address of field operation e.g. &(eax_#1:1)."""
