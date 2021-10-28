@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Dict, Generic, Iterable, Iterator, List, TypeVar
+from typing import Dict, Generic, Iterable, Iterator, List, Sequence, TypeVar
 
 from decompiler.structures.pseudo import Condition
 
@@ -98,12 +98,12 @@ class ConditionInterface(LogicInterface, ABC, Generic[CONTEXT]):
 
     @classmethod
     @abstractmethod
-    def disjunction_of(cls, clauses: Iterable[ConditionInterface]) -> ConditionInterface:
+    def disjunction_of(cls, clauses: Sequence[ConditionInterface]) -> ConditionInterface:
         """Creates a disjunction for the list of given clauses."""
 
     @classmethod
     @abstractmethod
-    def conjunction_of(cls, clauses: Iterable[ConditionInterface]) -> ConditionInterface:
+    def conjunction_of(cls, clauses: Sequence[ConditionInterface]) -> ConditionInterface:
         """Creates a conjunction for the list of given clauses."""
 
     @abstractmethod
@@ -150,7 +150,7 @@ class ConditionInterface(LogicInterface, ABC, Generic[CONTEXT]):
     @property
     def is_cnf_form(self) -> bool:
         """Check whether the condition is already in cnf-form."""
-        if self.is_disjunction_of_literals:
+        if self.is_true or self.is_false or self.is_disjunction_of_literals:
             return True
         return self.is_conjunction and all(clause.is_disjunction_of_literals for clause in self.operands)
 

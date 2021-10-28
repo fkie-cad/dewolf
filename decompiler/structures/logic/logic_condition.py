@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Dict, Type, TypeVar
 
 from decompiler.structures.logic.interface_decorators import ensure_cnf
-from decompiler.structures.logic.logic_interface import ConditionInterface
 from decompiler.structures.logic.z3_logic import PseudoZ3LogicCondition, Z3LogicCondition
 
 LOGICCLASS = TypeVar("LOGICCLASS", bound="ConditionInterface")
@@ -13,11 +12,12 @@ PseudoLOGICCLASS = TypeVar("PseudoLOGICCLASS", bound="PseudoLogicInterface")
 def generate_logic_condition_class(base) -> Type[LOGICCLASS]:
     class BLogicCondition(base[LOGICCLASS]):
         @ensure_cnf
-        def __init__(self, condition):
-            super().__init__(condition)
+        def __init__(self, condition, tmp: bool = False):
+            super().__init__(condition, tmp)
 
         def simplify_to_shortest(self, complexity_bound: int) -> BLogicCondition:
             """Simplify the condition to the shortest one (CNF or DNF)."""
+            return self
             if self.is_true or self.is_false or self.is_symbol:
                 return self
 
@@ -41,7 +41,7 @@ def generate_logic_condition_class(base) -> Type[LOGICCLASS]:
         @ensure_cnf
         def substitute_by_true(self, condition: BLogicCondition) -> BLogicCondition:
             """
-            Substitutes the given condition by true.
+            Substitutes the given condition by true, i.e., changes the condition under the assumption that the given condition fulfilled.
 
             Example: substituting in the expression (a∨b)∧c the condition (a∨b) by true results in the condition c,
                  and substituting the condition c by true in the condition (a∨b)
@@ -63,13 +63,15 @@ def generate_logic_condition_class(base) -> Type[LOGICCLASS]:
 
 
 LogicCondition = generate_logic_condition_class(Z3LogicCondition)
+# LogicCondition = generate_logic_condition_class(CustomLogicCondition)
 
 
-def generate_pseudo_logic_condition_class(base) -> Type[PseudoLOGICCLASS]:
-    class BPseudoLogicCondition(LogicCondition, base[LOGICCLASS, PseudoLOGICCLASS]):
+def generate_pseudo_logic_condition_class(base, log_cond=LogicCondition) -> Type[PseudoLOGICCLASS]:
+    class BPseudoLogicCondition(log_cond, base[LOGICCLASS, PseudoLOGICCLASS]):
         pass
 
     return BPseudoLogicCondition
 
 
 PseudoLogicCondition = generate_pseudo_logic_condition_class(PseudoZ3LogicCondition)
+# PseudoLogicCondition = generate_pseudo_logic_condition_class(PseudoCustomLogicCondition)

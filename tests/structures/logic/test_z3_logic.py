@@ -518,6 +518,7 @@ class TestZ3LogicCondition:
             (false_value, z3_x[2].copy(), false_value),
             (z3_x[2].copy(), z3_x[2].copy(), true_value),
             (z3_x[2].copy(), z3_x[3].copy(), z3_x[2].copy()),
+            (z3_x[1].copy() | z3_x[2].copy(), z3_x[2].copy(), true_value),
         ],
     )
     def test_substitute_by_true_basics(self, term, condition, result):
@@ -544,7 +545,7 @@ class TestZ3LogicCondition:
                 & z3_x[6].copy()
                 & z3_x[7].copy()
                 & z3_x[8].copy(),
-                (z3_x[1].copy() | z3_x[2].copy() | z3_x[3].copy()) & (z3_x[4].copy() | z3_x[5].copy()) & z3_x[6].copy() & z3_x[7].copy(),
+                true_value,
             ),
         ],
     )

@@ -5,7 +5,7 @@ from decompiler.structures.pseudo import BinaryOperation, Condition, Constant, I
 from z3 import UGT, ULE, And, BitVec, BitVecVal, Bool, BoolVal, Not, Or
 
 LogicCondition = generate_logic_condition_class(Z3LogicCondition)
-PseudoLogicCondition = generate_pseudo_logic_condition_class(PseudoZ3LogicCondition)
+PseudoLogicCondition = generate_pseudo_logic_condition_class(PseudoZ3LogicCondition, LogicCondition)
 context = LogicCondition.generate_new_context()
 z3_symbol = [Bool(f"x{i}", ctx=context) for i in [0, 1, 2, 3, 4, 5, 6]]
 logic_x = [LogicCondition.initialize_symbol(f"x{i}", context) for i in [0, 1, 2, 3, 4, 5, 6, 7, 8]]
@@ -315,6 +315,7 @@ class TestLogicConditionZ3:
             ),
             (logic_x[2].copy(), logic_x[2].copy(), LogicCondition.initialize_true(context)),
             (logic_x[2].copy(), logic_x[3].copy(), logic_x[2].copy()),
+            (logic_x[2].copy() | logic_x[3].copy(), logic_x[3].copy(), LogicCondition.initialize_true(context)),
         ],
     )
     def test_substitute_by_true_basics(self, term, condition, result):
@@ -359,10 +360,7 @@ class TestLogicConditionZ3:
                 & logic_x[6].copy()
                 & logic_x[7].copy()
                 & logic_x[8].copy(),
-                (logic_x[1].copy() | logic_x[2].copy() | logic_x[3].copy())
-                & (logic_x[4].copy() | logic_x[5].copy())
-                & logic_x[6].copy()
-                & logic_x[7].copy(),
+                LogicCondition.initialize_true(context),
             ),
         ],
     )
