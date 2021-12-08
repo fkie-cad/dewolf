@@ -29,9 +29,9 @@ class ConstantHandler(Handler):
         self._lifter.HANDLERS.update(
             {
                 mediumlevelil.MediumLevelILConst: self.lift_constant,
-                mediumlevelil.MediumLevelILFloat_const: self.lift_constant,
-                mediumlevelil.MediumLevelILExtern_ptr: self.lift_pointer,
-                mediumlevelil.MediumLevelILConst_ptr: self.lift_pointer,
+                mediumlevelil.MediumLevelILFloatConst: self.lift_constant,
+                mediumlevelil.MediumLevelILExternPtr: self.lift_pointer,
+                mediumlevelil.MediumLevelILConstPtr: self.lift_pointer,
                 mediumlevelil.MediumLevelILImport: self.lift_symbol,
                 int: self.lift_literal,
             }
@@ -50,7 +50,7 @@ class ConstantHandler(Handler):
             Pointer(Integer.char()),
         )
 
-    def lift_pointer(self, constant: mediumlevelil.MediumLevelILConst_ptr, **kwargs) -> Constant:
+    def lift_pointer(self, constant: mediumlevelil.MediumLevelILConstPtr, **kwargs) -> Constant:
         """Helper method translating a pointer to address and binary view."""
         return self._lift_bn_pointer(constant.constant, constant.function.source_function.view)
 

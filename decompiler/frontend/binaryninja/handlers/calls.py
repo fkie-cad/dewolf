@@ -15,19 +15,19 @@ class CallHandler(Handler):
         self._lifter.HANDLERS.update(
             {
                 mediumlevelil.MediumLevelILCall: self.lift_call,
-                mediumlevelil.MediumLevelILCall_ssa: partial(self.lift_call, ssa=True),
-                mediumlevelil.MediumLevelILCall_untyped: self.lift_call,
-                mediumlevelil.MediumLevelILCall_untyped_ssa: partial(self.lift_call, ssa=True),
+                mediumlevelil.MediumLevelILCallSsa: partial(self.lift_call, ssa=True),
+                mediumlevelil.MediumLevelILCallUntyped: self.lift_call,
+                mediumlevelil.MediumLevelILCallUntypedSsa: partial(self.lift_call, ssa=True),
                 mediumlevelil.MediumLevelILSyscall: self.lift_syscall,
-                mediumlevelil.MediumLevelILSyscall_ssa: partial(self.lift_syscall, ssa=True),
-                mediumlevelil.MediumLevelILSyscall_untyped: self.lift_syscall,
-                mediumlevelil.MediumLevelILSyscall_untyped_ssa: partial(self.lift_syscall, ssa=True),
+                mediumlevelil.MediumLevelILSyscallSsa: partial(self.lift_syscall, ssa=True),
+                mediumlevelil.MediumLevelILSyscallUntyped: self.lift_syscall,
+                mediumlevelil.MediumLevelILSyscallUntypedSsa: partial(self.lift_syscall, ssa=True),
                 mediumlevelil.MediumLevelILTailcall: self.lift_call,
-                mediumlevelil.MediumLevelILTailcall_ssa: partial(self.lift_call, ssa=True),
-                mediumlevelil.MediumLevelILTailcall_untyped: self.lift_call,
-                mediumlevelil.MediumLevelILTailcall_untyped_ssa: partial(self.lift_call, ssa=True),
+                mediumlevelil.MediumLevelILTailcallSsa: partial(self.lift_call, ssa=True),
+                mediumlevelil.MediumLevelILTailcallUntyped: self.lift_call,
+                mediumlevelil.MediumLevelILTailcallUntypedSsa: partial(self.lift_call, ssa=True),
                 mediumlevelil.MediumLevelILIntrinsic: self.lift_intrinsic,
-                mediumlevelil.MediumLevelILIntrinsic_ssa: partial(self.lift_intrinsic, ssa=True),
+                mediumlevelil.MediumLevelILIntrinsicSsa: partial(self.lift_intrinsic, ssa=True),
             }
         )
 

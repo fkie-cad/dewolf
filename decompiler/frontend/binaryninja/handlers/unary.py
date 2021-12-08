@@ -3,7 +3,7 @@ from functools import partial
 
 from binaryninja import MediumLevelILInstruction, MediumLevelILOperation, mediumlevelil
 from dewolf.frontend.lifter import Handler
-from dewolf.structures.pseudo import BinaryOperation, Constant, Operation, OperationType, UnaryOperation
+from dewolf.structures.pseudo import BinaryOperation, Constant, Integer, Operation, OperationType, Pointer, UnaryOperation
 
 
 class UnaryOperationHandler(Handler):
@@ -16,12 +16,17 @@ class UnaryOperationHandler(Handler):
                 mediumlevelil.MediumLevelILNot: partial(self.lift_unary_operation, OperationType.bitwise_not),
                 mediumlevelil.MediumLevelILSx: self.lift_cast,
                 mediumlevelil.MediumLevelILZx: self._lift_zx_operation,
-                mediumlevelil.MediumLevelILLow_part: self.lift_cast,
-                mediumlevelil.MediumLevelILFloat_conv: self.lift_cast,
-                mediumlevelil.MediumLevelILAddress_of: partial(self.lift_unary_operation, OperationType.address),
-                mediumlevelil.MediumLevelILAddress_of_field: self.lift_address_of_field,
+                mediumlevelil.MediumLevelILLowPart: self.lift_cast,
+                mediumlevelil.MediumLevelILFloatConv: self.lift_cast,
+                mediumlevelil.MediumLevelILFloatToInt: self.lift_cast,
+                mediumlevelil.MediumLevelILIntToFloat: self.lift_cast,
+                mediumlevelil.MediumLevelILAddressOf: partial(self.lift_unary_operation, OperationType.address),
+                mediumlevelil.MediumLevelILAddressOfField: self.lift_address_of_field,
                 mediumlevelil.MediumLevelILLoad: partial(self.lift_unary_operation, OperationType.dereference),
-                mediumlevelil.MediumLevelILLoad_ssa: partial(self.lift_unary_operation, OperationType.dereference),
+                mediumlevelil.MediumLevelILLoadSsa: partial(self.lift_unary_operation, OperationType.dereference),
+                mediumlevelil.MediumLevelILLoadStruct: self._lift_load_struct,
+                mediumlevelil.MediumLevelILLoadStruct_ssa: self._lift_load_struct,
+                mediumlevelil.MediumLevelILFtrunc: self._lift_ftrunc,
             }
         )
 
@@ -33,9 +38,22 @@ class UnaryOperationHandler(Handler):
             vartype=self._lifter.lift(operation.expr_type, parent=operation),
         )
 
-    def lift_cast(self, cast: MediumLevelILInstruction, **kwargs) -> UnaryOperation:
+    def lift_cast(self, cast: mediumlevelil.MediumLevelILUnaryBase, **kwargs) -> UnaryOperation:
         """Lift a cast operation, casting one type to another."""
         return UnaryOperation(OperationType.cast, [self._lifter.lift(cast.src, parent=cast)], vartype=self._lifter.lift(cast.expr_type))
+
+    def lift_address_of_field(self, operation: mediumlevelil.MediumLevelILAddressOfField, **kwargs) -> Operation:
+        """Lift the address of field operation e.g. &(eax_#1:1)."""
+        if operation.offset == 0:
+            return self.lift_unary_operation(OperationType.address, operation)
+        return BinaryOperation(
+            OperationType.plus,
+            [
+                UnaryOperation(OperationType.address, [operand := self._lifter.lift(operation.src, parent=operation)]),
+                Constant(operation.offset, vartype=operand.type.copy()),
+            ],
+            vartype=self._lifter.lift(operation.expr_type),
+        )
 
     def _lift_zx_operation(self, instruction: MediumLevelILInstruction, **kwargs) -> UnaryOperation:
         """Lift zero-extension operation."""
@@ -49,15 +67,27 @@ class UnaryOperationHandler(Handler):
             )
         return self.lift_cast(instruction, **kwargs)
 
-    def lift_address_of_field(self, operation: mediumlevelil.MediumLevelILAddress_of_field, **kwargs) -> Operation:
-        """Lift the address of field operation e.g. &(eax_#1:1)."""
-        if operation.offset == 0:
-            return self.lift_unary_operation(OperationType.address, operation)
-        return BinaryOperation(
-            OperationType.plus,
+    def _lift_load_struct(self, instruction: mediumlevelil.MediumLevelILLoadStruct, **kwargs) -> UnaryOperation:
+        """Lift a MLIL_LOAD_STRUCT_SSA instruction."""
+        return UnaryOperation(
+            OperationType.dereference,
             [
-                UnaryOperation(OperationType.address, [operand := self._lifter.lift(operation.src, parent=operation)]),
-                Constant(operation.offset, vartype=operand.type.copy()),
+                BinaryOperation(
+                    OperationType.plus,
+                    [
+                        UnaryOperation(OperationType.cast, [self._lifter.lift(instruction.src)], vartype=Pointer(Integer.char())),
+                        Constant(instruction.offset),
+                    ],
+                    vartype=self._lifter.lift(instruction.src.expr_type),
+                ),
             ],
-            vartype=self._lifter.lift(operation.expr_type),
+            vartype=Pointer(self._lifter.lift(instruction.src.expr_type)),
+        )
+
+    def _lift_ftrunc(self, instruction: mediumlevelil.MediumLevelILFtrunc, **kwargs) -> UnaryOperation:
+        """Lift a MLIL_FTRUNC operation."""
+        return UnaryOperation(
+            OperationType.cast,
+            [self._lifter.lift(operand) for operand in instruction.operands],
+            vartype=self._lifter.lift(instruction.expr_type),
         )
