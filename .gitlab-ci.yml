@@ -1,0 +1,69 @@
+stages:
+  - build
+  - test
+  - coreutils
+
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+
+
+image: docker:git
+
+build-docker-container:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+  stage: build
+  script:
+    - git submodule update --remote --recursive
+    - git checkout binja
+    - cp BinaryNinja.zip /tmp/BinaryNinja.zip
+    - git checkout $CI_COMMIT_REF_NAME
+    - cp /tmp/BinaryNinja.zip BinaryNinja.zip
+    - echo "$BINJA_LICENSE" > "$(pwd)/license.txt"
+    - docker build -t dream .
+
+check-format:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  stage: test
+  script:
+    - git submodule update --remote --recursive
+    - docker run dream make check-format
+
+run-tests:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  stage: test
+  script:
+    - git submodule update --remote --recursive
+    - docker run dream make
+
+run-extended-tests:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+  stage: test
+  script:
+    - git submodule update --remote --recursive
+    - docker run dream make extendedtests
+
+coreutils:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  tags:
+    - coreutils
+  stage: coreutils
+  image: $COREUTILS_CONTAINER_REG/binja:stable
+  allow_failure: true
+  interruptible: true
+  script:
+    - apt update && apt install git astyle -y
+    - git submodule update --remote --recursive
+    - echo "$BINJA_LICENSE" > /root/.binaryninja/license.dat
+    - python3 -m pip install -r requirements.txt
+    - python3 -m pip install pytest-xdist
+    - pytest --coreutils -n $COREUTILS_TEST_THREADS tests/test_coreutils.py --junitxml=report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml

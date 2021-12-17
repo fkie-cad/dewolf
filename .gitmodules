@@ -1,0 +1,6 @@
+[submodule "dewolf-compiler-idioms"]
+	path = dewolf-compiler-idioms
+	url = https://github.com/fkie-cad/dewolf-idioms.git
+[submodule "dewolf-idioms"]
+	path = dewolf-idioms
+	url = https://github.com/fkie-cad/dewolf-idioms.git

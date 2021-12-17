@@ -1,0 +1,118 @@
+from dewolf.pipeline.commons.expressionpropagationcommons import ExpressionPropagationBase
+from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph
+from dewolf.structures.pointers import Pointers
+from dewolf.structures.pseudo.expressions import Constant
+from dewolf.structures.pseudo.instructions import Assignment, Instruction
+from dewolf.task import DecompilerTask
+
+
+class ExpressionPropagationFunctionCall(ExpressionPropagationBase):
+    name = "expression-propagation-function-call"
+
+    def __init__(self):
+        ExpressionPropagationBase.__init__(self)
+
+    def run(self, task: DecompilerTask):
+        """
+        Calculates pointers (and pointed by) for the cfg
+        and runs EP
+        :param task: decompiler task containing cfg
+        """
+        self._initialize_pointers(task.graph)
+        super().run(task)
+
+    def perform(self, graph, iteration) -> bool:
+        """
+        expression propagation forward pass:
+            initialize defmap and use map
+            iterate through all the blocks and all the instructions in the blocks
+                 for each variable in instruction
+                     iterate through uses of all vars and substitute the vars with their definitions
+            # cfg and defmap are updated automatically when substituting variables in instructions
+            # block map is updated after substitution in EPM, in EP does nothing
+        """
+        is_changed = False
+        self._cfg = graph
+        self._initialize_maps(graph)
+        for basic_block in graph.nodes:
+            for index, instruction in enumerate(basic_block.instructions):
+                old = str(instruction)
+                for var in instruction.requirements:
+                    if var_definition := self._def_map.get(var):
+                        if self._definition_can_be_propagated_into_target(var_definition, instruction):
+                            instruction.substitute(var, var_definition.value.copy())
+                            self._replace_call_assignment_with_const(var_definition)  # differs from base
+                            self._update_block_map(old, str(instruction), basic_block, index)
+                            if not is_changed:
+                                is_changed = old != str(instruction)
+        return is_changed
+
+    def _replace_call_assignment_with_const(self, definition: Assignment):
+        """
+        Replace Assignment with Constant Assignment e.g.:
+        var = f() -->  var = 0x0
+        """
+        definition.substitute(definition.value, Constant(0x0))
+
+    def _is_call_value_used_exactly_once(self, definition: Assignment) -> bool:
+        """
+        Check if call assignment is used exactly once.
+        True on exactly one use.
+        False otherwise, or Call has more than one return value.
+        """
+        if len(return_values := definition.destination.operands) == 1:
+            return len(self._use_map.get(return_values[0])) == 1
+        return False
+
+    def _definition_can_be_propagated_into_target(self, definition: Assignment, target: Instruction):
+        """Tests if propagation is allowed based on set of rules, namely
+        - definition is call assignment
+        - assigned variable is only used once
+        - no dangerous uses in between target and definition
+        - it is not address assignment <--- possibly subject of change
+        - definition's LHS and RHS does not define or use a GlobalVariable <--- possibly subject to change.
+        - definition contains aliased variables <--- aliased need special treatment and handled in EPM (memory)
+        - it is not phi function as such propagation would violate ssa
+        - target is phi function and definition's rhs is something else than constant or variable
+        - propagation result is longer than propagation limits in task
+        - definition rhs in address of definition's lhs as it leads to incorrect decompilation
+
+        :param definition: definition to be propagated
+        :param target: instruction in which definition could be propagated
+        :return: true if propagation is allowed false otherwise
+        """
+        return (
+            self._is_call_assignment(definition)
+            and self._is_call_value_used_exactly_once(definition)
+            and not any(
+                [
+                    self._is_phi(definition),
+                    self._defines_unknown_expression(definition),
+                    self._contains_aliased_variables(definition),
+                    self._is_address_assignment(definition),
+                    self._contains_global_variable(definition),
+                    self._operation_is_propagated_in_phi(target, definition),
+                    self._resulting_instruction_is_too_long(target, definition),
+                    self._is_invalid_propagation_into_address_operation(target, definition),
+                    self._is_dereference_assignment(definition),
+                    self._definition_value_could_be_modified_via_memory_access_between_definition_and_target(definition, target),
+                    self._pointer_value_used_in_definition_could_be_modified_via_memory_access_between_definition_and_target(
+                        definition, target
+                    ),
+                ]
+            )
+        )
+
+    def _initialize_pointers(self, cfg: ControlFlowGraph):
+        """Initialize pointer information for the given cfg"""
+        self._pointers_info = Pointers().from_cfg(cfg)
+
+    def _update_block_map(self, old_instr_str: str, new_instr_str: str, basic_block: BasicBlock, index: int):
+        """
+        Update blocks map if instruction is changed:
+        for old instruction string, remove basic block - index pair
+        for new instruction string, add basic block - index pair
+        """
+        self._blocks_map[new_instr_str].add((basic_block, index))
+        if (basic_block, index) in self._blocks_map[old_instr_str]:
+            self._blocks_map[old_instr_str].remove((basic_block, index))

@@ -1,0 +1,524 @@
+{
+  "binaryninja": {
+    "max_function_size": {
+      "default": 1200000,
+      "title": "Maximum function size",
+      "type": "number",
+      "description": "Maximum number of bytes in functions to decompile",
+      "is_hidden_from_gui": true
+    }
+  },
+  "lifter": {
+    "report_threshold": {
+      "default": 5,
+      "title": "Lifter report threshold",
+      "type": "number",
+      "description": "The maximum amount of instructions which could not be lifted to be reported individually.",
+      "is_hidden_from_gui": true
+    },
+    "no_bit_masks": {
+      "default": true,
+      "title": "Omit subregister masking",
+      "type": "boolean",
+      "description": "Avoid using bit masks for representing 8-, 16, (32-)bit registers: e.g. on x86 ax = 8 becomes (word) eax = 8 instead of eax = (eax & 0xffff0000) | 8). Results in more understandable but potentially less accurate code.",
+      "is_hidden_from_gui": false
+    }
+  },
+  "remove-stack-canary": {
+    "remove_canary": {
+      "default": true,
+      "title": "Remove stack canary checks",
+      "type": "boolean",
+      "description": "remove function calls to __stack_chk_fail()",
+      "is_hidden_from_gui": false
+    }
+  },
+  "expression-propagation": {
+    "maximum_instruction_complexity": {
+      "default": 100,
+      "title": "EP maximum instruction complexity",
+      "type": "number",
+      "description": "TODO",
+      "is_hidden_from_gui": true
+    },
+    "maximum_branch_complexity": {
+      "default": 100,
+      "title": "EP maximum branch complexity",
+      "type": "number",
+      "description": "TODO",
+      "is_hidden_from_gui": true
+    },
+    "maximum_call_complexity": {
+      "default": 100,
+      "title": "EP maximum call complexity",
+      "type": "number",
+      "description": "TODO",
+      "is_hidden_from_gui": true
+    },
+    "maximum_assignment_complexity": {
+      "default": 100,
+      "title": "EP maximum assignment complexity",
+      "type": "number",
+      "description": "description assignment",
+      "is_hidden_from_gui": true
+    }
+  },
+  "expression-propagation-memory": {
+    "maximum_instruction_complexity": {
+      "default": 100,
+      "title": "EPM maximum instruction complexity",
+      "type": "number",
+      "description": "description instruction",
+      "is_hidden_from_gui": true
+    },
+    "maximum_branch_complexity": {
+      "default": 100,
+      "title": "EPM maximum branch complexity",
+      "type": "number",
+      "description": "description branch",
+      "is_hidden_from_gui": true
+    },
+    "maximum_call_complexity": {
+      "default": 100,
+      "title": "EPM maximum call complexity",
+      "type": "number",
+      "description": "description call",
+      "is_hidden_from_gui": true
+    },
+    "maximum_assignment_complexity": {
+      "default": 100,
+      "title": "EPM maximum assignment complexity",
+      "type": "number",
+      "description": "description assignment",
+      "is_hidden_from_gui": true
+    }
+  },
+  "expression-propagation-function-call": {
+    "maximum_instruction_complexity": {
+      "default": 100,
+      "title": "EPFC maximum TODO complexity",
+      "type": "number",
+      "description": "description TODO",
+      "is_hidden_from_gui": true
+    },
+    "maximum_branch_complexity": {
+      "default": 100,
+      "title": "EPFC maximum TODO complexity",
+      "type": "number",
+      "description": "description TODO",
+      "is_hidden_from_gui": true
+    },
+    "maximum_call_complexity": {
+      "default": 100,
+      "title": "EPFC maximum TODO complexity",
+      "type": "number",
+      "description": "description TODO",
+      "is_hidden_from_gui": true
+    },
+    "maximum_assignment_complexity": {
+      "default": 100,
+      "title": "EPFC maximum TODO complexity",
+      "type": "number",
+      "description": "description TODO",
+      "is_hidden_from_gui": true
+    }
+  },
+  "dead-path-elimination": {
+    "timeout_satisfiable": {
+      "default": 1000,
+      "title": "Logic engine timeout",
+      "type": "number",
+      "description": "Timeout (ms) for the logic engine verifying whether a path is dead.",
+      "is_hidden_from_gui": true
+    }
+  },
+  "dead-loop-elimination": {
+    "timeout_satisfiable": {
+      "default": 1000,
+      "title": "Logic engine timeout",
+      "type": "number",
+      "description": "Timeout (ms) for the logic engine verifying whether a loop is dead.",
+      "is_hidden_from_gui": true
+    }
+  },
+  "common-subexpression-elimination": {
+    "threshold": {
+      "default": 2,
+      "title": "expression threshold",
+      "type": "number",
+      "description": "The amount of occurrences an expression needs to have to be considered for CSE.",
+      "is_hidden_from_gui": true
+    },
+    "intra": {
+      "default": true,
+      "title": "intra expression",
+      "type": "boolean",
+      "description": "Enable CSE on subexpressions of the same parent expression.",
+      "is_hidden_from_gui": true
+    },
+    "string_threshold": {
+      "default": 2,
+      "title": "string threshold",
+      "type": "number",
+      "description": "The amount of occurrences a string expression must have to be eliminated",
+      "is_hidden_from_gui": true
+    },
+    "min_string_length": {
+      "default": 8,
+      "title": "string length threshold",
+      "type": "number",
+      "description": "The minimum amount of characters a string expression must have to be considered for elimination.",
+      "is_hidden_from_gui": true
+    }
+  },
+  "instruction-length-handler": {
+    "max_assignment_complexity": {
+      "default": 10,
+      "title": "maximum assignment complexity",
+      "type": "number",
+      "description": "Assignments with a complexity above this threshold will be simplified.",
+      "is_advanced_setting": true
+    },
+    "max_call_complexity": {
+      "default": 10,
+      "title": "maximum call complexity",
+      "type": "number",
+      "description": "Calls with a complexity above this threshold will be simplified.",
+      "is_advanced_setting": true
+    },
+    "max_return_complexity": {
+      "default": 10,
+      "title": "maximum return complexity",
+      "type": "number",
+      "description": "Return statements with a complexity above this threshold will be simplified.",
+      "is_advanced_setting": true
+    }
+  },
+  "readability-based-refinement": {
+    "keep_empty_for_loops": {
+      "default": false,
+      "type": "boolean",
+      "title": "Keep empty for-loops",
+      "description": "Transform while-loops to for-loops although the resulting for-loop would be empty.",
+      "is_hidden_from_gui": false
+    },
+    "rename_for_loop_variables": {
+      "default": true,
+      "type": "boolean",
+      "title": "Rename for-loop variables",
+      "description": "Rename for-loop variables to i, j, k, ...",
+      "is_hidden_from_gui": false
+    },
+    "rename_while_loop_variables": {
+      "default": true,
+      "type": "boolean",
+      "title": "Rename while-loop variables",
+      "description": "Rename while-loop counter variables to counter, counter1, ...",
+      "is_hidden_from_gui": false
+    }
+  },
+  "out-of-ssa-translation": {
+    "mode": {
+      "default": "lift_minimal",
+      "title": "SSA Options",
+      "type": "string",
+      "enum": ["simple", "min", "lift_minimal", "conditional", "sreedhar"],
+      "enumDescriptions": [
+        "renames a SSA-variable to a non SSA-variable by adding the label to the name",
+        "renames the SSA-variables such that the total number of non SSA-variables is minimal and then lifts the phi-functions",
+        "first lifts the phi-functions and renames the SSA-variables such that the total number of non SSA-variables is (almost) minimal",
+        "first lifts the phi-functions and renames the SSA-variables according to their dependencies.",
+        "out-of-SSA due to Sreedhar et. al."
+      ],
+      "description": "Optimization options for variable renaming in out of SSA",
+      "is_hidden_from_gui": false
+    }
+  },
+  "code-generator": {
+    "max_complexity": {
+      "default": 100,
+      "title": "Maximum Complexity for the Logic Simplifier",
+      "type": "number",
+      "description": "The maximum amount of elements in a condition to be considered for the logic simplifier.",
+      "is_hidden_from_gui": true
+    },
+    "use_compound_assignment": {
+      "default": true,
+      "title": "Enable compound assignments",
+      "type": "boolean",
+      "description": "Enable compound assignments (e.g. +=).",
+      "is_hidden_from_gui": false
+    },
+    "use_increment_int": {
+      "default": true,
+      "title": "Enable integer incrementation suffixes",
+      "type": "boolean",
+      "description": "Enables shorthands for integer incrementation (e.g. i++). ",
+      "is_hidden_from_gui": false
+    },
+    "use_increment_float": {
+      "default": true,
+      "title": "Enable float incrementation suffixes",
+      "type": "boolean",
+      "description": "Enables shorthands for float incrementation (e.g. f++)",
+      "is_hidden_from_gui": true
+    },
+    "byte_format": {
+      "default": "char",
+      "title": "Byte constant format",
+      "type": "string",
+      "elementType": "string",
+      "enum": ["char", "hex", "dec"],
+      "enumDescriptions": ["char", "hex", "dec"],
+      "description": "Defines the representation of a byte-size constant (character, hexadecimal or decimal)",
+      "is_hidden_from_gui": false
+    },
+    "byte_format_hint": {
+      "default": "none",
+      "title": "Byte constant format hints",
+      "type": "string",
+      "elementType": "string",
+      "enum": ["char", "hex", "dec", "none"],
+      "enumDescriptions": ["char", "hex", "dec", "none"],
+      "description": "Defines the representation of byte-size constant hint (c-style comment). Use none for no comments displayed.",
+      "is_hidden_from_gui": false
+    },
+    "int_representation_scope": {
+      "default": 256,
+      "title": "int_representation_scope TODO",
+      "type": "number",
+      "description": "TODO",
+      "is_hidden_from_gui": true
+    },
+    "negative_hex_as_twos_complement": {
+      "default": true,
+      "title": "Negative Hex As Twos Complement",
+      "type": "boolean",
+      "description": "Converts a decimal -1 into 0xff instead of -0x1",
+      "is_hidden_from_gui": true
+    },
+    "aggressive_array_detection": {
+      "default": false,
+      "title": "Access array elements via index instead of pointer",
+      "type": "boolean",
+      "description": "aggressive: *(a+i*4) is printed as a[i] even if the type of a is void/unknown",
+      "is_hidden_from_gui": false
+    },
+    "variable_declarations_per_line": {
+      "default": 1,
+      "title": "Variable Declarations Per Line",
+      "type": "number",
+      "description": "How many variables with common type are declared on one line",
+      "is_advanced_setting": false
+    },
+    "style_plugin": {
+      "default": "native",
+      "title": "Style plugin",
+      "type": "string",
+      "elementType": "string",
+      "enum": ["native", "pygments"],
+      "enumDescriptions": ["native", "Pygments"],
+      "description": "Which style plugin to use (does not apply to widget)",
+      "is_hidden_from_gui": true
+    },
+    "style_cmd": {
+      "default": "paraiso-dark",
+      "title": "Linting theme",
+      "type": "string",
+      "elementType": "string",
+      "enum": [
+        "default",
+        "emacs",
+        "friendly",
+        "colorful",
+        "autumn",
+        "murphy",
+        "manni",
+        "material",
+        "monokai",
+        "perldoc",
+        "pastie",
+        "borland",
+        "trac",
+        "native",
+        "fruity",
+        "bw",
+        "vim",
+        "vs",
+        "tango",
+        "rrt",
+        "xcode",
+        "igor",
+        "paraiso-light",
+        "paraiso-dark",
+        "lovelace",
+        "algol",
+        "algol_nu",
+        "arduino",
+        "rainbow_dash",
+        "abap",
+        "solarized-dark",
+        "solarized-light",
+        "sas",
+        "stata",
+        "stata-light",
+        "stata-dark",
+        "inkpot",
+        "zenburn"
+      ],
+      "enumDescriptions": [
+        "default",
+        "emacs",
+        "friendly",
+        "colorful",
+        "autumn",
+        "murphy",
+        "manni",
+        "material",
+        "monokai",
+        "perldoc",
+        "pastie",
+        "borland",
+        "trac",
+        "native",
+        "fruity",
+        "bw",
+        "vim",
+        "vs",
+        "tango",
+        "rrt",
+        "xcode",
+        "igor",
+        "paraiso-light",
+        "paraiso-dark",
+        "lovelace",
+        "algol",
+        "algol_nu",
+        "arduino",
+        "rainbow_dash",
+        "abap",
+        "solarized-dark",
+        "solarized-light",
+        "sas",
+        "stata",
+        "stata-light",
+        "stata-dark",
+        "inkpot",
+        "zenburn"
+      ],
+      "description": "Linting theme (does not apply to widget)",
+      "is_hidden_from_gui": true
+    }
+  },
+  "pipeline": {
+    "cfg_stages": {
+      "default": [
+        "expression-propagation",
+        "type-propagation",
+        "dead-path-elimination",
+        "dead-loop-elimination",
+        "dead-code-elimination",
+        "expression-propagation-memory",
+        "expression-propagation-function-call",
+        "expression-simplification",
+        "dead-code-elimination",
+        "redundant-casts-elimination",
+        "identity-elimination",
+        "common-subexpression-elimination",
+        "identity-elimination",
+        "array-access-detection"
+      ],
+      "title": "CFG pipeline stages",
+      "type": "array",
+      "elementType": "string",
+      "description": "Order of stage execution",
+      "is_hidden_from_gui": true
+    },
+    "ast_stages": {
+      "default": [
+        "readability-based-refinement",
+        "expression-simplification",
+        "instruction-length-handler"
+      ],
+      "title": "AST pipeline stages",
+      "type": "array",
+      "elementType": "string",
+      "description": "Order of stage execution",
+      "is_hidden_from_gui": true
+    }
+  },
+  "logging": {
+    "log_level": {
+      "default": "DEBUG",
+      "title": "Log level",
+      "type": "string",
+      "elementType": "string",
+      "enum": ["DEBUG", "INFO", "WARNING", "ERROR"],
+      "enumDescriptions": ["DEBUG", "INFO", "WARNING", "ERROR"],
+      "description": "Log level",
+      "is_hidden_from_gui": false
+    },
+    "stage_output": {
+      "default": "none",
+      "title": "Show stage output",
+      "type": "string",
+      "elementType": "string",
+      "enum": ["none", "tabs", "ascii", "tabs_and_ascii"],
+      "enumDescriptions": ["None", "Tabs", "ASCII", "Tabs + ASCII"],
+      "description": "Select how stage output should be displayed.",
+      "is_hidden_from_gui": false
+    },
+    "show_starting_point": {
+      "default": true,
+      "title": "Show starting point",
+      "type": "boolean",
+      "description": "Display initial lifting before any transformations are done.",
+      "is_hidden_from_gui": false
+    },
+    "show_all_stages": {
+      "default": false,
+      "title": "Display all stages",
+      "type": "boolean",
+      "description": "Display all stages",
+      "is_hidden_from_gui": false
+    },
+    "show_selected": {
+      "default": [],
+      "title": "Select stages for display",
+      "type": "array",
+      "elementType": "string",
+      "description": "Comma separated stage names to show output from.",
+      "is_hidden_from_gui": false
+    }
+  },
+  "gui": {
+    "font": {
+      "default": "courier",
+      "title": "Font",
+      "type": "string",
+      "description": "Font for decompiler output",
+      "is_hidden_from_gui": false
+    },
+    "font_size": {
+      "default": 16,
+      "title": "Font size",
+      "type": "number",
+      "description": "Font size for decompiler output",
+      "is_hidden_from_gui": false
+    },
+    "font_italic": {
+      "default": false,
+      "title": "Font italic",
+      "type": "boolean",
+      "description": "Set italic font for decompiler output",
+      "is_hidden_from_gui": true
+    },
+    "font_bold": {
+      "default": false,
+      "title": "Font bold",
+      "type": "boolean",
+      "description": "Set bold font for decompiler output",
+      "is_hidden_from_gui": true
+    }
+  }
+}
