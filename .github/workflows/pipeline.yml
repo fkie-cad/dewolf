@@ -25,7 +25,7 @@ jobs:
           docker build -t dewolf .
       - name: Run Format Check
         run: |
-          docker run dream make check-format
+          docker run dewolf make check-format
       - name: Run Tests
         run: |
-          docker run dream make
+          docker run dewolf make
