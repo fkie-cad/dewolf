@@ -2,7 +2,7 @@ import binaryninja
 
 current_version = binaryninja.core_version()
 print("Looking for BinaryNinja Updates...")
-channel = binaryninja.update.UpdateChannel("stable", None, current_version)
+channel = binaryninja.update.UpdateChannel("dev", None, current_version)
 latest_version = channel.versions[0]
 if channel.updates_available:
     print(f"There is an Update available: {latest_version}. Updating from {current_version} to {latest_version}...")
