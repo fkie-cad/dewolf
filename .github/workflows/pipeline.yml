@@ -13,10 +13,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Build the Docker image
-      run: |
-        git submodule update --remote --recursive
-        curl --header "PRIVATE-TOKEN: $GITLAB_BINJA_TOKEN" https://gitlab.cc-asp.fraunhofer.de/api/v4/projects/27455/repository/files/BinaryNinja.zip/raw\?ref\=main --output BinaryNinja.zip
-        echo "$BINJA_LICENSE" > "$(pwd)/license.txt"
-        docker build -t dewolf .
+      - name: Build the Docker image
+        run: |
+          git submodule update --remote --recursive
+          curl --header "PRIVATE-TOKEN: $GITLAB_BINJA_TOKEN" https://gitlab.cc-asp.fraunhofer.de/api/v4/projects/27455/repository/files/BinaryNinja.zip/raw\?ref\=main --output BinaryNinja.zip
+          echo "$BINJA_LICENSE" > "$(pwd)/license.txt"
+          
