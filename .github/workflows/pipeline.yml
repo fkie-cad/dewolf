@@ -5,6 +5,10 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+    
+env:
+  BINJA_LICENSE: ${{ secrets.BINJA_LICENSE }}
+  GITLAB_BINJA_TOKEN: ${{ secrets.GITLAB_BINJA_TOKEN }}
 
 jobs:
 
@@ -14,15 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Download BinayNinja.zip
-        env:
-          GITLAB_BINJA_TOKEN: ${{ secrets.GITLAB_BINJA_TOKEN }}
         run: |
-          curl -v --header "PRIVATE-TOKEN: $env.GITLAB_BINJA_TOKEN" https://gitlab.cc-asp.fraunhofer.de/api/v4/projects/27455/repository/files/BinaryNinja.zip/raw\?ref\=main --output BinaryNinja.zip
+          curl -v --header "PRIVATE-TOKEN: ${{env.GITLAB_BINJA_TOKEN}}" https://gitlab.cc-asp.fraunhofer.de/api/v4/projects/27455/repository/files/BinaryNinja.zip/raw\?ref\=main --output BinaryNinja.zip
       - name: Setup BinaryNinja License
-        env:
-          BINJA_LICENSE: ${{ secrets.BINJA_LICENSE }}
         run: |
-          echo "$env.BINJA_LICENSE" > "$(pwd)/license.txt"
+          echo "${{env.BINJA_LICENSE}}" > "$(pwd)/license.txt"
       - name: Build Docker Image
         run: |
           docker build -t dewolf .
