@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+        with:
+          submodules: recursive
       - name: Download BinayNinja.zip
         run: |
           curl -v --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_BINJA_TOKEN }}" https://gitlab.cc-asp.fraunhofer.de/api/v4/projects/27455/repository/files/BinaryNinja.zip/raw?ref=main --output BinaryNinja.zip
