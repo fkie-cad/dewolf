@@ -17,7 +17,7 @@ $(VENV_PATH)/lib/python$(PYTHON_VERSION)/site-packages/binaryninja.pth:
 ifneq ($(wildcard $(PREFIX)/install_api.py),"")
 	. $(VENV_PATH)/bin/activate && \
 		$(VENV_PATH)/bin/python $$(readlink -f $(PREFIX)/install_api.py) && \
-		echo "/opt/binaryninja/python" > $(VENV_PATH)/lib/python$(PYTHON_VERSION)/site-packages/binaryninja.pth && \
+		echo "/opt/binaryninja/python" > $(VENV_PATH)/lib/python$(PYTHON_VERSION)/site-packages/binaryninja.pth
 else
 	@$(error install_api.py not found. Please install the Binary Ninja API package manually using \
 		the install_api.py script from Binary Ninja.)
