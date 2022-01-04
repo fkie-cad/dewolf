@@ -15,7 +15,8 @@ jobs:
     steps:
       - name: Build the Docker image
         run: |
-          git submodule update --remote --recursive
           curl --header "PRIVATE-TOKEN: $GITLAB_BINJA_TOKEN" https://gitlab.cc-asp.fraunhofer.de/api/v4/projects/27455/repository/files/BinaryNinja.zip/raw\?ref\=main --output BinaryNinja.zip
           echo "$BINJA_LICENSE" > "$(pwd)/license.txt"
+          ls -lah
+          du -hs
           
