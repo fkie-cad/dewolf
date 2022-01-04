@@ -8,7 +8,7 @@ on:
     
 
 jobs:
-  build:
+  build-docker-and-run-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -23,4 +23,9 @@ jobs:
       - name: Build Docker Image
         run: |
           docker build -t dewolf .
-          
+      - name: Run Format Check
+        run: |
+          docker run dream make check-format
+      - name: Run Tests
+        run: |
+          docker run dream make
