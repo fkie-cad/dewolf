@@ -25,7 +25,7 @@ jobs:
       - name: Copy dewolf into Container
         run: |
           cp -r * /opt/dewolf/
-          ls -lah /opt/dewolf
+          ls -lah /opt/dewolf/dewolf
       - name: Run Format Check
         run: |
           cd /opt/dewolf && make check-format
