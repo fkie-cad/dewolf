@@ -24,10 +24,11 @@ jobs:
           echo "${{ secrets.BINJA_LICENSE }}" | base64 --decode > /root/.binaryninja/license.dat
       - name: Copy dewolf into Container
         run: |
-          cp -r * /opt/dewolf/ && cd /opt/dewolf
+          cp -r * /opt/dewolf/
+          ls -lah /opt/dewolf
       - name: Run Format Check
         run: |
-          make check-format
+          cd /opt/dewolf && make check-format
       - name: Run Tests
         run: |
-          make
+          cd /opt/dewolf && make
