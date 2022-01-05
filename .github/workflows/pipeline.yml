@@ -21,7 +21,7 @@ jobs:
           submodules: recursive
       - name: Setup BinaryNinja License
         run: |
-          echo "${{ secrets.BINJA_LICENSE }}" | base64 --decode > /root/.binaryninja/license.dat
+          echo "${{ secrets.BINJA_LICENSE }}" > /root/.binaryninja/license.dat
       - name: Copy dewolf into Container
         run: |
           cp -r * /opt/decompiler/
