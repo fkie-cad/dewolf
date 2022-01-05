@@ -9,7 +9,7 @@ on:
 
 jobs:
   run-tests:
-    runs-on: fkiedewolf/binja:latest
+    runs-on: ubuntu-latest
     container:
         image: ghcr.io/fkiedewolf/binja:latest
         credentials:
