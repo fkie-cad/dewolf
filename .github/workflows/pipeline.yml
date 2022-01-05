@@ -8,24 +8,26 @@ on:
     
 
 jobs:
-  build-docker-and-run-tests:
-    runs-on: ubuntu-latest
+  run-tests:
+    runs-on: fkiedewolf/binja:latest
+    container:
+        image: ghcr.io/fkiedewolf/binja:latest
+        credentials:
+           username: fkiedewolf
+           password: ${{  secrets.DOCKERHUB_ACCESSTOKEN }}
     steps:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
       - name: Setup BinaryNinja License
         run: |
-          echo "${{ secrets.BINJA_LICENSE }}" | base64 --decode > license.txt
-      - name: Download BinayNinja.zip
+          echo "${{ secrets.BINJA_LICENSE }}" | base64 --decode > /root/.binaryninja/license.dat
+      - name: Copy dewolf into Container
         run: |
-          curl -v --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_BINJA_TOKEN }}" https://gitlab.cc-asp.fraunhofer.de/api/v4/projects/27455/repository/files/BinaryNinja.zip/raw?ref=main --output BinaryNinja.zip
-      - name: Build Docker Image
-        run: |
-          docker build -t dewolf .
+          cp -r * /opt/dewolf/
       - name: Run Format Check
         run: |
-          docker run dewolf make check-format
+          make check-format
       - name: Run Tests
         run: |
-          docker run dewolf make
+          make
