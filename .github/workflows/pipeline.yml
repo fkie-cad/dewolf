@@ -19,10 +19,6 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
-      - name: Setup BinaryNinja License
-        run: |
-          echo "${{ secrets.BINJA_LICENSE }}" | base64 --decode > license.txt
-          cp license.txt /root/.binaryninja/license.dat
       - name: Copy dewolf into Container
         run: |
           cp -r * /opt/decompiler/
