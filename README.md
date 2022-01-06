@@ -69,7 +69,7 @@ ___
 The dewolf decompiler can be used from both the command line and within Binary Ninja. 
 
 ### GUI
-AAfter enabling the dewolf decompilation dock widget via **View > Other Docks > Show Dewolf**, the decompiled code for the currently active symbol will be displayed.
+After enabling the dewolf decompilation dock widget via **View > Other Docks > Show Dewolf**, the decompiled code for the currently active symbol will be displayed.
 In the dewolf dock, it is possible to navigate through functions by double-clicking them.
 
 ![Widget Menu](https://user-images.githubusercontent.com/12004321/145460440-be4b7dfd-bf7e-497f-a7af-1911bf3efc50.png)
