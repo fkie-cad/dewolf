@@ -1,12 +1,7 @@
 name: Pipeline
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+on: [push, pull_request]
     
-
 jobs:
   build-docker-and-run-tests:
     runs-on: ubuntu-latest
