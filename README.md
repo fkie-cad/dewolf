@@ -1,4 +1,7 @@
+[![Pipeline](https://github.com/fkie-cad/dewolf/actions/workflows/pipeline.yml/badge.svg)](https://github.com/fkie-cad/dewolf/actions/workflows/pipeline.yml)
+[![Extended Pipeline](https://github.com/fkie-cad/dewolf/actions/workflows/extended-pipeline.yml/badge.svg)](https://github.com/fkie-cad/dewolf/actions/workflows/extended-pipeline.yml)
 <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
+
 
 # dewolf
 
