@@ -42,8 +42,8 @@ Afterwards, you will be able to inspect decompiled code from a Binary Ninja dock
 #### Step 1: 
 Clone the dewolf repository into the Binary Ninja plugin folder which is located in one of the following paths corresponding to your operating system:
 
-**Linux:** `\path{~/.binaryninja/plugins}`  
-**MacOS:** `\path{~/Library/Application Support/Binary Ninja}`  
+**Linux:** `~/.binaryninja/plugins`  
+**MacOS:** `~/Library/Application Support/Binary Ninja`  
 **Windows:** `%APPDATA%\Binary Ninja`  
 
 **Attention:**
