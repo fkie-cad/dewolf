@@ -1,11 +1,11 @@
 from typing import List, Union
 
 import pytest
-from dewolf.pipeline.controlflowanalysis.instruction_length_handler import InstructionLengthHandler
-from dewolf.structures.ast.ast_nodes import CodeNode, SeqNode
-from dewolf.structures.ast.syntaxtree import AbstractSyntaxTree
-from dewolf.structures.logic.logic_condition import LogicCondition
-from dewolf.structures.pseudo import (
+from decompiler.pipeline.controlflowanalysis.instruction_length_handler import InstructionLengthHandler
+from decompiler.structures.ast.ast_nodes import CodeNode, SeqNode
+from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
+from decompiler.structures.logic.logic_condition import LogicCondition
+from decompiler.structures.pseudo import (
     Assignment,
     BinaryOperation,
     Call,
@@ -23,9 +23,9 @@ from dewolf.structures.pseudo import (
     UnaryOperation,
     Variable,
 )
-from dewolf.structures.pseudo.operations import ArrayInfo, Condition
-from dewolf.task import DecompilerTask
-from dewolf.util.options import Options
+from decompiler.structures.pseudo.operations import ArrayInfo, Condition
+from decompiler.task import DecompilerTask
+from decompiler.util.options import Options
 
 PIPELINE_NAME = InstructionLengthHandler.name
 

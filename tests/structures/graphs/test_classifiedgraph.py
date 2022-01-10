@@ -1,6 +1,6 @@
 """Module implementing tests for the ClassifiedGraph class."""
-from dewolf.structures.graphs.basic import BasicEdge, BasicNode
-from dewolf.structures.graphs.classifiedgraph import ClassifiedGraph, EdgeProperty
+from decompiler.structures.graphs.basic import BasicEdge, BasicNode
+from decompiler.structures.graphs.classifiedgraph import ClassifiedGraph, EdgeProperty
 
 v = [BasicNode(i) for i in range(6)]
 

@@ -1,11 +1,11 @@
 """ Tests for the DeadCodeElimination pipeline stage"""
 import pytest
-from dewolf.pipeline.dataflowanalysis.deadcodeelimination import DeadCodeElimination
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
-from dewolf.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, Phi, Relation, Return
-from dewolf.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
-from dewolf.structures.pseudo.typing import CustomType, Integer, Pointer
+from decompiler.pipeline.dataflowanalysis.deadcodeelimination import DeadCodeElimination
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Phi, Relation, Return
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer
 
 
 class MockDecompilerTask:

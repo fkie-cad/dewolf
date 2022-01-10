@@ -1,12 +1,12 @@
 import pytest
-from dewolf.pipeline.controlflowanalysis.restructuring_commons.empty_basic_block_remover import EmptyBasicBlockRemover
-from dewolf.structures.graphs.basicblock import BasicBlock
-from dewolf.structures.graphs.branches import FalseCase, SwitchCase, TrueCase, UnconditionalEdge
-from dewolf.structures.graphs.cfg import ControlFlowGraph
-from dewolf.structures.pseudo.expressions import Constant, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, IndirectBranch
-from dewolf.structures.pseudo.operations import Condition, OperationType
-from dewolf.structures.pseudo.typing import Integer
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.empty_basic_block_remover import EmptyBasicBlockRemover
+from decompiler.structures.graphs.basicblock import BasicBlock
+from decompiler.structures.graphs.branches import FalseCase, SwitchCase, TrueCase, UnconditionalEdge
+from decompiler.structures.graphs.cfg import ControlFlowGraph
+from decompiler.structures.pseudo.expressions import Constant, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, IndirectBranch
+from decompiler.structures.pseudo.operations import Condition, OperationType
+from decompiler.structures.pseudo.typing import Integer
 
 
 def variable(name="a", version=0, ssa_name=None) -> Variable:

@@ -1,5 +1,5 @@
 import pytest
-from dewolf.util.options import Options
+from decompiler.util.options import Options
 
 cli_options = Options.from_cli()
 gui_options = Options.from_gui()

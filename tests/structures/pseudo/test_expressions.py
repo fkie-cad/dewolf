@@ -1,4 +1,4 @@
-from dewolf.structures.pseudo.expressions import (
+from decompiler.structures.pseudo.expressions import (
     Constant,
     ExternConstant,
     ExternFunctionPointer,
@@ -9,7 +9,7 @@ from dewolf.structures.pseudo.expressions import (
     Symbol,
     Variable,
 )
-from dewolf.structures.pseudo.typing import Float, Integer, Pointer, UnknownType
+from decompiler.structures.pseudo.typing import Float, Integer, Pointer, UnknownType
 
 # placeholders for type. When type system is implemented, one won't need to change types overall in the tests
 i32 = Integer.int32_t()

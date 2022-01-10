@@ -9,8 +9,8 @@ import collections
 import logging
 
 from binaryninja import *
-from dewolf.frontend.binaryninja.lifter import BinaryninjaLifter
-from dewolf.logger import configure_logging
+from decompiler.frontend.binaryninja.lifter import BinaryninjaLifter
+from decompiler.logger import configure_logging
 
 if __name__ == "__main__":
     configure_logging()

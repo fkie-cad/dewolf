@@ -1,6 +1,6 @@
 """Tests for the pseudo typing functionality."""
 import pytest
-from dewolf.structures.pseudo.typing import CustomType, Float, Integer, Pointer, TypeParser
+from decompiler.structures.pseudo.typing import CustomType, Float, Integer, Pointer, TypeParser
 
 
 def test_representation():

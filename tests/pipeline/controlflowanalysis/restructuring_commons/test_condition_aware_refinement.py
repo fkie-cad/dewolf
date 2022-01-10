@@ -2,14 +2,14 @@
 from typing import List, Union
 
 import pytest
-from dewolf.pipeline.controlflowanalysis.restructuring import PatternIndependentRestructuring
-from dewolf.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, SeqNode, SwitchNode, WhileLoopNode
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
-from dewolf.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, Break, IndirectBranch, Return
-from dewolf.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
-from dewolf.structures.pseudo.typing import CustomType, Integer, Pointer, Type, UnknownType
-from dewolf.task import DecompilerTask
+from decompiler.pipeline.controlflowanalysis.restructuring import PatternIndependentRestructuring
+from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, SeqNode, SwitchNode, WhileLoopNode
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Break, IndirectBranch, Return
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer, Type, UnknownType
+from decompiler.task import DecompilerTask
 
 
 def imp_function_symbol(name: str, value: int = 0x42, vartype: Type = UnknownType()) -> ImportedFunctionSymbol:

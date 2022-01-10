@@ -1,13 +1,13 @@
 from typing import List, Tuple
 
 import pytest
-from dewolf.pipeline.controlflowanalysis.restructuring_commons.graphslice import GraphSlice
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
-from dewolf.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock, TransitionCFG
-from dewolf.structures.pseudo.expressions import Constant, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch
-from dewolf.structures.pseudo.operations import Condition, OperationType
-from dewolf.structures.pseudo.typing import Integer
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.graphslice import GraphSlice
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
+from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock, TransitionCFG
+from decompiler.structures.pseudo.expressions import Constant, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch
+from decompiler.structures.pseudo.operations import Condition, OperationType
+from decompiler.structures.pseudo.typing import Integer
 
 
 def variable(name: str) -> Variable:

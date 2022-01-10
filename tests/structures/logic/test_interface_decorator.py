@@ -1,4 +1,4 @@
-from dewolf.structures.logic.interface_decorators import ensure_cnf
+from decompiler.structures.logic.interface_decorators import ensure_cnf
 
 
 class StupidBaseCase:

@@ -1,11 +1,11 @@
-from dewolf.pipeline.dataflowanalysis import DeadLoopElimination, ExpressionPropagation
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
-from dewolf.structures.pseudo.expressions import Constant, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, Phi, Return
-from dewolf.structures.pseudo.operations import Condition, OperationType
-from dewolf.structures.pseudo.typing import Integer
-from dewolf.task import DecompilerTask
-from dewolf.util.options import Options
+from decompiler.pipeline.dataflowanalysis import DeadLoopElimination, ExpressionPropagation
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
+from decompiler.structures.pseudo.expressions import Constant, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Phi, Return
+from decompiler.structures.pseudo.operations import Condition, OperationType
+from decompiler.structures.pseudo.typing import Integer
+from decompiler.task import DecompilerTask
+from decompiler.util.options import Options
 
 a = Variable("a", Integer.int32_t(), 0)
 b = Variable("b", Integer.int32_t(), 1)

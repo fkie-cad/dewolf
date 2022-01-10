@@ -2,13 +2,13 @@
 from typing import List, Tuple
 
 import pytest
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, UnconditionalEdge
-from dewolf.structures.interferencegraph import InterferenceGraph
-from dewolf.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, Phi, Return
-from dewolf.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
-from dewolf.structures.pseudo.typing import Integer
-from dewolf.util.insertion_ordered_set import InsertionOrderedSet
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, UnconditionalEdge
+from decompiler.structures.interferencegraph import InterferenceGraph
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Phi, Return
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.typing import Integer
+from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 
 v_1 = Variable("v", Integer.int32_t(), 1)
 v_2 = Variable("v", Integer.int32_t(), 2)

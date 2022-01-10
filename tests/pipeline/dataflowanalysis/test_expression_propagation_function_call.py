@@ -1,13 +1,13 @@
 from typing import List
 
-from dewolf.pipeline.dataflowanalysis import ExpressionPropagationFunctionCall
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph
-from dewolf.structures.pseudo.expressions import Constant, Expression, FunctionSymbol, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Return
-from dewolf.structures.pseudo.operations import Call, ListOperation, OperationType, UnaryOperation
-from dewolf.structures.pseudo.typing import Integer
-from dewolf.task import DecompilerTask
-from dewolf.util.options import Options
+from decompiler.pipeline.dataflowanalysis import ExpressionPropagationFunctionCall
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
+from decompiler.structures.pseudo.expressions import Constant, Expression, FunctionSymbol, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Return
+from decompiler.structures.pseudo.operations import Call, ListOperation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.typing import Integer
+from decompiler.task import DecompilerTask
+from decompiler.util.options import Options
 
 int32 = Integer.int32_t()
 int64 = Integer.int64_t()

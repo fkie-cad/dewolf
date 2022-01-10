@@ -1,12 +1,12 @@
 import pytest
-from dewolf.pipeline.commons.cast_simplification_functions import simplify_casts_in_instruction
-from dewolf.pipeline.dataflowanalysis.redundant_casts_elimination import RedundantCastsElimination
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph
-from dewolf.structures.pseudo.expressions import Constant, ImportedFunctionSymbol, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, Return
-from dewolf.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
-from dewolf.structures.pseudo.typing import CustomType, Integer, Pointer, Type
-from dewolf.task import DecompilerTask
+from decompiler.pipeline.commons.cast_simplification_functions import simplify_casts_in_instruction
+from decompiler.pipeline.dataflowanalysis.redundant_casts_elimination import RedundantCastsElimination
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
+from decompiler.structures.pseudo.expressions import Constant, ImportedFunctionSymbol, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Return
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer, Type
+from decompiler.task import DecompilerTask
 
 signed_int = Integer.int32_t()
 unsigned_int = Integer.uint32_t()

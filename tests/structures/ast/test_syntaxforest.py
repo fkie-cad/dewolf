@@ -1,14 +1,14 @@
 """ Tests for the AbstractSyntaxTree base class."""
 from itertools import combinations
 
-from dewolf.structures.ast.ast_comparator import ASTComparator
-from dewolf.structures.ast.ast_nodes import CodeNode, ConditionNode, SeqNode, VirtualRootNode
-from dewolf.structures.ast.condition_symbol import ConditionHandler, ConditionSymbol
-from dewolf.structures.ast.syntaxforest import AbstractSyntaxForest
-from dewolf.structures.graphs.classifiedgraph import EdgeProperty
-from dewolf.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock, TransitionCFG, TransitionEdge
-from dewolf.structures.logic.logic_condition import LogicCondition, PseudoLogicCondition
-from dewolf.structures.pseudo import Assignment, BinaryOperation, Break, Condition, Constant, Integer, OperationType, Return, Variable
+from decompiler.structures.ast.ast_comparator import ASTComparator
+from decompiler.structures.ast.ast_nodes import CodeNode, ConditionNode, SeqNode, VirtualRootNode
+from decompiler.structures.ast.condition_symbol import ConditionHandler, ConditionSymbol
+from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
+from decompiler.structures.graphs.classifiedgraph import EdgeProperty
+from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock, TransitionCFG, TransitionEdge
+from decompiler.structures.logic.logic_condition import LogicCondition, PseudoLogicCondition
+from decompiler.structures.pseudo import Assignment, BinaryOperation, Break, Condition, Constant, Integer, OperationType, Return, Variable
 
 
 def var(name: str) -> Variable:

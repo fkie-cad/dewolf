@@ -1,16 +1,23 @@
 from typing import List, Tuple
 
-from dewolf.pipeline.dataflowanalysis import ExpressionPropagationMemory
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
-from dewolf.structures.pseudo.expressions import Constant, Expression, GlobalVariable, ImportedFunctionSymbol, UnknownExpression, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, Phi, Relation, Return
-from dewolf.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation
-from dewolf.structures.pseudo.operations import OperationType
-from dewolf.structures.pseudo.operations import OperationType as op
-from dewolf.structures.pseudo.operations import UnaryOperation
-from dewolf.structures.pseudo.typing import CustomType, Integer, Pointer, Type, UnknownType
-from dewolf.task import DecompilerTask
-from dewolf.util.options import Options
+from decompiler.pipeline.dataflowanalysis import ExpressionPropagationMemory
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
+from decompiler.structures.pseudo.expressions import (
+    Constant,
+    Expression,
+    GlobalVariable,
+    ImportedFunctionSymbol,
+    UnknownExpression,
+    Variable,
+)
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Phi, Relation, Return
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation
+from decompiler.structures.pseudo.operations import OperationType
+from decompiler.structures.pseudo.operations import OperationType as op
+from decompiler.structures.pseudo.operations import UnaryOperation
+from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer, Type, UnknownType
+from decompiler.task import DecompilerTask
+from decompiler.util.options import Options
 
 int32 = Integer.int32_t()
 int64 = Integer.int64_t()

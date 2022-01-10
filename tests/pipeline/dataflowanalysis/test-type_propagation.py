@@ -1,9 +1,9 @@
-from dewolf.pipeline.dataflowanalysis.type_propagation import TypeGraph, TypePropagation
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph
-from dewolf.structures.pseudo.expressions import Constant, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Return
-from dewolf.structures.pseudo.operations import BinaryOperation, Condition, OperationType, UnaryOperation
-from dewolf.structures.pseudo.typing import Float, Integer, Pointer, UnknownType
+from decompiler.pipeline.dataflowanalysis.type_propagation import TypeGraph, TypePropagation
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
+from decompiler.structures.pseudo.expressions import Constant, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Return
+from decompiler.structures.pseudo.operations import BinaryOperation, Condition, OperationType, UnaryOperation
+from decompiler.structures.pseudo.typing import Float, Integer, Pointer, UnknownType
 
 
 class TestVerticalTypePropagation:

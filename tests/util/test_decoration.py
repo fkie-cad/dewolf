@@ -1,14 +1,14 @@
 import pytest
 from binaryninja import HighlightStandardColor
-from dewolf.structures.ast.ast_nodes import SeqNode
-from dewolf.structures.ast.syntaxtree import AbstractSyntaxTree
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
-from dewolf.structures.logic.logic_condition import LogicCondition
-from dewolf.structures.pseudo.expressions import Constant, FunctionSymbol, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, Phi, Return
-from dewolf.structures.pseudo.operations import BinaryOperation, Call, Condition, OperationType
-from dewolf.structures.pseudo.typing import Integer
-from dewolf.util.decoration import ASTYLE_INSTALLED, GRAPH_EASY_INSTALLED, DecoratedAST, DecoratedCFG, DecoratedCode
+from decompiler.structures.ast.ast_nodes import SeqNode
+from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
+from decompiler.structures.logic.logic_condition import LogicCondition
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Phi, Return
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, OperationType
+from decompiler.structures.pseudo.typing import Integer
+from decompiler.util.decoration import ASTYLE_INSTALLED, GRAPH_EASY_INSTALLED, DecoratedAST, DecoratedCFG, DecoratedCode
 
 
 class TestDecoratedCFG:

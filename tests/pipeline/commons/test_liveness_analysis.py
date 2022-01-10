@@ -2,12 +2,12 @@
 from typing import List, Tuple
 
 import pytest
-from dewolf.pipeline.commons.livenessanalysis import LivenessAnalysis
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, UnconditionalEdge
-from dewolf.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, Phi, Return
-from dewolf.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
-from dewolf.structures.pseudo.typing import Integer
+from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, UnconditionalEdge
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Phi, Return
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.typing import Integer
 
 
 def function_symbol(name: str, value: int = 0x42) -> FunctionSymbol:
