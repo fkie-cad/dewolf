@@ -3,7 +3,16 @@
 import pytest
 from decompiler.pipeline.controlflowanalysis.restructuring import PatternIndependentRestructuring
 from decompiler.structures.ast.ast_comparator import ASTComparator
-from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, DoWhileLoopNode, LoopNode, SeqNode, SwitchNode, WhileLoopNode
+from decompiler.structures.ast.ast_nodes import (
+    CaseNode,
+    CodeNode,
+    ConditionNode,
+    DoWhileLoopNode,
+    LoopNode,
+    SeqNode,
+    SwitchNode,
+    WhileLoopNode,
+)
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
 from decompiler.structures.logic.logic_condition import LogicCondition

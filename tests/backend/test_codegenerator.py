@@ -21,7 +21,15 @@ from decompiler.structures.pseudo.expressions import (
     Variable,
 )
 from decompiler.structures.pseudo.instructions import Assignment, Comment, Return
-from decompiler.structures.pseudo.operations import ArrayInfo, BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.operations import (
+    ArrayInfo,
+    BinaryOperation,
+    Call,
+    Condition,
+    ListOperation,
+    OperationType,
+    UnaryOperation,
+)
 from decompiler.structures.pseudo.typing import CustomType, Float, Integer, Pointer, Type
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options

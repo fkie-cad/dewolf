@@ -2,7 +2,16 @@ from collections import defaultdict
 from typing import DefaultDict, Set
 
 from decompiler.structures.graphs.cfg import ControlFlowGraph
-from decompiler.structures.pseudo import Assignment, BaseAssignment, BinaryOperation, Instruction, OperationType, Phi, UnaryOperation, Variable
+from decompiler.structures.pseudo import (
+    Assignment,
+    BaseAssignment,
+    BinaryOperation,
+    Instruction,
+    OperationType,
+    Phi,
+    UnaryOperation,
+    Variable,
+)
 from decompiler.structures.pseudo.typing import Pointer
 
 

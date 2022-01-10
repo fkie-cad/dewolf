@@ -3,7 +3,15 @@ from decompiler.pipeline.dataflowanalysis.array_access_detection import ArrayAcc
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
 from decompiler.structures.pseudo.expressions import Constant, ImportedFunctionSymbol, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Phi, Return
-from decompiler.structures.pseudo.operations import ArrayInfo, BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.operations import (
+    ArrayInfo,
+    BinaryOperation,
+    Call,
+    Condition,
+    ListOperation,
+    OperationType,
+    UnaryOperation,
+)
 from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer
 from decompiler.task import DecompilerTask
 

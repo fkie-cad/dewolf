@@ -11,7 +11,9 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder import (
     MissingCaseFinder,
 )
-from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.switch_extractor import SwitchExtractor
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.switch_extractor import (
+    SwitchExtractor,
+)
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition
 

@@ -2,7 +2,14 @@ from typing import List, Tuple
 
 from decompiler.pipeline.dataflowanalysis import ExpressionPropagationMemory
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
-from decompiler.structures.pseudo.expressions import Constant, Expression, GlobalVariable, ImportedFunctionSymbol, UnknownExpression, Variable
+from decompiler.structures.pseudo.expressions import (
+    Constant,
+    Expression,
+    GlobalVariable,
+    ImportedFunctionSymbol,
+    UnknownExpression,
+    Variable,
+)
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Phi, Relation, Return
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation
 from decompiler.structures.pseudo.operations import OperationType
