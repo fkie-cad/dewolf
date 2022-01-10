@@ -1,8 +1,8 @@
 """Pytest for renaming SSA-variables to non-SSA-variables."""
 
-from dewolf.pipeline.ssa.phi_lifting import PhiFunctionLifter
-from dewolf.pipeline.ssa.variable_renaming import MinimalVariableRenamer, SimpleVariableRenamer, VariableRenamer
-from dewolf.structures.interferencegraph import InterferenceGraph
+from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
+from decompiler.pipeline.ssa.variable_renaming import MinimalVariableRenamer, SimpleVariableRenamer, VariableRenamer
+from decompiler.structures.interferencegraph import InterferenceGraph
 
 from tests.pipeline.SSA.utils_out_of_ssa_tests import *
 

@@ -1,13 +1,13 @@
-from dewolf.structures.ast.ast_nodes import CodeNode
-from dewolf.structures.ast.condition_symbol import ConditionHandler, ConditionSymbol
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
-from dewolf.structures.graphs.classifiedgraph import EdgeProperty
-from dewolf.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock, TransitionCFG
-from dewolf.structures.logic.logic_condition import LogicCondition, PseudoLogicCondition
-from dewolf.structures.pseudo import Integer
-from dewolf.structures.pseudo.expressions import Constant, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, IndirectBranch, Return
-from dewolf.structures.pseudo.operations import BinaryOperation, Condition, OperationType
+from decompiler.structures.ast.ast_nodes import CodeNode
+from decompiler.structures.ast.condition_symbol import ConditionHandler, ConditionSymbol
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
+from decompiler.structures.graphs.classifiedgraph import EdgeProperty
+from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock, TransitionCFG
+from decompiler.structures.logic.logic_condition import LogicCondition, PseudoLogicCondition
+from decompiler.structures.pseudo import Integer
+from decompiler.structures.pseudo.expressions import Constant, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, IndirectBranch, Return
+from decompiler.structures.pseudo.operations import BinaryOperation, Condition, OperationType
 
 
 def variable(name="a", version=0, ssa_name=None) -> Variable:

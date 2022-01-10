@@ -1,8 +1,8 @@
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
-from dewolf.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Symbol, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, Call, IndirectBranch, ListOperation, Phi, Return
-from dewolf.structures.pseudo.operations import BinaryOperation, Condition, OperationType, UnaryOperation
-from dewolf.structures.pseudo.typing import Integer, Pointer
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Symbol, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Call, IndirectBranch, ListOperation, Phi, Return
+from decompiler.structures.pseudo.operations import BinaryOperation, Condition, OperationType, UnaryOperation
+from decompiler.structures.pseudo.typing import Integer, Pointer
 from pytest import fixture
 
 

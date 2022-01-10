@@ -2,11 +2,11 @@
 from typing import List
 
 import pytest
-from dewolf.pipeline.ssa.phi_dependency_graph import PhiDependencyGraph
-from dewolf.structures.pseudo.expressions import Constant, Variable
-from dewolf.structures.pseudo.instructions import Phi
-from dewolf.structures.pseudo.typing import Integer
-from dewolf.util.insertion_ordered_set import InsertionOrderedSet
+from decompiler.pipeline.ssa.phi_dependency_graph import PhiDependencyGraph
+from decompiler.structures.pseudo.expressions import Constant, Variable
+from decompiler.structures.pseudo.instructions import Phi
+from decompiler.structures.pseudo.typing import Integer
+from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 
 
 @pytest.fixture()

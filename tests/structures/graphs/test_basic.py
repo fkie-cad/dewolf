@@ -1,5 +1,5 @@
 """Module implementing tests for the most basic node and edge implementations."""
-from dewolf.structures.graphs.basic import BasicEdge, BasicNode
+from decompiler.structures.graphs.basic import BasicEdge, BasicNode
 
 
 class TestBaseNode:

@@ -1,9 +1,9 @@
 import pytest
-from dewolf.pipeline.commons.reaching_definitions import ReachingDefinitions
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, UnconditionalEdge
-from dewolf.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, Return
-from dewolf.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
+from decompiler.pipeline.commons.reaching_definitions import ReachingDefinitions
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, UnconditionalEdge
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Return
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
 
 
 def test_single_basic_block_graph(one_basic_block_cfg, a, b, c, d, func):

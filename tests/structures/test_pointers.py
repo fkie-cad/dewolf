@@ -1,14 +1,14 @@
 from typing import List
 
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, UnconditionalEdge
-from dewolf.structures.pointers import Pointers
-from dewolf.structures.pseudo.expressions import Constant, Expression, ImportedFunctionSymbol, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, Phi, Return
-from dewolf.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation
-from dewolf.structures.pseudo.operations import OperationType
-from dewolf.structures.pseudo.operations import OperationType as op
-from dewolf.structures.pseudo.operations import UnaryOperation
-from dewolf.structures.pseudo.typing import Integer, Pointer, Type
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, UnconditionalEdge
+from decompiler.structures.pointers import Pointers
+from decompiler.structures.pseudo.expressions import Constant, Expression, ImportedFunctionSymbol, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Phi, Return
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation
+from decompiler.structures.pseudo.operations import OperationType
+from decompiler.structures.pseudo.operations import OperationType as op
+from decompiler.structures.pseudo.operations import UnaryOperation
+from decompiler.structures.pseudo.typing import Integer, Pointer, Type
 
 int32 = Integer.int32_t()
 int64 = Integer.int64_t()

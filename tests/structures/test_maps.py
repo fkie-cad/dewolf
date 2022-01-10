@@ -2,11 +2,11 @@ from collections import defaultdict
 from typing import List, Tuple
 
 import pytest
-from dewolf.structures.maps import DefMap, UseMap
-from dewolf.structures.pseudo.expressions import Constant, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, Instruction, Phi
-from dewolf.structures.pseudo.operations import BinaryOperation, Condition, OperationType
-from dewolf.structures.pseudo.typing import Integer
+from decompiler.structures.maps import DefMap, UseMap
+from decompiler.structures.pseudo.expressions import Constant, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Instruction, Phi
+from decompiler.structures.pseudo.operations import BinaryOperation, Condition, OperationType
+from decompiler.structures.pseudo.typing import Integer
 
 
 def define_def_map() -> Tuple[List, DefMap]:

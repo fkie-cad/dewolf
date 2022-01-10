@@ -2,13 +2,13 @@
 from typing import List
 
 import pytest
-from dewolf.pipeline.preprocessing import InsertMissingDefinitions
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, UnconditionalEdge
-from dewolf.structures.pseudo.expressions import Constant, FunctionSymbol, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, Instruction, Phi, Relation, Return
-from dewolf.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
-from dewolf.structures.pseudo.typing import Integer
-from dewolf.task import DecompilerTask
+from decompiler.pipeline.preprocessing import InsertMissingDefinitions
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, UnconditionalEdge
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Instruction, Phi, Relation, Return
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.typing import Integer
+from decompiler.task import DecompilerTask
 
 
 def function_symbol(name: str, value: int = 0x42) -> FunctionSymbol:

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Tuple
 
-from dewolf.backend.codegenerator import CodeGenerator
-from dewolf.frontend import BinaryninjaFrontend, Frontend
-from dewolf.pipeline.pipeline import DecompilerPipeline
-from dewolf.task import DecompilerTask
-from dewolf.util.options import Options
+from decompiler.backend.codegenerator import CodeGenerator
+from decompiler.frontend import BinaryninjaFrontend, Frontend
+from decompiler.pipeline.pipeline import DecompilerPipeline
+from decompiler.task import DecompilerTask
+from decompiler.util.options import Options
 
 
 class Decompiler:
@@ -75,6 +75,6 @@ class Decompiler:
 
 """When invoked as a script, run the commandline interface."""
 if __name__ == "__main__":
-    from dewolf.util.commandline import main
+    from decompiler.util.commandline import main
 
     main(Decompiler)

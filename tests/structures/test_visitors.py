@@ -1,10 +1,10 @@
 from typing import List, Union
 
 import pytest
-from dewolf.structures.ast.ast_nodes import SeqNode, SwitchNode
-from dewolf.structures.ast.syntaxtree import AbstractSyntaxTree
-from dewolf.structures.logic.logic_condition import LogicCondition
-from dewolf.structures.pseudo import (
+from decompiler.structures.ast.ast_nodes import SeqNode, SwitchNode
+from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
+from decompiler.structures.logic.logic_condition import LogicCondition
+from decompiler.structures.pseudo import (
     Assignment,
     BinaryOperation,
     Break,
@@ -29,8 +29,8 @@ from dewolf.structures.pseudo import (
     UnknownExpression,
     Variable,
 )
-from dewolf.structures.visitors.assignment_visitor import AssignmentVisitor
-from dewolf.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
+from decompiler.structures.visitors.assignment_visitor import AssignmentVisitor
+from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 
 
 def var(name: str, _type: Type = Integer.int32_t()) -> Variable:

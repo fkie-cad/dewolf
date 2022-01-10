@@ -1,5 +1,5 @@
 import pytest
-from dewolf.structures.ast.ast_nodes import (
+from decompiler.structures.ast.ast_nodes import (
     CaseNode,
     CodeNode,
     ConditionNode,
@@ -9,8 +9,8 @@ from dewolf.structures.ast.ast_nodes import (
     SwitchNode,
     WhileLoopNode,
 )
-from dewolf.structures.logic.logic_condition import LogicCondition
-from dewolf.structures.pseudo import Assignment, BinaryOperation, Break, Condition, Constant, ListOperation, OperationType, Variable
+from decompiler.structures.logic.logic_condition import LogicCondition
+from decompiler.structures.pseudo import Assignment, BinaryOperation, Break, Condition, Constant, ListOperation, OperationType, Variable
 
 
 class TestEquality:

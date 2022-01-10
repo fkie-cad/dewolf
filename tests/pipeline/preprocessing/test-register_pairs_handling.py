@@ -1,12 +1,12 @@
 from functools import partial
 
-import dewolf.structures.pseudo.operations as operations
-from dewolf.pipeline.preprocessing import RegisterPairHandling
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
-from dewolf.structures.pseudo.expressions import Constant, FunctionSymbol, RegisterPair, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, Return
-from dewolf.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
-from dewolf.structures.pseudo.typing import Integer, UnknownType
+import decompiler.structures.pseudo.operations as operations
+from decompiler.pipeline.preprocessing import RegisterPairHandling
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, RegisterPair, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Return
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.typing import Integer, UnknownType
 
 cast = partial(operations.UnaryOperation, operations.OperationType.cast)
 division = partial(operations.BinaryOperation, operations.OperationType.divide)

@@ -1,8 +1,8 @@
 """Module implementing tests for the RootedGraph implementation."""
 from typing import Tuple
 
-from dewolf.structures.graphs.basic import BasicEdge, BasicNode
-from dewolf.structures.graphs.rootedgraph import RootedGraph
+from decompiler.structures.graphs.basic import BasicEdge, BasicNode
+from decompiler.structures.graphs.rootedgraph import RootedGraph
 from pytest import raises
 
 

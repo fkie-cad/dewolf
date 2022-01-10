@@ -1,9 +1,9 @@
 from typing import List, Tuple
 
 import pytest as pytest
-from dewolf.structures.logic.z3_implementations import Z3Implementation
-from dewolf.structures.logic.z3_logic import PseudoZ3LogicCondition, Z3LogicCondition
-from dewolf.structures.pseudo import BinaryOperation, Condition, Constant, Integer, OperationType, Variable
+from decompiler.structures.logic.z3_implementations import Z3Implementation
+from decompiler.structures.logic.z3_logic import PseudoZ3LogicCondition, Z3LogicCondition
+from decompiler.structures.pseudo import BinaryOperation, Condition, Constant, Integer, OperationType, Variable
 from z3 import UGT, ULE, And, BitVec, BitVecVal, Bool, BoolRef, BoolVal, Context, Not, Or, simplify
 
 context = Context()

@@ -1,11 +1,11 @@
 from functools import partial
 
-from dewolf.pipeline.preprocessing import SwitchVariableDetection
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
-from dewolf.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, IndirectBranch, Phi, Return
-from dewolf.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
-from dewolf.structures.pseudo.typing import CustomType, Integer, Pointer
+from decompiler.pipeline.preprocessing import SwitchVariableDetection
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, IndirectBranch, Phi, Return
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer
 
 arg, eax, ebx = (lambda x, name=name: Variable(name, Integer.int32_t(), ssa_label=x) for name in ["arg", "eax", "ebx"])
 const = lambda value: Constant(value, Integer.int32_t())

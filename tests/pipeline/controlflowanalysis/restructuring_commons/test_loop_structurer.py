@@ -1,10 +1,10 @@
-from dewolf.pipeline.controlflowanalysis.restructuring_commons.loop_structurer import LoopStructurer
-from dewolf.pipeline.controlflowanalysis.restructuring_commons.loop_structuring_rules import SequenceRule
-from dewolf.structures.ast.ast_comparator import ASTComparator
-from dewolf.structures.ast.condition_symbol import ConditionHandler, ConditionSymbol
-from dewolf.structures.ast.syntaxforest import AbstractSyntaxForest
-from dewolf.structures.logic.logic_condition import LogicCondition
-from dewolf.structures.pseudo import Assignment, BinaryOperation, Break, Condition, Constant, Continue, Integer, OperationType, Variable
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.loop_structurer import LoopStructurer
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.loop_structuring_rules import SequenceRule
+from decompiler.structures.ast.ast_comparator import ASTComparator
+from decompiler.structures.ast.condition_symbol import ConditionHandler, ConditionSymbol
+from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
+from decompiler.structures.logic.logic_condition import LogicCondition
+from decompiler.structures.pseudo import Assignment, BinaryOperation, Break, Condition, Constant, Continue, Integer, OperationType, Variable
 
 var_c = Variable("c", Integer.int32_t())
 const_0 = Constant(0, Integer.int32_t())

@@ -1,9 +1,9 @@
 import pytest
-from dewolf.structures.pseudo.expressions import Constant, Variable
-from dewolf.structures.pseudo.instructions import Branch, Return
-from dewolf.structures.pseudo.logic import Z3Converter
-from dewolf.structures.pseudo.operations import BinaryOperation, Condition, OperationType, UnaryOperation
-from dewolf.structures.pseudo.typing import Float, Integer, Pointer
+from decompiler.structures.pseudo.expressions import Constant, Variable
+from decompiler.structures.pseudo.instructions import Branch, Return
+from decompiler.structures.pseudo.logic import Z3Converter
+from decompiler.structures.pseudo.operations import BinaryOperation, Condition, OperationType, UnaryOperation
+from decompiler.structures.pseudo.typing import Float, Integer, Pointer
 from z3 import And, BitVec, BitVecVal, Bool, BoolRef, Not, Or, Real, RotateLeft, RotateRight
 
 var_a = Variable("a", Integer.int32_t())

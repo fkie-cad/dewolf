@@ -1,6 +1,6 @@
 """Pytest for lexicographical BFS."""
-from dewolf.structures.interferencegraph import InterferenceGraph
-from dewolf.util.lexicographical_bfs import LexicographicalBFS
+from decompiler.structures.interferencegraph import InterferenceGraph
+from decompiler.util.lexicographical_bfs import LexicographicalBFS
 
 
 def test_lexicographical_order_no_interference():

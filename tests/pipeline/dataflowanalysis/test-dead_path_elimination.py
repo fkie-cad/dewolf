@@ -1,10 +1,10 @@
-from dewolf.pipeline.dataflowanalysis import DeadPathElimination
-from dewolf.structures.graphs.cfg import BasicBlock, BasicBlockEdgeCondition, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
-from dewolf.structures.pseudo.expressions import Constant, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, Phi, Return
-from dewolf.structures.pseudo.operations import Condition, ListOperation, OperationType
-from dewolf.task import DecompilerTask
-from dewolf.util.options import Options
+from decompiler.pipeline.dataflowanalysis import DeadPathElimination
+from decompiler.structures.graphs.cfg import BasicBlock, BasicBlockEdgeCondition, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
+from decompiler.structures.pseudo.expressions import Constant, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Phi, Return
+from decompiler.structures.pseudo.operations import Condition, ListOperation, OperationType
+from decompiler.task import DecompilerTask
+from decompiler.util.options import Options
 
 
 def run_dead_path_elimination(cfg):

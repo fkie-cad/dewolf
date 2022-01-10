@@ -1,7 +1,7 @@
 """Pytest for Out of SSA."""
-from dewolf.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
-from dewolf.structures.graphs.cfg import BasicBlockEdgeCondition
-from dewolf.structures.pseudo import Expression, Type, UnknownExpression
+from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
+from decompiler.structures.graphs.cfg import BasicBlockEdgeCondition
+from decompiler.structures.pseudo import Expression, Type, UnknownExpression
 
 from tests.pipeline.SSA.utils_out_of_ssa_tests import *
 

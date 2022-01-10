@@ -1,9 +1,9 @@
 """Tests for the pipeline system."""
 import pytest
-from dewolf.pipeline.default import AST_STAGES, CFG_STAGES
-from dewolf.pipeline.pipeline import DecompilerPipeline
-from dewolf.pipeline.stage import PipelineStage
-from dewolf.task import DecompilerTask
+from decompiler.pipeline.default import AST_STAGES, CFG_STAGES
+from decompiler.pipeline.pipeline import DecompilerPipeline
+from decompiler.pipeline.stage import PipelineStage
+from decompiler.task import DecompilerTask
 
 
 class TestPipeline:

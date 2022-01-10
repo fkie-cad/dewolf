@@ -1,9 +1,9 @@
-from dewolf.pipeline.preprocessing import CompilerIdiomHandling
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph
-from dewolf.structures.pseudo.expressions import Constant, Tag, Variable
-from dewolf.structures.pseudo.instructions import Assignment
-from dewolf.structures.pseudo.operations import BinaryOperation, OperationType
-from dewolf.structures.pseudo.typing import Integer
+from decompiler.pipeline.preprocessing import CompilerIdiomHandling
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
+from decompiler.structures.pseudo.expressions import Constant, Tag, Variable
+from decompiler.structures.pseudo.instructions import Assignment
+from decompiler.structures.pseudo.operations import BinaryOperation, OperationType
+from decompiler.structures.pseudo.typing import Integer
 
 
 class MockTask:

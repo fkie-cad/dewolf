@@ -1,5 +1,5 @@
-from dewolf.structures.pseudo.expressions import Constant, FunctionSymbol, Variable
-from dewolf.structures.pseudo.instructions import (
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, Variable
+from decompiler.structures.pseudo.instructions import (
     Assignment,
     Branch,
     Break,
@@ -11,8 +11,8 @@ from dewolf.structures.pseudo.instructions import (
     Relation,
     Return,
 )
-from dewolf.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
-from dewolf.structures.pseudo.typing import Integer
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.typing import Integer
 
 a = Variable("a", Integer.int32_t(), 0)
 b = Variable("b", Integer.int32_t(), 1)

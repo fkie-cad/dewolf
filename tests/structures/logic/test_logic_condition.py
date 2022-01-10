@@ -1,7 +1,7 @@
 import pytest
-from dewolf.structures.logic.logic_condition import generate_logic_condition_class, generate_pseudo_logic_condition_class
-from dewolf.structures.logic.z3_logic import PseudoZ3LogicCondition, Z3LogicCondition
-from dewolf.structures.pseudo import BinaryOperation, Condition, Constant, Integer, OperationType, Variable
+from decompiler.structures.logic.logic_condition import generate_logic_condition_class, generate_pseudo_logic_condition_class
+from decompiler.structures.logic.z3_logic import PseudoZ3LogicCondition, Z3LogicCondition
+from decompiler.structures.pseudo import BinaryOperation, Condition, Constant, Integer, OperationType, Variable
 from z3 import UGT, ULE, And, BitVec, BitVecVal, Bool, BoolVal, Not, Or
 
 LogicCondition = generate_logic_condition_class(Z3LogicCondition)
