@@ -2,11 +2,11 @@
 from functools import partial
 
 import pytest
-from dewolf.structures.graphs.cfg import BasicBlock
-from dewolf.structures.pseudo.expressions import ImportedFunctionSymbol
-from dewolf.structures.pseudo.instructions import Assignment, Branch, Call, Comment, IndirectBranch, ListOperation, Phi
-from dewolf.structures.pseudo.operations import BinaryOperation, Condition, Constant, OperationType, UnaryOperation, Variable
-from dewolf.structures.pseudo.typing import Integer, Pointer
+from decompiler.structures.graphs.cfg import BasicBlock
+from decompiler.structures.pseudo.expressions import ImportedFunctionSymbol
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Call, Comment, IndirectBranch, ListOperation, Phi
+from decompiler.structures.pseudo.operations import BinaryOperation, Condition, Constant, OperationType, UnaryOperation, Variable
+from decompiler.structures.pseudo.typing import Integer, Pointer
 
 i = [Variable("i", ssa_label=x, vartype=Integer.uint8_t()) for x in range(3)]
 b = [Variable("b", ssa_label=x, vartype=Integer.int32_t()) for x in range(2)]

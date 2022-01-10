@@ -1,11 +1,11 @@
 """ Tests for the AbstractSyntaxTree base class."""
 import pytest
-from dewolf.structures.ast.ast_nodes import CodeNode, SeqNode, VirtualRootNode
-from dewolf.structures.ast.syntaxtree import AbstractSyntaxTree
+from decompiler.structures.ast.ast_nodes import CodeNode, SeqNode, VirtualRootNode
+from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 
 # Fixtures for example ASTs
-from dewolf.structures.logic.logic_condition import LogicCondition
-from dewolf.structures.pseudo import Assignment, Condition, Constant, OperationType, Return, Variable
+from decompiler.structures.logic.logic_condition import LogicCondition
+from decompiler.structures.pseudo import Assignment, Condition, Constant, OperationType, Return, Variable
 
 new_context = LogicCondition.generate_new_context()
 

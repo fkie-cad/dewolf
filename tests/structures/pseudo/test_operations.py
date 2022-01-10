@@ -1,9 +1,9 @@
 from functools import partial
 
 import pytest
-from dewolf.structures.pseudo import Assignment
-from dewolf.structures.pseudo.expressions import Constant, FunctionSymbol, Variable
-from dewolf.structures.pseudo.operations import (
+from decompiler.structures.pseudo import Assignment
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, Variable
+from decompiler.structures.pseudo.operations import (
     ArrayInfo,
     BinaryOperation,
     Call,
@@ -13,7 +13,7 @@ from dewolf.structures.pseudo.operations import (
     TernaryExpression,
     UnaryOperation,
 )
-from dewolf.structures.pseudo.typing import Integer
+from decompiler.structures.pseudo.typing import Integer
 
 a = Variable("a", Integer.int32_t(), 0)
 b = Variable("b", Integer.int32_t(), 1)

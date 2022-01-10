@@ -120,7 +120,7 @@ The format of such a config file has to be as follows:
   "expression-propagation.maximum_instruction_complexity": 5
 }
 ```
-All available settings can be found in `dewolf/util/default.json`.
+All available settings can be found in `decompiler/util/default.json`.
 
 ___
 ## Support

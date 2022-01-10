@@ -31,13 +31,13 @@ RUN unzip /tmp/BinaryNinja.zip -d /opt/ && rm /tmp/BinaryNinja.zip && mkdir -p /
 COPY license.txt /root/.binaryninja/license.dat
 
 # set up pydec
-RUN mkdir -p /opt/decompiler && test -f /opt/decompiler/install_api.py || ln -s /opt/binaryninja/scripts/install_api.py /opt/decompiler/install_api.py
+RUN mkdir -p /opt/dewolf && test -f /opt/dewolf/install_api.py || ln -s /opt/binaryninja/scripts/install_api.py /opt/dewolf/install_api.py
 
 # update binja and cache this docker image
-COPY Makefile.venv requirements.txt update_binja.py /opt/decompiler/
-COPY ./dewolf-idioms/requirements.txt /opt/decompiler/requirements-compiler-idioms.txt
-RUN make -f /opt/decompiler/Makefile.venv venv VENV_PATH=/opt/decompiler/.venv PREFIX=/opt/decompiler
+COPY Makefile.venv requirements.txt update_binja.py /opt/dewolf/
+COPY ./dewolf-idioms/requirements.txt /opt/dewolf/requirements-compiler-idioms.txt
+RUN make -f /opt/dewolf/Makefile.venv venv VENV_PATH=/opt/dewolf/.venv PREFIX=/opt/dewolf
 
-COPY . /opt/decompiler
-RUN mkdir -p /root/.binaryninja/plugins/ && cp -r /opt/decompiler/dewolf-idioms/ /root/.binaryninja/plugins/
-WORKDIR /opt/decompiler
+COPY . /opt/dewolf
+RUN mkdir -p /root/.binaryninja/plugins/ && cp -r /opt/dewolf/dewolf-idioms/ /root/.binaryninja/plugins/
+WORKDIR /opt/dewolf

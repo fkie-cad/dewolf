@@ -12,9 +12,9 @@ current_dir = dirname(realpath(__file__))
 path.append(current_dir)
 
 from decompile import Decompiler
-from dewolf.logger import configure_logging
-from dewolf.util.decoration import DecoratedCode
-from dewolf.util.options import Options
+from decompiler.logger import configure_logging
+from decompiler.util.decoration import DecoratedCode
+from decompiler.util.options import Options
 
 
 def decompile(bv: BinaryView, function: Function):
@@ -60,7 +60,7 @@ if core_ui_enabled():
     Options.from_gui()  # register dewolf config in GUI
 
     try:
-        from dewolf.util.widget import add_dock_widget
+        from decompiler.util.widget import add_dock_widget
 
         add_dock_widget()
     except Exception as ex:

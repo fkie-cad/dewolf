@@ -1,16 +1,16 @@
 from typing import Optional
 
 import pytest
-from dewolf.pipeline.controlflowanalysis import ExpressionSimplification
-from dewolf.structures.ast.ast_nodes import CodeNode
-from dewolf.structures.ast.syntaxtree import AbstractSyntaxTree
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph
-from dewolf.structures.logic.logic_condition import LogicCondition
-from dewolf.structures.pseudo.expressions import Constant, Variable
-from dewolf.structures.pseudo.instructions import Assignment
-from dewolf.structures.pseudo.operations import BinaryOperation, OperationType, UnaryOperation
-from dewolf.structures.pseudo.typing import Integer
-from dewolf.task import DecompilerTask
+from decompiler.pipeline.controlflowanalysis import ExpressionSimplification
+from decompiler.structures.ast.ast_nodes import CodeNode
+from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
+from decompiler.structures.logic.logic_condition import LogicCondition
+from decompiler.structures.pseudo.expressions import Constant, Variable
+from decompiler.structures.pseudo.instructions import Assignment
+from decompiler.structures.pseudo.operations import BinaryOperation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.typing import Integer
+from decompiler.task import DecompilerTask
 
 
 def _task(ast: Optional[AbstractSyntaxTree] = None, cfg: Optional[ControlFlowGraph] = None) -> DecompilerTask:

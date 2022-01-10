@@ -1,7 +1,7 @@
 # pytest for lifting Phi-functions
 
-from dewolf.pipeline.ssa.phi_lifting import PhiFunctionLifter
-from dewolf.structures.interferencegraph import InterferenceGraph
+from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
+from decompiler.structures.interferencegraph import InterferenceGraph
 
 from tests.pipeline.SSA.utils_out_of_ssa_tests import *
 

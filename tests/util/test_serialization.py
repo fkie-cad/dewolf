@@ -1,7 +1,7 @@
 from typing import Union
 
 import pytest
-from dewolf.structures.ast.ast_nodes import (
+from decompiler.structures.ast.ast_nodes import (
     AbstractSyntaxTreeNode,
     CaseNode,
     CodeNode,
@@ -14,13 +14,13 @@ from dewolf.structures.ast.ast_nodes import (
     TrueNode,
     WhileLoopNode,
 )
-from dewolf.structures.ast.syntaxtree import AbstractSyntaxTree
-from dewolf.structures.logic.logic_condition import LogicCondition
-from dewolf.structures.pseudo.expressions import Constant, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Return
-from dewolf.structures.pseudo.operations import BinaryOperation, Condition, OperationType
-from dewolf.structures.pseudo.typing import Integer, Type
-from dewolf.util.serialization.ast_serializer import AstNodeSerializer, AstSerializer
+from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
+from decompiler.structures.logic.logic_condition import LogicCondition
+from decompiler.structures.pseudo.expressions import Constant, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Return
+from decompiler.structures.pseudo.operations import BinaryOperation, Condition, OperationType
+from decompiler.structures.pseudo.typing import Integer, Type
+from decompiler.util.serialization.ast_serializer import AstNodeSerializer, AstSerializer
 
 
 def var(name: str, _type: Type = Integer.int32_t()) -> Variable:

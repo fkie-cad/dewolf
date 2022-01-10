@@ -1,11 +1,19 @@
 import pytest
-from dewolf.pipeline.dataflowanalysis.array_access_detection import ArrayAccessDetection
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
-from dewolf.structures.pseudo.expressions import Constant, ImportedFunctionSymbol, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, Phi, Return
-from dewolf.structures.pseudo.operations import ArrayInfo, BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
-from dewolf.structures.pseudo.typing import CustomType, Integer, Pointer
-from dewolf.task import DecompilerTask
+from decompiler.pipeline.dataflowanalysis.array_access_detection import ArrayAccessDetection
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
+from decompiler.structures.pseudo.expressions import Constant, ImportedFunctionSymbol, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Phi, Return
+from decompiler.structures.pseudo.operations import (
+    ArrayInfo,
+    BinaryOperation,
+    Call,
+    Condition,
+    ListOperation,
+    OperationType,
+    UnaryOperation,
+)
+from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer
+from decompiler.task import DecompilerTask
 
 
 def imp_function_symbol(name: str, value: int = 0x42) -> ImportedFunctionSymbol:

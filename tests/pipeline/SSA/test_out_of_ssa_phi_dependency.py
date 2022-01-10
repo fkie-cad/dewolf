@@ -1,5 +1,5 @@
 # pytest for Resolve Circular dependency
-from dewolf.pipeline.ssa.phi_dependency_resolver import PhiDependencyResolver
+from decompiler.pipeline.ssa.phi_dependency_resolver import PhiDependencyResolver
 
 from tests.pipeline.SSA.utils_out_of_ssa_tests import *
 

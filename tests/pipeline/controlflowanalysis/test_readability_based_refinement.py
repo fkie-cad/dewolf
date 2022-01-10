@@ -1,5 +1,5 @@
 import pytest
-from dewolf.pipeline.controlflowanalysis.readability_based_refinement import (
+from decompiler.pipeline.controlflowanalysis.readability_based_refinement import (
     ForLoopVariableRenamer,
     ReadabilityBasedRefinement,
     WhileLoopVariableRenamer,
@@ -7,10 +7,10 @@ from dewolf.pipeline.controlflowanalysis.readability_based_refinement import (
     _has_deep_requirement,
     _separated_by_loop_node,
 )
-from dewolf.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, ForLoopNode, SeqNode, SwitchNode, WhileLoopNode
-from dewolf.structures.ast.syntaxtree import AbstractSyntaxTree
-from dewolf.structures.logic.logic_condition import LogicCondition
-from dewolf.structures.pseudo import (
+from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, ForLoopNode, SeqNode, SwitchNode, WhileLoopNode
+from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
+from decompiler.structures.logic.logic_condition import LogicCondition
+from decompiler.structures.pseudo import (
     Assignment,
     BinaryOperation,
     Break,
@@ -22,8 +22,8 @@ from dewolf.structures.pseudo import (
     OperationType,
     Variable,
 )
-from dewolf.task import DecompilerTask
-from dewolf.util.options import Options
+from decompiler.task import DecompilerTask
+from decompiler.util.options import Options
 
 
 def logic_cond(name: str, context) -> LogicCondition:

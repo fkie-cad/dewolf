@@ -1,6 +1,6 @@
 # test for remove unnecessary phi functions from a graph or basic block.
 
-from dewolf.pipeline.ssa.phi_cleaner import PhiFunctionCleaner
+from decompiler.pipeline.ssa.phi_cleaner import PhiFunctionCleaner
 
 from tests.pipeline.SSA.utils_out_of_ssa_tests import *
 

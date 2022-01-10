@@ -15,10 +15,10 @@ from binaryninja import (
     Variable,
     VariableSourceType,
 )
-from dewolf.frontend.binaryninja.lifter import BinaryninjaLifter
-from dewolf.frontend.binaryninja.parser import BinaryninjaParser
-from dewolf.structures.graphs.cfg import BasicBlockEdgeCondition
-from dewolf.structures.pseudo.expressions import Constant
+from decompiler.frontend.binaryninja.lifter import BinaryninjaLifter
+from decompiler.frontend.binaryninja.parser import BinaryninjaParser
+from decompiler.structures.graphs.cfg import BasicBlockEdgeCondition
+from decompiler.structures.pseudo.expressions import Constant
 
 
 class MockEdge(BasicBlockEdge):

@@ -1,9 +1,9 @@
 """ Tests for the AbstractSyntaxTree base class."""
 from itertools import combinations
 
-from dewolf.structures.ast.syntaxforest import AbstractSyntaxInterface
-from dewolf.structures.logic.logic_condition import LogicCondition
-from dewolf.structures.pseudo import Assignment, Break, Constant, Integer, Variable
+from decompiler.structures.ast.syntaxforest import AbstractSyntaxInterface
+from decompiler.structures.logic.logic_condition import LogicCondition
+from decompiler.structures.pseudo import Assignment, Break, Constant, Integer, Variable
 
 
 def var(name: str) -> Variable:

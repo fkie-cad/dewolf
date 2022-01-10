@@ -2,8 +2,8 @@
 from typing import List, Tuple
 
 import pytest
-from dewolf.structures.graphs.basic import BasicEdge, BasicNode
-from dewolf.structures.graphs.nxgraph import NetworkXGraph as Graph
+from decompiler.structures.graphs.basic import BasicEdge, BasicNode
+from decompiler.structures.graphs.nxgraph import NetworkXGraph as Graph
 
 
 class TestGraphInterface:

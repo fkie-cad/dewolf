@@ -2,13 +2,13 @@
 from typing import Dict
 
 import pytest
-from dewolf.pipeline.preprocessing import Coherence
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph
-from dewolf.structures.pseudo.expressions import Constant, FunctionSymbol, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Return
-from dewolf.structures.pseudo.operations import Call
-from dewolf.structures.pseudo.typing import Integer
-from dewolf.task import DecompilerTask
+from decompiler.pipeline.preprocessing import Coherence
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Return
+from decompiler.structures.pseudo.operations import Call
+from decompiler.structures.pseudo.typing import Integer
+from decompiler.task import DecompilerTask
 
 i32 = Integer.int32_t()
 i64 = Integer.int64_t()

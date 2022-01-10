@@ -1,14 +1,14 @@
 from typing import Dict, List, Optional, Tuple, Union
 
 import pytest
-from dewolf.pipeline.ssa.outofssatranslation import SSAOptions
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
-from dewolf.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, IndirectBranch, Instruction, Phi, Relation, Return
-from dewolf.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
-from dewolf.structures.pseudo.typing import CustomType, Integer, Pointer, UnknownType
-from dewolf.task import DecompilerTask
-from dewolf.util.options import Options
+from decompiler.pipeline.ssa.outofssatranslation import SSAOptions
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, IndirectBranch, Instruction, Phi, Relation, Return
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer, UnknownType
+from decompiler.task import DecompilerTask
+from decompiler.util.options import Options
 
 
 def function_symbol(name: str, value: int = 0) -> FunctionSymbol:

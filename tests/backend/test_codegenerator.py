@@ -1,17 +1,17 @@
 import re
 from typing import Dict, List
 
-import dewolf.structures.pseudo.instructions as instructions
-import dewolf.structures.pseudo.operations as operations
+import decompiler.structures.pseudo.instructions as instructions
+import decompiler.structures.pseudo.operations as operations
 import pytest
-from dewolf.backend.cexpressiongenerator import CExpressionGenerator
-from dewolf.backend.codegenerator import CodeGenerator
-from dewolf.backend.codevisitor import CodeVisitor
-from dewolf.backend.variabledeclarations import GlobalDeclarationGenerator, LocalDeclarationGenerator
-from dewolf.structures.ast.ast_nodes import CodeNode, SeqNode, SwitchNode
-from dewolf.structures.ast.syntaxtree import AbstractSyntaxTree
-from dewolf.structures.logic.logic_condition import LogicCondition
-from dewolf.structures.pseudo.expressions import (
+from decompiler.backend.cexpressiongenerator import CExpressionGenerator
+from decompiler.backend.codegenerator import CodeGenerator
+from decompiler.backend.codevisitor import CodeVisitor
+from decompiler.backend.variabledeclarations import GlobalDeclarationGenerator, LocalDeclarationGenerator
+from decompiler.structures.ast.ast_nodes import CodeNode, SeqNode, SwitchNode
+from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
+from decompiler.structures.logic.logic_condition import LogicCondition
+from decompiler.structures.pseudo.expressions import (
     Constant,
     DataflowObject,
     ExternConstant,
@@ -20,11 +20,19 @@ from dewolf.structures.pseudo.expressions import (
     GlobalVariable,
     Variable,
 )
-from dewolf.structures.pseudo.instructions import Assignment, Comment, Return
-from dewolf.structures.pseudo.operations import ArrayInfo, BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
-from dewolf.structures.pseudo.typing import CustomType, Float, Integer, Pointer, Type
-from dewolf.task import DecompilerTask
-from dewolf.util.options import Options
+from decompiler.structures.pseudo.instructions import Assignment, Comment, Return
+from decompiler.structures.pseudo.operations import (
+    ArrayInfo,
+    BinaryOperation,
+    Call,
+    Condition,
+    ListOperation,
+    OperationType,
+    UnaryOperation,
+)
+from decompiler.structures.pseudo.typing import CustomType, Float, Integer, Pointer, Type
+from decompiler.task import DecompilerTask
+from decompiler.util.options import Options
 
 void = CustomType.void()
 bool1 = CustomType.bool()

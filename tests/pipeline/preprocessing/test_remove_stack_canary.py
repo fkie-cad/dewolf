@@ -1,10 +1,10 @@
-from dewolf.pipeline.preprocessing import RemoveStackCanary
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
-from dewolf.structures.pseudo.expressions import Constant, ImportedFunctionSymbol, Variable
-from dewolf.structures.pseudo.instructions import Branch, Return
-from dewolf.structures.pseudo.operations import Call, Condition, OperationType
-from dewolf.task import DecompilerTask
-from dewolf.util.options import Options
+from decompiler.pipeline.preprocessing import RemoveStackCanary
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
+from decompiler.structures.pseudo.expressions import Constant, ImportedFunctionSymbol, Variable
+from decompiler.structures.pseudo.instructions import Branch, Return
+from decompiler.structures.pseudo.operations import Call, Condition, OperationType
+from decompiler.task import DecompilerTask
+from decompiler.util.options import Options
 
 
 def _run_remove_stack_canary(cfg: ControlFlowGraph):

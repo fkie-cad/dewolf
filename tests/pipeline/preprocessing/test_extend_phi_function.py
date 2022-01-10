@@ -1,12 +1,12 @@
 from typing import List
 
-import dewolf.structures.pseudo.expressions as expressions
-import dewolf.structures.pseudo.instructions as instructions
+import decompiler.structures.pseudo.expressions as expressions
+import decompiler.structures.pseudo.instructions as instructions
 import pytest
-from dewolf.pipeline.preprocessing import PhiFunctionFixer
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, UnconditionalEdge
-from dewolf.structures.pseudo.typing import Integer
-from dewolf.task import DecompilerTask
+from decompiler.pipeline.preprocessing import PhiFunctionFixer
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, UnconditionalEdge
+from decompiler.structures.pseudo.typing import Integer
+from decompiler.task import DecompilerTask
 
 
 def construct_graph(number: int) -> (List[BasicBlock], ControlFlowGraph):

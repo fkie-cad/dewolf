@@ -1,17 +1,26 @@
 """ Tests for the PatternIndependentRestructuring pipeline stage"""
 
 import pytest
-from dewolf.pipeline.controlflowanalysis.restructuring import PatternIndependentRestructuring
-from dewolf.structures.ast.ast_comparator import ASTComparator
-from dewolf.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, DoWhileLoopNode, LoopNode, SeqNode, SwitchNode, WhileLoopNode
-from dewolf.structures.ast.syntaxtree import AbstractSyntaxTree
-from dewolf.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
-from dewolf.structures.logic.logic_condition import LogicCondition
-from dewolf.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
-from dewolf.structures.pseudo.instructions import Assignment, Branch, Break, Continue, IndirectBranch, Phi, Return
-from dewolf.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
-from dewolf.structures.pseudo.typing import CustomType, Integer, Pointer
-from dewolf.task import DecompilerTask
+from decompiler.pipeline.controlflowanalysis.restructuring import PatternIndependentRestructuring
+from decompiler.structures.ast.ast_comparator import ASTComparator
+from decompiler.structures.ast.ast_nodes import (
+    CaseNode,
+    CodeNode,
+    ConditionNode,
+    DoWhileLoopNode,
+    LoopNode,
+    SeqNode,
+    SwitchNode,
+    WhileLoopNode,
+)
+from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
+from decompiler.structures.logic.logic_condition import LogicCondition
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Break, Continue, IndirectBranch, Phi, Return
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer
+from decompiler.task import DecompilerTask
 
 # class MockDecompilerTask(DecompilerTask):
 #     """Mock class for decompilerTasks only containing a cfg."""
