@@ -431,7 +431,6 @@ class TestLogicConditionZ3:
         ],
     )
     def test_simplify_to_shortest(self, term, bound, result):
-
         assert term.z3.is_equal(term.simplify_to_shortest(bound)._condition, result)
 
     @pytest.mark.parametrize(

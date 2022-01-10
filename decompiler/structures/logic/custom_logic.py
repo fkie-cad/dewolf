@@ -4,6 +4,7 @@ import logging
 from itertools import product
 from typing import Dict, Generic, Iterator, List, Sequence, TypeVar
 
+import decompiler.structures.pseudo as pseudo
 from decompiler.structures.logic.logic_interface import ConditionInterface, PseudoLogicInterface
 from simplifier.operations import BitwiseAnd, BitwiseNegate, BitwiseOr
 from simplifier.range_simplifier import RangeSimplifier
@@ -11,8 +12,6 @@ from simplifier.visitor import ToCnfVisitor
 from simplifier.visitor.serialize_visitor import SerializeVisitor
 from simplifier.world.nodes import BaseVariable, BitVector, Constant, Operation, TmpVariable, Variable, WorldObject
 from simplifier.world.world import World
-
-import dewolf.structures.pseudo as pseudo
 
 LOGICCLASS = TypeVar("LOGICCLASS", bound="CustomLogicCondition")
 PseudoLOGICCLASS = TypeVar("PseudoLOGICCLASS", bound="PseudoCustomLogicCondition")
@@ -183,9 +182,10 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         tmp_condition = self.__class__(self.context.bitwise_or(self._custom_negate(self._condition), other._condition), tmp=True)
         self.context.free_world_condition(tmp_condition._variable)
         tmp_condition._variable.simplify()
-        return_value = tmp_condition.is_true
-        self.context.cleanup()
-        return return_value
+        if tmp_condition.is_true:
+            self.context.cleanup()
+            return True
+        return False
 
     # def is_complementary_to(self, other: LOGICCLASS) -> bool:
     #     """Check whether the condition is complementary to the given condition, i.e. self == Not(other)."""

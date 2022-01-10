@@ -17,7 +17,6 @@ def generate_logic_condition_class(base) -> Type[LOGICCLASS]:
 
         def simplify_to_shortest(self, complexity_bound: int) -> BLogicCondition:
             """Simplify the condition to the shortest one (CNF or DNF)."""
-            return self
             if self.is_true or self.is_false or self.is_symbol:
                 return self
 

@@ -1,8 +1,8 @@
 from typing import List, Tuple
 
 import pytest
-from dewolf.structures.logic.custom_logic import CustomLogicCondition, PseudoCustomLogicCondition
-from dewolf.structures.pseudo import BinaryOperation, Condition, Constant, Integer, OperationType, Variable
+from decompiler.structures.logic.custom_logic import CustomLogicCondition, PseudoCustomLogicCondition
+from decompiler.structures.pseudo import BinaryOperation, Condition, Constant, Integer, OperationType, Variable
 from simplifier.world.nodes import WorldObject
 from simplifier.world.world import World
 
