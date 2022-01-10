@@ -42,8 +42,8 @@ Afterwards, you will be able to inspect decompiled code from a Binary Ninja dock
 #### Step 1: 
 Clone the dewolf repository into the Binary Ninja plugin folder which is located in one of the following paths corresponding to your operating system:
 
-**Linux:** `\path{~/.binaryninja/plugins}`  
-**MacOS:** `\path{~/Library/Application Support/Binary Ninja}`  
+**Linux:** `~/.binaryninja/plugins`  
+**MacOS:** `~/Library/Application Support/Binary Ninja`  
 **Windows:** `%APPDATA%\Binary Ninja`  
 
 **Attention:**
@@ -105,7 +105,7 @@ ___
 dewolf has multiple configuration options of which some are configurable via the GUI. 
 
 ### via GUI
-You can configure dewolf from the Binary Ninja GUI by navigating to **Edit > Preferences > Settings** or by pressing **\ctrl** + **,** .
+You can configure dewolf from the Binary Ninja GUI by navigating to **Edit > Preferences > Settings** or by pressing <kbd>Ctrl</kbd> + <kbd>,</kbd>.
 Search for **dewolf** in the search bar and all dewolf related settings will be displayed.
 
 **Warning:** Configurations made through Binary Ninja will not be taken into account when dewolf is started via command line interface. To configure dewolf when started via CLI, do as described in the following section.
