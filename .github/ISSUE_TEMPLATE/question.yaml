@@ -1,0 +1,15 @@
+name: Question
+description: Ask the developers a question.
+labels: ["question"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Hi! What is your question?
+  - type: textarea
+    id: question-text
+    attributes:
+      label: Question
+    validations:
+      required: true

@@ -1,0 +1,33 @@
+name: Bug Report
+description: File a bug report
+labels: ["bug", "priority-high"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Also tell us, what did you expect to happen?
+      placeholder: Tell us what you see!
+    validations:
+      required: true
+  - type: textarea
+    id: how-to-reproduce
+    attributes:
+      label: How to reproduce?
+      description: Please attach the sample and function you are decompiling and any settings that differ from the default ones.
+      placeholder: Tell us what you did!
+    validations:
+      required: true
+  - type: input
+    id: binja-version
+    attributes:
+      label: Affected Binary Ninja Version(s)
+      description: Please provide the Binary Ninja Version you used when the bug occured.
+      placeholder: Tell us what Binary Ninja version you used!
+    validations:
+      required: true
