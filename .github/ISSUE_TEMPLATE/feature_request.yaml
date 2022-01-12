@@ -1,0 +1,23 @@
+name: Feature Request
+description: Request a new feature or some other enhancement.
+labels: ["feature-request"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Hey! Thanks for wanting to help enhance dewolf. Please make sure you checked for relevant existing issues before submitting a new one.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Proposal
+      description: Please describe the enhancement you'd like to have integrated into dewolf.
+      placeholder: Tell us what you have in mind!
+    validations:
+      required: true
+  - type: textarea
+    id: approach-idea
+    attributes:
+      label: Approach
+      description: How to address this issue or how to implement this particular enhancement.
+      placeholder: If you have any, tell use your implementation ideas!
