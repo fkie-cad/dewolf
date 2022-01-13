@@ -4,7 +4,7 @@ from __future__ import annotations
 from itertools import chain
 from typing import Dict, Set
 
-from decompiler.structures.pseudo import Assignment, Condition, Instruction, Variable
+from decompiler.structures.pseudo import Assignment, Instruction, Variable
 
 from networkx import DiGraph
 
