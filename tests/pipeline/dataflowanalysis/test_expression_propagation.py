@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import List
 
 from decompiler.pipeline.dataflowanalysis import ExpressionPropagation
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge

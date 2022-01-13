@@ -70,17 +70,13 @@ class NetworkXGraph(GraphInterface[NODE, EDGE]):
     def iter_depth_first(self, source: NODE) -> Iterator[NODE]:
         """Iterate all nodes in dfs fashion."""
         edges = dfs_edges(self._graph, source=source)
-        if edges:
-            first_edge = next(edges)
-            yield from first_edge
+        yield source
         yield from (edge[1] for edge in edges)
 
     def iter_breadth_first(self, source: NODE) -> Iterator[NODE]:
         """Iterate all nodes in dfs fashion."""
         edges = bfs_edges(self._graph, source=source)
-        if edges:
-            first_edge = next(edges)
-            yield from first_edge
+        yield source
         yield from (edge[1] for edge in edges)
 
     def iter_postorder(self, source: NODE = None) -> Iterator[NODE]:
