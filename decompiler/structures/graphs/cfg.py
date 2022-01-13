@@ -5,7 +5,6 @@ from itertools import chain
 from typing import Dict, Set
 
 from decompiler.structures.pseudo import Assignment, Condition, Instruction, Variable
-
 from networkx import DiGraph
 
 from .basicblock import BasicBlock
