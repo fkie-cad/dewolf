@@ -4,7 +4,7 @@ from typing import DefaultDict, Optional, Set
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import ControlFlowGraph
-from decompiler.structures.pseudo.expressions import Variable
+from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import Assignment, BaseAssignment, Instruction, Relation
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, ListOperation, OperationType, UnaryOperation
 from decompiler.task import DecompilerTask
@@ -78,6 +78,8 @@ class DependencyGraph(DiGraph):
             self.add_node(str(defined_variable), instruction=assignment, position=position)
             for required_variable in assignment.requirements:
                 self.add_edge(str(defined_variable), str(required_variable))
+            if isinstance(defined_variable, GlobalVariable):
+                self.add_edge(self.SINK_LABEL, str(defined_variable))
 
     def find_dead_variables(self) -> Set[str]:
         """Iterate all dead variables in the graph based on their name to prevent type mismatches."""
