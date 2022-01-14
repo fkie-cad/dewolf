@@ -2,11 +2,7 @@ mode: chatops
 silent: false
 branchName: full
 autoCloseIssue: true
-branches:
-  - label: question
-    skip: true
 openDraftPR: true
-copyIssueDescriptionToPR: true
 copyIssueLabelsToPR: true
 copyIssueAssigneeToPR: true
 copyIssueMilestoneToPR: true
