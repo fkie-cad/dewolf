@@ -39,7 +39,6 @@ from decompiler.structures.pseudo import (
 from decompiler.task import DecompilerTask
 from pycparser import CParser, c_ast
 
-
 OPERATION_MAPPING = {
     "-": OperationType.minus,
     "f-": OperationType.minus_float,
