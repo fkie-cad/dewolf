@@ -1,6 +1,6 @@
 """Module containing the visitors used to generate variable declarations."""
 from collections import defaultdict
-from typing import Iterable, Iterator, List, Set
+from typing import Iterable, Iterator, List, Optional, Set
 
 from decompiler.structures.ast.ast_nodes import ForLoopNode, LoopNode
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
@@ -56,9 +56,12 @@ class LocalDeclarationGenerator(BaseAstDataflowObjectVisitor):
                 else:
                     self.visit(unary.operand.left)
 
-    def generate(self, param_names: list = []) -> Iterator[str]:
+    def generate(self, param_names: Optional[List] = []) -> Iterator[str]:
         """Generate a string containing the variable definitions for the visited variables."""
+        if param_names is None:
+            param_names = []
         variable_type_mapping = defaultdict(list)
+
         for variable in sorted(self._variables, key=lambda x: str(x)):
             if not isinstance(variable, GlobalVariable):
                 variable_type_mapping[variable.type].append(variable)
