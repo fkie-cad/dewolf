@@ -246,6 +246,7 @@ class TypeParser:
         "bool": CustomType.bool(),
         "float": Float.float(),
         "double": Float.double(),
+        "long double": Float(128),
     }
 
     def __init__(self, bitness: int = 32):
