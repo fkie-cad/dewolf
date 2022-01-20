@@ -36,7 +36,6 @@ from decompiler.structures.pseudo import (
     UnaryOperation,
     Variable,
 )
-from decompiler.structures.pseudo.operations import ArrayInfo
 from decompiler.task import DecompilerTask
 from pycparser import CParser, c_ast
 
@@ -135,7 +134,7 @@ def _get_function_definition(ast: c_ast.FileAST, function_name: str) -> c_ast.Fu
 
 
 class PycASTVisitor:
-    """Custom PycAST visitor class"""
+    """Custom PycParserAST visitor class"""
 
     def __init__(self):
         self.mapping: Dict[Type[c_ast.Node], Callable] = {
@@ -268,16 +267,17 @@ class PycASTVisitor:
 
 
 class C2ASTConverter(PycASTVisitor):
-    """TODO: add docstring"""
+    """This class converts c code to dewolfs AST representation. It should help to write AST tests more easily."""
 
     def __init__(self):
         super().__init__()
-        self.type_parser: TypeParser = TypeParser()
-        self.syntax_tree: Optional[AbstractSyntaxTree] = None
-        self.condition_map: Dict[LogicCondition, Condition] = {}
-        self.declared_variables: Dict[str, Variable] = {}
-        self.declared_function_symbols: Dict[str, FunctionSymbol] = {}
-        self.declared_arrays: Dict[str, ArrayInfo] = {}
+        self._type_parser: TypeParser = TypeParser()
+        self._syntax_tree: Optional[AbstractSyntaxTree] = None
+        self._condition_map: Dict[LogicCondition, Condition] = {}
+        self._declared_variables: Dict[str, Variable] = {}
+        self._declared_function_symbols: Dict[str, FunctionSymbol] = {}
+        self._logic_context = LogicCondition.generate_new_context()
+        self._reachable = LogicCondition.initialize_true(self._logic_context)
 
     def from_file(self, path: Path, function_name: str) -> DecompilerTask:
         """
@@ -309,16 +309,17 @@ class C2ASTConverter(PycASTVisitor):
         if func_params := func_def.decl.type.args:
             function_parameters = self.visit(func_params)
 
-        true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
-        self.syntax_tree = AbstractSyntaxTree(root=SeqNode(true_value), condition_map=self.condition_map)
+        self._syntax_tree = AbstractSyntaxTree(root=SeqNode(reaching_condition=self._reachable), condition_map=self._condition_map)
 
         if root := self.visit(func_def.body):
-            self.syntax_tree._add_edge(self.syntax_tree._root, root)
+            self._syntax_tree._add_edge(self._syntax_tree.root, root)
+
+        self._syntax_tree.clean_up()
 
         return DecompilerTask(
             cfg=None,
             options=None,
-            ast=self.syntax_tree,
+            ast=self._syntax_tree,
             name=func_def.decl.name,
             function_parameters=function_parameters,
             function_return_type=function_return_type,
@@ -342,7 +343,7 @@ class C2ASTConverter(PycASTVisitor):
                 if active_code_node:
                     active_code_node.instructions.append(item)
                 else:
-                    active_code_node = CodeNode([item], LogicCondition.initialize_true(LogicCondition.generate_new_context()))
+                    active_code_node = CodeNode([item], self._reachable)
             elif isinstance(item, AbstractSyntaxTreeNode):
                 if active_code_node:
                     generated_nodes.append(active_code_node)
@@ -353,19 +354,19 @@ class C2ASTConverter(PycASTVisitor):
             generated_nodes.append(active_code_node)
 
         if len(generated_nodes) == 1:
-            self.syntax_tree._add_node(generated_nodes[0])
+            self._syntax_tree._add_node(generated_nodes[0])
             return generated_nodes[0]
 
-        self.syntax_tree._add_node(block_root := SeqNode(LogicCondition.initialize_true(LogicCondition.generate_new_context())))
+        self._syntax_tree._add_node(block_root := SeqNode(reaching_condition=self._reachable))
         for node in generated_nodes:
-            self.syntax_tree._add_node(node)
-            self.syntax_tree._add_edge(block_root, node)
+            self._syntax_tree._add_node(node)
+            self._syntax_tree._add_edge(block_root, node)
         return block_root
 
     def _add_condition(self, cond: Condition) -> LogicCondition:
         """Generate a LogicCondition for a Condition, add it to the condition map and return the condition symbol."""
-        cond_symb = LogicCondition.initialize_symbol(f"x{len(self.condition_map)}")
-        self.condition_map[cond_symb] = cond
+        cond_symb = LogicCondition.initialize_symbol(f"x{len(self._condition_map)}", context=self._logic_context)
+        self._condition_map[cond_symb] = cond
         return cond_symb
 
     # visitor methods
@@ -381,8 +382,8 @@ class C2ASTConverter(PycASTVisitor):
 
     def visit_id(self, node: c_ast.ID, **kwargs):
         if kwargs.get("func_call"):
-            return self.declared_function_symbols.get(node.name)
-        return self.declared_variables.get(node.name)
+            return self._declared_function_symbols.get(node.name)
+        return self._declared_variables.get(node.name)
 
     def visit_declaration(self, node: c_ast.Decl, **kwargs) -> Union[Variable, Assignment]:
         """
@@ -393,13 +394,13 @@ class C2ASTConverter(PycASTVisitor):
         declaration_type = self.visit(node.type, **kwargs)
 
         if isinstance(declaration_type, Variable):
-            self.declared_variables[node.name] = declaration_type
+            self._declared_variables[node.name] = declaration_type
         elif isinstance(declaration_type, Assignment):
-            self.declared_variables[node.name] = declaration_type.destination
+            self._declared_variables[node.name] = declaration_type.destination
             return declaration_type
         else:
             variable = Variable(node.name, declaration_type)
-            self.declared_variables[node.name] = variable
+            self._declared_variables[node.name] = variable
             if node.init:
                 return Assignment(variable, self.visit(node.init, **kwargs))
             return variable
@@ -426,7 +427,7 @@ class C2ASTConverter(PycASTVisitor):
         return self.visit(node.type, **kwargs)
 
     def visit_identifier_type(self, node: c_ast.IdentifierType, **kwargs) -> Type:
-        return self.type_parser.parse(" ".join(node.names))
+        return self._type_parser.parse(" ".join(node.names))
 
     def visit_parameter_list(self, node: c_ast.ParamList, **kwargs) -> List[Variable]:
         return [self.visit(param, **kwargs) for param in node.params]
@@ -456,7 +457,7 @@ class C2ASTConverter(PycASTVisitor):
         return Assignment(left_operand, right_operand)
 
     def visit_constant(self, node: c_ast.Constant, **kwargs):
-        const_type = self.type_parser.parse(node.type)
+        const_type = self._type_parser.parse(node.type)
 
         # TODO: still hacky
         if str(const_type) == "string":
@@ -479,7 +480,7 @@ class C2ASTConverter(PycASTVisitor):
         condition = self._add_condition(self.visit(node.cond, condition=True, **kwargs))
         true_branch = self.visit(node.iftrue, **kwargs) if node.iftrue else None
         false_branch = self.visit(node.iffalse, **kwargs) if node.iffalse else None
-        return self.syntax_tree._add_condition_node_with(condition, true_branch, false_branch)
+        return self._syntax_tree._add_condition_node_with(condition, true_branch, false_branch)
 
     def visit_for_loop(self, node: c_ast.For, **kwargs):
         init = self.visit(node.init, **kwargs)
@@ -487,9 +488,9 @@ class C2ASTConverter(PycASTVisitor):
         modification = self.visit(node.next, **kwargs)
         body = self.visit(node.stmt, **kwargs)
 
-        for_loop_node = ForLoopNode(init[0], self._add_condition(condition), modification)
-        self.syntax_tree._add_node(for_loop_node)
-        self.syntax_tree._add_edge(for_loop_node, body)
+        for_loop_node = ForLoopNode(init[0], self._add_condition(condition), modification, reaching_condition=self._reachable)
+        self._syntax_tree._add_node(for_loop_node)
+        self._syntax_tree._add_edge(for_loop_node, body)
         return for_loop_node
 
     def visit_declaration_list(self, node: c_ast.DeclList, **kwargs):
@@ -499,16 +500,18 @@ class C2ASTConverter(PycASTVisitor):
         condition = self.visit(node.cond, condition=True, **kwargs)
         body = self.visit(node.stmt, **kwargs)
 
-        while_loop = WhileLoopNode(self._add_condition(condition))
-        self.syntax_tree._add_node(while_loop)
-        self.syntax_tree._add_edge(while_loop, body)
+        while_loop = WhileLoopNode(self._add_condition(condition), reaching_condition=self._reachable)
+        self._syntax_tree._add_node(while_loop)
+        self._syntax_tree._add_edge(while_loop, body)
 
         return while_loop
 
     def visit_switch_node(self, node: c_ast.Switch, **kwargs) -> SwitchNode:
-        self.syntax_tree._add_node(switch_node := SwitchNode(switch_expression := self.visit(node.cond, **kwargs)))
+        self._syntax_tree._add_node(
+            switch_node := SwitchNode(switch_expression := self.visit(node.cond, **kwargs), reaching_condition=self._reachable)
+        )
         for case_node in node.stmt.block_items:
-            self.syntax_tree._add_edge(switch_node, self.visit(case_node, switch_expression=switch_expression, **kwargs))
+            self._syntax_tree._add_edge(switch_node, self.visit(case_node, switch_expression=switch_expression, **kwargs))
         return switch_node
 
     def visit_case_node(self, node: Union[c_ast.Case, c_ast.Default], **kwargs) -> CaseNode:
@@ -521,9 +524,10 @@ class C2ASTConverter(PycASTVisitor):
             expression=kwargs.get("switch_expression"),
             constant=self.visit(node.expr, **kwargs) if isinstance(node, c_ast.Case) else "default",
             break_case=is_break_node,
+            reaching_condition=self._reachable,
         )
-        self.syntax_tree._add_node(case_node)
-        self.syntax_tree._add_edge(case_node, case_child)
+        self._syntax_tree._add_node(case_node)
+        self._syntax_tree._add_edge(case_node, case_child)
         return case_node
 
     def visit_break(self, node: c_ast.Break, **kwargs) -> Break:

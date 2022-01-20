@@ -27,7 +27,6 @@ from decompiler.structures.pseudo import (
 )
 from decompiler.task import DecompilerTask
 from decompiler.util.c_to_ast import C2ASTConverter
-from decompiler.util.decoration import DecoratedCode
 
 
 def var(name: str, vartype: Type = Integer.int32_t()) -> Variable:
@@ -38,25 +37,12 @@ def const(value: Union[int, float, str], vartype: Type = Integer.int32_t()) -> C
     return Constant(value, vartype)
 
 
-class TestASTGenerator:
+class TestC2ASTConverter:
     """Test that ASTGenerator produces valid/correct ASTs"""
 
     @staticmethod
-    def run_converter(code: Union[Path, str], function_name: str, debug: bool = False) -> DecompilerTask:
-        if isinstance(code, str):
-            if debug:
-                print("\nInput:")
-                DecoratedCode.print_code(code)
-            decompiler_task = C2ASTConverter().from_code(code, function_name)
-        else:
-            decompiler_task = C2ASTConverter().from_file(code, function_name)
-
-        if debug:
-            print("Output:")
-            dewolf_code = CodeGenerator().generate_function(decompiler_task)
-            DecoratedCode.print_code(dewolf_code)
-
-        return decompiler_task
+    def run_converter(code: Union[Path, str], function_name: str) -> DecompilerTask:
+        return C2ASTConverter().from_code(code, function_name)
 
     @pytest.mark.parametrize(
         "code, expected",
@@ -96,6 +82,8 @@ class TestASTGenerator:
             ("int main(int a) { a -= 1; }", Assignment(var("a"), BinaryOperation(OperationType.minus, [var("a"), const(1)]))),
             ("int main(int a) { a += 2; }", Assignment(var("a"), BinaryOperation(OperationType.plus, [var("a"), const(2)]))),
             ("int main(int a) { a -= 2; }", Assignment(var("a"), BinaryOperation(OperationType.minus, [var("a"), const(2)]))),
+            ("int main(int a) { a /= 2; }", Assignment(var("a"), BinaryOperation(OperationType.divide, [var("a"), const(2)]))),
+            ("int main(int a) { a *= 2; }", Assignment(var("a"), BinaryOperation(OperationType.multiply, [var("a"), const(2)]))),
         ],
     )
     def test_compound(self, code: str, expected: Assignment):
@@ -202,7 +190,7 @@ class TestASTGenerator:
                 printf("Zeiger-Wert: %d\n", *zeiger);
             }
         """
-        decompiler_task = self.run_converter(code, "main", debug=True)
+        decompiler_task = self.run_converter(code, "main")
 
         ast = decompiler_task.syntax_tree
         assert ast is not None
@@ -233,7 +221,7 @@ class TestASTGenerator:
                 }
             }
         """
-        decompiler_task = self.run_converter(code, "main", debug=True)
+        decompiler_task = self.run_converter(code, "main")
         ast = decompiler_task.syntax_tree
         assert ast is not None
 
@@ -261,7 +249,7 @@ class TestASTGenerator:
                 }
             }
         """
-        decompiler_task = self.run_converter(code, "main", debug=True)
+        decompiler_task = self.run_converter(code, "main")
         ast = decompiler_task.syntax_tree
         assert ast is not None
 
@@ -285,7 +273,7 @@ class TestASTGenerator:
                 }
             }
         """
-        decompiler_task = self.run_converter(code, "main", debug=True)
+        decompiler_task = self.run_converter(code, "main")
         ast = decompiler_task.syntax_tree
         assert ast is not None
 
@@ -311,7 +299,7 @@ class TestASTGenerator:
                 }
             }
         """
-        decompiler_task = self.run_converter(code, "main", debug=True)
+        decompiler_task = self.run_converter(code, "main")
         ast = decompiler_task.syntax_tree
         assert ast is not None
 
@@ -346,7 +334,7 @@ class TestASTGenerator:
                 }
             }
         """
-        decompiler_task = self.run_converter(code, "main", debug=True)
+        decompiler_task = self.run_converter(code, "main")
         ast = decompiler_task.syntax_tree
         assert ast is not None
 
@@ -379,7 +367,7 @@ class TestASTGenerator:
                 }
             }
         """
-        decompiler_task = self.run_converter(code, "main", debug=True)
+        decompiler_task = self.run_converter(code, "main")
         ast = decompiler_task.syntax_tree
         assert ast is not None
 
@@ -417,7 +405,7 @@ class TestASTGenerator:
                 }
             }
         """
-        decompiler_task = self.run_converter(code, "main", debug=True)
+        decompiler_task = self.run_converter(code, "main")
         ast = decompiler_task.syntax_tree
         assert ast is not None
 
@@ -438,86 +426,49 @@ class TestASTGenerator:
         assert isinstance(default_code_node, CodeNode)
         assert default_code_node.instructions == [Return([const(0)])]
 
-    def test_arrays(self):
-        code = r"""
-        int main() {
-            int numbers[10];
-            numbers[2] = 1;
-            return numbers[0];
-        }
-        """
-        decompiler_task = self.run_converter(code, "main", debug=True)
-        ast = decompiler_task.syntax_tree
-        assert ast is not None
+    # def test_arrays(self):
+    #     code = r"""
+    #     int main() {
+    #         int numbers[10];
+    #         numbers[2] = 1;
+    #         return numbers[0];
+    #     }
+    #     """
+    #     decompiler_task = self.run_converter(code, "main", debug=True)
+    #     ast = decompiler_task.syntax_tree
+    #     assert ast is not None
+    #
+    #     code_node = ast.root
+    #     assert isinstance(code_node, CodeNode)
 
-        code_node = ast.root
-        assert isinstance(code_node, CodeNode)
-
-        # TODO: write test
-
-    def test_arrays_2(self):
-        code = r"""
-        int *generate() {
-            int numbers[10];
-            numbers[2] = 1;
-            return numbers[0];
-        }
-
-        int main() {
-            int *numbers = generate();
-            for(int i = 0; i < 10; i++) {
-                printf("Number is: %d\n", numbers[i]);
-            }
-
-            return 0;
-        }
-        """
-
-        task = self.run_converter(code, "main", debug=True)
-
-        ast = task.syntax_tree
-        assert ast is not None
-
-        seq_node = ast.root
-        assert isinstance(seq_node, SeqNode)
-
-        code_node = seq_node.children[0]
-        assert isinstance(code_node, CodeNode)
-
-        print(repr(code_node.instructions[0]))
-
-    def test_31(self):
-        code = r"""
-        int test4(){
-            int *array = malloc(10 * sizeof(int));
-            array[5] = 10;
-            int y;
-            scanf("%d", &y);
-            array[8] = y;
-            int x = array[6]*7;
-            free(array);
-            return x;
-        }
-        """
-        self.run_converter(code, "test4", debug=True)
-
-    def test_struct(self):
-        code = r"""
-        int main() {
-            struct {
-                char* name;
-                int age;
-            } p1;
-
-            p1.name = malloc(10 * sizeof(char));
-            p1.age = 41;
-        }
-        """
-        self.run_converter(code, "main", debug=True)
-
-    def test_file_convertion(self):
-        file_path = Path("/home/felix/Documents/CA&D/decompiler/tests/samples/src/extended/test_address_and_constant.c")
-        decompiler_task_1 = self.run_converter(file_path, "test_2")
+    # def test_arrays_2(self):
+    #     code = r"""
+    #     int *generate() {
+    #         int numbers[10];
+    #         numbers[2] = 1;
+    #         return numbers[0];
+    #     }
+    #
+    #     int main() {
+    #         int *numbers = generate();
+    #         for(int i = 0; i < 10; i++) {
+    #             printf("Number is: %d\n", numbers[i]);
+    #         }
+    #
+    #         return 0;
+    #     }
+    #     """
+    #
+    #     task = self.run_converter(code, "main", debug=True)
+    #
+    #     ast = task.syntax_tree
+    #     assert ast is not None
+    #
+    #     seq_node = ast.root
+    #     assert isinstance(seq_node, SeqNode)
+    #
+    #     code_node = seq_node.children[0]
+    #     assert isinstance(code_node, CodeNode)
 
     def test_negate_vs_logical_not(self):
         code = r"""
@@ -527,7 +478,18 @@ class TestASTGenerator:
                 }
             }
         """
-        self.run_converter(code, "main", debug=True)
+        task = self.run_converter(code, "main")
+
+        ast = task.syntax_tree
+        assert ast is not None
+
+        condition_node = ast.root
+        assert isinstance(condition_node, ConditionNode)
+        assert ast.condition_map.get(condition_node.condition) == UnaryOperation(OperationType.logical_not, [var("a")])
+
+        code_node = condition_node.true_branch_child
+        assert isinstance(code_node, CodeNode)
+        assert code_node.instructions == [Assignment(var("a"), UnaryOperation(OperationType.negate, [var("a")]))]
 
     def test_input_output(self):
         input_code = """
@@ -556,7 +518,7 @@ class TestASTGenerator:
             }
         """
 
-        decompiler_task = self.run_converter(code, "main", debug=True)
+        decompiler_task = self.run_converter(code, "main")
         ast = decompiler_task.syntax_tree
         assert ast is not None
 
