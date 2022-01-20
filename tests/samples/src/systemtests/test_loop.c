@@ -293,8 +293,7 @@ int test10(int a, int b)
 
 int test11(int a, int b)
 {
-	while(1){
-        
+	while(1){ 
     }
     return 0;
 }

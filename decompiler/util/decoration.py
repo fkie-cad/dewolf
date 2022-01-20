@@ -12,7 +12,6 @@ from typing import Dict, TextIO
 
 import z3
 from binaryninja import BranchType, EdgePenStyle, EdgeStyle, FlowGraph, FlowGraphNode, HighlightStandardColor, ThemeColor, show_graph_report
-
 from decompiler.structures.ast.ast_nodes import (
     AbstractSyntaxTreeNode,
     CaseNode,
