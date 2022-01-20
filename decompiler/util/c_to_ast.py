@@ -267,7 +267,9 @@ class PycASTVisitor:
         raise NotImplementedError(f"visitor for '{type(node)}' is not implemented")
 
 
-class C2TaskConverter(PycASTVisitor):
+class C2ASTConverter(PycASTVisitor):
+    """TODO: add docstring"""
+
     def __init__(self):
         super().__init__()
         self.type_parser: TypeParser = TypeParser()
