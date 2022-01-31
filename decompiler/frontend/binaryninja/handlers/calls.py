@@ -3,8 +3,8 @@ from functools import partial
 from typing import List
 
 from binaryninja import MediumLevelILInstruction, mediumlevelil
-from dewolf.frontend.lifter import Handler
-from dewolf.structures.pseudo import Assignment, Call, ImportedFunctionSymbol, IntrinsicSymbol, ListOperation
+from decompiler.frontend.lifter import Handler
+from decompiler.structures.pseudo import Assignment, Call, ImportedFunctionSymbol, IntrinsicSymbol, ListOperation
 
 
 class CallHandler(Handler):

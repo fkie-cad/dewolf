@@ -1,9 +1,9 @@
 """Module implementing lifting of phi and memphi instructions."""
 from typing import List
 
-from binaryninja import MediumLevelILMem_phi, MediumLevelILVar_phi
-from dewolf.frontend.lifter import Handler
-from dewolf.structures.pseudo import MemPhi, Phi, Variable
+from binaryninja import MediumLevelILMemPhi, MediumLevelILVarPhi
+from decompiler.frontend.lifter import Handler
+from decompiler.structures.pseudo import MemPhi, Phi, Variable
 
 
 class PhiHandler(Handler):
@@ -13,16 +13,16 @@ class PhiHandler(Handler):
         """Register the handler at the parent lifter."""
         self._lifter.HANDLERS.update(
             {
-                MediumLevelILVar_phi: self.lift_phi,
-                MediumLevelILMem_phi: self.lift_mem_phi,
+                MediumLevelILVarPhi: self.lift_phi,
+                MediumLevelILMemPhi: self.lift_mem_phi,
             }
         )
 
-    def lift_phi(self, phi: MediumLevelILVar_phi, **kwargs) -> Phi:
+    def lift_phi(self, phi: MediumLevelILVarPhi, **kwargs) -> Phi:
         """Lift a phi instruction, lifting all subexpressions."""
         return Phi(self._lifter.lift(phi.dest, parent=phi), [self._lifter.lift(op, parent=phi) for op in phi.src])
 
-    def lift_mem_phi(self, phi: MediumLevelILMem_phi, **kwargs) -> MemPhi:
+    def lift_mem_phi(self, phi: MediumLevelILMemPhi, **kwargs) -> MemPhi:
         """Lift Binary Ninja's memory phi function.
 
         Binja's mem_phi actually relates to several aliased variables.

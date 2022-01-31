@@ -1,8 +1,8 @@
 from typing import Callable, Dict
 
 from binaryninja.types import ArrayType, BoolType, CharType, FloatType, IntegerType, NamedTypeReferenceType, PointerType, Type, VoidType
-from dewolf.frontend.lifter import Handler
-from dewolf.structures.pseudo import CustomType, Float, Integer, Pointer
+from decompiler.frontend.lifter import Handler
+from decompiler.structures.pseudo import CustomType, Float, Integer, Pointer
 
 
 class TypeHandler(Handler):

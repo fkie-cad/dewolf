@@ -2,8 +2,8 @@
 from functools import partial
 
 from binaryninja import SetVar, mediumlevelil
-from dewolf.frontend.lifter import Handler
-from dewolf.structures.pseudo import (
+from decompiler.frontend.lifter import Handler
+from decompiler.structures.pseudo import (
     Assignment,
     BinaryOperation,
     Constant,

@@ -14,6 +14,7 @@ from binaryninja import (
     Type,
     Variable,
     VariableSourceType,
+    MediumLevelILJump
 )
 from decompiler.frontend.binaryninja.lifter import BinaryninjaLifter
 from decompiler.frontend.binaryninja.parser import BinaryninjaParser
@@ -21,7 +22,7 @@ from decompiler.structures.graphs.cfg import BasicBlockEdgeCondition
 from decompiler.structures.pseudo.expressions import Constant
 
 
-class MockEdge(BasicBlockEdge):
+class MockEdge:
     """Mock object representing a binaryninja BasicBlockEdge."""
 
     # Flat mock objects for edge targets
@@ -71,12 +72,19 @@ class MockBlock(MediumLevelILBasicBlock):
         return len(self._instructions)
 
 
+class MockView:
+    def update_analysis_and_wait(self):
+        pass
+
+
 class MockFunction(Function):
     """Mock object representing a binaryninja Function."""
 
     def __init__(self, blocks: List[MockBlock]):
         """Generate a mock function only based on a list of basic blocks."""
         self._blocks = blocks
+        self._view = MockView()
+        self._arch = "test"
 
     @property
     def medium_level_il(self) -> "MockFunction":
@@ -116,20 +124,18 @@ class MockPossibleValues(PossibleValueSet):
         return MockVariable(values)
 
 
-class MockVariable(Variable):
+class MockVariable:
     """Mock object representing a binaryninja Variable."""
 
     def __init__(self, values, name="var27"):
         """Create a new MockVariable for testing purposes only."""
-        self.possible_values = values
-        self._type = Type.int(32)
+        self.__class__ = Variable
         object.__setattr__(self, "_source_type", VariableSourceType(0))
         object.__setattr__(self, "_function", MockFunction([]))
-        self._name = name
-        self.type = Type.int(32)
-
-    def name(self) -> str:
-        return self._name
+        Variable.name = name
+        Variable.type = Type.int(32)
+        Variable.ssa_memory_version = 0
+        Variable.possible_values = values
 
 
 class MockSwitch:
@@ -137,11 +143,10 @@ class MockSwitch:
 
     def __init__(self, mapping):
         """Create a new MockSwitch for testing purposes only."""
-        self.__class__ = MediumLevelILInstruction
-        self.dest = MockVariable(MockPossibleValues(mapping))
-        self._operation = MediumLevelILOperation.MLIL_JUMP
-        self.targets = None
-        self._function = None
+        self.__class__ = MediumLevelILJump
+        MediumLevelILJump.dest = MockVariable(MockPossibleValues(mapping))
+        MediumLevelILJump.ssa_memory_version = 0
+        MediumLevelILJump.function = None
 
 
 @pytest.fixture

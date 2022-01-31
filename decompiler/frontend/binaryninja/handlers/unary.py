@@ -2,8 +2,8 @@
 from functools import partial
 
 from binaryninja import MediumLevelILInstruction, MediumLevelILOperation, mediumlevelil
-from dewolf.frontend.lifter import Handler
-from dewolf.structures.pseudo import BinaryOperation, Constant, Integer, Operation, OperationType, Pointer, UnaryOperation
+from decompiler.frontend.lifter import Handler
+from decompiler.structures.pseudo import BinaryOperation, Constant, Integer, Operation, OperationType, Pointer, UnaryOperation
 
 
 class UnaryOperationHandler(Handler):
@@ -25,7 +25,7 @@ class UnaryOperationHandler(Handler):
                 mediumlevelil.MediumLevelILLoad: partial(self.lift_unary_operation, OperationType.dereference),
                 mediumlevelil.MediumLevelILLoadSsa: partial(self.lift_unary_operation, OperationType.dereference),
                 mediumlevelil.MediumLevelILLoadStruct: self._lift_load_struct,
-                mediumlevelil.MediumLevelILLoadStruct_ssa: self._lift_load_struct,
+                mediumlevelil.MediumLevelILLoadStructSsa: self._lift_load_struct,
                 mediumlevelil.MediumLevelILFtrunc: self._lift_ftrunc,
             }
         )

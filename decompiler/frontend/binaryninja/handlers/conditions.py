@@ -2,8 +2,8 @@
 from functools import partial
 
 from binaryninja import mediumlevelil
-from dewolf.frontend.lifter import Handler
-from dewolf.structures.pseudo import Branch, Condition, Constant, IndirectBranch, OperationType, Return
+from decompiler.frontend.lifter import Handler
+from decompiler.structures.pseudo import Branch, Condition, Constant, IndirectBranch, OperationType, Return
 
 
 class ConditionHandler(Handler):
@@ -13,27 +13,28 @@ class ConditionHandler(Handler):
         """Register the handler functions at the parent lifter."""
         self._lifter.HANDLERS.update(
             {
-                mediumlevelil.MediumLevelILCmp_e: partial(self.lift_condition, operation=OperationType.equal),
-                mediumlevelil.MediumLevelILCmp_ne: partial(self.lift_condition, operation=OperationType.not_equal),
-                mediumlevelil.MediumLevelILCmp_sge: partial(self.lift_condition, operation=OperationType.greater_or_equal),
-                mediumlevelil.MediumLevelILCmp_sgt: partial(self.lift_condition, operation=OperationType.greater),
-                mediumlevelil.MediumLevelILCmp_sle: partial(self.lift_condition, operation=OperationType.less_or_equal),
-                mediumlevelil.MediumLevelILCmp_slt: partial(self.lift_condition, operation=OperationType.less),
-                mediumlevelil.MediumLevelILCmp_uge: partial(self.lift_condition, operation=OperationType.greater_or_equal_us),
-                mediumlevelil.MediumLevelILCmp_ugt: partial(self.lift_condition, operation=OperationType.greater_us),
-                mediumlevelil.MediumLevelILCmp_ule: partial(self.lift_condition, operation=OperationType.less_or_equal_us),
-                mediumlevelil.MediumLevelILCmp_ult: partial(self.lift_condition, operation=OperationType.less_us),
-                mediumlevelil.MediumLevelILFcmp_e: partial(self.lift_condition, operation=OperationType.equal),
-                mediumlevelil.MediumLevelILFcmp_ne: partial(self.lift_condition, operation=OperationType.not_equal),
-                mediumlevelil.MediumLevelILFcmp_ge: partial(self.lift_condition, operation=OperationType.greater_or_equal),
-                mediumlevelil.MediumLevelILFcmp_gt: partial(self.lift_condition, operation=OperationType.greater),
-                mediumlevelil.MediumLevelILFcmp_le: partial(self.lift_condition, operation=OperationType.less_or_equal),
-                mediumlevelil.MediumLevelILFcmp_lt: partial(self.lift_condition, operation=OperationType.less),
-                mediumlevelil.MediumLevelILFcmp_o: partial(self.lift_condition, operation=OperationType.equal),
-                mediumlevelil.MediumLevelILFcmp_uo: partial(self.lift_condition, operation=OperationType.equal),
+                mediumlevelil.MediumLevelILCmpE: partial(self.lift_condition, operation=OperationType.equal),
+                mediumlevelil.MediumLevelILCmpNe: partial(self.lift_condition, operation=OperationType.not_equal),
+                mediumlevelil.MediumLevelILCmpSge: partial(self.lift_condition, operation=OperationType.greater_or_equal),
+                mediumlevelil.MediumLevelILCmpSgt: partial(self.lift_condition, operation=OperationType.greater),
+                mediumlevelil.MediumLevelILCmpSle: partial(self.lift_condition, operation=OperationType.less_or_equal),
+                mediumlevelil.MediumLevelILCmpSlt: partial(self.lift_condition, operation=OperationType.less),
+                mediumlevelil.MediumLevelILCmpUge: partial(self.lift_condition, operation=OperationType.greater_or_equal_us),
+                mediumlevelil.MediumLevelILCmpUgt: partial(self.lift_condition, operation=OperationType.greater_us),
+                mediumlevelil.MediumLevelILCmpUle: partial(self.lift_condition, operation=OperationType.less_or_equal_us),
+                mediumlevelil.MediumLevelILCmpUlt: partial(self.lift_condition, operation=OperationType.less_us),
+                mediumlevelil.MediumLevelILFcmpE: partial(self.lift_condition, operation=OperationType.equal),
+                mediumlevelil.MediumLevelILFcmpNe: partial(self.lift_condition, operation=OperationType.not_equal),
+                mediumlevelil.MediumLevelILFcmpGe: partial(self.lift_condition, operation=OperationType.greater_or_equal),
+                mediumlevelil.MediumLevelILFcmpGt: partial(self.lift_condition, operation=OperationType.greater),
+                mediumlevelil.MediumLevelILFcmpLe: partial(self.lift_condition, operation=OperationType.less_or_equal),
+                mediumlevelil.MediumLevelILFcmpLt: partial(self.lift_condition, operation=OperationType.less),
+                mediumlevelil.MediumLevelILFcmpO: partial(self.lift_condition, operation=OperationType.equal),
+                mediumlevelil.MediumLevelILFcmpUo: partial(self.lift_condition, operation=OperationType.equal),
                 mediumlevelil.MediumLevelILRet: self.lift_return,
                 mediumlevelil.MediumLevelILIf: self.lift_branch,
-                mediumlevelil.MediumLevelILJump_to: self.lift_branch_indirect,
+                mediumlevelil.MediumLevelILJump: self.lift_branch_indirect,
+                mediumlevelil.MediumLevelILJumpTo: lambda x: None,
                 mediumlevelil.MediumLevelILGoto: lambda x: None,
                 mediumlevelil.MediumLevelILNoret: lambda x: None,
             }
@@ -52,7 +53,7 @@ class ConditionHandler(Handler):
             condition = Condition(OperationType.not_equal, [condition, Constant(0, condition.type.copy())])
         return Branch(condition)
 
-    def lift_branch_indirect(self, branch: mediumlevelil.MediumLevelILJump_to, **kwargs) -> IndirectBranch:
+    def lift_branch_indirect(self, branch: mediumlevelil.MediumLevelILJumpTo, **kwargs) -> IndirectBranch:
         """Lift a non-trivial jump instruction."""
         return IndirectBranch(self._lifter.lift(branch.dest, parent=branch))
 

@@ -2,7 +2,7 @@
 from logging import info, warning
 from typing import Dict, Iterator, List
 
-from binaryninja import BranchType, Function, MediumLevelILBasicBlock, MediumLevelILInstruction, RegisterValueType
+from binaryninja import BranchType, Function, MediumLevelILBasicBlock, MediumLevelILInstruction, RegisterValueType, MediumLevelILJump
 from decompiler.frontend.lifter import Lifter
 from decompiler.frontend.parser import Parser
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, IndirectEdge, SwitchCase, TrueCase, UnconditionalEdge
@@ -58,7 +58,7 @@ class BinaryninjaParser(Parser):
     def _get_lookup_table(self, block: MediumLevelILBasicBlock) -> Dict[int, List[Constant]]:
         """Extract the lookup table from ninja to annotate the edges."""
         # check if the last instruction of the block got multiple targets
-        if not len(block) or not hasattr(block[-1], "targets"):
+        if not len(block) or not isinstance(block[-1], MediumLevelILJump):
             return {}
         # check if binaryninja found a lookup table here
         possible_values = block[-1].dest.possible_values

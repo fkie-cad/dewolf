@@ -3,8 +3,8 @@ from logging import warning
 from typing import Optional, Tuple
 
 from binaryninja import MediumLevelILInstruction
-from dewolf.frontend.lifter import ObserverLifter
-from dewolf.structures.pseudo import DataflowObject, Tag, UnknownExpression
+from decompiler.frontend.lifter import ObserverLifter
+from decompiler.structures.pseudo import DataflowObject, Tag, UnknownExpression
 
 from .handlers import HANDLERS
 

@@ -2,8 +2,8 @@
 from functools import partial
 
 from binaryninja import MediumLevelILInstruction, mediumlevelil
-from dewolf.frontend.lifter import Handler
-from dewolf.structures.pseudo import BinaryOperation, OperationType
+from decompiler.frontend.lifter import Handler
+from decompiler.structures.pseudo import BinaryOperation, OperationType
 
 
 class BinaryOperationHandler(Handler):

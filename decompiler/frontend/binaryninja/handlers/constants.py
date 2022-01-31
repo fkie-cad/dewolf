@@ -4,8 +4,8 @@ from typing import Optional, Union
 from binaryninja import BinaryView, DataVariable, Endianness
 from binaryninja import Symbol as bSymbol
 from binaryninja import SymbolType, mediumlevelil
-from dewolf.frontend.lifter import Handler
-from dewolf.structures.pseudo import (
+from decompiler.frontend.lifter import Handler
+from decompiler.structures.pseudo import (
     Constant,
     CustomType,
     FunctionSymbol,
@@ -43,7 +43,7 @@ class ConstantHandler(Handler):
 
     def lift_symbol(self, import_constant: mediumlevelil.MediumLevelILImport, **kwargs) -> ImportedFunctionSymbol:
         """Lift a symbol by returning its name."""
-        symbol = self._get_symbol(import_constant)
+        symbol = self._get_symbol(import_constant.function.view, import_constant.constant)
         return ImportedFunctionSymbol(
             symbol.name.split("@")[0] if symbol.type == SymbolType.ImportAddressSymbol else symbol.name,
             import_constant.constant,
