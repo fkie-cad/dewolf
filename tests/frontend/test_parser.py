@@ -8,13 +8,13 @@ from binaryninja import (
     Function,
     MediumLevelILBasicBlock,
     MediumLevelILInstruction,
+    MediumLevelILJump,
     MediumLevelILOperation,
     PossibleValueSet,
     RegisterValueType,
     Type,
     Variable,
     VariableSourceType,
-    MediumLevelILJump
 )
 from decompiler.frontend.binaryninja.lifter import BinaryninjaLifter
 from decompiler.frontend.binaryninja.parser import BinaryninjaParser

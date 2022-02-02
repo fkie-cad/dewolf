@@ -33,8 +33,8 @@ class ConditionHandler(Handler):
                 mediumlevelil.MediumLevelILFcmpUo: partial(self.lift_condition, operation=OperationType.equal),
                 mediumlevelil.MediumLevelILRet: self.lift_return,
                 mediumlevelil.MediumLevelILIf: self.lift_branch,
-                mediumlevelil.MediumLevelILJump: self.lift_branch_indirect,
-                mediumlevelil.MediumLevelILJumpTo: lambda x: None,
+                mediumlevelil.MediumLevelILJump: lambda x: None,
+                mediumlevelil.MediumLevelILJumpTo: self.lift_branch_indirect,
                 mediumlevelil.MediumLevelILGoto: lambda x: None,
                 mediumlevelil.MediumLevelILNoret: lambda x: None,
             }
