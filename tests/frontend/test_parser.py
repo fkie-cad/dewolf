@@ -8,7 +8,7 @@ from binaryninja import (
     Function,
     MediumLevelILBasicBlock,
     MediumLevelILInstruction,
-    MediumLevelILJump,
+    MediumLevelILJumpTo,
     MediumLevelILOperation,
     PossibleValueSet,
     RegisterValueType,
@@ -143,10 +143,10 @@ class MockSwitch:
 
     def __init__(self, mapping):
         """Create a new MockSwitch for testing purposes only."""
-        self.__class__ = MediumLevelILJump
-        MediumLevelILJump.dest = MockVariable(MockPossibleValues(mapping))
-        MediumLevelILJump.ssa_memory_version = 0
-        MediumLevelILJump.function = None
+        self.__class__ = MediumLevelILJumpTo
+        MediumLevelILJumpTo.dest = MockVariable(MockPossibleValues(mapping))
+        MediumLevelILJumpTo.ssa_memory_version = 0
+        MediumLevelILJumpTo.function = None
 
 
 @pytest.fixture
