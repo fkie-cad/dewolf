@@ -1,7 +1,7 @@
 """Module implementing the AssignmentHandler for binaryninja."""
 from functools import partial
 
-from binaryninja import SetVar, mediumlevelil
+from binaryninja import mediumlevelil
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import (
     Assignment,
@@ -53,17 +53,17 @@ class AssignmentHandler(Handler):
         Lift an instruction writing to a subset of the given value.
 
         In case of lower register (offset 0) lift as contraction
-        E.g. eax.al = .... <=> (char)eax  ....
+        e.g. eax.al = .... <=> (char)eax  ....
 
         In case higher registers use masking
         e.g. eax.ah = x <=> eax = (eax & 0xffff00ff) + (x << 2)
         """
         if assignment.offset == 0:
-            destination = self._lift_contraction(assignment, is_aliased=is_aliased)
+            destination = self._lift_contraction(assignment, is_aliased=is_aliased, parent=assignment)
             value = self._lifter.lift(assignment.src)
         else:
             destination = self._lifter.lift(assignment.dest, is_aliased=is_aliased, parent=assignment)
-            value = self._lift_masked_assignment(assignment)
+            value = self._lift_masked_operand(assignment)
         return Assignment(destination, value)
 
     def lift_get_field(self, instruction: mediumlevelil.MediumLevelILVarField, is_aliased=False, **kwargs) -> Operation:
@@ -82,6 +82,7 @@ class AssignmentHandler(Handler):
         return UnaryOperation(OperationType.cast, [source], vartype=cast_type, contraction=True)
 
     def lift_store(self, assignment: mediumlevelil.MediumLevelILStoreSsa, **kwargs) -> Assignment:
+        """Lift a store operation to pseudo (e.g. [ebp+4] = eax)."""
         return Assignment(
             UnaryOperation(
                 OperationType.dereference,
@@ -94,19 +95,19 @@ class AssignmentHandler(Handler):
 
     def _lift_contraction(self, assignment: mediumlevelil.MediumLevelILSetVarField, is_aliased=False, **kwargs) -> UnaryOperation:
         """
-        We lift assignment to lower register part (offset 0 from register start) as contraction (cast)
+        Lift assignment to lower register part (offset 0 from register start) as contraction (cast)
 
-        E.g.:
+        e.g.:
         eax.al = 10;
         becomes:
         (byte) eax = 10; // Assign(Cast([eax], byte, contraction=true), Constant(10))
-        :param instruction: instruction of type MLIL_SET_VAR_FIELD
         """
         destination_operand = self._lifter.lift(assignment.dest, is_aliased=is_aliased, parent=assignment)
         contraction_type = destination_operand.type.resize(assignment.size * self.BYTE_SIZE)
         return UnaryOperation(OperationType.cast, [destination_operand], vartype=contraction_type, contraction=True)
 
-    def _lift_masked_assignment(self, assignment: mediumlevelil.MediumLevelILSetVarField, **kwargs) -> BinaryOperation:
+    def _lift_masked_operand(self, assignment: mediumlevelil.MediumLevelILSetVarField, **kwargs) -> BinaryOperation:
+        """Lift the rhs value for subregister assignments (e.g. eax.ah = x <=> eax = (eax & 0xffff00ff) + (x << 2))."""
         return BinaryOperation(
             OperationType.bitwise_or,
             [
@@ -147,7 +148,7 @@ class AssignmentHandler(Handler):
         return int(2 ** (type_size * self.BYTE_SIZE) - 1)
 
     def lift_split_assignment(self, assignment: mediumlevelil.MediumLevelILSetVarSplit, **kwargs) -> Assignment:
-        """Lift an instruction writing to a register pair."""
+        """Lift an instruction writing to a register pair such as MUL instructions."""
         return Assignment(
             RegisterPair(
                 high := self._lifter.lift(assignment.high, parent=assignment),
@@ -158,7 +159,7 @@ class AssignmentHandler(Handler):
         )
 
     def _lift_store_struct(self, instruction: mediumlevelil.MediumLevelILStoreStruct, **kwargs) -> Assignment:
-        """Lift a MLIL_STORE_STRUCT_SSA instruction."""
+        """Lift a MLIL_STORE_STRUCT_SSA instruction to pseudo (e.g. object->field = x)."""
         vartype = self._lifter.lift(instruction.dest.expr_type)
         return Assignment(
             UnaryOperation(
