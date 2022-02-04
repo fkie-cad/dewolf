@@ -4,6 +4,7 @@ from .binary import BinaryOperationHandler
 from .calls import CallHandler
 from .conditions import ConditionHandler
 from .constants import ConstantHandler
+from .controlflow import FlowHandler
 from .phi import PhiHandler
 from .types import TypeHandler
 from .unary import UnaryOperationHandler
@@ -17,6 +18,7 @@ HANDLERS = [
     BinaryOperationHandler,
     UnaryOperationHandler,
     ConditionHandler,
+    FlowHandler,
     AssignmentHandler,
     PhiHandler,
     CallHandler,
