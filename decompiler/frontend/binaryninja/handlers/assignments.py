@@ -43,7 +43,10 @@ class AssignmentHandler(Handler):
 
     def lift_assignment(self, assignment: mediumlevelil.MediumLevelILSetVar, is_aliased=False, **kwargs) -> Assignment:
         """Lift assignment operations (e.g. eax = ebx)."""
-        return Assignment(self._lifter.lift(assignment.dest, is_aliased=is_aliased, parent=assignment), self._lifter.lift(assignment.src))
+        return Assignment(
+            self._lifter.lift(assignment.dest, is_aliased=is_aliased, parent=assignment),
+            self._lifter.lift(assignment.src, parent=assignment),
+        )
 
     def lift_set_field(self, assignment: mediumlevelil.MediumLevelILSetVarField, is_aliased=False, **kwargs) -> Assignment:
         """
@@ -99,7 +102,7 @@ class AssignmentHandler(Handler):
         (byte) eax = 10; // Assign(Cast([eax], byte, contraction=true), Constant(10))
         :param instruction: instruction of type MLIL_SET_VAR_FIELD
         """
-        destination_operand = self._lifter.lift(assignment.dest, is_aliased=is_aliased, parent=SetVar)
+        destination_operand = self._lifter.lift(assignment.dest, is_aliased=is_aliased, parent=assignment)
         contraction_type = destination_operand.type.resize(assignment.size * self.BYTE_SIZE)
         return UnaryOperation(OperationType.cast, [destination_operand], vartype=contraction_type, contraction=True)
 
