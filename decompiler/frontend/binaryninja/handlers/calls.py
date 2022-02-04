@@ -2,7 +2,7 @@
 from functools import partial
 from typing import List
 
-from binaryninja import MediumLevelILInstruction, mediumlevelil
+from binaryninja import MediumLevelILInstruction, Tailcall, mediumlevelil
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import Assignment, Call, ImportedFunctionSymbol, IntrinsicSymbol, ListOperation
 
@@ -40,7 +40,7 @@ class CallHandler(Handler):
                 [self._lifter.lift(parameter, parent=call) for parameter in call.params],
                 vartype=dest.type.copy(),
                 writes_memory=call.output_dest_memory if ssa else None,
-                meta_data={"param_names": self._lift_call_parameter_names(call)},
+                meta_data={"param_names": self._lift_call_parameter_names(call), "is_failcall": isinstance(call, Tailcall)},
             ),
         )
 
@@ -58,7 +58,11 @@ class CallHandler(Handler):
         )
 
     def lift_intrinsic(self, call: mediumlevelil.MediumLevelILIntrinsic, ssa: bool = False, **kwargs) -> Assignment:
-        """Lift operations not supported by mlil and modeled as intrinsic operations."""
+        """
+        Lift operations not supported by mlil and modeled as intrinsic operations.
+
+        e.g. temp0_1#2 = _mm_add_epi32(zmm1#2, zmm5#1)
+        """
         return Assignment(
             ListOperation([self._lifter.lift(value, parent=call) for value in call.output]),
             Call(
