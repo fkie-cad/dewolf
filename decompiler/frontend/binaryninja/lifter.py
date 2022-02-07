@@ -17,6 +17,11 @@ class BinaryninjaLifter(ObserverLifter):
         for handler in HANDLERS:
             handler(self).register()
 
+    @property
+    def is_omitting_masks(self) -> bool:
+        """Return a bool indicating whether bitmasks should be omitted."""
+        return self._no_bit_maks
+
     def lift(self, expression: MediumLevelILInstruction, **kwargs) -> Optional[DataflowObject]:
         """Lift the given Binaryninja instruction to an expression."""
         handler = self.HANDLERS.get(type(expression), self.lift_unknown)

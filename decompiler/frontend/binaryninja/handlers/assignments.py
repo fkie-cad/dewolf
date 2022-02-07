@@ -38,6 +38,7 @@ class AssignmentHandler(Handler):
                 mediumlevelil.MediumLevelILStoreSsa: self.lift_store,
                 mediumlevelil.MediumLevelILStoreStruct: self._lift_store_struct,
                 mediumlevelil.MediumLevelILStoreStructSsa: self._lift_store_struct,
+                mediumlevelil.MediumLevelILLowPart: self._lift_mask_high,
             }
         )
 
@@ -58,7 +59,7 @@ class AssignmentHandler(Handler):
         In case higher registers use masking
         e.g. eax.ah = x <=> eax = (eax & 0xffff00ff) + (x << 2)
         """
-        if assignment.offset == 0:
+        if assignment.offset == 0 and self._lifter.is_omitting_masks:
             destination = self._lift_contraction(assignment, is_aliased=is_aliased, parent=assignment)
             value = self._lifter.lift(assignment.src)
         else:
