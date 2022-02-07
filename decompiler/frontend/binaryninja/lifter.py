@@ -13,14 +13,14 @@ class BinaryninjaLifter(ObserverLifter):
     """Lifter converting Binaryninja.mediumlevelil expressions to pseudo expressions."""
 
     def __init__(self, no_bit_masks: bool = True):
-        self._no_bit_maks = no_bit_masks
+        self.no_bit_masks = no_bit_masks
         for handler in HANDLERS:
             handler(self).register()
 
     @property
     def is_omitting_masks(self) -> bool:
         """Return a bool indicating whether bitmasks should be omitted."""
-        return self._no_bit_maks
+        return self.no_bit_masks
 
     def lift(self, expression: MediumLevelILInstruction, **kwargs) -> Optional[DataflowObject]:
         """Lift the given Binaryninja instruction to an expression."""
