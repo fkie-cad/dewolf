@@ -107,7 +107,7 @@ class AssignmentHandler(Handler):
         contraction_type = destination_operand.type.resize(assignment.size * self.BYTE_SIZE)
         return UnaryOperation(OperationType.cast, [destination_operand], vartype=contraction_type, contraction=True)
 
-    def _lift_masked_operand(self, assignment: mediumlevelil.MediumLevelILSetVarField, **kwargs) -> BinaryOperation:
+    def _lift_masked_operand(self, assignment: mediumlevelil.MediumLevelILSetVarField, is_aliased=False, **kwargs) -> BinaryOperation:
         """Lift the rhs value for subregister assignments (e.g. eax.ah = x <=> eax = (eax & 0xffff00ff) + (x << 2))."""
         return BinaryOperation(
             OperationType.bitwise_or,
@@ -115,7 +115,7 @@ class AssignmentHandler(Handler):
                 BinaryOperation(
                     OperationType.bitwise_and,
                     [
-                        self._lifter.lift(assignment.prev, parent=assignment),
+                        self._lifter.lift(assignment.prev, parent=assignment, is_aliased=is_aliased),
                         Constant(
                             self._get_all_ones_mask_for_type(assignment.dest.var.type.width)
                             - self._get_all_ones_mask_for_type(assignment.size)
