@@ -8,6 +8,7 @@ from binaryninja import (
     Function,
     MediumLevelILBasicBlock,
     MediumLevelILInstruction,
+    MediumLevelILJumpTo,
     MediumLevelILOperation,
     PossibleValueSet,
     RegisterValueType,
@@ -21,7 +22,7 @@ from decompiler.structures.graphs.cfg import BasicBlockEdgeCondition
 from decompiler.structures.pseudo.expressions import Constant
 
 
-class MockEdge(BasicBlockEdge):
+class MockEdge:
     """Mock object representing a binaryninja BasicBlockEdge."""
 
     # Flat mock objects for edge targets
@@ -71,12 +72,19 @@ class MockBlock(MediumLevelILBasicBlock):
         return len(self._instructions)
 
 
+class MockView:
+    def update_analysis_and_wait(self):
+        pass
+
+
 class MockFunction(Function):
     """Mock object representing a binaryninja Function."""
 
     def __init__(self, blocks: List[MockBlock]):
         """Generate a mock function only based on a list of basic blocks."""
         self._blocks = blocks
+        self._view = MockView()
+        self._arch = "test"
 
     @property
     def medium_level_il(self) -> "MockFunction":
@@ -105,7 +113,7 @@ class MockPossibleValues(PossibleValueSet):
 
     def __init__(self, mapping: dict):
         """Create a new MockPossibleValues for testing purposes only."""
-        self.mapping = mapping
+        self._mapping = mapping
 
     @property
     def type(self):
@@ -122,12 +130,12 @@ class MockVariable:
     def __init__(self, values, name="var27"):
         """Create a new MockVariable for testing purposes only."""
         self.__class__ = Variable
-        self.possible_values = values
-        self._type = Type.int(32)
-        self._source_type = VariableSourceType(1)
-        self._function = MockFunction([])
-        self.name = "var27"
-        self.type = Type.int(32)
+        object.__setattr__(self, "_source_type", VariableSourceType(0))
+        object.__setattr__(self, "_function", MockFunction([]))
+        Variable.name = name
+        Variable.type = Type.int(32)
+        Variable.ssa_memory_version = 0
+        Variable.possible_values = values
 
 
 class MockSwitch:
@@ -135,11 +143,10 @@ class MockSwitch:
 
     def __init__(self, mapping):
         """Create a new MockSwitch for testing purposes only."""
-        self.__class__ = MediumLevelILInstruction
-        self.dest = MockVariable(MockPossibleValues(mapping))
-        self._operation = MediumLevelILOperation.MLIL_JUMP
-        self.targets = None
-        self._function = None
+        self.__class__ = MediumLevelILJumpTo
+        MediumLevelILJumpTo.dest = MockVariable(MockPossibleValues(mapping))
+        MediumLevelILJumpTo.ssa_memory_version = 0
+        MediumLevelILJumpTo.function = None
 
 
 @pytest.fixture

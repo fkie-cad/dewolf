@@ -85,8 +85,8 @@ class BinaryninjaFrontend(Frontend):
     def _extract_return_type_and_params(self, function: Function) -> Tuple[Type, List[Variable]]:
         """Extracts the type of the return value of the function and the list of its parameters"""
         lifter = BinaryninjaLifter()
-        params: List[Variable] = [lifter.lift_function_parameter(param) for param in function.function_type.parameters]
-        return_type: Type = lifter.lift_type(function.function_type.return_value)
+        params: List[Variable] = [lifter.lift(param) for param in function.function_type.parameters]
+        return_type: Type = lifter.lift(function.function_type.return_value)
         return return_type, params
 
     def _get_address(self, text: str) -> int:
