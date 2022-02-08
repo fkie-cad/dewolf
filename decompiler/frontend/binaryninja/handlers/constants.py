@@ -3,8 +3,7 @@ from typing import Optional, Union
 
 from binaryninja import BinaryView, DataVariable, Endianness
 from binaryninja import Symbol as bSymbol
-from binaryninja import SymbolType, mediumlevelil
-from binaryninja import TypeClass
+from binaryninja import SymbolType, TypeClass, mediumlevelil
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import (
     Constant,
