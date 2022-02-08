@@ -91,3 +91,11 @@ def test_global_import_address_symbol():
     assert output1.count("g_35_1 = &(g_35)") == 1
     assert output1.count("g_38 = ") == 1
     assert output1.count("g_38_1 = &(g_38)") == 1
+
+
+def test_tailcall_display():
+    """Test that we display tailcalls correctly."""
+    args = ["python", "decompile.py", "tests/coreutils/binaries/sha224sum", "rpl_fseeko"]
+    output = str(subprocess.run(args, check=True, capture_output=True).stdout)
+
+    assert output.count("return fseeko(") == 1
