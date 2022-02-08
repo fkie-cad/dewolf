@@ -35,7 +35,6 @@ def test_var_decls():
     assert output.count("int arg1") == 1
 
 
-@pytest.mark.skip(reason="global lifting not yet implemented in the new lifter")
 def test_global_strings_and_tables():
     """Test that strings appear when they should and global tables appear as bytes."""
     base_args = ["python", "decompile.py", "tests/samples/bin/systemtests/64/0/globals"]
@@ -59,7 +58,6 @@ def test_global_strings_and_tables():
     assert output2.count("*&hello_string") == 1
 
 
-@pytest.mark.skip(reason="global lifting not yet implemented in the new lifter")
 def test_global_indirect_ptrs():
     """Test that indirect pointers in globals are dereferenced correctly."""
     base_args = ["python", "decompile.py", "tests/samples/bin/systemtests/64/0/globals"]
@@ -70,7 +68,6 @@ def test_global_indirect_ptrs():
     assert output1.count("g_2 = &(g_3)") == 1
 
 
-@pytest.mark.skip(reason="global lifting not yet implemented in the new lifter")
 def test_global_import_address_symbol():
     """Test that ImportAddressSymbols from Binja gets displayed correctly."""
     base_args = ["python", "decompile.py", "tests/samples/others/app1.so"]

@@ -4,6 +4,7 @@ from typing import Optional, Union
 from binaryninja import BinaryView, DataVariable, Endianness
 from binaryninja import Symbol as bSymbol
 from binaryninja import SymbolType, mediumlevelil
+from binaryninja import TypeClass
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import (
     Constant,
@@ -32,7 +33,7 @@ class ConstantHandler(Handler):
                 mediumlevelil.MediumLevelILFloatConst: self.lift_constant,
                 mediumlevelil.MediumLevelILExternPtr: self.lift_pointer,
                 mediumlevelil.MediumLevelILConstPtr: self.lift_pointer,
-                mediumlevelil.MediumLevelILImport: self.lift_symbol,
+                mediumlevelil.MediumLevelILImport: self.lift_pointer,
                 int: self.lift_literal,
             }
         )
@@ -60,15 +61,20 @@ class ConstantHandler(Handler):
 
     def _lift_bn_pointer(self, address: int, bv: BinaryView):
         """Lift the given binaryninja pointer object to a pseudo pointer."""
+        if address == 0:
+            # TODO: hack - Binja thinks that 0 is a null pointer, even though it may be just integer 0.
+            return Constant(0, vartype=Integer.uint64_t() if bv.address_size == 8 else Integer.uint32_t())
         if symbol := self._get_symbol(bv, address):
-            if symbol_pointer := self._lift_symbol_pointer(address, symbol):
-                return symbol_pointer
-            if variable := bv.get_data_var_at(address):
-                return self._lift_global_variable(variable, symbol)
-            return Symbol("NULL", 0)
-        if isinstance(address, int) and (string := bv.get_ascii_string_at(address, min_length=2)):
+            if symbol.type == SymbolType.FunctionSymbol:
+                return FunctionSymbol(symbol.name, address, vartype=Pointer(Integer.char()))
+            if symbol.type in (SymbolType.ImportedFunctionSymbol, SymbolType.ExternalSymbol):
+                return ImportedFunctionSymbol(symbol.name, address, vartype=Pointer(Integer.char()))
+            return self._lift_global_variable(bv, None, address)
+
+        if string := bv.get_string_at(address, partial=True) or bv.get_ascii_string_at(address, min_length=2):
             return Constant(address, Pointer(Integer.char()), Constant(string.value, Integer.char()))
-        return Constant(address, vartype=Pointer(CustomType.void()))
+
+        return self._lift_constant(instruction)
 
     def _lift_symbol_pointer(self, address: int, symbol: bSymbol) -> Optional[Symbol]:
         """Try to lift a pointer at the given address with a Symbol as a symbol pointer."""
@@ -77,19 +83,65 @@ class ConstantHandler(Handler):
         if symbol.type in (SymbolType.ImportedFunctionSymbol, SymbolType.ExternalSymbol):
             return ImportedFunctionSymbol(symbol.name, address, vartype=Pointer(Integer.char()))
 
-    def _lift_global_variable(self, variable: DataVariable, symbol: bSymbol) -> Union[Symbol, UnaryOperation]:
-        """Lift a global variable"""
-        if variable is None:
+    def _lift_global_variable(self, bv: BinaryView, parent_addr: int, addr: int) -> Union[Constant, GlobalVariable, Symbol, UnaryOperation]:
+        """Lift a global variable."""
+        if (variable := bv.get_data_var_at(addr)) is None:
+            if string := bv.get_string_at(addr):
+                return Constant(addr, Pointer(Integer.char()), Constant(string.value, Integer.char()))
             # TODO: hack - Binja thinks that 0 is a null pointer, even though it may be just integer 0. Thus we lift this as a NULL Symbol
-            return Symbol("NULL", 0)
-        # TODO: hack - otherwise the whole jumptable is set as initial_value
-        initial_value = symbol.address if "jump_table" in symbol.name else self._get_initial_value(variable)
-        if "*" in variable.type.tokens:
-            initial_value = self._lift_global_variable(int.from_bytes(initial_value, self.Endian[variable.view]), variable.view)
+            if self._get_pointer(bv, addr) == 0:
+                return Symbol("NULL", 0)
+            # return as raw bytes for now.
+            return Constant(addr, Pointer(Integer.char()), Constant(self._get_bytes(bv, addr), Integer.char()))
+        variable_name = self._get_global_var_name(bv, addr)
+        vartype = self._lifter.lift(variable.type)
+        if "jump_table" in variable_name:
+            # TODO: hack - otherwise the whole jumptable is set as initial_value
+            return UnaryOperation(
+                OperationType.address,
+                [GlobalVariable(variable_name, ssa_label=0, vartype=vartype, initial_value=addr)],
+                vartype=Pointer(vartype),
+            )
+        if parent_addr == addr:
+            # We have cases like:
+            # void* __dso_handle = __dso_handle
+            # Prevent unlimited recursion and return the pointer.
+            vartype = Integer.uint64_t() if bv.address_size == 8 else Integer.uint32_t()
+            return GlobalVariable(variable_name, vartype=vartype, ssa_label=0, initial_value=addr)
+
+        # Retrieve the initial value of the global variable if there is any
+        type_tokens = [t.text for t in variable.type.tokens]
+        if variable.type == variable.type.void():
+            # If there is no type, just retrieve all the bytes from the current to the next address where a data variable is present.
+            next_data_var_addr = bv.get_next_data_var_after(addr).address
+            num_bytes = next_data_var_addr - addr
+            initial_value = bv.read(addr, num_bytes)
+            initial_value = self._get_bytes(bv, addr)
+        elif variable.type.type_class == TypeClass.IntegerTypeClass:
+            initial_value = self._get_integer(bv, addr, variable.type.width)
+        else:
+            # Handle general case
+            type_width = variable.type.width
+            tmp_value = bv.read(addr, type_width)
+            # If pointer type, convert tmp_value to a label, otherwise leave it as it is.
+            if "*" in variable.type.tokens:
+                indirect_ptr_addr = int.from_bytes(tmp_value, ConstantHandler.Endian[bv.endianness])
+                initial_value = self._lift_global_variable(bv, indirect_ptr_addr)
+            # If pointer type, convert indirect_pointer to a label, otherwise leave it as it is.
+            if "*" in type_tokens:
+                indirect_ptr_addr = self._get_pointer(bv, addr)
+                initial_value = self._lift_global_variable(bv, addr, indirect_ptr_addr)
+            else:
+                initial_value = tmp_value
+                initial_value = bv.read(addr, variable.type.width)
+        # Create the global variable.
+        # Convert all void and void* to char*
+        if "void" in type_tokens:
+            vartype = self._lifter.lift(bv.parse_type_string("char*")[0])
         return UnaryOperation(
             OperationType.address,
-            [GlobalVariable(variable.name, vartype=self._lifter.lift(variable.type), ssa_label=0, initial_value=initial_value)],
-            vartype=Pointer(self._lifter.lift(variable.type)),
+            [GlobalVariable(variable_name, vartype=vartype, ssa_label=0, initial_value=initial_value)],
+            vartype=Pointer(vartype),
         )
 
     def _get_initial_value(self, variable: DataVariable) -> Union[str, int]:
@@ -110,3 +162,36 @@ class ConstantHandler(Handler):
         elif function := bv.get_function_at(address):
             return function.symbol
         return None
+
+    def _get_global_var_name(self, bv: BinaryView, addr: int) -> str:
+        """Get a name for the GlobalVariable."""
+        if (symbol := bv.get_symbol_at(addr)) is not None:
+            name = symbol.name.replace(".", "_")  # If there is an existing symbol, use it as the name
+            if symbol.type == SymbolType.ImportAddressSymbol:
+                # In Binja, ImportAddressSymbol will always reference a DataSymbol of the same name
+                # To prevent name conflicts, we add a _1 to the name to make it a different variable.
+                name += "_1"
+            return name
+        return f"data_{addr:x}"
+
+    def _get_bytes(self, bv: BinaryView, addr: int) -> bytes:
+        """Given an address, retrive all bytes from the current data point to the next data point."""
+        next_data_var_addr = None
+        next_data_var = bv.get_next_data_var_after(addr)
+        if next_data_var is not None:
+            next_data_var_addr = next_data_var.address
+        # No data point after this, so read till the end of this section instead.
+        else:
+            next_data_var_addr = bv.get_sections_at(addr)[0].end
+        num_bytes = next_data_var_addr - addr
+        return bv.read(addr, num_bytes)
+
+    def _get_pointer(self, bv: BinaryView, addr: int) -> int:
+        """Retrieve and convert a value at an address from bytes to an integer."""
+        raw_value = bv.read(addr, bv.arch.address_size)
+        return int.from_bytes(raw_value, ConstantHandler.Endian[bv.endianness])
+
+    def _get_integer(self, bv: BinaryView, addr: int, size: int) -> int:
+        """Retrieve and convert a value at an address from bytes to an integer specified size."""
+        raw_value = bv.read(addr, size)
+        return int.from_bytes(raw_value, ConstantHandler.Endian[bv.endianness])
