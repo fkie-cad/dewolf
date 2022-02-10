@@ -128,6 +128,12 @@ define compile_arch_opt_combinations
 	done
 endef
 
+.ONESHELL: coreutils
+.PHONY: coreutils
+systemtests: venv
+	. $(VENV_PATH)/bin/activate
+	python3 -m pip install pytest-xdist
+	pytest --coreutils -n auto tests/test_coreutils.py --junitxml=report.xml
 
 .PHONY: system-tests-samples
 system-tests-samples: check-compiler-version
