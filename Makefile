@@ -130,7 +130,7 @@ endef
 
 .ONESHELL: coreutils
 .PHONY: coreutils
-systemtests: venv
+coreutils: venv
 	. $(VENV_PATH)/bin/activate
 	python3 -m pip install pytest-xdist
 	pytest --coreutils -n auto tests/test_coreutils.py --junitxml=report.xml
