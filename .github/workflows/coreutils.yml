@@ -24,7 +24,7 @@ jobs:
           docker build -t dewolf .
       - name: Run Tests
         run: |
-          docker run dewolf python3 -m pip install pytest-xdist && pytest --coreutils -n auto tests/test_coreutils.py --junitxml=report.xml
+          docker run dewolf . .venv/bin/activate && python3 -m pip install pytest-xdist && pytest --coreutils -n auto tests/test_coreutils.py --junitxml=report.xml
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
         with:
