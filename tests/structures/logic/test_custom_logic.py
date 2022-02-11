@@ -138,7 +138,18 @@ def _get_normal_forms(form):
             ~custom_x(1, dnf_world) | (custom_x(3, dnf_world) & custom_x(2, dnf_world)),
             (custom_x(3, dnf_world) & custom_x(2, dnf_world)) | (custom_x(4, dnf_world) & ~custom_x(1, dnf_world)),
             (custom_x(2, dnf_world) & ~custom_x(1, dnf_world)) | (custom_x(3, dnf_world) & ~custom_x(1, dnf_world)),
-            custom_x(1, dnf_world) | custom_x(2, dnf_world) | custom_x(3, dnf_world) | (custom_x(5, dnf_world) & custom_x(4, dnf_world)),
+            CustomLogicCondition.disjunction_of(
+                [custom_x(1, dnf_world), custom_x(2, dnf_world), custom_x(3, dnf_world), (custom_x(5, dnf_world) & custom_x(4, dnf_world))]
+            ),
+            CustomLogicCondition.disjunction_of(
+                [
+                    custom_x(2, dnf_world) & ~custom_x(1, dnf_world),
+                    custom_x(4, dnf_world) & ~custom_x(1, dnf_world),
+                    custom_x(3, dnf_world) & ~custom_x(1, dnf_world),
+                    custom_x(3, dnf_world) & custom_x(5, dnf_world),
+                    custom_x(4, dnf_world) & custom_x(5, dnf_world),
+                ]
+            ),
         ]
     else:
         raise ValueError(f"wrong input")
@@ -543,11 +554,11 @@ class TestCustomLogicCondition:
         """Bring condition tag into cnf-form."""
         assert term.to_cnf().is_equal_to(cnf_term)
 
-    @pytest.mark.skip(f"Not implemented yet.")
     @pytest.mark.parametrize("term, dnf_term", _get_normal_forms("dnf"))
     def test_to_dnf(self, term, dnf_term):
         """Bring condition tag into cnf-form."""
-        assert term.to_dnf().is_equal_to(dnf_term)
+        input_term = str(term)
+        assert term.to_dnf().is_equal_to(dnf_term) and input_term == str(term)
 
     @pytest.mark.parametrize(
         "term, simplified",
@@ -738,17 +749,16 @@ class TestCustomLogicCondition:
                 },
                 custom_x(1, world) & ~custom_x(3, world),
             ),
-            # TODO Not implemented yet
-            # (
-            #     custom_x(1, world) & custom_x(2, world),
-            #     {custom_x(1, world): lower(custom_variable(world), 20), custom_x(2, world): u_lower_eq(custom_variable(world), 10)},
-            #     custom_x(2, world),
-            # ),
-            # (
-            #     custom_x(1, world) & ~custom_x(2, world),
-            #     {custom_x(1, world): lower(custom_variable(world), 20), custom_x(2, world): u_greater(custom_variable(world), 10)},
-            #     ~custom_x(2, world),
-            # ),
+            (
+                custom_x(1, world) & custom_x(2, world),
+                {custom_x(1, world): lower(custom_variable(world), 20), custom_x(2, world): u_lower_eq(custom_variable(world), 10)},
+                custom_x(2, world),
+            ),
+            (
+                custom_x(1, world) & ~custom_x(2, world),
+                {custom_x(1, world): lower(custom_variable(world), 20), custom_x(2, world): u_greater(custom_variable(world), 10)},
+                ~custom_x(2, world),
+            ),
         ],
     )
     def test_remove_redundancy(self, term, condition_map, result):

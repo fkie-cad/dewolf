@@ -8,7 +8,7 @@ import decompiler.structures.pseudo as pseudo
 from decompiler.structures.logic.logic_interface import ConditionInterface, PseudoLogicInterface
 from simplifier.operations import BitwiseAnd, BitwiseNegate, BitwiseOr
 from simplifier.range_simplifier import RangeSimplifier
-from simplifier.visitor import ToCnfVisitor
+from simplifier.visitor import ToCnfVisitor, ToDnfVisitor
 from simplifier.visitor.serialize_visitor import SerializeVisitor
 from simplifier.world.nodes import BaseVariable, BitVector, Constant, Operation, TmpVariable, Variable, WorldObject
 from simplifier.world.world import World
@@ -203,10 +203,10 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
 
     def to_dnf(self) -> LOGICCLASS:
         """Bring condition tag into dnf-form."""
-        raise NotImplementedError(f"To DNF is not implemented so far")
-        # dnf_form = self.__class__.initialize_true()
-        # dnf_form._condition = self.z3.z3_to_dnf(self._condition)
-        # return dnf_form
+        dnf_form = self.copy()
+        self.context.free_world_condition(dnf_form._variable)
+        ToDnfVisitor(dnf_form._variable)
+        return dnf_form
 
     def simplify(self) -> LOGICCLASS:
         """Simplify the given condition. Make sure that it does not destroys cnf-form."""
@@ -307,6 +307,7 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
                     replacement_dict[condition_map[symbol]._condition] = world_symbol
 
         self.context.free_world_condition(copied_condition._variable)
+        copied_condition.simplify()
         RangeSimplifier.simplify(copied_condition._condition)
         non_logic_operands = {
             node
