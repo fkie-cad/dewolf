@@ -68,7 +68,6 @@ class CallHandler(Handler):
             Call(
                 IntrinsicSymbol(str(call.intrinsic)),
                 [self._lifter.lift(param, parent=call) for param in call.params],
-                writes_memory=call.output_dest_memory if ssa else None,
             ),
         )
 
