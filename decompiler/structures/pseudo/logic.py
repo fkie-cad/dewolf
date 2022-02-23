@@ -115,10 +115,10 @@ class Z3Converter:
 
         Converts bv and bool into each other and tries to even out size differences for bit vectors.
         """
-        if is_bv(operands[0]):
+        if any(is_bv(op) for op in operands):
             operands = [self._ensure_bitvec_sort(operand) for operand in operands]
             operands = list(self._ensure_bv_size(operands))
-        elif is_bool(operands[0]):
+        elif any(is_bool(op) for op in operands):
             operands = [self._ensure_bool_sort(operand) for operand in operands]
         return operands
 
