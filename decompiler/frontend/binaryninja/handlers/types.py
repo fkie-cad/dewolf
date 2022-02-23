@@ -1,11 +1,11 @@
-from typing import Callable, Dict
-
 from binaryninja.types import ArrayType, BoolType, CharType, FloatType, IntegerType, NamedTypeReferenceType, PointerType, Type, VoidType
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import CustomType, Float, Integer, Pointer
+from decompiler.structures.pseudo import CustomType, Float, Integer, Pointer, UnknownType
 
 
 class TypeHandler(Handler):
+    """Handler lifting types from binaryninja mlil."""
+
     def register(self):
         self._lifter.HANDLERS.update(
             {
@@ -21,8 +21,8 @@ class TypeHandler(Handler):
             }
         )
 
-    def lift_none(self, expr, **kwargs):
-        return CustomType("unknown", 32)
+    def lift_none(self, _: None, **kwargs):
+        return UnknownType()
 
     def lift_unknown(self, unknown: Type, **kwargs) -> CustomType:
         return CustomType(str(unknown), unknown.width * self.BYTE_SIZE)
