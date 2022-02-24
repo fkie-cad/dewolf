@@ -762,6 +762,7 @@ class TestCustomLogicCondition:
         ],
     )
     def test_remove_redundancy(self, term, condition_map, result):
+        # TODO --> new symbols
         assert term.remove_redundancy(condition_map).is_equal_to(result)
 
     @pytest.mark.parametrize(

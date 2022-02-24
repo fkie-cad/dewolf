@@ -179,12 +179,15 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
 
     def does_imply(self, other: LOGICCLASS) -> bool:
         """Check whether the condition implies the given condition."""
-        tmp_condition = self.__class__(self.context.bitwise_or(self._custom_negate(self._condition), other._condition), tmp=True)
+        tmp_condition = self.__class__(self.context.bitwise_or(self._custom_negate(self._condition), other._condition))
         self.context.free_world_condition(tmp_condition._variable)
         tmp_condition._variable.simplify()
+        self.context.substitute(tmp_condition._variable, tmp := TmpVariable(self.context, "tmp", tmp_condition._variable.size))
+        tmp_condition._variable = tmp
         if tmp_condition.is_true:
             self.context.cleanup()
             return True
+        self.context.cleanup()
         return False
 
     # def is_complementary_to(self, other: LOGICCLASS) -> bool:
@@ -303,8 +306,9 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
                 for relation in self.context.get_relation(parent, world_symbol):
                     index = relation.index
                     self.context.remove_operand(parent, relation.sink)
-                    self.context.add_operand(parent, condition_map[symbol]._condition, index)
-                    replacement_dict[condition_map[symbol]._condition] = world_symbol
+                    symbol_condition = condition_map[symbol]._condition
+                    self.context.add_operand(parent, symbol_condition, index)
+                    replacement_dict[symbol_condition] = world_symbol
 
         self.context.free_world_condition(copied_condition._variable)
         copied_condition.simplify()
@@ -315,9 +319,13 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
             if isinstance(node, Operation) and not isinstance(node, (BitwiseOr, BitwiseAnd, BitwiseNegate))
         }
         for operand in non_logic_operands:
+            negated_operand = operand.copy_tree().negate()
             for condition, symbol in replacement_dict.items():
                 if World.compare(condition, operand):
                     self.context.replace(operand, symbol)
+                    break
+                if World.compare(condition, negated_operand):
+                    self.context.replace(operand, self.context.bitwise_negate(symbol))
                     break
             else:
                 self.context.cleanup()
