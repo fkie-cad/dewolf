@@ -132,6 +132,17 @@ def test_boolref_ops(converter):
     )
 
 
+def test_ensure_same_sort(converter):
+    """Make sure that we can transform when the first operand is a bool."""
+    var = Variable("a", Integer.int64_t())
+    const_m1 = Constant(1, Integer.int64_t())
+    const = Constant(1, Integer.char())
+    assert (
+        str(converter.convert(Condition(OperationType.less_us, [Condition(OperationType.equal, [var, const_m1]), const])))
+        == "ULT(If(1 == a, 1, 0), Extract(0, 0, 1))"
+    )
+
+
 class TestSatisfiability:
     """Class implementing test for SAT checking."""
 
