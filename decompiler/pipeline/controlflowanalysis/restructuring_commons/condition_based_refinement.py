@@ -164,7 +164,11 @@ class ConditionBasedRefinement:
         """
         if expression.is_true or expression.is_false:
             return False
-        if term.is_equivalent_to(expression):
+        if term.is_equal_to(expression):
+            return True
+        if not expression.does_imply(term):
+            return False
+        elif term.does_imply(expression):
             return True
         if expression.is_negation or expression.is_symbol:
             return False
