@@ -52,8 +52,7 @@ class ConstantHandler(Handler):
 
     def lift_pointer(self, constant: mediumlevelil.MediumLevelILConstPtr, **kwargs) -> Constant:
         """Helper method translating a pointer to address and binary view."""
-        x = self._lift_bn_pointer(constant.constant, constant.function.source_function.view)
-        return x
+        return self._lift_bn_pointer(constant.constant, constant.function.source_function.view)
 
     def lift_literal(self, value: int, **kwargs) -> Constant:
         """Lift the given literal, which is most likely an artefact from shift operations and the like."""
