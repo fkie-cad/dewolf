@@ -181,10 +181,7 @@ class ConditionBasedRefinement:
             return False
 
         subexpressions = [term] if numb_of_arg_term == 1 else term_operands
-        for sub_expr in subexpressions:
-            if not self._is_contained_in_logic_conditions(sub_expr, expression_operands):
-                return False
-        return True
+        all((self._is_contained_in_logic_conditions(sub_expr, expression_operands) for sub_expr in subexpressions))
 
     @staticmethod
     def _is_contained_in_logic_conditions(sub_expression: LogicCondition, logic_conditions: List[LogicCondition]) -> bool:
