@@ -150,8 +150,7 @@ class ConditionBasedRefinement:
             return ~condition
         return negated_condition
 
-    @staticmethod
-    def _is_subexpression_of_cnf_formula(term: LogicCondition, expression: LogicCondition) -> bool:
+    def _is_subexpression_of_cnf_formula(self, term: LogicCondition, expression: LogicCondition) -> bool:
         """
         Check whether the input term is a conjunction of a subset of clauses of a CNF expression.
         :param term: assumed to be CNF. May contain more than one clause.
@@ -182,17 +181,15 @@ class ConditionBasedRefinement:
             return False
 
         subexpressions = [term] if numb_of_arg_term == 1 else term_operands
-        for sub_expr_1 in subexpressions:
-            for sub_expr_2 in expression_operands:
-                if sub_expr_1.is_equivalent_to(sub_expr_2):
-                    # break and run outer for-loop.
-                    # this is because all expr in term must be a subexpression of expression and we found the subexpression equivalent to expr.
-                    break
-            else:
-                # inner for loop ran all the way without breaking.
-                # so return false as none of the expr in term is in expression
+        for sub_expr in subexpressions:
+            if not self._is_contained_in_logic_conditions(sub_expr, expression_operands):
                 return False
         return True
+
+    @staticmethod
+    def _is_contained_in_logic_conditions(sub_expression: LogicCondition, logic_conditions: List[LogicCondition]) -> bool:
+        """Check whether the given sub_expression is contained in the list of logic conditions"""
+        return any(sub_expression.is_equivalent_to(condition) for condition in logic_conditions)
 
     def _get_logical_and_subexpressions_of(self, condition: LogicCondition) -> List[LogicCondition]:
         """
