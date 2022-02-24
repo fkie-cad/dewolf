@@ -88,7 +88,14 @@ class ConstantHandler(Handler):
             initial_value = self._lift_global_variable(int.from_bytes(initial_value, self.Endian[variable.view]), variable.view)
         return UnaryOperation(
             OperationType.address,
-            [GlobalVariable(variable.name, vartype=self._lifter.lift(variable.type), ssa_label=0, initial_value=initial_value)],
+            [
+                GlobalVariable(
+                    variable.name if variable.name else f"data_{hex(symbol.address)}",
+                    vartype=self._lifter.lift(variable.type),
+                    ssa_label=0,
+                    initial_value=initial_value,
+                )
+            ],
             vartype=Pointer(self._lifter.lift(variable.type)),
         )
 
