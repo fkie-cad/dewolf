@@ -40,7 +40,7 @@ class CallHandler(Handler):
                 [self._lifter.lift(parameter, parent=call) for parameter in call.params],
                 vartype=dest.type.copy(),
                 writes_memory=call.output_dest_memory if ssa else None,
-                meta_data={"param_names": self._lift_call_parameter_names(call), "is_failcall": isinstance(call, Tailcall)},
+                meta_data={"param_names": self._lift_call_parameter_names(call), "is_tailcall": isinstance(call, Tailcall)},
             ),
         )
 
@@ -68,7 +68,6 @@ class CallHandler(Handler):
             Call(
                 IntrinsicSymbol(str(call.intrinsic)),
                 [self._lifter.lift(param, parent=call) for param in call.params],
-                writes_memory=call.output_dest_memory if ssa else None,
             ),
         )
 

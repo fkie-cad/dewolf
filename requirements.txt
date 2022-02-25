@@ -4,8 +4,5 @@ isort
 networkx
 pydot
 pygments
-sympy == 1.4
-numpy
-scipy
 pytest !=5.3.4
 z3-solver == 4.8.10
