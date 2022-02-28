@@ -1,3 +1,4 @@
+from .delogic_logic import DelogicConverter
 from .expressions import (
     Constant,
     DataflowObject,
@@ -29,6 +30,6 @@ from .instructions import (
     Relation,
     Return,
 )
-from .logic import Z3Converter
 from .operations import BinaryOperation, Call, Condition, ListOperation, Operation, OperationType, TernaryExpression, UnaryOperation
 from .typing import CustomType, Float, Integer, Pointer, Type, TypeParser, UnknownType
+from .z3_logic import Z3Converter

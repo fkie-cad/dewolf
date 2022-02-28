@@ -1,13 +1,16 @@
 """Module implementing the DeadPathElimination pipeline stage."""
 from logging import info, warning
-from typing import Iterator, Optional, Set
+from typing import Iterator, Optional, Set, Union
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock, BasicBlockEdge, ControlFlowGraph, FalseCase, UnconditionalEdge
+from decompiler.structures.pseudo.delogic_logic import DelogicConverter
 from decompiler.structures.pseudo.instructions import Branch, GenericBranch, IndirectBranch, Phi
-from decompiler.structures.pseudo.logic import Z3Converter
+from decompiler.structures.pseudo.logic import BaseConverter
+from decompiler.structures.pseudo.z3_logic import Z3Converter
 from decompiler.task import DecompilerTask
-from z3 import BoolRef, Not
+from simplifier.world.nodes import WorldObject
+from z3 import BoolRef
 
 
 class DeadPathElimination(PipelineStage):
@@ -17,12 +20,15 @@ class DeadPathElimination(PipelineStage):
 
     def __init__(self):
         """Initialize a new path elimination."""
-        self._logic_converter: Z3Converter = Z3Converter()
+        self._logic_converter: BaseConverter = Z3Converter()
         self._timeout: Optional[int] = None
 
     def run(self, task: DecompilerTask) -> None:
         """Run dead path elimination on the given task object."""
         self._timeout = task.options.getint(f"{self.name}.timeout_satisfiable")
+        self.engine = task.options.getstring("logic-engine.engine")  # choice of z3 or delogic
+        if self.engine == "delogic":
+            self._logic_converter = DelogicConverter()
         if task.graph.root is None:
             warning(f"[{self.__class__.__name__}] Can not detect dead blocks because the cfg has no head.")
             return
@@ -62,7 +68,7 @@ class DeadPathElimination(PipelineStage):
     def _get_invalid_branch_edge(self, graph: ControlFlowGraph, block: BasicBlock, instruction: Branch) -> Optional[BasicBlockEdge]:
         """Check the edges of the given branch for unsatisfyable branch conditions, returning a dead edge if any."""
         try:
-            condition = self._logic_converter.convert(instruction)
+            condition = self._logic_converter.convert(instruction, define_expr=True)
         except ValueError as value_error:
             warning(f"[{self.__class__.__name__}] {str(value_error)}")
             return
@@ -70,14 +76,14 @@ class DeadPathElimination(PipelineStage):
             if self._is_invalid_edge(edge, condition):
                 return edge
 
-    def _is_invalid_edge(self, edge: BasicBlockEdge, condition: BoolRef) -> bool:
+    def _is_invalid_edge(self, edge: BasicBlockEdge, condition: Union[BoolRef, WorldObject]) -> bool:
         """
         Check whether the condition of the given branch is satisfyable or not.
 
         Returns a tuple of bools indicating the viability of the true and false branches.
         """
         if isinstance(edge, FalseCase):
-            condition = Not(condition)
+            condition = self._logic_converter.negate(condition)
         return self._logic_converter.is_not_satisfiable(condition, timeout=self._timeout)
 
     @staticmethod

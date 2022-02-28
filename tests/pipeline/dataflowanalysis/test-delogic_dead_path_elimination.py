@@ -10,6 +10,7 @@ from decompiler.util.options import Options
 def run_dead_path_elimination(cfg):
     options = Options()
     options.set("dead-path-elimination.timeout_satisfiable", 1000)
+    options.set("logic-engine.engine", "delogic")
     DeadPathElimination().run(DecompilerTask("test", cfg, options=options))
 
 
