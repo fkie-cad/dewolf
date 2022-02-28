@@ -1,5 +1,5 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 from binaryninja import BinaryView, DataVariable, Endianness
 from binaryninja import Symbol as bSymbol
@@ -7,7 +7,6 @@ from binaryninja import SymbolType, TypeClass, mediumlevelil
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import (
     Constant,
-    CustomType,
     FunctionSymbol,
     GlobalVariable,
     ImportedFunctionSymbol,
@@ -15,6 +14,7 @@ from decompiler.structures.pseudo import (
     OperationType,
     Pointer,
     Symbol,
+    Type,
     UnaryOperation,
 )
 
@@ -85,56 +85,22 @@ class ConstantHandler(Handler):
     def _lift_global_variable(self, bv: BinaryView, parent_addr: int, addr: int) -> Union[Constant, GlobalVariable, Symbol, UnaryOperation]:
         """Lift a global variable."""
         if (variable := bv.get_data_var_at(addr)) is None:
-            if string := bv.get_string_at(addr):
-                return Constant(addr, Pointer(Integer.char()), Constant(string.value, Integer.char()))
-            # TODO: hack - Binja thinks that 0 is a null pointer, even though it may be just integer 0. Thus we lift this as a NULL Symbol
-            if self._get_pointer(bv, addr) == 0:
-                return Symbol("NULL", 0)
-            # return as raw bytes for now.
-            return Constant(addr, Pointer(Integer.char()), Constant(self._get_bytes(bv, addr), Integer.char()))
+            return self._lift_no_data_var(bv, addr)
+
         variable_name = self._get_global_var_name(bv, addr)
         vartype = self._lifter.lift(variable.type)
         if "jump_table" in variable_name:
-            # TODO: hack - otherwise the whole jumptable is set as initial_value
-            return UnaryOperation(
-                OperationType.address,
-                [GlobalVariable(variable_name, ssa_label=0, vartype=vartype, initial_value=addr)],
-                vartype=Pointer(vartype),
-            )
+            return self._lift_jump_table(bv, variable_name, vartype, addr)
+
         if parent_addr == addr:
-            # We have cases like:
-            # void* __dso_handle = __dso_handle
-            # Prevent unlimited recursion and return the pointer.
-            vartype = Integer.uint64_t() if bv.address_size == 8 else Integer.uint32_t()
-            return GlobalVariable(variable_name, vartype=vartype, ssa_label=0, initial_value=addr)
+            return self._lift_recursion_pointer(variable_name, vartype, addr)
 
         # Retrieve the initial value of the global variable if there is any
         type_tokens = [t.text for t in variable.type.tokens]
-        if variable.type == variable.type.void():
-            # If there is no type, just retrieve all the bytes from the current to the next address where a data variable is present.
-            next_data_var_addr = bv.get_next_data_var_after(addr).address
-            num_bytes = next_data_var_addr - addr
-            initial_value = bv.read(addr, num_bytes)
-            initial_value = self._get_bytes(bv, addr)
-        elif variable.type.type_class == TypeClass.IntegerTypeClass:
-            initial_value = self._get_integer(bv, addr, variable.type.width)
-        else:
-            # Handle general case
-            type_width = variable.type.width
-            tmp_value = bv.read(addr, type_width)
-            # If pointer type, convert tmp_value to a label, otherwise leave it as it is.
-            if "*" in variable.type.tokens:
-                indirect_ptr_addr = int.from_bytes(tmp_value, ConstantHandler.Endian[bv.endianness])
-                initial_value = self._lift_global_variable(bv, indirect_ptr_addr)
-            # If pointer type, convert indirect_pointer to a label, otherwise leave it as it is.
-            if "*" in type_tokens:
-                indirect_ptr_addr = self._get_pointer(bv, addr)
-                initial_value = self._lift_global_variable(bv, addr, indirect_ptr_addr)
-            else:
-                initial_value = tmp_value
-                initial_value = bv.read(addr, variable.type.width)
+        initial_value = self._get_initial_value(bv, variable, addr, type_tokens)
+
         # Create the global variable.
-        # Convert all void and void* to char*
+        # Convert all void and void* to char* for the C compiler.
         if "void" in type_tokens:
             vartype = self._lifter.lift(bv.parse_type_string("char*")[0])
         return UnaryOperation(
@@ -143,15 +109,49 @@ class ConstantHandler(Handler):
             vartype=Pointer(vartype),
         )
 
-    def _get_initial_value(self, variable: DataVariable) -> Union[str, int]:
-        # Retrieve the initial value of the global variable if there is any
-        bv: BinaryView = variable.view
+    def _lift_no_data_var(self, bv: BinaryView, addr: int) -> Union[Constant, Symbol]:
+        """Lift a string or bytes when bv.get_data_var(addr) is None."""
+        if string := bv.get_string_at(addr):
+            return Constant(addr, Pointer(Integer.char()), Constant(string.value, Integer.char()))
+        # TODO: hack - Binja thinks that 0 is a null pointer, even though it may be just integer 0. Thus we lift this as a NULL Symbol
+        if self._get_pointer(bv, addr) == 0:
+            return Symbol("NULL", 0)
+        # return as raw bytes for now.
+        return Constant(addr, Pointer(Integer.char()), Constant(self._get_bytes(bv, addr), Integer.char()))
+
+    def _lift_jump_table(self, bv: BinaryView, variable_name: str, vartype: Type, addr: int) -> UnaryOperation:
+        """Lift a jump table."""
+        # TODO: hack - otherwise the whole jumptable is set as initial_value
+        return UnaryOperation(
+            OperationType.address,
+            [GlobalVariable(variable_name, ssa_label=0, vartype=vartype, initial_value=addr)],
+            vartype=Pointer(vartype),
+        )
+
+    def _lift_recursion_pointer(self, variable_name: str, vartype: Type, addr: int) -> GlobalVariable:
+        """Lift a recursion pointer."""
+        # We have cases like:
+        # void* __dso_handle = __dso_handle
+        # Prevent unlimited recursion and return the pointer.
+        vartype = Integer.uint64_t() if bv.address_size == 8 else Integer.uint32_t()
+        return GlobalVariable(variable_name, vartype=vartype, ssa_label=0, initial_value=addr)
+
+    def _get_initial_value(self, bv: BinaryView, variable: DataVariable, addr: int, type_tokens: List[str]) -> Union[str, int, bytes]:
+        """Retrieve the initial value of the global variable if there is any."""
+        initial_value = None
         if variable.type == variable.type.void():
             # If there is no type, just retrieve all the bytes from the current to the next address where a data variable is present.
-            return bv.read(variable.address, bv.get_next_data_var_after(variable.address).address - variable.address)
-        # Handle general case
-        type_width = variable.type.width
-        return bv.read(variable.address, type_width)
+            initial_value = self._get_bytes(bv, addr)
+        elif variable.type.type_class == TypeClass.IntegerTypeClass:
+            initial_value = self._get_integer(bv, addr, variable.type.width)
+        else:
+            # If pointer type, convert indirect_pointer to a label, otherwise leave it as it is.
+            if "*" in type_tokens:
+                indirect_ptr_addr = self._get_pointer(bv, addr)
+                initial_value = self._lift_global_variable(bv, addr, indirect_ptr_addr)
+            else:
+                initial_value = bv.read(addr, variable.type.width)
+        return initial_value
 
     @staticmethod
     def _get_symbol(bv: BinaryView, address: int) -> Optional[bSymbol]:
@@ -165,7 +165,9 @@ class ConstantHandler(Handler):
     def _get_global_var_name(self, bv: BinaryView, addr: int) -> str:
         """Get a name for the GlobalVariable."""
         if (symbol := bv.get_symbol_at(addr)) is not None:
-            name = symbol.name.replace(".", "_")  # If there is an existing symbol, use it as the name
+            # If there is an existing symbol, use it as the name
+            # Replace characters in the name with equivalents to conform to C's variable naming convention.
+            name = symbol.name.replace(".", "_")
             if symbol.type == SymbolType.ImportAddressSymbol:
                 # In Binja, ImportAddressSymbol will always reference a DataSymbol of the same name
                 # To prevent name conflicts, we add a _1 to the name to make it a different variable.
