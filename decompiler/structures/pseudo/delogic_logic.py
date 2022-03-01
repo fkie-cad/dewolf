@@ -59,7 +59,7 @@ class DelogicConverter(BaseConverter):
 
     def _full_simplification(self, condition: WorldObject, timeout: int = 2000) -> WorldObject:
         """Return the full simplification of a condition."""
-        result = self.define_expression(condition.copy_tree())
+        result = condition.copy_tree() if isinstance(condition, WorldVariable) else self.define_expression(condition.copy_tree())
         # simplify to fixpoint, stop at timeout so we don't accidentally iterate forever.
         for _ in range(timeout):
             result_copy = self.define_expression(result.copy_tree())
