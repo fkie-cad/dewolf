@@ -42,7 +42,7 @@ class BaseConverter(ABC, Generic[T]):
 
     def is_satisfiable(self, *condition: T, timeout: int = 2000) -> bool:
         """Check whether a given set of terms is satisfiable."""
-        return self.check(*condition, timeout=timeout) == "sat"
+        return self.check(*condition, timeout=timeout) == BaseConverter.SAT
 
     @abstractmethod
     def _convert_variable(self, variable: Variable, **kwargs: T) -> T:
