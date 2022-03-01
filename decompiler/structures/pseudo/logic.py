@@ -17,6 +17,7 @@ class BaseConverter(ABC, Generic[T]):
 
     SAT = "sat"
     UNSAT = "unsat"
+    UNKNOWN = "unknown"
 
     def convert(self, expression: Union[Expression, Branch], **kwargs: T) -> T:
         """Convert a given expression or branch into a logic statement of type T."""

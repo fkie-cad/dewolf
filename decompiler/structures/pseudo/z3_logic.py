@@ -151,7 +151,10 @@ class Z3Converter(BaseConverter):
         result = repr(solver.check())
         if result == "unknown":
             logging.warning(f"It could be that z3 was not able to check satisfiability for the given terms in {timeout}ms")
-        return result
+            return BaseConverter.UNKNOWN
+        elif result == "unsat":
+            return BaseConverter.UNSAT
+        return BaseConverter.SAT
 
     LOGIC_OPERATIONS = {
         OperationType.bitwise_or,

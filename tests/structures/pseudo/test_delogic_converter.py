@@ -2,6 +2,7 @@ import pytest
 from decompiler.structures.pseudo.delogic_logic import DelogicConverter
 from decompiler.structures.pseudo.expressions import Constant, Variable
 from decompiler.structures.pseudo.instructions import Branch, Return
+from decompiler.structures.pseudo.logic import BaseConverter
 from decompiler.structures.pseudo.operations import BinaryOperation, Condition, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import Float, Integer, Pointer
 
@@ -59,6 +60,20 @@ def test_variable(converter, to_parse, output):
 def test_unary_operation(converter, to_parse, output):
     w = converter._world
     assert converter.convert(to_parse) == w.from_string(output)
+
+
+@pytest.mark.parametrize(
+    "to_parse, output",
+    [
+        ("(!= 0@32 0@32)", BaseConverter.UNSAT),
+        ("(== 0@32 0@32)", BaseConverter.SAT),
+    ],
+)
+def test_check(converter, to_parse, output):
+    """Test the check() function."""
+    w = converter._world
+    condition = w.from_string(to_parse)
+    assert converter.check(condition) == output
 
 
 def test_binary_operation(converter):
