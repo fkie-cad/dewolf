@@ -38,7 +38,7 @@ class BaseConverter(ABC, Generic[T]):
 
     def is_not_satisfiable(self, *condition: T, timeout: int = 2000) -> bool:
         """Check whether a given set of terms is not satisfiable."""
-        return self.check(*condition, timeout=timeout) == "unsat"
+        return self.check(*condition, timeout=timeout) == BaseConverter.UNSAT
 
     def is_satisfiable(self, *condition: T, timeout: int = 2000) -> bool:
         """Check whether a given set of terms is satisfiable."""
