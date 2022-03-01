@@ -123,6 +123,15 @@
       "is_hidden_from_gui": true
     }
   },
+  "logic-engine": {
+    "engine": {
+      "default": "z3",
+      "title": "Logic Engine for simplifying conditions",
+      "type": "string",
+      "description": "Pick between delogic or z3 for simplifying conditions.",
+      "is_hidden_from_gui": true
+    }
+  },
   "dead-path-elimination": {
     "timeout_satisfiable": {
       "default": 1000,

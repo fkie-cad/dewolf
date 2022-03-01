@@ -77,16 +77,12 @@ def test_dependency_init(dependency_phi_functions):
     list_of_phi_functions = dependency_phi_functions
     graph = PhiDependencyGraph(list_of_phi_functions)
 
-    assert (
-        set(graph.edges)
-        == {
-            (list_of_phi_functions[0], list_of_phi_functions[1]),
-            (list_of_phi_functions[4], list_of_phi_functions[3]),
-            (list_of_phi_functions[4], list_of_phi_functions[2]),
-            (list_of_phi_functions[3], list_of_phi_functions[2]),
-        }
-        and set(graph.nodes) == set(list_of_phi_functions)
-    )
+    assert set(graph.edges) == {
+        (list_of_phi_functions[0], list_of_phi_functions[1]),
+        (list_of_phi_functions[4], list_of_phi_functions[3]),
+        (list_of_phi_functions[4], list_of_phi_functions[2]),
+        (list_of_phi_functions[3], list_of_phi_functions[2]),
+    } and set(graph.nodes) == set(list_of_phi_functions)
 
 
 def test_dependency_dfvs(dependency_phi_functions):
@@ -103,15 +99,11 @@ def test_dependency_update(dependency_phi_functions, variable_x, variable_v):
 
     graph.update_dependency_graph(list_of_phi_functions[3], new_phi_function)
 
-    assert (
-        set(graph.edges)
-        == {
-            (list_of_phi_functions[0], list_of_phi_functions[1]),
-            (list_of_phi_functions[4], list_of_phi_functions[2]),
-            (new_phi_function, list_of_phi_functions[2]),
-        }
-        and set(graph.nodes) == set(list_of_phi_functions[:3] + [list_of_phi_functions[4], new_phi_function])
-    )
+    assert set(graph.edges) == {
+        (list_of_phi_functions[0], list_of_phi_functions[1]),
+        (list_of_phi_functions[4], list_of_phi_functions[2]),
+        (new_phi_function, list_of_phi_functions[2]),
+    } and set(graph.nodes) == set(list_of_phi_functions[:3] + [list_of_phi_functions[4], new_phi_function])
 
 
 @pytest.fixture()
@@ -134,20 +126,16 @@ def test_circular_dependency_init(circular_dependency_phi_functions):
     list_of_phi_functions = circular_dependency_phi_functions
     graph = PhiDependencyGraph(list_of_phi_functions)
 
-    assert (
-        set(graph.edges)
-        == {
-            (list_of_phi_functions[1], list_of_phi_functions[0]),
-            (list_of_phi_functions[0], list_of_phi_functions[1]),
-            (list_of_phi_functions[4], list_of_phi_functions[3]),
-            (list_of_phi_functions[5], list_of_phi_functions[3]),
-            (list_of_phi_functions[2], list_of_phi_functions[4]),
-            (list_of_phi_functions[5], list_of_phi_functions[4]),
-            (list_of_phi_functions[7], list_of_phi_functions[6]),
-            (list_of_phi_functions[3], list_of_phi_functions[7]),
-        }
-        and set(graph.nodes) == set(list_of_phi_functions)
-    )
+    assert set(graph.edges) == {
+        (list_of_phi_functions[1], list_of_phi_functions[0]),
+        (list_of_phi_functions[0], list_of_phi_functions[1]),
+        (list_of_phi_functions[4], list_of_phi_functions[3]),
+        (list_of_phi_functions[5], list_of_phi_functions[3]),
+        (list_of_phi_functions[2], list_of_phi_functions[4]),
+        (list_of_phi_functions[5], list_of_phi_functions[4]),
+        (list_of_phi_functions[7], list_of_phi_functions[6]),
+        (list_of_phi_functions[3], list_of_phi_functions[7]),
+    } and set(graph.nodes) == set(list_of_phi_functions)
 
 
 def test_circular_dependency_dfvs(circular_dependency_phi_functions):
@@ -168,35 +156,27 @@ def test_circular_dependency_update(circular_dependency_phi_functions, variable_
 
     graph.update_dependency_graph(list_of_phi_functions[0], new_phi_function_1)
 
-    assert (
-        set(graph.edges)
-        == {
-            (new_phi_function_1, list_of_phi_functions[1]),
-            (list_of_phi_functions[4], list_of_phi_functions[3]),
-            (list_of_phi_functions[5], list_of_phi_functions[3]),
-            (list_of_phi_functions[2], list_of_phi_functions[4]),
-            (list_of_phi_functions[5], list_of_phi_functions[4]),
-            (list_of_phi_functions[7], list_of_phi_functions[6]),
-            (list_of_phi_functions[3], list_of_phi_functions[7]),
-        }
-        and set(graph.nodes) == set(list_of_phi_functions[1:] + [new_phi_function_1])
-    )
+    assert set(graph.edges) == {
+        (new_phi_function_1, list_of_phi_functions[1]),
+        (list_of_phi_functions[4], list_of_phi_functions[3]),
+        (list_of_phi_functions[5], list_of_phi_functions[3]),
+        (list_of_phi_functions[2], list_of_phi_functions[4]),
+        (list_of_phi_functions[5], list_of_phi_functions[4]),
+        (list_of_phi_functions[7], list_of_phi_functions[6]),
+        (list_of_phi_functions[3], list_of_phi_functions[7]),
+    } and set(graph.nodes) == set(list_of_phi_functions[1:] + [new_phi_function_1])
 
     graph.update_dependency_graph(list_of_phi_functions[5], new_phi_function_2)
 
-    assert (
-        set(graph.edges)
-        == {
-            (new_phi_function_1, list_of_phi_functions[1]),
-            (list_of_phi_functions[4], list_of_phi_functions[3]),
-            (new_phi_function_2, list_of_phi_functions[3]),
-            (list_of_phi_functions[2], list_of_phi_functions[4]),
-            (new_phi_function_2, list_of_phi_functions[4]),
-            (list_of_phi_functions[7], list_of_phi_functions[6]),
-            (list_of_phi_functions[3], list_of_phi_functions[7]),
-        }
-        and set(graph.nodes) == set(list_of_phi_functions[1:5] + list_of_phi_functions[6:] + [new_phi_function_1, new_phi_function_2])
-    )
+    assert set(graph.edges) == {
+        (new_phi_function_1, list_of_phi_functions[1]),
+        (list_of_phi_functions[4], list_of_phi_functions[3]),
+        (new_phi_function_2, list_of_phi_functions[3]),
+        (list_of_phi_functions[2], list_of_phi_functions[4]),
+        (new_phi_function_2, list_of_phi_functions[4]),
+        (list_of_phi_functions[7], list_of_phi_functions[6]),
+        (list_of_phi_functions[3], list_of_phi_functions[7]),
+    } and set(graph.nodes) == set(list_of_phi_functions[1:5] + list_of_phi_functions[6:] + [new_phi_function_1, new_phi_function_2])
 
 
 def test_circular_dependency_2_init(circular_dependency_phi_functions, variable_v, variable_u):
@@ -204,21 +184,17 @@ def test_circular_dependency_2_init(circular_dependency_phi_functions, variable_
     list_of_phi_functions[6].substitute(variable_v[6], variable_u[5])
     graph = PhiDependencyGraph(list_of_phi_functions)
 
-    assert (
-        set(graph.edges)
-        == {
-            (list_of_phi_functions[1], list_of_phi_functions[0]),
-            (list_of_phi_functions[0], list_of_phi_functions[1]),
-            (list_of_phi_functions[4], list_of_phi_functions[3]),
-            (list_of_phi_functions[5], list_of_phi_functions[3]),
-            (list_of_phi_functions[2], list_of_phi_functions[4]),
-            (list_of_phi_functions[5], list_of_phi_functions[4]),
-            (list_of_phi_functions[6], list_of_phi_functions[5]),
-            (list_of_phi_functions[7], list_of_phi_functions[6]),
-            (list_of_phi_functions[3], list_of_phi_functions[7]),
-        }
-        and set(graph.nodes) == set(list_of_phi_functions)
-    )
+    assert set(graph.edges) == {
+        (list_of_phi_functions[1], list_of_phi_functions[0]),
+        (list_of_phi_functions[0], list_of_phi_functions[1]),
+        (list_of_phi_functions[4], list_of_phi_functions[3]),
+        (list_of_phi_functions[5], list_of_phi_functions[3]),
+        (list_of_phi_functions[2], list_of_phi_functions[4]),
+        (list_of_phi_functions[5], list_of_phi_functions[4]),
+        (list_of_phi_functions[6], list_of_phi_functions[5]),
+        (list_of_phi_functions[7], list_of_phi_functions[6]),
+        (list_of_phi_functions[3], list_of_phi_functions[7]),
+    } and set(graph.nodes) == set(list_of_phi_functions)
 
 
 def test_circular_dependency_dfvs_2(circular_dependency_phi_functions, variable_v, variable_u):
@@ -239,36 +215,28 @@ def test_circular_dependency_update_2(circular_dependency_phi_functions, variabl
 
     graph.update_dependency_graph(list_of_phi_functions[0], new_phi_function_1)
 
-    assert (
-        set(graph.edges)
-        == {
-            (new_phi_function_1, list_of_phi_functions[1]),
-            (list_of_phi_functions[4], list_of_phi_functions[3]),
-            (list_of_phi_functions[5], list_of_phi_functions[3]),
-            (list_of_phi_functions[2], list_of_phi_functions[4]),
-            (list_of_phi_functions[5], list_of_phi_functions[4]),
-            (list_of_phi_functions[6], list_of_phi_functions[5]),
-            (list_of_phi_functions[7], list_of_phi_functions[6]),
-            (list_of_phi_functions[3], list_of_phi_functions[7]),
-        }
-        and set(graph.nodes) == set(list_of_phi_functions[1:] + [new_phi_function_1])
-    )
+    assert set(graph.edges) == {
+        (new_phi_function_1, list_of_phi_functions[1]),
+        (list_of_phi_functions[4], list_of_phi_functions[3]),
+        (list_of_phi_functions[5], list_of_phi_functions[3]),
+        (list_of_phi_functions[2], list_of_phi_functions[4]),
+        (list_of_phi_functions[5], list_of_phi_functions[4]),
+        (list_of_phi_functions[6], list_of_phi_functions[5]),
+        (list_of_phi_functions[7], list_of_phi_functions[6]),
+        (list_of_phi_functions[3], list_of_phi_functions[7]),
+    } and set(graph.nodes) == set(list_of_phi_functions[1:] + [new_phi_function_1])
 
     graph.update_dependency_graph(list_of_phi_functions[5], new_phi_function_2)
 
-    assert (
-        set(graph.edges)
-        == {
-            (new_phi_function_1, list_of_phi_functions[1]),
-            (list_of_phi_functions[4], list_of_phi_functions[3]),
-            (new_phi_function_2, list_of_phi_functions[3]),
-            (list_of_phi_functions[2], list_of_phi_functions[4]),
-            (new_phi_function_2, list_of_phi_functions[4]),
-            (list_of_phi_functions[7], list_of_phi_functions[6]),
-            (list_of_phi_functions[3], list_of_phi_functions[7]),
-        }
-        and set(graph.nodes) == set(list_of_phi_functions[1:5] + list_of_phi_functions[6:] + [new_phi_function_1, new_phi_function_2])
-    )
+    assert set(graph.edges) == {
+        (new_phi_function_1, list_of_phi_functions[1]),
+        (list_of_phi_functions[4], list_of_phi_functions[3]),
+        (new_phi_function_2, list_of_phi_functions[3]),
+        (list_of_phi_functions[2], list_of_phi_functions[4]),
+        (new_phi_function_2, list_of_phi_functions[4]),
+        (list_of_phi_functions[7], list_of_phi_functions[6]),
+        (list_of_phi_functions[3], list_of_phi_functions[7]),
+    } and set(graph.nodes) == set(list_of_phi_functions[1:5] + list_of_phi_functions[6:] + [new_phi_function_1, new_phi_function_2])
 
 
 def test_no_input_dependency_graph():
