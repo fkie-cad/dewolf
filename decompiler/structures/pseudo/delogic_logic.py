@@ -62,7 +62,7 @@ class DelogicConverter(BaseConverter):
         result = condition.copy_tree() if isinstance(condition, WorldVariable) else self.define_expression(condition.copy_tree())
         # simplify to fixpoint, stop at timeout so we don't accidentally iterate forever.
         for _ in range(timeout):
-            result_copy = self.define_expression(result.copy_tree())
+            result_copy = result.copy_tree()
             result.simplify()
             if self.compare(result_copy, result):
                 break
