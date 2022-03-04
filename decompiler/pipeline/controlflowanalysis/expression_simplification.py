@@ -51,9 +51,7 @@ class ExpressionSimplification(PipelineStage):
         """Simplify the given instruction utilizing the registered OperationType handlers."""
         if isinstance(expression, Operation) and expression.operation in self.HANDLERS:
             if simplified := self.HANDLERS[expression.operation](expression):
-                print(f"simplified {parent}. {expression} -> {simplified}")
                 parent.substitute(expression, simplified)
-                print(f"result: {parent}.")
                 return simplified
 
     def _simplify_addition(self, expression: BinaryOperation) -> Optional[Expression]:
