@@ -7,7 +7,7 @@ from typing import DefaultDict, Dict, Iterator, List, Optional, Set, Tuple, Unio
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock
-from decompiler.structures.pseudo.expressions import Constant, UnknownExpression, Variable
+from decompiler.structures.pseudo.expressions import Constant, GlobalVariable, UnknownExpression, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Instruction, Phi, Relation
 from decompiler.task import DecompilerTask
 from networkx import DiGraph, node_disjoint_paths, weakly_connected_components
@@ -68,7 +68,7 @@ class _IdentityGraph(DiGraph):
             - First check that the assignments defines exactly one variable.
             - Then compute the set of required variables and add the according edges to the identity graph.
         """
-        if not isinstance(defined_value := assignment.destination, Variable):
+        if not isinstance(defined_value := assignment.destination, Variable) or isinstance(defined_value, GlobalVariable):
             return
         required_values = self._get_variables_utilized_for_direct_assignment(assignment)
         self.add_node(defined_value, definition=assignment, block=basic_block, is_phi=isinstance(assignment, Phi))
