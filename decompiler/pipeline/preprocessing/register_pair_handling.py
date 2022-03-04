@@ -179,7 +179,7 @@ class RegisterPairHandling(PipelineStage):
         ... var_64_bit // represents x1:x2 of size 64 bits, x1 and x2 are 32 bits
         x2 = var_64_bit & 0xffffffff // 0xffffffff == 2**32-1
         """
-        register_size_mask = 2 ** register_size_in_bits - 1
+        register_size_mask = 2**register_size_in_bits - 1
         return BinaryOperation(OperationType.bitwise_and, [var, Constant(register_size_mask, vartype=Integer(register_size_in_bits, True))])
 
     @staticmethod

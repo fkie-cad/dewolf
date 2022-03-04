@@ -7,10 +7,12 @@ from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, GraphEdgeInterface
 from decompiler.structures.graphs.interface import GraphInterface
 from decompiler.structures.maps import DefMap, UseMap
+from decompiler.structures.pseudo.delogic_logic import DelogicConverter
 from decompiler.structures.pseudo.expressions import Constant, Variable
 from decompiler.structures.pseudo.instructions import Branch, GenericBranch, IndirectBranch, Phi
-from decompiler.structures.pseudo.logic import Z3Converter
+from decompiler.structures.pseudo.logic import BaseConverter
 from decompiler.structures.pseudo.operations import Condition
+from decompiler.structures.pseudo.z3_logic import Z3Converter
 from decompiler.task import DecompilerTask
 
 from .dead_path_elimination import DeadPathElimination
@@ -26,7 +28,7 @@ class DeadLoopElimination(DeadPathElimination, PipelineStage):
 
     def __init__(self):
         """Initialize a new loop elimination."""
-        self._logic_converter: Z3Converter = Z3Converter()
+        self._logic_converter: BaseConverter = Z3Converter()
         self._use_map: Optional[UseMap] = None
         self._def_map: Optional[DefMap] = None
         self._bb_of_def: Optional[Dict[Variable, BasicBlock]] = None
@@ -36,6 +38,9 @@ class DeadLoopElimination(DeadPathElimination, PipelineStage):
     def run(self, task: DecompilerTask) -> None:
         """Run dead loop elimination on the given task object."""
         self._timeout = task.options.getint(f"{self.name}.timeout_satisfiable")
+        self.engine = task.options.getstring("logic-engine.engine")  # choice of z3 or delogic
+        if self.engine == "delogic":
+            self._logic_converter = DelogicConverter()
         if not task.graph.root:
             warning(f"[{self.__class__.__name__}] Can not detect dead blocks because the cfg has no head.")
             return
@@ -87,7 +92,7 @@ class DeadLoopElimination(DeadPathElimination, PipelineStage):
         Evaluate Branch.condition with z3 and return (satisfiable edge, unsatisfiable edge) if one edge is unsatisfiable.
         """
         try:
-            condition = self._logic_converter.convert(condition)
+            condition = self._logic_converter.convert(condition, define_expr=True)
         except ValueError as value_error:
             warning(f"[{self.__class__.__name__}] {str(value_error)}")
             return None

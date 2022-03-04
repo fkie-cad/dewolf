@@ -307,11 +307,11 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
     def _interpret_integer_literal_type(value: int) -> Integer:
         """Return the type that a C compiler would use for a literal of this value."""
         # Precedence: int -> uint -> long -> ulong -> ll -> ull (i32, u32, i64, u64)
-        if -(2 ** 31) <= value < 2 ** 31:
+        if -(2**31) <= value < 2**31:
             return Integer.int32_t()
-        elif 0 <= value < 2 ** 32:
+        elif 0 <= value < 2**32:
             return Integer.uint32_t()
-        elif -(2 ** 63) <= value < 2 ** 63:  # i64
+        elif -(2**63) <= value < 2**63:  # i64
             return Integer.int64_t()
         else:
             return Integer.uint64_t()

@@ -219,7 +219,7 @@ class ArrayAccessDetection(PipelineStage):
 
         var = vars[0] if isinstance(vars[0], Variable) else vars[0].operand
         if self._is_left_shift(offset) and offset.right == constant:
-            return "mul", var, 2 ** constant.value
+            return "mul", var, 2**constant.value
         if self._is_multiplication(offset) and constant.value % 2 == 0:  # test % 2 for array of structs
             return "mul", var, constant.value
         return None
