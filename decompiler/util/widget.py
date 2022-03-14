@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Tuple
 
 from binaryninja import BinaryView, Function, core_version
 from binaryninja.enums import ThemeColor
-from binaryninjaui import UIActionHandler, ViewFrame, getThemeColor, UIContext, UIContextNotification, Menu, WidgetPane, UIAction
+from binaryninjaui import Menu, UIAction, UIActionHandler, UIContext, UIContextNotification, ViewFrame, WidgetPane, getThemeColor
 from decompile import Decompiler
 from decompiler.logger import configure_logging
 from decompiler.util.decoration import DecoratedCode
