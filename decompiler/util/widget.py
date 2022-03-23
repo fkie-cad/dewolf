@@ -124,6 +124,7 @@ class CodeDisplay(QPlainTextEdit):
 
 
 class DewolfNotifications(UIContextNotification):
+    """Class handling notifications to the dewolf widget."""
     def __init__(self, widget):
         UIContextNotification.__init__(self)
         self.widget = widget
