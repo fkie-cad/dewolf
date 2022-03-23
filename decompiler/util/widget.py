@@ -125,6 +125,7 @@ class CodeDisplay(QPlainTextEdit):
 
 class DewolfNotifications(UIContextNotification):
     """Class handling notifications to the dewolf widget."""
+
     def __init__(self, widget):
         UIContextNotification.__init__(self)
         self.widget = widget
@@ -181,10 +182,7 @@ class DewolfWidget(QWidget, UIContextNotification):
         self._current_function: Optional[Function] = None
         self._current_view: Optional[BinaryView] = None
         self._current_frame: Optional[ViewFrame] = None
-        self._offset: int = 0
         self._cache: Dict[str, str] = {}
-        self.actionHandler = UIActionHandler()
-        self.actionHandler.setupActionHandler(self)
         self.create_toolbar_layout()
         self.editor = CodeDisplay.register_widget(self)
         self.highlighter = Highlighter(self.editor.document())
@@ -315,10 +313,8 @@ class DewolfWidget(QWidget, UIContextNotification):
         self.threadpool.start(worker)
 
     def updateState(self):
-        # Get the currently active view frame for this group of panes. There can be
-        # multiple view frames in a single window, or the pane could be popped out
-        # into its own window. UIContext.currentViewFrameForWidget will determine
-        # the best view frame to use for context.
+        """ Update the current UI state (frame, view, data, function) """
+
         self._current_frame = UIContext.currentViewFrameForWidget(self)
 
         # Update UI according to the active frame
@@ -329,11 +325,9 @@ class DewolfWidget(QWidget, UIContextNotification):
             if self.follow_button.isChecked():
                 self.set_code_editor_content_from_cache_or_decompile()
 
-    def contextMenuEvent(self, event):
-        self.m_contextMenuManager.show(self.m_menu, self.actionHandler)
-
     @staticmethod
     def createPane(context):
+        """ Create a WidgetPane """
         if context.context and context.binaryView:
             widget = DewolfWidget(context.binaryView)
             pane = WidgetPane(widget, "dewolf decompiler")
@@ -341,6 +335,7 @@ class DewolfWidget(QWidget, UIContextNotification):
 
     @staticmethod
     def canCreatePane(context):
+        """ Determine if we can create a WidgetPane """
         return context.context and context.binaryView
 
 
