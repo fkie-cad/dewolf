@@ -60,8 +60,8 @@ if core_ui_enabled():
     Options.from_gui()  # register dewolf config in GUI
 
     try:
-        from decompiler.util.widget import add_dock_widget
+        from decompiler.util.widget import add_dewolf_widget
 
-        add_dock_widget()
+        add_dewolf_widget()
     except Exception as ex:
         warning(f"failed to load widget: {ex}")

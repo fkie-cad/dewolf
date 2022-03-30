@@ -72,10 +72,8 @@ ___
 The dewolf decompiler can be used from both the command line and within Binary Ninja.
 
 ### GUI
-After enabling the dewolf decompilation dock widget via **View > Other Docks > Show Dewolf**, the decompiled code for the currently active symbol will be displayed.
-In the dewolf dock, it is possible to navigate through functions by double-clicking them.
-
-![Widget Menu](https://user-images.githubusercontent.com/12004321/145460440-be4b7dfd-bf7e-497f-a7af-1911bf3efc50.png)
+After enabling the dewolf decompilation widget via **Tools > dewolf decompiler**, the decompiled code for the currently active symbol will be displayed.
+In the dewolf widget, it is possible to navigate through functions by double-clicking them.
 
 The automatic decompilation of selected functions can be toggled with the *follow* button.
 Decompiled code is cached and can be generated again with the *decompile* button, e.g. after patching instructions in the binary view.

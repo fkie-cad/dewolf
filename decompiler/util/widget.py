@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Tuple
 
 from binaryninja import BinaryView, Function, core_version
 from binaryninja.enums import ThemeColor
-from binaryninjaui import DockContextHandler, DockHandler, UIActionHandler, ViewFrame, getThemeColor
+from binaryninjaui import Menu, UIAction, UIActionHandler, UIContext, UIContextNotification, ViewFrame, WidgetPane, getThemeColor
 from decompile import Decompiler
 from decompiler.logger import configure_logging
 from decompiler.util.decoration import DecoratedCode
@@ -122,11 +122,26 @@ class CodeDisplay(QPlainTextEdit):
         return code_display
 
 
-# Dock approach with syntax highlighting inspired by:
-# https://github.com/Martyx00/ghinja/
 
+class DewolfNotifications(UIContextNotification):
+    """Class handling notifications to the dewolf widget."""
 
-class DewolfDockWidget(QWidget, DockContextHandler):
+    def __init__(self, widget):
+        UIContextNotification.__init__(self)
+        self.widget = widget
+        self.widget.destroyed.connect(self.destroyed)
+        UIContext.registerNotification(self)
+
+    def destroyed(self):
+        UIContext.unregisterNotification(self)
+
+    def OnViewChange(self, context, frame, type):
+        self.widget.updateState()
+
+    def OnAddressChange(self, context, frame, view, location):
+        self.widget.updateState()
+
+class DewolfWidget(QWidget, UIContextNotification):
     """Class for docking widget, displaying decompiled code"""
 
     FOLLOW_BUTTON_STYLES = {
@@ -136,19 +151,6 @@ class DewolfDockWidget(QWidget, DockContextHandler):
 
     class Decorators(object):
         """Class containing decorators"""
-
-        @classmethod
-        def requires_visibility(cls, decorated):
-            """Decorator for checking requirement of self._current_function. No operation if requirement not met"""
-
-            @wraps(decorated)
-            def wrapped(self, *args, **kwargs):
-                if not self._is_widget_visible:
-                    return None
-
-                return decorated(self, *args, **kwargs)
-
-            return wrapped
 
         @classmethod
         def requires_function(cls, decorated):
@@ -174,18 +176,13 @@ class DewolfDockWidget(QWidget, DockContextHandler):
 
             return wrapped
 
-    def __init__(self, parent: ViewFrame, name: str):
+    def __init__(self, data: BinaryView):
         """Initialize dock widget"""
-        self._is_widget_visible = False
-        QWidget.__init__(self, parent)
-        DockContextHandler.__init__(self, self, name)
+        QWidget.__init__(self)
         self._current_function: Optional[Function] = None
         self._current_view: Optional[BinaryView] = None
         self._current_frame: Optional[ViewFrame] = None
-        self._offset: int = 0
         self._cache: Dict[str, str] = {}
-        self.actionHandler = UIActionHandler()
-        self.actionHandler.setupActionHandler(self)
         self.create_toolbar_layout()
         self.editor = CodeDisplay.register_widget(self)
         self.highlighter = Highlighter(self.editor.document())
@@ -195,6 +192,9 @@ class DewolfDockWidget(QWidget, DockContextHandler):
         layout.setAlignment(Qt.AlignLeft)
         self.setLayout(layout)
         self.threadpool = QThreadPool()
+        self.updateState()
+        self.notifications = DewolfNotifications(self)
+        self.data = data
 
     @property
     def current_function(self) -> Optional[Function]:
@@ -247,12 +247,12 @@ class DewolfDockWidget(QWidget, DockContextHandler):
     @Decorators.requires_view
     def jump_to_symbol(self, symbol: str) -> None:
         """Jump GUI to symbol if exists"""
-        if symbols := self._current_view.symbols.get(symbol):
+        if symbols := self.data.symbols.get(symbol):
             if function := self.get_function_from_address(symbols[0].address):
-                self._current_frame.navigateToFunction(function, function.start)
+                self._current_view.navigateToFunction(function, function.start)
         elif symbol.startswith("sub_"):
-            if function := self._current_view.get_function_at(int(symbol.replace("sub_", "0x"), 16)):
-                self._current_frame.navigateToFunction(function, function.start)
+            if function := self.data.get_function_at(int(symbol.replace("sub_", "0x"), 16)):
+                self._current_view.navigateToFunction(function, function.start)
 
     @Decorators.requires_view
     def get_function_from_address(self, address: int) -> Optional[Function]:
@@ -260,44 +260,18 @@ class DewolfDockWidget(QWidget, DockContextHandler):
         Return Function containing address
         :param address - int:
         """
-        if function_list := self._current_view.get_functions_containing(address):
+        if function_list := self.data.get_functions_containing(address):
             return function_list[0]
         return None
 
-    @Decorators.requires_visibility
     @Decorators.requires_view
     @Decorators.requires_function
     def set_code_editor_content_from_cache_or_decompile(self):
         """Set code view to (cached) content or start worker"""
-        if not self._is_widget_visible:
-            return
         if self._current_function.name in self._cache.keys():
             self.update_code_view()
             return
         self.start_worker(self._current_view, self._current_function)
-
-    def notifyOffsetChanged(self, offset: int):
-        """Offset change event"""
-        self._offset = offset
-        self.current_function = self.get_function_from_address(offset)
-        if self.follow_button.isChecked():
-            self.set_code_editor_content_from_cache_or_decompile()
-
-    def shouldBeVisible(self, view_frame: ViewFrame) -> bool:
-        """Qt function, determine if widget should be visible."""
-        self._is_widget_visible = True
-        return view_frame is not None
-
-    def notifyViewChanged(self, view_frame: ViewFrame):
-        """Update current view and frame"""
-        if view_frame is None:
-            return
-        self._current_view = view_frame.actionContext().binaryView
-        self._current_frame = view_frame
-
-    def notifyVisibilityChanged(self, is_visible):
-        """Update visibility of widget"""
-        self._is_widget_visible = is_visible
 
     @Decorators.requires_function
     def update_code_view(self):
@@ -306,25 +280,25 @@ class DewolfDockWidget(QWidget, DockContextHandler):
         self.editor.setPlainText(self._cache.get(self._current_function.name, ""))
         self.highlighter.rehighlight()
 
-    def update_cache(self, result: Tuple[str, str]) -> None:
+    def callback_update_cache(self, result: Tuple[str, str]) -> None:
         """Callback for successful decompilation"""
         function_name, code = result
         self._cache[function_name] = code
 
-    def decompilation_error(self, error: Tuple):
+    def callback_decompilation_error(self, error: Tuple):
         """Callback for decompilation error"""
         task_name, *error_messages = error
         message = f"Decompilation of `{task_name}` failed with:\n\n" + "\n\n".join(str(e) for e in error_messages)
         self.editor.setPlainText(message)
         self._cache[task_name] = message
 
-    def worker_task_started(self, task_name: str):
+    def callback_worker_task_started(self, task_name: str):
         """Callback for decompilation task started"""
         logging.info(f"Started decompilation of {task_name}")
         self._cache[task_name] = "In Queue"
         self.update_code_view()
 
-    def decompilation_finished(self):
+    def callback_decompilation_finished(self):
         """Callback for finished decompilation (updates code view)"""
         logging.info("Finished decompilation")
         self.update_code_view()
@@ -332,16 +306,38 @@ class DewolfDockWidget(QWidget, DockContextHandler):
     def start_worker(self, binary_view: BinaryView, function: Function) -> None:
         """Set up Worker with callbacks"""
         worker = Worker(binary_view, function)
-        worker.signals.result.connect(self.update_cache)
-        worker.signals.task_name.connect(self.worker_task_started)
-        worker.signals.error.connect(self.decompilation_error)
-        worker.signals.finished.connect(self.decompilation_finished)
+        worker.signals.result.connect(self.callback_update_cache)
+        worker.signals.task_name.connect(self.callback_worker_task_started)
+        worker.signals.error.connect(self.callback_decompilation_error)
+        worker.signals.finished.connect(self.callback_decompilation_finished)
         self.threadpool.start(worker)
 
-    @classmethod
-    def create_widget(cls, name: str, parent: ViewFrame, data=None):
-        """Called by Qt method addDockWidget to create widget"""
-        return cls(parent, name)
+    def updateState(self):
+        """ Update the current UI state (frame, view, data, function) """
+
+        self._current_frame = UIContext.currentViewFrameForWidget(self)
+
+        # Update UI according to the active frame
+        if self._current_frame:
+            self._current_view = self._current_frame.getCurrentViewInterface()
+            self.data = self._current_view.getData()
+            self.current_function = self._current_view.getCurrentFunction()
+            if self.follow_button.isChecked():
+                self.set_code_editor_content_from_cache_or_decompile()
+
+    @staticmethod
+    def createPane(context):
+        """ Create a WidgetPane """
+        if context.context and context.binaryView:
+            widget = DewolfWidget(context.binaryView)
+            pane = WidgetPane(widget, "dewolf decompiler")
+            context.context.openPane(pane)
+
+    @staticmethod
+    def canCreatePane(context):
+        """ Determine if we can create a WidgetPane """
+        return context.context and context.binaryView
+
 
 
 class Highlighter(QSyntaxHighlighter):
@@ -446,13 +442,10 @@ class Highlighter(QSyntaxHighlighter):
                 self.setFormat(match.start(), match.end() - match.start(), text_format)
 
 
-def add_dock_widget():
+def add_dewolf_widget():
     """Add widget to GUI"""
-    dock_handler = DockHandler.getActiveDockHandler()
-    dock_handler.addDockWidget(
-        "Dewolf (decompilation)",
-        DewolfDockWidget.create_widget,
-        Qt.BottomDockWidgetArea,
-        Qt.Horizontal,
-        True,
-    )
+    UIAction.registerAction("dewolf decompiler")
+    UIActionHandler.globalActions().bindAction(
+            "dewolf decompiler", UIAction(DewolfWidget.createPane, DewolfWidget.canCreatePane)
+            )
+    Menu.mainMenu("Tools").addAction("dewolf decompiler", "dewolf decompiler")
