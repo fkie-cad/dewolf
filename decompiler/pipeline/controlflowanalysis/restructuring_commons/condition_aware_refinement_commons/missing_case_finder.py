@@ -213,6 +213,8 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
         switch_node = self._switch_node_of_expression[expression]
         cases_of_switch_node: Set[Constant] = {case.constant for case in switch_node.children}
         case_constants_for_node: Dict[AbstractSyntaxTreeNode, Set[Constant]] = dict()
+        # TODO: Check for same constants and merge? --> If this is not the case then find most suitable (easiest in complexity?)
+        # TODO: check which can be added without conflict?
         for possible_case in case_node_candidates:
             if not self._can_insert_case_node(possible_case.node, switch_node, reachability_graph):
                 continue
@@ -224,6 +226,7 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
                 possible_case.node.reaching_condition.substitute_by_true(possible_case.condition)
                 reachability_graph.update_when_inserting_new_case_node(possible_case.node, switch_node)
                 self._insert_case_node(possible_case.node, case_constants_for_node[possible_case.node], switch_node)
+                cases_of_switch_node.update(case_constants_for_node[possible_case.node])
                 if self._current_seq_node in self.asforest:
                     self._current_seq_node.clean()
 

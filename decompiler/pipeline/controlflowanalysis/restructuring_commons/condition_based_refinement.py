@@ -222,7 +222,7 @@ class ConditionBasedRefinement:
                 if len(sub_expression) == 1:
                     and_subexpressions.append(sub_expression[0])
                 else:
-                    and_subexpressions.append(LogicCondition.disjunction_of(sub_expression))
+                    and_subexpressions.append(LogicCondition.conjunction_of(sub_expression))
             return and_subexpressions
         raise ValueError(f"Received a condition which is not a Symbol, Or, Not, or And: {condition}")
 
