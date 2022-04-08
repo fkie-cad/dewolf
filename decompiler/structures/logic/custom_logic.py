@@ -140,7 +140,7 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         """Return all operands of the condition."""
         return self._get_operands()
 
-    def _get_operands(self, tmp: bool = False):
+    def _get_operands(self, tmp: bool = False) -> List[LOGICCLASS]:
         """Get operands."""
         condition = self._condition
         if isinstance(condition, BitVector):
@@ -182,12 +182,10 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         tmp_condition = self.__class__(self.context.bitwise_or(self._custom_negate(self._condition), other._condition))
         self.context.free_world_condition(tmp_condition._variable)
         tmp_condition._variable.simplify()
-        self.context.substitute(tmp_condition._variable, tmp := TmpVariable(self.context, "tmp", tmp_condition._variable.size))
-        tmp_condition._variable = tmp
         if tmp_condition.is_true:
-            self.context.cleanup()
+            self.context.cleanup([tmp_condition._variable])
             return True
-        self.context.cleanup()
+        self.context.cleanup([tmp_condition._variable])
         return False
 
     # def is_complementary_to(self, other: LOGICCLASS) -> bool:
@@ -264,8 +262,8 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         if self.is_true or self.is_false or self.is_negation or self.is_symbol:
             return self
 
-        condition_operands: List[WorldObject] = condition._get_operands(tmp=True)
-        operands = self._get_operands(tmp=True)
+        condition_operands: List[LOGICCLASS] = condition._get_operands()
+        operands: List[LOGICCLASS] = self._get_operands()
         numb_of_arg_expr: int = len(operands) if self.is_conjunction else 1
         numb_of_arg_cond: int = len(condition_operands) if condition.is_conjunction else 1
 
@@ -279,7 +277,8 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
                 relations = self.context.get_relation(self._condition, sub_expr_2._condition)
                 for relation in relations:
                     self.context.remove_operand(self._condition, relation.sink)
-        self.context.cleanup()
+        to_remove = [cond._variable for cond in condition_operands + operands if cond._variable != cond._condition]
+        self.context.cleanup(to_remove)
         return self
 
     def remove_redundancy(self, condition_map: Dict[LOGICCLASS, PseudoCustomLogicCondition]) -> LOGICCLASS:
