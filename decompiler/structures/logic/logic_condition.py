@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, Type, TypeVar
 
+from decompiler.structures.logic.custom_logic import CustomLogicCondition, PseudoCustomLogicCondition
 from decompiler.structures.logic.interface_decorators import ensure_cnf
 from decompiler.structures.logic.z3_logic import PseudoZ3LogicCondition, Z3LogicCondition
 

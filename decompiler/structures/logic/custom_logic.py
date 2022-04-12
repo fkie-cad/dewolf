@@ -7,7 +7,6 @@ from typing import Dict, Generic, Iterator, List, Sequence, TypeVar
 import decompiler.structures.pseudo as pseudo
 from decompiler.structures.logic.logic_interface import ConditionInterface, PseudoLogicInterface
 from simplifier.operations import BitwiseAnd, BitwiseNegate, BitwiseOr
-from simplifier.range_simplifier import RangeSimplifier
 from simplifier.visitor import ToCnfVisitor, ToDnfVisitor
 from simplifier.visitor.serialize_visitor import SerializeVisitor
 from simplifier.world.nodes import BaseVariable, BitVector, Constant, Operation, TmpVariable, Variable, WorldObject
@@ -158,20 +157,22 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         """Check whether the object is a literal, i.e., a symbol or a negated symbol"""
         return self._is_literal(self._condition)  # TODO
 
-    # @property
-    # def is_disjunction_of_literals(self) -> bool:
-    #     """
-    #     Check whether the given condition is a disjunction of literals, i.e., whether it is
-    #         - a symbol,
-    #         - the negation of a symbol or
-    #         - a disjunction of symbols or negation of symbols.
-    #     """
-    #     return self.z3.is_disjunction_of_literals(self._condition)
+    @property
+    def is_disjunction_of_literals(self) -> bool:
+        """
+        Check whether the given condition is a disjunction of literals, i.e., whether it is
+            - a symbol,
+            - the negation of a symbol or
+            - a disjunction of symbols or negation of symbols.
+        """
+        return self._is_disjunction_of_literals(self._condition)
 
-    # @property
-    # def is_cnf_form(self) -> bool:
-    #     """Check whether the condition is already in cnf-form."""
-    #     return self.z3.is_cnf_form(self._condition)
+    @property
+    def is_cnf_form(self) -> bool:
+        """Check whether the condition is already in cnf-form."""
+        if self.is_true or self.is_false or self.is_disjunction_of_literals:
+            return True
+        return self.is_conjunction and all(self._is_disjunction_of_literals(clause) for clause in self._condition.operands)
 
     def is_equal_to(self, other: LOGICCLASS) -> bool:
         """Check whether the conditions are equal, i.e., have the same from except the ordering."""
@@ -182,17 +183,9 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         tmp_condition = self.__class__(self.context.bitwise_or(self._custom_negate(self._condition), other._condition))
         self.context.free_world_condition(tmp_condition._variable)
         tmp_condition._variable.simplify()
-        if tmp_condition.is_true:
-            self.context.cleanup([tmp_condition._variable])
-            return True
+        does_imply_value = tmp_condition.is_true
         self.context.cleanup([tmp_condition._variable])
-        return False
-
-    # def is_complementary_to(self, other: LOGICCLASS) -> bool:
-    #     """Check whether the condition is complementary to the given condition, i.e. self == Not(other)."""
-    #     if self.is_true or self.is_false or other.is_true or other.is_false:
-    #         return False
-    #     return self.z3.does_imply(self._condition, Not(other._condition)) and self.z3.does_imply(Not(other._condition), self._condition)
+        return does_imply_value
 
     def to_cnf(self) -> LOGICCLASS:
         """Bring condition tag into cnf-form."""
@@ -210,16 +203,15 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         return dnf_form
 
     def simplify(self) -> LOGICCLASS:
-        """Simplify the given condition. Make sure that it does not destroys cnf-form."""
-        self.context.free_world_condition(self._variable)
-        self._variable.simplify()
-        tmp_var = False
-        if isinstance(self._variable, TmpVariable):
+        """Simplify the given condition. Make sure that it does not destroy cnf-form."""
+        if isinstance(self._variable, Variable):
+            self.context.free_world_condition(self._variable)
+            self._variable.simplify()
+        else:
             new_var = self.context.variable(f"Simplify", 1)
             self.context.define(new_var, self._condition)
-            tmp_var = True
-        RangeSimplifier.simplify(self._condition)
-        if tmp_var:
+            self.context.free_world_condition(new_var)
+            new_var.simplify()
             self._variable = self.context.new_variable(1, tmp=True)
             self.context.substitute(new_var, self._variable)
         return self
@@ -311,7 +303,6 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
 
         self.context.free_world_condition(copied_condition._variable)
         copied_condition.simplify()
-        RangeSimplifier.simplify(copied_condition._condition)
         non_logic_operands = {
             node
             for node in self.context.iter_postorder(copied_condition._variable)
@@ -356,6 +347,17 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
 
     def _is_literal(self, condition: WorldObject) -> bool:
         return self._is_symbol(condition) or (isinstance(condition, BitwiseNegate) and self._is_symbol(condition.operand))
+
+    def _is_disjunction_of_literals(self, condition: WorldObject) -> bool:
+        """
+        Check whether the given condition is a disjunction of literals, i.e., whether it is
+            - a symbol,
+            - the negation of a symbol or
+            - a disjunction of symbols or negation of symbols.
+        """
+        if self._is_literal(condition):
+            return True
+        return isinstance(condition, BitwiseOr) and all(self._is_literal(operand) for operand in condition.operands)
 
     def _get_literals(self, condition: WorldObject):
         if self._is_literal(condition):

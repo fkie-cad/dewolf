@@ -220,6 +220,8 @@ class Z3LogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         - This helps, for example for finding switch cases, because it simplifies the condition
           'x1 & x2' if 'x1 = var < 10' and 'x2 = var == 5' to the condition 'x2'.
         """
+        if self.is_literal or self.is_true or self.is_false:
+            return self
         condition: BoolRef = self._condition
         replacement_to_z3 = list()
         replacement_to_symbol = list()

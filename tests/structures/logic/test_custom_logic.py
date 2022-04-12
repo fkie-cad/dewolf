@@ -3,7 +3,7 @@ from typing import List, Tuple
 import pytest
 from decompiler.structures.logic.custom_logic import CustomLogicCondition, PseudoCustomLogicCondition
 from decompiler.structures.pseudo import BinaryOperation, Condition, Constant, Integer, OperationType, Variable
-from simplifier.world.nodes import WorldObject
+from simplifier.world.nodes import TmpVariable, WorldObject
 from simplifier.world.world import World
 
 
@@ -595,6 +595,13 @@ class TestCustomLogicCondition:
     def test_simplify(self, term, simplified):
         cond = term.simplify()
         assert cond.is_equal_to(simplified)
+
+    def test_simplify_tmp_variable(self):
+        world = World()
+        cond = world.bitwise_and(world.variable("x1", 1), world.bitwise_negate(world.variable("x2", 1)))
+        log_cond = CustomLogicCondition(cond, tmp=True)
+        log_cond.simplify()
+        assert log_cond
 
     @pytest.mark.parametrize(
         "term, result",
