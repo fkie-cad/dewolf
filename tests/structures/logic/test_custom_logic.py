@@ -1,6 +1,7 @@
 from typing import List, Tuple
 
 import pytest
+from decompiler.structures.ast.condition_symbol import ConditionHandler, ConditionSymbol
 from decompiler.structures.logic.custom_logic import CustomLogicCondition, PseudoCustomLogicCondition
 from decompiler.structures.pseudo import BinaryOperation, Condition, Constant, Integer, OperationType, Variable
 from simplifier.world.nodes import TmpVariable, WorldObject
@@ -57,6 +58,8 @@ def u_greater(variable: WorldObject, const: int) -> PseudoCustomLogicCondition:
 
 
 constant_5 = Constant(5, Integer.int32_t())
+constant_10 = Constant(10, Integer.int32_t())
+constant_20 = Constant(20, Integer.int32_t())
 
 var_a = Variable(
     "a", Integer.int32_t(), ssa_label=None, is_aliased=False, ssa_name=Variable("eax", Integer.int32_t(), ssa_label=3, is_aliased=False)
@@ -735,42 +738,60 @@ class TestCustomLogicCondition:
         assert term.is_equal_to(result.simplify())
 
     @pytest.mark.parametrize(
-        "term, condition_map, result",
+        "term, conditions, result",
         [
             (
                 custom_x(1, world := World()) & custom_x(2, world),
-                {custom_x(1, world): equal(custom_variable(world), 5), custom_x(2, world): u_lower_eq(custom_variable(world), 10)},
+                [Condition(OperationType.equal, [var_a, constant_5]), Condition(OperationType.less_or_equal_us, [var_a, constant_10])],
                 custom_x(1, world),
             ),
             (
                 custom_x(1, world) & custom_x(2, world),
-                {custom_x(1, world): lower(custom_variable(world), 5), custom_x(2, world): u_lower_eq(custom_variable(world), 10)},
+                [Condition(OperationType.less, [var_a, constant_5]), Condition(OperationType.less_or_equal_us, [var_a, constant_10])],
                 custom_x(1, world) & custom_x(2, world),
             ),
             (
                 custom_x(1, world) & custom_x(2, world) & ~custom_x(3, world),
-                {
-                    custom_x(1, world): equal(custom_variable(world), 5),
-                    custom_x(2, world): u_lower_eq(custom_variable(world), 10),
-                    custom_x(3, world): equal(custom_variable(world, name="|b + 0x5,['eax#4']|"), 10),
-                },
+                [
+                    Condition(OperationType.equal, [var_a, constant_5]),
+                    Condition(OperationType.less_or_equal_us, [var_a, constant_10]),
+                    Condition(OperationType.equal, [var_b, constant_10]),
+                ],
                 custom_x(1, world) & ~custom_x(3, world),
             ),
             (
                 custom_x(1, world) & custom_x(2, world),
-                {custom_x(1, world): lower(custom_variable(world), 20), custom_x(2, world): u_lower_eq(custom_variable(world), 10)},
+                [Condition(OperationType.less, [var_a, constant_20]), Condition(OperationType.less_or_equal_us, [var_a, constant_10])],
                 custom_x(2, world),
             ),
             (
                 custom_x(1, world) & ~custom_x(2, world),
-                {custom_x(1, world): lower(custom_variable(world), 20), custom_x(2, world): u_greater(custom_variable(world), 10)},
+                [Condition(OperationType.less, [var_a, constant_20]), Condition(OperationType.greater_us, [var_a, constant_10])],
                 ~custom_x(2, world),
             ),
         ],
     )
-    def test_remove_redundancy(self, term, condition_map, result):
+    def test_remove_redundancy(self, term, conditions, result):
         # TODO --> new symbols
-        assert term.remove_redundancy(condition_map).is_equal_to(result)
+        class MockConditionHandler(ConditionHandler):
+            def add_condition(self, condition: Condition) -> ConditionSymbol:
+                """Adds a condition to the condition map."""
+                symbol = self._get_next_symbol()
+                z3_condition = PseudoCustomLogicCondition.initialize_from_condition(condition, self._logic_context)
+                condition_symbol = ConditionSymbol(condition, symbol, z3_condition)
+                self._condition_map[symbol] = condition_symbol
+                return condition_symbol
+
+            def _get_next_symbol(self) -> CustomLogicCondition:
+                """Get the next unused symbol name."""
+                self._symbol_counter += 1
+                return CustomLogicCondition.initialize_symbol(f"x{self._symbol_counter}", self._logic_context)
+
+        condition_handler = MockConditionHandler()
+        condition_handler._logic_context = term.context
+        for cond in conditions:
+            condition_handler.add_condition(cond)
+        assert term.remove_redundancy(condition_handler).is_equal_to(result)
 
     @pytest.mark.parametrize(
         "world, term, result",

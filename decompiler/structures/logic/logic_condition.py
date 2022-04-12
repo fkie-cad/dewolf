@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from typing import Dict, Type, TypeVar
+from typing import TYPE_CHECKING, Dict, Type, TypeVar
 
 from decompiler.structures.logic.custom_logic import CustomLogicCondition, PseudoCustomLogicCondition
 from decompiler.structures.logic.interface_decorators import ensure_cnf
 from decompiler.structures.logic.z3_logic import PseudoZ3LogicCondition, Z3LogicCondition
+
+if TYPE_CHECKING:
+    from decompiler.structures.ast.condition_symbol import ConditionHandler
 
 LOGICCLASS = TypeVar("LOGICCLASS", bound="ConditionInterface")
 PseudoLOGICCLASS = TypeVar("PseudoLOGICCLASS", bound="PseudoLogicInterface")
@@ -49,7 +52,7 @@ def generate_logic_condition_class(base) -> Type[LOGICCLASS]:
             return super().substitute_by_true(condition)
 
         @ensure_cnf
-        def remove_redundancy(self, condition_map: Dict[BLogicCondition, PseudoLogicCondition]) -> BLogicCondition:
+        def remove_redundancy(self, condition_handler: ConditionHandler) -> BLogicCondition:
             """
             More advanced simplification of conditions.
 
@@ -57,7 +60,7 @@ def generate_logic_condition_class(base) -> Type[LOGICCLASS]:
             - This helps, for example for finding switch cases, because it simplifies the condition
               'x1 & x2' if 'x1 = var < 10' and 'x2 = var == 5' to the condition 'x2'.
             """
-            return super().remove_redundancy(condition_map)
+            return super().remove_redundancy(condition_handler)
 
     return BLogicCondition
 

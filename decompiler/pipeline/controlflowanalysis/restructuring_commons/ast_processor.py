@@ -154,7 +154,7 @@ class AcyclicProcessor(Processor):
         This helps to remove unnecessary conditions for finding switches.
         """
         for node in self.asforest.post_order(self.asforest.current_root):
-            node.simplify_reaching_condition(self.asforest.condition_handler.get_z3_condition_map())
+            node.simplify_reaching_condition(self.asforest.condition_handler)
 
     def _combine_nodes_with_same_reaching_conditions(self) -> None:
         """

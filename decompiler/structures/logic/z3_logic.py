@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import functools
 from itertools import product
-from typing import Dict, Generic, Iterable, Iterator, List, Sequence, TypeVar
+from typing import TYPE_CHECKING, Dict, Generic, Iterable, Iterator, List, Sequence, TypeVar
 
 from decompiler.structures.logic.logic_interface import ConditionInterface, PseudoLogicInterface
 from decompiler.structures.logic.z3_implementations import Z3Implementation
 from decompiler.structures.pseudo import Condition
 from z3 import And, Bool, BoolRef, BoolVal, Context, Not, Or, Solver, is_and, is_false, is_not, is_or, is_true, substitute
 
+if TYPE_CHECKING:
+    from decompiler.structures.ast.condition_symbol import ConditionHandler
 LOGICCLASS = TypeVar("LOGICCLASS", bound="Z3LogicCondition")
 PseudoLOGICCLASS = TypeVar("PseudoLOGICCLASS", bound="PseudoZ3LogicCondition")
 
@@ -212,7 +214,7 @@ class Z3LogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         self._condition = expression
         return self
 
-    def remove_redundancy(self, condition_map: Dict[LOGICCLASS, PseudoZ3LogicCondition]) -> LOGICCLASS:
+    def remove_redundancy(self, condition_handler: ConditionHandler) -> LOGICCLASS:
         """
         More advanced simplification of conditions.
 
@@ -222,6 +224,7 @@ class Z3LogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         """
         if self.is_literal or self.is_true or self.is_false:
             return self
+        condition_map = condition_handler.get_z3_condition_map()
         condition: BoolRef = self._condition
         replacement_to_z3 = list()
         replacement_to_symbol = list()

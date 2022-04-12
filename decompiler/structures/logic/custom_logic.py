@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from itertools import product
-from typing import Dict, Generic, Iterator, List, Sequence, TypeVar
+from typing import TYPE_CHECKING, Dict, Generic, Iterator, List, Sequence, TypeVar
 
 import decompiler.structures.pseudo as pseudo
 from decompiler.structures.logic.logic_interface import ConditionInterface, PseudoLogicInterface
@@ -11,6 +11,9 @@ from simplifier.visitor import ToCnfVisitor, ToDnfVisitor
 from simplifier.visitor.serialize_visitor import SerializeVisitor
 from simplifier.world.nodes import BaseVariable, BitVector, Constant, Operation, TmpVariable, Variable, WorldObject
 from simplifier.world.world import World
+
+if TYPE_CHECKING:
+    from decompiler.structures.ast.condition_symbol import ConditionHandler
 
 LOGICCLASS = TypeVar("LOGICCLASS", bound="CustomLogicCondition")
 PseudoLOGICCLASS = TypeVar("PseudoLOGICCLASS", bound="PseudoCustomLogicCondition")
@@ -273,7 +276,7 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         self.context.cleanup(to_remove)
         return self
 
-    def remove_redundancy(self, condition_map: Dict[LOGICCLASS, PseudoCustomLogicCondition]) -> LOGICCLASS:
+    def remove_redundancy(self, condition_handler: ConditionHandler) -> LOGICCLASS:
         """
         More advanced simplification of conditions.
 
@@ -281,6 +284,7 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         - This helps, for example for finding switch cases, because it simplifies the condition
           'x1 & x2' if 'x1 = var < 10' and 'x2 = var == 5' to the condition 'x2'.
         """
+        condition_map = condition_handler.get_z3_condition_map()
         if self.is_literal or self.is_true or self.is_false:
             return self
         assert isinstance(self._condition, Operation), "We only remove redundancy for operations"

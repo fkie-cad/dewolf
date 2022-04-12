@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Dict, Generic, Iterable, Iterator, List, Sequence, TypeVar
+from typing import TYPE_CHECKING, Dict, Generic, Iterable, Iterator, List, Sequence, TypeVar
 
 from decompiler.structures.pseudo import Condition
+
+if TYPE_CHECKING:
+    from decompiler.structures.ast.condition_symbol import ConditionHandler
 
 CONTEXT = TypeVar("CONTEXT")
 
@@ -209,7 +212,7 @@ class ConditionInterface(LogicInterface, ABC, Generic[CONTEXT]):
         """
 
     @abstractmethod
-    def remove_redundancy(self, condition_map: Dict[ConditionInterface, ConditionInterface]) -> ConditionInterface:
+    def remove_redundancy(self, condition_handler: ConditionHandler) -> ConditionInterface:
         """
         More advanced simplification of conditions.
 
