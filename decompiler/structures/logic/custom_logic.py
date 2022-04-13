@@ -2,17 +2,16 @@ from __future__ import annotations
 
 import logging
 from itertools import product
-from typing import Set, TYPE_CHECKING, Dict, Generic, Iterator, List, Sequence, TypeVar
+from typing import TYPE_CHECKING, Dict, Generic, Iterator, List, Sequence, Set, TypeVar
 
 import decompiler.structures.pseudo as pseudo
 from decompiler.structures.logic.logic_interface import ConditionInterface, PseudoLogicInterface
+from decompiler.structures.pseudo import Condition
 from simplifier.operations import BitwiseAnd, BitwiseNegate, BitwiseOr
 from simplifier.visitor import ToCnfVisitor, ToDnfVisitor
 from simplifier.visitor.serialize_visitor import SerializeVisitor
 from simplifier.world.nodes import BaseVariable, BitVector, Constant, Operation, TmpVariable, Variable, WorldObject
 from simplifier.world.world import World
-
-from decompiler.structures.pseudo import Condition
 
 if TYPE_CHECKING:
     from decompiler.structures.ast.condition_symbol import ConditionHandler
@@ -441,6 +440,7 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         "u>=": pseudo.OperationType.greater_or_equal_us,
     }
 
+
 class PseudoCustomLogicCondition(PseudoLogicInterface, CustomLogicCondition, Generic[LOGICCLASS, PseudoLOGICCLASS]):
     def __init__(self, condition: WorldObject, tmp: bool = False):
         super().__init__(condition, tmp)
@@ -532,5 +532,3 @@ class PseudoCustomLogicCondition(PseudoLogicInterface, CustomLogicCondition, Gen
         pseudo.OperationType.greater_or_equal_us: lambda world, a, b: world.unsigned_ge(a, b),
         pseudo.OperationType.less_or_equal_us: lambda world, a, b: world.unsigned_le(a, b),
     }
-
-

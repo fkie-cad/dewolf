@@ -22,6 +22,7 @@ class MockConditionHandler(ConditionHandler):
         self._symbol_counter += 1
         return CustomLogicCondition.initialize_symbol(f"x{self._symbol_counter}", self._logic_context)
 
+
 def b_x(i: int, world: World) -> WorldObject:
     return world.variable(f"x{i}", 1)
 
