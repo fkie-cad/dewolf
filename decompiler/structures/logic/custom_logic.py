@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from itertools import product
-from typing import TYPE_CHECKING, Dict, Generic, Iterator, List, Sequence, TypeVar
+from typing import Set, TYPE_CHECKING, Dict, Generic, Iterator, List, Sequence, TypeVar
 
 import decompiler.structures.pseudo as pseudo
 from decompiler.structures.logic.logic_interface import ConditionInterface, PseudoLogicInterface
@@ -11,6 +11,8 @@ from simplifier.visitor import ToCnfVisitor, ToDnfVisitor
 from simplifier.visitor.serialize_visitor import SerializeVisitor
 from simplifier.world.nodes import BaseVariable, BitVector, Constant, Operation, TmpVariable, Variable, WorldObject
 from simplifier.world.world import World
+
+from decompiler.structures.pseudo import Condition
 
 if TYPE_CHECKING:
     from decompiler.structures.ast.condition_symbol import ConditionHandler
@@ -221,15 +223,13 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
 
     def get_symbols(self) -> Iterator[LOGICCLASS]:
         """Return all symbols used by the condition."""
-        for node in self.context.iter_postorder(self._condition):
-            if self._is_symbol(node):
-                yield self.__class__(node)
+        for symbol in self._get_symbols(self._condition):
+            yield self.__class__(symbol)
 
     def get_symbols_as_string(self) -> Iterator[str]:
         """Return all symbols as strings"""
-        for node in self.context.iter_postorder(self._condition):
-            if self._is_symbol(node):
-                yield str(node)
+        for symbol in self._get_symbols(self._condition):
+            yield str(symbol)
 
     def get_literals(self) -> Iterator[LOGICCLASS]:
         """Return all literals used by the condition."""
@@ -284,33 +284,24 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         - This helps, for example for finding switch cases, because it simplifies the condition
           'x1 & x2' if 'x1 = var < 10' and 'x2 = var == 5' to the condition 'x2'.
         """
-        condition_map = condition_handler.get_z3_condition_map()
         if self.is_literal or self.is_true or self.is_false:
             return self
         assert isinstance(self._condition, Operation), "We only remove redundancy for operations"
 
-        copied_condition = PseudoCustomLogicCondition(self._condition)
-        self.context.free_world_condition(copied_condition._variable)
-        condition_nodes = set(self.context.iter_postorder(copied_condition._variable))
+        real_condition, compared_expressions = self._replace_symbols_by_real_conditions(condition_handler)
 
-        replacement_dict: Dict[WorldObject, WorldObject] = dict()
-        for symbol in self.get_symbols():
-            world_symbol = symbol._condition
-            parent_operations = [parent for parent in self.context.parent_operation(world_symbol) if parent in condition_nodes]
-            for parent in parent_operations:
-                for relation in self.context.get_relation(parent, world_symbol):
-                    index = relation.index
-                    self.context.remove_operand(parent, relation.sink)
-                    symbol_condition = condition_map[symbol]._condition
-                    self.context.add_operand(parent, symbol_condition, index)
-                    replacement_dict[symbol_condition] = world_symbol
+        self.context.free_world_condition(real_condition._variable)
+        real_condition.simplify()
 
-        self.context.free_world_condition(copied_condition._variable)
-        copied_condition.simplify()
         non_logic_operands = {
             node
-            for node in self.context.iter_postorder(copied_condition._variable)
+            for node in self.context.iter_postorder(real_condition._variable)
             if isinstance(node, Operation) and not isinstance(node, (BitwiseOr, BitwiseAnd, BitwiseNegate))
+        }
+        replacement_dict = {
+            real_cond._condition: symbol._condition
+            for symbol, real_cond in condition_handler.get_z3_condition_map().items()
+            if any(operand in compared_expressions for operand in real_cond._condition.operands)
         }
         for operand in non_logic_operands:
             negated_operand = operand.copy_tree().negate()
@@ -322,12 +313,44 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
                     self.context.replace(operand, self.context.bitwise_negate(symbol))
                     break
             else:
-                self.context.cleanup()
-                return self
+                new_operands = list()
+                for op in operand.operands:
+                    if op in compared_expressions:
+                        new_operands.append(compared_expressions[op])
+                    else:
+                        assert isinstance(op, Constant), f"The operand must be a Constant"
+                        new_operands.append(pseudo.Constant(op.signed, pseudo.Integer(op.size, signed=True)))
+                condition_symbol = condition_handler.add_condition(Condition(self.OPERAND_MAPPING[operand.SYMBOL], new_operands))
+                self.context.replace(operand, condition_symbol.symbol._condition)
 
-        self.context.replace(self._condition, copied_condition._condition)
+        self.context.replace(self._condition, real_condition._condition)
         self.context.cleanup()
         return self
+
+    def _replace_symbols_by_real_conditions(self, condition_handler: ConditionHandler):
+        """
+        Return the real condition where the symbols are replaced by the conditions of the condition handler and all
+        """
+        copied_condition = PseudoCustomLogicCondition(self._condition)
+        self.context.free_world_condition(copied_condition._variable)
+        condition_nodes = set(self.context.iter_postorder(copied_condition._variable))
+        compared_expressions: Dict[Variable, pseudo.Expression] = dict()
+        for symbol in self.get_symbols():
+            pseudo_condition: Condition = condition_handler.get_condition_of(symbol)
+            for operand in pseudo_condition.operands:
+                if not isinstance(operand, pseudo.Constant):
+                    compared_expressions[self.context.variable(self._variable_name_for(operand))] = operand
+            self._replace_symbol(symbol, condition_handler, condition_nodes)
+        return copied_condition, compared_expressions
+
+    def _replace_symbol(self, symbol: CustomLogicCondition, condition_handler: ConditionHandler, condition_nodes: Set[WorldObject]):
+        world_condition = condition_handler.get_z3_condition_of(symbol)._condition
+        world_symbol = symbol._condition
+        for parent in [parent for parent in self.context.parent_operation(world_symbol) if parent in condition_nodes]:
+            for relation in self.context.get_relation(parent, world_symbol):
+                index = relation.index
+                self.context.remove_operand(parent, relation.sink)
+                self.context.add_operand(parent, world_condition, index)
 
     def serialize(self) -> str:
         """Serialize the given condition into a SMT2 string representation."""
@@ -363,7 +386,14 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
             return True
         return isinstance(condition, BitwiseOr) and all(self._is_literal(operand) for operand in condition.operands)
 
-    def _get_literals(self, condition: WorldObject):
+    def _get_symbols(self, condition: WorldObject) -> Iterator[Variable]:
+        """Get symbols on World-level"""
+        for node in self.context.iter_postorder(condition):
+            if self._is_symbol(node):
+                yield node
+
+    def _get_literals(self, condition: WorldObject) -> Iterator[WorldObject]:
+        """Get literals on World-level"""
         if self._is_literal(condition):
             yield condition
         elif isinstance(condition, (BitwiseOr, BitwiseAnd, BitwiseNegate)):
@@ -392,6 +422,24 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
             return "(" + f" {symbol} ".join([f"{self._rich_string_representation(operand, condition_map)}" for operand in operands]) + ")"
         return f"{condition}"
 
+    @staticmethod
+    def _variable_name_for(expression: pseudo.Expression) -> str:
+        if isinstance(expression, pseudo.Variable):
+            return f"{expression},{expression.ssa_name}"
+        return f"{expression},{[str(var.ssa_name) for var in expression.requirements]}"
+
+    OPERAND_MAPPING = {
+        "==": pseudo.OperationType.equal,
+        "!=": pseudo.OperationType.not_equal,
+        "s<=": pseudo.OperationType.less_or_equal,
+        "u<=": pseudo.OperationType.less_or_equal_us,
+        "s>": pseudo.OperationType.greater,
+        "u>": pseudo.OperationType.greater_us,
+        "s<": pseudo.OperationType.less,
+        "u<": pseudo.OperationType.less_us,
+        "s>=": pseudo.OperationType.greater_or_equal,
+        "u>=": pseudo.OperationType.greater_or_equal_us,
+    }
 
 class PseudoCustomLogicCondition(PseudoLogicInterface, CustomLogicCondition, Generic[LOGICCLASS, PseudoLOGICCLASS]):
     def __init__(self, condition: WorldObject, tmp: bool = False):
@@ -468,11 +516,9 @@ class PseudoCustomLogicCondition(PseudoLogicInterface, CustomLogicCondition, Gen
     def _convert_expression(expression: pseudo.Expression, bit_vec_size: int, world: World) -> BitVector:
         """Convert the given expression into a z3 bit-vector."""
         if isinstance(expression, pseudo.Constant):
-            return Constant(world, expression.value, bit_vec_size)
-        elif isinstance(expression, pseudo.Variable):
-            return Variable(world, f"{expression},{expression.ssa_name}", bit_vec_size)
+            return world.constant(expression.value, bit_vec_size)
         else:
-            return Variable(world, f"{expression},{[str(var.ssa_name) for var in expression.requirements]}", bit_vec_size)
+            return world.variable(PseudoCustomLogicCondition._variable_name_for(expression), bit_vec_size)
 
     SHORTHAND = {
         pseudo.OperationType.equal: lambda world, a, b: world.bool_equal(a, b),
@@ -486,3 +532,5 @@ class PseudoCustomLogicCondition(PseudoLogicInterface, CustomLogicCondition, Gen
         pseudo.OperationType.greater_or_equal_us: lambda world, a, b: world.unsigned_ge(a, b),
         pseudo.OperationType.less_or_equal_us: lambda world, a, b: world.unsigned_le(a, b),
     }
+
+
