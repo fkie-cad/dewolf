@@ -11,6 +11,7 @@ $(VENV_PATH):
 	virtualenv -ppython$(PYTHON_VERSION) $(VENV_PATH)
 	. $(VENV_PATH)/bin/activate
 	pip install -r $(PREFIX)/requirements.txt
+	pip install -r $(PREFIX)/requirements-compiler-idioms.txt
 
 
 $(BINARY_NINJA_PATH)/python:
