@@ -22,9 +22,9 @@ $(BINARY_NINJA_PATH)/python:
 
 
 $(VENV_PATH)/lib/python$(PYTHON_VERSION)/site-packages/binaryninja.pth: $(BINARY_NINJA_PATH)/python
-ifneq ($(wildcard $(PREFIX)/install_api.py),"")
+ifneq ($(wildcard $(BINARY_NINJA_PATH)/scripts/install_api.py),"")
 	. $(VENV_PATH)/bin/activate && \
-		$(VENV_PATH)/bin/python $$(readlink -f $(PREFIX)/install_api.py) && \
+		$(VENV_PATH)/bin/python $$(readlink -f $(BINARY_NINJA_PATH)/scripts/install_api.py) && \
 		echo "/opt/binaryninja/python" > $(VENV_PATH)/lib/python$(PYTHON_VERSION)/site-packages/binaryninja.pth
 else
 	@$(error install_api.py not found. Please install the Binary Ninja API package manually using \
