@@ -9,8 +9,8 @@ venv: $(VENV_PATH) $(VENV_PATH)/lib/python$(PYTHON_VERSION)/site-packages/binary
 .ONESHELL: $(VENV_PATH)
 $(VENV_PATH):
 	virtualenv -ppython$(PYTHON_VERSION) $(VENV_PATH)
-	$(VENV_PATH)/bin/pip install -r $(PREFIX)/requirements.txt
-	$(VENV_PATH)/bin/pip install -r $(PREFIX)/requirements-compiler-idioms.txt
+	$(VENV_PATH)/bin/python -mpip install -r $(PREFIX)/requirements.txt
+	$(VENV_PATH)/bin/python -mpip install -r $(PREFIX)/requirements-compiler-idioms.txt
 
 
 $(VENV_PATH)/lib/python$(PYTHON_VERSION)/site-packages/binaryninja.pth: $(BINARY_NINJA_PATH)/python $(BINARY_NINJA_PATH)/scripts/install_api.py
