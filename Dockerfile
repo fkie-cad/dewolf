@@ -1,4 +1,4 @@
-FROM ubuntu:latest
+FROM ubuntu:21.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt -y update && apt -y upgrade && apt install -y --no-install-recommends \
