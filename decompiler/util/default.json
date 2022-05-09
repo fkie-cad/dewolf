@@ -509,7 +509,7 @@
       "is_hidden_from_gui": false
     },
     "font_size": {
-      "default": 16,
+      "default": 12,
       "title": "Font size",
       "type": "number",
       "description": "Font size for decompiler output",
