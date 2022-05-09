@@ -85,7 +85,7 @@ class CodeDisplay(QPlainTextEdit):
     def set_font(self):
         """Read font options from GUI settings and set font accordingly"""
         self.options = Options.from_gui()
-        font = self.options.getstring("gui.font", fallback="courier")
+        font = self.options.getstring("gui.font", fallback="source code pro")
         font_size = self.options.getint("gui.font_size", fallback=16)
         is_font_bold = self.options.getboolean("gui.font_bold", fallback=False)
         is_font_italic = self.options.getboolean("gui.font_italic", fallback=False)
@@ -94,6 +94,8 @@ class CodeDisplay(QPlainTextEdit):
             self.font.setItalic(True)
         if is_font_bold:
             self.font.setBold(True)
+        self.font.setStyleHint(QFont.Monospace)
+        self.font.setFamily(font)
         self.setFont(self.font)
 
     def _get_word_under_cursor(self, e: QMouseEvent) -> str:
