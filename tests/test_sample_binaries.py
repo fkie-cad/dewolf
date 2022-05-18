@@ -55,7 +55,7 @@ def test_global_strings_and_tables():
     # Make sure the global string contains the string hello world.
     assert output2.count('"Hello World"') == 1
     # Ensure that string is referenced correctly
-    assert output2.count("*&hello_string") == 1
+    assert output2.count("hello_string") == 1
 
 
 def test_global_indirect_ptrs():

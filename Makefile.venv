@@ -1,4 +1,5 @@
 PYTHON_VERSION := 3.8
+BINARY_NINJA_PATH := /opt/binaryninja
 PREFIX := .
 
 .PHONY: venv
@@ -8,17 +9,20 @@ venv: $(VENV_PATH) $(VENV_PATH)/lib/python$(PYTHON_VERSION)/site-packages/binary
 .ONESHELL: $(VENV_PATH)
 $(VENV_PATH):
 	virtualenv -ppython$(PYTHON_VERSION) $(VENV_PATH)
-	. $(VENV_PATH)/bin/activate
-	pip install -r $(PREFIX)/requirements.txt
-	pip install -r $(PREFIX)/requirements-compiler-idioms.txt
+	$(VENV_PATH)/bin/python -mpip install -r $(PREFIX)/requirements.txt
+	$(VENV_PATH)/bin/python -mpip install -r $(PREFIX)/requirements-compiler-idioms.txt
 
 
-$(VENV_PATH)/lib/python$(PYTHON_VERSION)/site-packages/binaryninja.pth:
-ifneq ($(wildcard $(PREFIX)/install_api.py),"")
-	. $(VENV_PATH)/bin/activate && \
-		$(VENV_PATH)/bin/python $$(readlink -f $(PREFIX)/install_api.py) && \
-		echo "/opt/binaryninja/python" > $(VENV_PATH)/lib/python$(PYTHON_VERSION)/site-packages/binaryninja.pth
-else
+$(VENV_PATH)/lib/python$(PYTHON_VERSION)/site-packages/binaryninja.pth: $(BINARY_NINJA_PATH)/python $(BINARY_NINJA_PATH)/scripts/install_api.py
+	$(VENV_PATH)/bin/python $$(readlink -f $(BINARY_NINJA_PATH)/scripts/install_api.py)
+	echo "$(BINARY_NINJA_PATH)/python" > $(VENV_PATH)/lib/python$(PYTHON_VERSION)/site-packages/binaryninja.pth
+
+
+$(BINARY_NINJA_PATH)/python:
+	@$(error Failed to find Binary Ninja at '$(BINARY_NINJA_PATH)'. \
+		Please set the BINARY_NINJA_PATH variable manually, e.g. \
+		    make ... BINARY_NINJA_PATH=/your/path/to/binja)
+
+$(BINARY_NINJA_PATH)/scripts/install_api.py:
 	@$(error install_api.py not found. Please install the Binary Ninja API package manually using \
 		the install_api.py script from Binary Ninja.)
-endif

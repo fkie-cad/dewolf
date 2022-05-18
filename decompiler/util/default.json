@@ -502,14 +502,14 @@
   },
   "gui": {
     "font": {
-      "default": "courier",
+      "default": "source code pro",
       "title": "Font",
       "type": "string",
       "description": "Font for decompiler output",
       "is_hidden_from_gui": false
     },
     "font_size": {
-      "default": 16,
+      "default": 12,
       "title": "Font size",
       "type": "number",
       "description": "Font size for decompiler output",

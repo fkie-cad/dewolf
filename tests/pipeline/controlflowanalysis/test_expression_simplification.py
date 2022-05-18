@@ -6,9 +6,9 @@ from decompiler.structures.ast.ast_nodes import CodeNode
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.logic.logic_condition import LogicCondition
-from decompiler.structures.pseudo.expressions import Constant, Variable
-from decompiler.structures.pseudo.instructions import Assignment
-from decompiler.structures.pseudo.operations import BinaryOperation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.expressions import Constant, ImportedFunctionSymbol, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Instruction, Return
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, ListOperation, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import Integer
 from decompiler.task import DecompilerTask
 
@@ -177,6 +177,46 @@ def test_simplification_with_one_division(instruction, result):
     task = _task(AbstractSyntaxTree(CodeNode([instruction], true_value.copy()), dict()))
     ExpressionSimplification().run(task)
     assert task.syntax_tree.root == CodeNode([result], true_value.copy())
+
+
+@pytest.mark.parametrize(
+    "instruction, result",
+    [
+        (
+            Assignment(UnaryOperation(OperationType.dereference, [UnaryOperation(OperationType.address, [Variable("x")])]), Constant(0)),
+            Assignment(Variable("x"), Constant(0)),
+        ),
+        (
+            Assignment(
+                ListOperation([]),
+                Call(
+                    ImportedFunctionSymbol("foo", 0x42),
+                    [
+                        BinaryOperation(
+                            OperationType.minus,
+                            [
+                                UnaryOperation(OperationType.dereference, [UnaryOperation(OperationType.address, [Variable("x")])]),
+                                Constant(2),
+                            ],
+                        )
+                    ],
+                ),
+            ),
+            Assignment(
+                ListOperation([]),
+                Call(ImportedFunctionSymbol("foo", 0x42), [BinaryOperation(OperationType.minus, [Variable("x"), Constant(2)])]),
+            ),
+        ),
+        (
+            Return([UnaryOperation(OperationType.dereference, [UnaryOperation(OperationType.address, [Variable("y")])])]),
+            Return([Variable("y")]),
+        ),
+    ],
+)
+def test_simplification_of_dereference_operations(instruction: Instruction, result: Instruction):
+    """Check if dereference operations with address-of operands are simplified correctly."""
+    ExpressionSimplification().simplify(instruction)
+    assert instruction == result
 
 
 @pytest.mark.parametrize(
