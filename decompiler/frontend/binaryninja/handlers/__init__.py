@@ -5,6 +5,7 @@ from .calls import CallHandler
 from .conditions import ConditionHandler
 from .constants import ConstantHandler
 from .controlflow import FlowHandler
+from .globals import GlobalHandler
 from .phi import PhiHandler
 from .types import TypeHandler
 from .unary import UnaryOperationHandler
@@ -22,4 +23,5 @@ HANDLERS = [
     AssignmentHandler,
     PhiHandler,
     CallHandler,
+    GlobalHandler,
 ]
