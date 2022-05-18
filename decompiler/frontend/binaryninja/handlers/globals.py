@@ -66,23 +66,22 @@ class GlobalHandler(Handler):
 
     def _get_initial_value(self, bv: BinaryView, variable: DataVariable, addr: int, type_tokens: List[str]) -> Union[str, int, bytes]:
         """Retrieve the initial value of the global variable if there is any."""
-        initial_value = None
         if variable.type == variable.type.void():
             # If there is no type, just retrieve all the bytes from the current to the next address where a data variable is present.
-            initial_value = self._get_bytes(bv, addr)
+            return self._get_bytes(bv, addr)
         elif variable.type.type_class == TypeClass.IntegerTypeClass:
-            initial_value = self._get_value(bv, addr, variable.type.width)
+            return self._get_value(bv, addr, variable.type.width)
         else:
             # If pointer type, convert indirect_pointer to a label, otherwise leave it as it is.
             if "*" in type_tokens:
                 indirect_ptr_addr = self._get_value(bv, addr, bv.arch.address_size)
                 if (var2 := bv.get_data_var_at(indirect_ptr_addr)) is not None:
-                    initial_value = self.lift_global_variable(var2, bv=bv, parent_addr=addr)
+                    return self.lift_global_variable(var2, bv=bv, parent_addr=addr)
                 else:
                     return self._lift_no_data_var(bv, indirect_ptr_addr)
             else:
-                initial_value = bv.read(addr, variable.type.width)
-        return initial_value
+                return bv.read(addr, variable.type.width)
+        return None
 
     def _lift_no_data_var(self, bv: BinaryView, addr: int) -> Union[Constant, Symbol]:
         """Lift a string or bytes when bv.get_data_var(addr) is None."""
