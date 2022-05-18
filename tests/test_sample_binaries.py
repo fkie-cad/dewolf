@@ -2,7 +2,6 @@ import subprocess
 
 import pytest
 
-
 # def test_sample(test_cases):
 #    """Test the decompiler with the given test case."""
 #    sample, function_name = test_cases
