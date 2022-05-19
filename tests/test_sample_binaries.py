@@ -96,3 +96,9 @@ def test_tailcall_display():
     output = str(subprocess.run(args, check=True, capture_output=True).stdout)
 
     assert output.count("return fseeko(") == 1
+
+
+def test_issue_70():
+    """Test Issue #70."""
+    args = ["python", "decompile.py", "tests/samples/others/issue-70.bin", "main"]
+    subprocess.run(args, check=True)

@@ -48,20 +48,22 @@ class ConstantHandler(Handler):
         if address == 0:
             # TODO: hack - Binja thinks that 0 is a null pointer, even though it may be just integer 0.
             return Constant(0, vartype=Integer.uint64_t() if bv.address_size == 8 else Integer.uint32_t())
-        if symbol := self._get_symbol(bv, address):
-            return self._lift_symbol_pointer(address, symbol, bv)
+
+        symbol = self._get_symbol(bv, address)
+        if symbol is not None and symbol.type in (SymbolType.ImportedFunctionSymbol, SymbolType.ExternalSymbol, SymbolType.FunctionSymbol):
+            return self._lift_symbol_pointer(address, symbol)
+        if (variable := bv.get_data_var_at(address)) is not None:
+            return self._lifter.lift(variable, bv=bv, parent_addr=None)
 
         if string := bv.get_string_at(address, partial=True) or bv.get_ascii_string_at(address, min_length=2):
             return Constant(address, Pointer(Integer.char()), Constant(string.value, Integer.char()))
 
-    def _lift_symbol_pointer(self, address: int, symbol: bSymbol, bv: BinaryView) -> Optional[Symbol]:
+    def _lift_symbol_pointer(self, address: int, symbol: bSymbol) -> Optional[Symbol]:
         """Try to lift a pointer at the given address with a Symbol as a symbol pointer."""
         if symbol.type == SymbolType.FunctionSymbol:
             return FunctionSymbol(symbol.name, address, vartype=Pointer(Integer.char()))
         if symbol.type in (SymbolType.ImportedFunctionSymbol, SymbolType.ExternalSymbol):
             return ImportedFunctionSymbol(symbol.name, address, vartype=Pointer(Integer.char()))
-        if (variable := bv.get_data_var_at(address)) is not None:
-            return self._lifter.lift(variable, bv=bv, parent_addr=None)
 
     @staticmethod
     def _get_symbol(bv: BinaryView, address: int) -> Optional[bSymbol]:
