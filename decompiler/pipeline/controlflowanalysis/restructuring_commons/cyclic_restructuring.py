@@ -1,18 +1,15 @@
 from __future__ import annotations
 
-import logging
 from typing import List, Optional, Union
 
-from decompiler.pipeline.controlflowanalysis.restructuring_commons.abnormal_loops import AbnormalEntryRestructurer, AbnormalExitRestructurer
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.acyclic_restructuring import AcyclicRegionRestructurer
-from decompiler.pipeline.controlflowanalysis.restructuring_commons.graphslice import GraphSlice
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.loop_structurer import LoopStructurer
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder import CyclicRegionFinder
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.graphs.classifiedgraph import EdgeProperty
 from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock, TransitionCFG
 from decompiler.structures.pseudo import Break, Continue
-from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 
 
 class CyclicRegionStructurer:
@@ -29,10 +26,8 @@ class CyclicRegionStructurer:
         """
         self.t_cfg: TransitionCFG = t_cfg
         self.asforest: AbstractSyntaxForest = asforest
-        self.head: Optional[TransitionBlock] = None
         self.current_region: Optional[TransitionCFG] = None
-        self.abnormal_entry_restructurer = AbnormalEntryRestructurer(t_cfg, asforest)
-        self.abnormal_exit_restructurer = AbnormalExitRestructurer(t_cfg, asforest)
+        self.cyclic_region_finder = CyclicRegionFinder(t_cfg, asforest)
 
     def restructure(self, head: TransitionBlock) -> bool:
         """
@@ -47,20 +42,7 @@ class CyclicRegionStructurer:
 
         -> Return True if we change the graph due to multiple entry/exit restructuring.
         """
-        self.head = head
-        self.current_region = self._compute_loop_nodes()
-        graph_changed = False
-
-        if any(edge.property == EdgeProperty.retreating for edge in self.t_cfg.get_in_edges(self.head)):
-            logging.info(f"Restructure Abnormal Entry in loop region with head {self.head}")
-            self.head = self.abnormal_entry_restructurer.restructure(self.head, self.current_region)
-            graph_changed = True
-
-        loop_successors: List[TransitionBlock] = self._compute_loop_successors()
-        if len(loop_successors) > 1:
-            logging.info(f"Restructure Abnormal Exit in loop region with head {self.head}")
-            loop_successors = [self.abnormal_exit_restructurer.restructure(self.head, self.current_region, loop_successors)]
-            graph_changed = True
+        self.current_region, loop_successors, graph_changed = self.cyclic_region_finder.find(head)
 
         original_loop_nodes = self.current_region.nodes
         self._prepare_current_region_for_acyclic_restructuring(loop_successors)
@@ -69,69 +51,6 @@ class CyclicRegionStructurer:
         self.t_cfg.collapse_region(original_loop_nodes, restructured_loop_node)
 
         return graph_changed
-
-    def _compute_loop_nodes(self) -> TransitionCFG:
-        """
-        Computes the cyclic region for the current head node.
-            - Compute the set of latching nodes, i.e., the nodes that have the head as successor.
-            - Compute the cyclic region
-        """
-        latching_nodes: List[TransitionBlock] = self._get_latching_nodes()
-        return GraphSlice.compute_graph_slice_for_sink_nodes(self.t_cfg, self.head, latching_nodes, back_edges=False)
-
-    def _get_latching_nodes(self):
-        """Return all nodes with outgoing back-edges to the head node."""
-        return [edge.source for edge in self.t_cfg.get_in_edges(self.head) if edge.property != EdgeProperty.non_loop]
-
-    def _compute_loop_successors(self) -> List[TransitionBlock]:
-        """Compute the set of exit nodes of the current loop region."""
-        initial_successor_nodes = self._get_initial_loop_successor_nodes()
-        return self._refine_initial_successor_nodes(initial_successor_nodes)
-
-    def _get_initial_loop_successor_nodes(self) -> InsertionOrderedSet[TransitionBlock]:
-        """Return the initial set of possible exit nodes for the current loop region."""
-        initial_successor_nodes = InsertionOrderedSet()
-        for node in self.current_region:
-            for successor in self.t_cfg.get_successors(node):
-                if successor not in self.current_region:
-                    initial_successor_nodes.add(successor)
-        return initial_successor_nodes
-
-    def _refine_initial_successor_nodes(self, successor_nodes: InsertionOrderedSet[TransitionBlock]) -> List[TransitionBlock]:
-        """
-        Refine the set of exit nodes, to avoid unnecessary restructuring.
-
-        :param successor_nodes: The initial set of successors.
-        :return: The refined set of successor nodes.
-        """
-        while len(successor_nodes) > 1:
-            new_successor_nodes: InsertionOrderedSet[TransitionBlock] = InsertionOrderedSet()
-            for node in list(successor_nodes):
-                if node != self.t_cfg.root and self._all_predecessors_in_current_region(node):
-                    successor_nodes.remove(node)
-                    self._add_node_to_current_region(node)
-                    for successor in self.t_cfg.get_successors(node):
-                        # One could check only add the real successors to the check list and then recompute afterwards
-                        if successor not in self.current_region:
-                            new_successor_nodes.add(successor)
-                if len(new_successor_nodes) + len(successor_nodes) <= 1:
-                    break
-            if not new_successor_nodes:
-                break
-            successor_nodes.update(new_successor_nodes)
-        return [succ_node for succ_node in successor_nodes if succ_node not in self.current_region]
-
-    def _all_predecessors_in_current_region(self, node: TransitionBlock) -> bool:
-        """Check whether all predecessors of node 'node' are contained in the current loop region."""
-        return all((predecessor in self.current_region) for predecessor in self.t_cfg.get_predecessors(node))
-
-    def _add_node_to_current_region(self, node: TransitionBlock) -> None:
-        """
-        Add the input node to the current loop region. Note that all predecessors of the node are contained in the current loop region.
-        """
-        self.current_region.add_node(node)
-        self.current_region.add_edges_from(self.t_cfg.get_in_edges(node))
-        self.current_region.add_edges_from((edge for edge in self.t_cfg.get_out_edges(node) if edge.sink in self.current_region))
 
     def _prepare_current_region_for_acyclic_restructuring(self, loop_successors: List[TransitionBlock]):
         """Add continue nodes for the loop-edges and break nodes for the exit edges to the loop region."""
@@ -151,7 +70,7 @@ class CyclicRegionStructurer:
         Add continue nodes for all predecessors of the head that are part of the graph slice to the current region, i.e.,
         add the edges (predecessor, continue_node) to the graph slice if (predecessor, head) in the CFG and predecessor in the region.
         """
-        self._prepend_node_with_interruption(Continue(), self.head)
+        self._prepend_node_with_interruption(Continue(), self.current_region.root)
 
     def _prepend_node_with_interruption(self, interruption_statement: Union[Break, Continue], successor: TransitionBlock) -> None:
         """
