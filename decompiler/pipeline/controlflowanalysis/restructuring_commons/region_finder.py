@@ -1,6 +1,7 @@
+"""Module to find restructurable regions."""
 import logging
 from collections import defaultdict
-from typing import DefaultDict, Dict, List, Optional, Set
+from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.abnormal_loops import AbnormalEntryRestructurer, AbnormalExitRestructurer
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.graphslice import GraphSlice
@@ -12,28 +13,35 @@ from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 
 
 class CyclicRegionFinder:
+    """Class to find a restructurable cyclic region with a given head."""
+
     def __init__(self, t_cfg: TransitionCFG, asforest: AbstractSyntaxForest):
         self.t_cfg: TransitionCFG = t_cfg
         self.loop_region: Optional[TransitionCFG] = None
         self.abnormal_entry_restructurer = AbnormalEntryRestructurer(t_cfg, asforest)
         self.abnormal_exit_restructurer = AbnormalExitRestructurer(t_cfg, asforest)
 
-    def find(self, head: TransitionBlock):
+    def find(self, head: TransitionBlock) -> Tuple[TransitionCFG, List[TransitionBlock]]:
+        """
+        Find the cyclic loop-region with the given head.
+
+        1. Compute the initial loop-region
+        2. Restructure abnormal entries, if necessary
+        3. Compute the set of loop-successors
+        4. Restructure abnormal exits, if necessary.
+        """
         self.loop_region = self._compute_initial_loop_nodes(head)
-        graph_changed = False
 
         if any(edge.property == EdgeProperty.retreating for edge in self.t_cfg.get_in_edges(head)):
             logging.info(f"Restructure Abnormal Entry in loop region with head {head}")
             self.abnormal_entry_restructurer.restructure(self.loop_region)
-            graph_changed = True
 
         loop_successors: List[TransitionBlock] = self._compute_loop_successors()
         if len(loop_successors) > 1:
             logging.info(f"Restructure Abnormal Exit in loop region with head {self.loop_region.root}")
             loop_successors = [self.abnormal_exit_restructurer.restructure(self.loop_region, loop_successors)]
-            graph_changed = True
 
-        return self.loop_region, loop_successors, graph_changed
+        return self.loop_region, loop_successors
 
     def _compute_initial_loop_nodes(self, head: TransitionBlock) -> TransitionCFG:
         """
@@ -100,12 +108,15 @@ class CyclicRegionFinder:
 
 
 class AcyclicRegionFinder:
+    """Class to find restructurable acyclic regions with a given head."""
+
     MIN_REGION_SIZE = 3
 
     def __init__(self, t_cfg: TransitionCFG):
         self.t_cfg = t_cfg
 
     def find(self, head: TransitionBlock) -> Optional[Set[TransitionBlock]]:
+        """Return a restructurable region with the given head, if one exists. Otherwise, return None."""
         region = self._find_minimal_subset_for_restructuring(head)
         if self._is_restructurable(region, head):
             return region
@@ -209,7 +220,7 @@ class AcyclicRegionFinder:
             - By exit node we mean nodes that have a successor outside the region.
 
         :param region_nodes: The set of nodes that we consider for possible exit nodes.
-        :return: True, it we have at most one exit node, and False otherwise.
+        :return: True, if we have at most one exit node, and False otherwise.
         """
         found_exit = False
         for node in region_nodes:

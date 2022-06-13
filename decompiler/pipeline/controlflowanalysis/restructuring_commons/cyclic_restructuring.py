@@ -33,16 +33,16 @@ class CyclicRegionStructurer:
         """
         Restructure the cyclic region with the given Head.
 
-        1. Compute the loop-region
-        2. Restructure abnormal entries, if necessary
-        3. Compute the set of loop-successors
-        4. Restructure abnormal exits, if necessary.
-        5. Restructure acyclic loop-body
-        6. Construct loop-region
+        1. Compute the loop region.
+        2. Prepare the loop-body for restructuring
+        3. Restructure acyclic loop-body
+        4. Construct loop-region
 
         -> Return True if we change the graph due to multiple entry/exit restructuring.
         """
-        self.current_region, loop_successors, graph_changed = self.cyclic_region_finder.find(head)
+        number_of_nodes = len(self.t_cfg)
+        self.current_region, loop_successors = self.cyclic_region_finder.find(head)
+        graph_changed = number_of_nodes != len(self.t_cfg)
 
         original_loop_nodes = self.current_region.nodes
         self._prepare_current_region_for_acyclic_restructuring(loop_successors)
