@@ -42,7 +42,7 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         return self._variable
 
     def __len__(self) -> int:
-        """Returns the length of a formula, which corresponds to its complexity."""
+        """Return the length of a formula, which corresponds to its complexity."""
         if isinstance(self._condition, Variable):
             return 1
         count = 0
@@ -53,7 +53,7 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         return count
 
     def __str__(self) -> str:
-        """Return string representation."""
+        """Return a string representation."""
         condition = self._condition
         if isinstance(condition, Constant) and condition.size == 1:
             return "false" if condition.unsigned == 0 else "true"
@@ -80,13 +80,13 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
 
     @classmethod
     def disjunction_of(cls, clauses: Sequence[LOGICCLASS]) -> LOGICCLASS:
-        """Creates a disjunction for the list of given clauses."""
+        """Create a disjunction for the list of given clauses."""
         world = clauses[0].context
         return cls(world.bitwise_or(*(clause._condition for clause in clauses)))
 
     @classmethod
     def conjunction_of(cls, clauses: Sequence[LOGICCLASS]) -> LOGICCLASS:
-        """Creates a conjunction for the list of given clauses."""
+        """Create a conjunction for the list of given clauses."""
         world = clauses[0].context
         return cls(world.bitwise_and(*(clause._condition for clause in clauses)))
 
@@ -192,7 +192,7 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         return does_imply_value
 
     def to_cnf(self) -> LOGICCLASS:
-        """Bring condition tag into cnf-form."""
+        """Bring the condition tag into cnf-form."""
         if self.is_cnf_form:
             return self
         self.context.free_world_condition(self._variable)
@@ -200,7 +200,7 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         return self
 
     def to_dnf(self) -> LOGICCLASS:
-        """Bring condition tag into dnf-form."""
+        """Bring the condition tag into dnf-form."""
         dnf_form = self.copy()
         self.context.free_world_condition(dnf_form._variable)
         ToDnfVisitor(dnf_form._variable)
@@ -226,7 +226,7 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
             yield self.__class__(symbol)
 
     def get_symbols_as_string(self) -> Iterator[str]:
-        """Return all symbols as strings"""
+        """Return all symbols as strings."""
         for symbol in self._get_symbols(self._condition):
             yield str(symbol)
 
@@ -361,7 +361,7 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         return CustomLogicCondition(context.from_string(data))
 
     def rich_string_representation(self, condition_map: Dict[LOGICCLASS, pseudo.Condition]):
-        """Replaces each symbol by the condition of the condition map and print this condition as string."""
+        """Replace each symbol by the condition of the condition map and print this condition as string."""
         return self._rich_string_representation(
             self._condition, {symbol._condition: condition for symbol, condition in condition_map.items()}
         )
