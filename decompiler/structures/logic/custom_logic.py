@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from itertools import product
-from typing import TYPE_CHECKING, Dict, Generic, Iterator, List, Sequence, Set, TypeVar
+from typing import Tuple, TYPE_CHECKING, Dict, Generic, Iterator, List, Sequence, Set, TypeVar
 
 import decompiler.structures.pseudo as pseudo
 from decompiler.structures.logic.logic_interface import ConditionInterface, PseudoLogicInterface
@@ -154,12 +154,12 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
     @property
     def is_symbol(self) -> bool:
         """Check whether the object is a symbol."""
-        return self._is_symbol(self._condition)  # TODO
+        return self._is_symbol(self._condition)
 
     @property
     def is_literal(self) -> bool:
         """Check whether the object is a literal, i.e., a symbol or a negated symbol"""
-        return self._is_literal(self._condition)  # TODO
+        return self._is_literal(self._condition)
 
     @property
     def is_disjunction_of_literals(self) -> bool:
@@ -244,15 +244,10 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         """
         assert self.context == condition.context, f"The condition must be contained in the same graph."
         if not self.is_true and (self.is_equal_to(condition) or condition.does_imply(self)):
-            if self.is_symbol:
-                self._variable: BaseVariable = self.context.new_variable(self._condition.size)
-                self.context.define(self._variable, self.context.constant(1, 1))
-            else:
-                self.context.replace(self._condition, self.context.constant(1, 1))
-            self.context.cleanup()
+            self._replace_condition_by_true()
             return self
-        self.to_cnf()
 
+        self.to_cnf()
         if self.is_true or self.is_false or self.is_negation or self.is_symbol:
             return self
 
@@ -266,18 +261,31 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
             return self
 
         subexpressions: List[LOGICCLASS] = [condition] if numb_of_arg_cond == 1 else condition_operands
+        self._replace_subexpressions_by_true(subexpressions)
+        to_remove = [cond._variable for cond in condition_operands + operands if cond._variable != cond._condition]
+        self.context.cleanup(to_remove)
+        return self
+
+    def _replace_subexpressions_by_true(self, subexpressions: List[LOGICCLASS]):
+        """Replace each clause of the Custom-Condition by True, if it is contained in the list of given subexpressions."""
         for sub_expr_1, sub_expr_2 in product(subexpressions, self.operands):
             if sub_expr_1.is_equivalent_to(sub_expr_2):
                 relations = self.context.get_relation(self._condition, sub_expr_2._condition)
                 for relation in relations:
                     self.context.remove_operand(self._condition, relation.sink)
-        to_remove = [cond._variable for cond in condition_operands + operands if cond._variable != cond._condition]
-        self.context.cleanup(to_remove)
-        return self
+
+    def _replace_condition_by_true(self) -> None:
+        """Replace the Custom Logic condition by True."""
+        if self.is_symbol:
+            self._variable: BaseVariable = self.context.new_variable(self._condition.size)
+            self.context.define(self._variable, self.context.constant(1, 1))
+        else:
+            self.context.replace(self._condition, self.context.constant(1, 1))
+        self.context.cleanup()
 
     def remove_redundancy(self, condition_handler: ConditionHandler) -> LOGICCLASS:
         """
-        More advanced simplification of conditions.
+        Simplify conditions by considering the pseudo-conditions (more advanced simplification).
 
         - The given formula is simplified using the given dictionary that maps to each symbol a pseudo-condition.
         - This helps, for example for finding switch cases, because it simplifies the condition
@@ -292,6 +300,19 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         self.context.free_world_condition(real_condition._variable)
         real_condition.simplify()
 
+        self._replace_real_conditions_by_symbols(real_condition, compared_expressions, condition_handler)
+
+        self.context.replace(self._condition, real_condition._condition)
+        self.context.cleanup()
+        return self
+
+    def _replace_real_conditions_by_symbols(
+        self,
+        real_condition: PseudoCustomLogicCondition,
+        compared_expressions: Dict[Variable, pseudo.Expression],
+        condition_handler: ConditionHandler,
+    ):
+        """Replace all clauses of the given real-condition by symbols."""
         non_logic_operands = {
             node
             for node in self.context.iter_postorder(real_condition._variable)
@@ -322,13 +343,12 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
                 condition_symbol = condition_handler.add_condition(Condition(self.OPERAND_MAPPING[operand.SYMBOL], new_operands))
                 self.context.replace(operand, condition_symbol.symbol._condition)
 
-        self.context.replace(self._condition, real_condition._condition)
-        self.context.cleanup()
-        return self
-
-    def _replace_symbols_by_real_conditions(self, condition_handler: ConditionHandler):
+    def _replace_symbols_by_real_conditions(
+        self, condition_handler: ConditionHandler
+    ) -> Tuple[PseudoCustomLogicCondition, Dict[Variable, pseudo.Expression]]:
         """
-        Return the real condition where the symbols are replaced by the conditions of the condition handler and all
+        Return the real condition where the symbols are replaced by the conditions of the condition handler
+        as well as a mapping between the replaced symbols and the corresponding pseudo-expression.
         """
         copied_condition = PseudoCustomLogicCondition(self._condition)
         self.context.free_world_condition(copied_condition._variable)
@@ -343,6 +363,13 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         return copied_condition, compared_expressions
 
     def _replace_symbol(self, symbol: CustomLogicCondition, condition_handler: ConditionHandler, condition_nodes: Set[WorldObject]):
+        """
+        Replace the given symbol by the corresponding pseudo-condition.
+
+        :symbol: The symbol we want to replace in the custom-logic-condition
+        :condition_handler: The object handling the connection between the symbols, the pseudo-logic-condition, and the "real" condition
+        :condition_nodes: The set of all nodes in the world that belong to the custom-logic condition where we replace the symbols.
+        """
         world_condition = condition_handler.get_z3_condition_of(symbol)._condition
         world_symbol = symbol._condition
         for parent in [parent for parent in self.context.parent_operation(world_symbol) if parent in condition_nodes]:
@@ -401,7 +428,8 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         else:
             assert isinstance(condition, Constant) and condition.size == 1, f"The condition {condition} does not consist of literals."
 
-    def _rich_string_representation(self, condition: WorldObject, condition_map: Dict[Variable, pseudo.Condition]):
+    def _rich_string_representation(self, condition: WorldObject, condition_map: Dict[Variable, pseudo.Condition]) -> str:
+        """Replace each symbol of the given condition by the pseudo-condition of the condition map and return this condition as string."""
         if self._is_symbol(condition):
             if condition in condition_map:
                 return str(condition_map[condition])

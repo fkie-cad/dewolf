@@ -164,10 +164,8 @@ class AbstractSyntaxTreeNode(BaseAbstractSyntaxTreeNode, ABC):
         """Makes clean ups, depending on the node. This helps to standardize the AST."""
         pass
 
-    def simplify_reaching_condition(self, condition_handler: Optional[ConditionHandler]):
+    def simplify_reaching_condition(self, condition_handler: ConditionHandler):
         """Simplify the reaching condition. If it is false we remove the subtree of this node."""
-        if condition_handler is None:
-            return
         if not self.reaching_condition.is_true:
             self.reaching_condition.remove_redundancy(condition_handler)
         if self.reaching_condition.is_false:
@@ -537,12 +535,10 @@ class ConditionNode(AbstractSyntaxTreeNode):
             return self.reaching_condition & self.condition
         return None
 
-    def simplify_reaching_condition(self, condition_handler: Optional[ConditionHandler] = None):
+    def simplify_reaching_condition(self, condition_handler: ConditionHandler):
         """
         Add the reaching condition to the condition of the condition node if the false-branch does not exist. Otherwise, only simplify it.
         """
-        if condition_handler is None:
-            return
         self.clean()
         if self.false_branch is None and not self.reaching_condition.is_true:
             self.condition &= self.reaching_condition
