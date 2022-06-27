@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from itertools import product
-from typing import Tuple, TYPE_CHECKING, Dict, Generic, Iterator, List, Sequence, Set, TypeVar
+from typing import TYPE_CHECKING, Dict, Generic, Iterator, List, Sequence, Set, Tuple, TypeVar
 
 import decompiler.structures.pseudo as pseudo
 from decompiler.structures.logic.logic_interface import ConditionInterface, PseudoLogicInterface
