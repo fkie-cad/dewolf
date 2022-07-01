@@ -1,12 +1,23 @@
 import logging
+from abc import abstractmethod
+from enum import Enum
 from typing import List, Optional, Tuple
 
-from decompiler.pipeline.controlflowanalysis.restructuring_commons.abnormal_loops import AbnormalEntryRestructurer, AbnormalExitRestructurer
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.graphslice import GraphSlice
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder.abnormal_loops import (
+    AbnormalEntryRestructurer,
+    AbnormalExitRestructurer,
+)
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.graphs.classifiedgraph import EdgeProperty
 from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock, TransitionCFG
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
+
+
+class Strategy(Enum):
+    """Restructuring Strategies for cyclic regions"""
+
+    dream = "dream"
 
 
 class CyclicRegionFinder:
@@ -15,6 +26,22 @@ class CyclicRegionFinder:
     def __init__(self, t_cfg: TransitionCFG, asforest: AbstractSyntaxForest):
         self.t_cfg: TransitionCFG = t_cfg
         self.loop_region: Optional[TransitionCFG] = None
+
+    @classmethod
+    def strategy(cls, t_cfg: TransitionCFG, asforest: AbstractSyntaxForest, strategy: Strategy):
+        if strategy == Strategy.dream:
+            return CyclicRegionFinderDream(t_cfg, asforest)
+
+    @abstractmethod
+    def find(self, head: TransitionBlock) -> Tuple[TransitionCFG, List[TransitionBlock]]:
+        """Return a restrucutrable cyclic region with the given head together with the set of region successors."""
+
+
+class CyclicRegionFinderDream(CyclicRegionFinder):
+    """Class to find a restructurable cyclic region with a given head using the Dream approach."""
+
+    def __init__(self, t_cfg: TransitionCFG, asforest: AbstractSyntaxForest):
+        super().__init__(t_cfg, asforest)
         self.abnormal_entry_restructurer = AbnormalEntryRestructurer(t_cfg, asforest)
         self.abnormal_exit_restructurer = AbnormalExitRestructurer(t_cfg, asforest)
 

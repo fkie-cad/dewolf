@@ -9,6 +9,7 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_bas
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.graphslice import GraphSlice
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.reachingconditions import compute_reaching_conditions
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder import AcyclicRegionFinder
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder.acyclic_region_finder import Strategy
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, SeqNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock, TransitionCFG
@@ -33,7 +34,7 @@ class AcyclicRegionRestructurer:
 
     def restructure(self):
         """Restructure the acyclic transition graph."""
-        acyclic_region_finder = AcyclicRegionFinder(self.t_cfg)
+        acyclic_region_finder = AcyclicRegionFinder.strategy(self.t_cfg, Strategy.improved_dream)
         while len(self.t_cfg) > 1:
             for node in self.t_cfg.iter_postorder():
                 if restructurable_region := acyclic_region_finder.find(node):
