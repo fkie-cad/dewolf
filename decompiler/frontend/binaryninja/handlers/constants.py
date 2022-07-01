@@ -52,11 +52,12 @@ class ConstantHandler(Handler):
         symbol = self._get_symbol(bv, address)
         if symbol is not None and symbol.type in (SymbolType.ImportedFunctionSymbol, SymbolType.ExternalSymbol, SymbolType.FunctionSymbol):
             return self._lift_symbol_pointer(address, symbol)
-        if (variable := bv.get_data_var_at(address)) is not None:
-            return self._lifter.lift(variable, bv=bv, parent_addr=None)
 
         if string := bv.get_string_at(address, partial=True) or bv.get_ascii_string_at(address, min_length=2):
             return Constant(address, Pointer(Integer.char()), Constant(string.value, Integer.char()))
+
+        if (variable := bv.get_data_var_at(address)) is not None:
+            return self._lifter.lift(variable, bv=bv, parent_addr=None)
 
     def _lift_symbol_pointer(self, address: int, symbol: bSymbol) -> Optional[Symbol]:
         """Try to lift a pointer at the given address with a Symbol as a symbol pointer."""
