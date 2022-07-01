@@ -1,5 +1,6 @@
-import logging
 from __future__ import annotations
+
+import logging
 from abc import abstractmethod
 from enum import Enum
 from typing import List, Optional, Tuple, Type
