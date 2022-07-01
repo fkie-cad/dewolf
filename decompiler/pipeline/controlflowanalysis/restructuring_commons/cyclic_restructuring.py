@@ -5,7 +5,8 @@ from typing import List, Optional, Union
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.acyclic_restructuring import AcyclicRegionRestructurer
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.loop_structurer import LoopStructurer
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder import CyclicRegionFinder
-from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder.cyclic_region_finder import Strategy
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder.cyclic_region_finder import CyclicRegionFinderFactory, \
+    Strategy
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.graphs.classifiedgraph import EdgeProperty
@@ -27,7 +28,7 @@ class CyclicRegionStructurer:
         self.t_cfg: TransitionCFG = t_cfg
         self.asforest: AbstractSyntaxForest = asforest
         self.current_region: Optional[TransitionCFG] = None
-        self.cyclic_region_finder = CyclicRegionFinder.strategy(t_cfg, asforest, Strategy.dream)
+        self.cyclic_region_finder = CyclicRegionFinderFactory.create(Strategy.dream)(t_cfg, asforest)
 
     def restructure(self, head: TransitionBlock) -> bool:
         """

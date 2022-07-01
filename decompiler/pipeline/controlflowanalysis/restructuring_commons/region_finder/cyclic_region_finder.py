@@ -1,7 +1,8 @@
 import logging
+from __future__ import annotations
 from abc import abstractmethod
 from enum import Enum
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Type
 
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.graphslice import GraphSlice
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder.abnormal_loops import (
@@ -20,17 +21,20 @@ class Strategy(Enum):
     dream = "dream"
 
 
+class CyclicRegionFinderFactory:
+
+    @staticmethod
+    def create(strategy: Strategy) -> Type[CyclicRegionFinder]:
+        if strategy == Strategy.dream:
+            return CyclicRegionFinderDream
+
+
 class CyclicRegionFinder:
     """Class to find a restructurable cyclic region with a given head."""
 
     def __init__(self, t_cfg: TransitionCFG, asforest: AbstractSyntaxForest):
         self.t_cfg: TransitionCFG = t_cfg
         self.loop_region: Optional[TransitionCFG] = None
-
-    @classmethod
-    def strategy(cls, t_cfg: TransitionCFG, asforest: AbstractSyntaxForest, strategy: Strategy):
-        if strategy == Strategy.dream:
-            return CyclicRegionFinderDream(t_cfg, asforest)
 
     @abstractmethod
     def find(self, head: TransitionBlock) -> Tuple[TransitionCFG, List[TransitionBlock]]:

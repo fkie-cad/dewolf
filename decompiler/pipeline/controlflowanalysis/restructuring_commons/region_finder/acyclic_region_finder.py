@@ -1,8 +1,9 @@
 """Module to find restructurable regions."""
+from __future__ import annotations
 from abc import abstractmethod
 from collections import defaultdict
 from enum import Enum
-from typing import DefaultDict, Dict, Optional, Set
+from typing import DefaultDict, Dict, Optional, Set, Type
 
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.graphslice import GraphSlice
 from decompiler.structures.graphs.interface import GraphInterface
@@ -16,6 +17,15 @@ class Strategy(Enum):
     improved_dream = "improved_dream"
 
 
+class AcyclicRegionFinderFactory:
+    @staticmethod
+    def create(strategy: Strategy) -> Type[AcyclicRegionFinder]:
+        if strategy == Strategy.dream:
+            return AcyclicRegionFinderDream
+        if strategy == Strategy.improved_dream:
+            return AcyclicRegionFinderImprovedDream
+
+
 class AcyclicRegionFinder:
     """Class to find restructurable acyclic regions with a given head."""
 
@@ -23,13 +33,6 @@ class AcyclicRegionFinder:
 
     def __init__(self, t_cfg: TransitionCFG):
         self.t_cfg = t_cfg
-
-    @classmethod
-    def strategy(cls, t_cfg: TransitionCFG, strategy: Strategy):
-        if strategy == Strategy.dream:
-            return AcyclicRegionFinderDream(t_cfg)
-        if strategy == Strategy.improved_dream:
-            return AcyclicRegionFinderImprovedDream(t_cfg)
 
     @abstractmethod
     def find(self, head: TransitionBlock) -> Optional[Set[TransitionBlock]]:
@@ -95,6 +98,35 @@ class AcyclicRegionFinderDream(AcyclicRegionFinder):
         """Find a region by simply using the dominance region, as the dream approach suggests."""
         return set(self.t_cfg.dominator_tree.iter_postorder(head))
 
+
+class AcyclicRegionFinderImprovedDream(AcyclicRegionFinderDream):
+    """
+    Class to find restructurable acyclic region with a given head using a slightly improved Dream approach where we check for exit nodes
+    in the dominance region.
+    """
+
+    def _find_minimal_subset_for_restructuring(self, head: TransitionBlock) -> Set[TransitionBlock]:
+        """
+        Try to find a smaller subset of the dominance region that we can restructure
+            - We search for possible exit nodes
+            - A possible exit node of a region is a node that would separate the region into two sets.
+
+        :param head: The head of the dominator tree
+        :return: A smaller region that we can restructure if possible and the dominance region otherwise
+        """
+        dominance_region: Set[TransitionBlock] = set(self.t_cfg.dominator_tree.iter_postorder(head))
+        if len(dominance_region) <= self.MIN_REGION_SIZE:
+            return dominance_region
+        region_subgraph: GraphInterface = self.t_cfg.subgraph(tuple(dominance_region))
+        possible_exit_nodes = self._get_possible_exit_nodes(region_subgraph)
+
+        for dominator, dominated_nodes in possible_exit_nodes.items():
+            if len(smaller_region := dominance_region - dominated_nodes) >= self.MIN_REGION_SIZE and self._has_at_most_one_exit_node(
+                smaller_region
+            ):
+                return smaller_region
+        return dominance_region
+
     def _get_possible_exit_nodes(self, region_subgraph: GraphInterface) -> Dict[TransitionBlock, Set[TransitionBlock]]:
         """
         Computes the set of possible exits nodes for the given region, to find a smaller region for the restructuring.
@@ -135,31 +167,3 @@ class AcyclicRegionFinderDream(AcyclicRegionFinder):
     def _has_more_than_one_successor(self, node: TransitionBlock) -> bool:
         """Checks whether the given node has only one successor in the graph."""
         return len(self.t_cfg.get_successors(node)) > 1
-
-
-class AcyclicRegionFinderImprovedDream(AcyclicRegionFinderDream):
-    """
-    Class to find restructurable acyclic region with a given head using a slightly improved Dream approach where we check for exit nodes
-    in the dominance region.
-    """
-    def _find_minimal_subset_for_restructuring(self, head: TransitionBlock) -> Set[TransitionBlock]:
-        """
-        Try to find a smaller subset of the dominance region that we can restructure
-            - We search for possible exit nodes
-            - A possible exit node of a region is a node that would separate the region into two sets.
-
-        :param head: The head of the dominator tree
-        :return: A smaller region that we can restructure if possible and the dominance region otherwise
-        """
-        dominance_region: Set[TransitionBlock] = set(self.t_cfg.dominator_tree.iter_postorder(head))
-        if len(dominance_region) <= self.MIN_REGION_SIZE:
-            return dominance_region
-        region_subgraph: GraphInterface = self.t_cfg.subgraph(tuple(dominance_region))
-        possible_exit_nodes = self._get_possible_exit_nodes(region_subgraph)
-
-        for dominator, dominated_nodes in possible_exit_nodes.items():
-            if len(smaller_region := dominance_region - dominated_nodes) >= self.MIN_REGION_SIZE and self._has_at_most_one_exit_node(
-                smaller_region
-            ):
-                return smaller_region
-        return dominance_region
