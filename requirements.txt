@@ -1,7 +1,7 @@
 git+https://github.com/fkie-cad/dewolf-logic.git
 black
 isort
-networkx
+networkx != 2.8.4
 pydot
 pygments
 pytest !=5.3.4
