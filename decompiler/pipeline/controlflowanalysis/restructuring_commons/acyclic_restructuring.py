@@ -9,8 +9,10 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_bas
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.graphslice import GraphSlice
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.reachingconditions import compute_reaching_conditions
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder import AcyclicRegionFinder
-from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder.acyclic_region_finder import AcyclicRegionFinderFactory, \
-    Strategy
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder.acyclic_region_finder import (
+    AcyclicRegionFinderFactory,
+    Strategy,
+)
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, SeqNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock, TransitionCFG

@@ -5,8 +5,10 @@ from typing import List, Optional, Union
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.acyclic_restructuring import AcyclicRegionRestructurer
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.loop_structurer import LoopStructurer
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder import CyclicRegionFinder
-from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder.cyclic_region_finder import CyclicRegionFinderFactory, \
-    Strategy
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder.cyclic_region_finder import (
+    CyclicRegionFinderFactory,
+    Strategy,
+)
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.graphs.classifiedgraph import EdgeProperty

@@ -23,7 +23,6 @@ class Strategy(Enum):
 
 
 class CyclicRegionFinderFactory:
-
     @staticmethod
     def create(strategy: Strategy) -> Type[CyclicRegionFinder]:
         if strategy == Strategy.dream:

@@ -1,2 +1,2 @@
-from .cyclic_region_finder import CyclicRegionFinder
 from .acyclic_region_finder import AcyclicRegionFinder
+from .cyclic_region_finder import CyclicRegionFinder
