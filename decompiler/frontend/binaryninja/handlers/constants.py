@@ -53,7 +53,7 @@ class ConstantHandler(Handler):
         if symbol is not None and symbol.type in (SymbolType.ImportedFunctionSymbol, SymbolType.ExternalSymbol, SymbolType.FunctionSymbol):
             return self._lift_symbol_pointer(address, symbol)
 
-        if not isinstance(pointer, mediumlevelil.MediumLevelILImport) and (symbol is not None and symbol.type != SymbolType.DataSymbol) and (string := bv.get_string_at(address, partial=True) or bv.get_ascii_string_at(address, min_length=2)):
+        if not isinstance(pointer, mediumlevelil.MediumLevelILImport) and (symbol is None or symbol.type != SymbolType.DataSymbol) and (string := bv.get_string_at(address, partial=True) or bv.get_ascii_string_at(address, min_length=2)):
             return Constant(address, Pointer(Integer.char()), Constant(string.value, Integer.char()))
 
         if (variable := bv.get_data_var_at(address)) is not None:
