@@ -9,6 +9,7 @@ from typing import List, Optional
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.acyclic_restructuring import AcyclicRegionRestructurer
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.cyclic_restructuring import CyclicRegionStructurer
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.empty_basic_block_remover import EmptyBasicBlockRemover
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.sied_effect_handler import SideEffectHandler
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
@@ -48,6 +49,7 @@ class PatternIndependentRestructuring(PipelineStage):
         self.asforest.set_current_root(self.t_cfg.root.ast)
         assert (roots := len(self.asforest.get_roots)) == 1, f"After the restructuring the forest should have one root, but it has {roots}!"
         task._ast = AbstractSyntaxTree.from_asforest(self.asforest, self.asforest.current_root)
+        SideEffectHandler.resolve(task.syntax_tree)
         task._cfg = None
 
     def restructure_cfg(self) -> None:
