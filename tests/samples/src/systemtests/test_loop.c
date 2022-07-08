@@ -299,7 +299,7 @@ int test11(int a, int b)
 }
 
 
-void test_do_while(){
+int test_do_while(){
     char c;
     int choice,dummy;
     do{
@@ -314,7 +314,7 @@ void test_do_while(){
         printf("Javatpoint");
         break;
         case 3:
-        exit(0);
+        return 0;
         break;
         default:
         printf("please enter valid choice");
@@ -323,6 +323,7 @@ void test_do_while(){
     scanf("%d",&dummy);
     scanf("%c",&c);
     }while(c=='y');
+    return 0;
 }
 
 int main()

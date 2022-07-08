@@ -9,7 +9,7 @@ from typing import List, Optional
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.acyclic_restructuring import AcyclicRegionRestructurer
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.cyclic_restructuring import CyclicRegionStructurer
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.empty_basic_block_remover import EmptyBasicBlockRemover
-from decompiler.pipeline.controlflowanalysis.restructuring_commons.sied_effect_handler import SideEffectHandler
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.side_effect_handling.side_effect_handler import SideEffectHandler
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree

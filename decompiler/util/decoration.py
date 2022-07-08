@@ -152,7 +152,7 @@ class DecoratedCFG(DecoratedGraph):
         if node.instructions is None:
             instructions_left_aligned = " "
         else:
-            instructions_left_aligned = "\n".join(map(str, node.instructions))
+            instructions_left_aligned = str(node)
         return f"{node.name}.\n{instructions_left_aligned}"
 
     def export_flowgraph(self) -> FlowGraph:
