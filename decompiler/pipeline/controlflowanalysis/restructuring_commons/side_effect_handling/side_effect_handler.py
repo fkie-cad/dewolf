@@ -1,28 +1,29 @@
 from __future__ import annotations
-from typing import Dict, List, Optional
+
+from typing import Optional
 
 from decompiler.pipeline.commons.reaching_definitions import ReachingDefinitions
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.side_effect_handling.data_graph import DataGraph
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
-from decompiler.structures.pseudo import Instruction, Variable
+from decompiler.structures.graphs.cfg import ControlFlowGraph
+from decompiler.task import DecompilerTask
 
 
 class SideEffectHandler:
-    def __init__(self, ast: AbstractSyntaxTree, cfg: Optional[DataGraph] = None):
+    def __init__(self, ast: AbstractSyntaxTree, cfg: ControlFlowGraph, data_graph: DataGraph):
         self._ast: AbstractSyntaxTree = ast
-        self._data_graph: DataGraph = cfg
+        self._cfg: ControlFlowGraph = cfg
+        self._data_graph: DataGraph = data_graph
 
     @classmethod
-    def resolve(cls, ast: AbstractSyntaxTree) -> None:
+    def resolve(cls, task: DecompilerTask) -> None:
         # return
-        cfg = DataGraph.generate_from_ast(ast)
-        side_effect_handler = cls(ast, cfg)
-        from decompiler.util.decoration import DecoratedAST
+        data_graph = DataGraph.generate_from_ast(task.syntax_tree)
+        side_effect_handler = cls(task.syntax_tree, task.graph, data_graph)
+        # DecoratedAST.from_ast(task.syntax_tree).export_plot("/home/eva/Projects/dewolf-decompiler/AST/ast.png")
+        from decompiler.util.decoration import DecoratedAST, DecoratedCFG
 
-        DecoratedAST.from_ast(ast).export_plot("/home/eva/Projects/dewolf-decompiler/AST/ast.png")
-        from decompiler.util.decoration import DecoratedCFG
-
-        DecoratedCFG.from_cfg(cfg).export_plot("/home/eva/Projects/dewolf-decompiler/AST/cfg.png")
+        # DecoratedCFG.from_cfg(data_graph).export_plot("/home/eva/Projects/dewolf-decompiler/AST/cfg.png")
         side_effect_handler.apply()
 
     def apply(self):
@@ -44,5 +45,3 @@ class SideEffectHandler:
         #                 definition = [def_var for def_var in def_instruction.definitions if def_var == used_variable][0]
         #                 if used_variable.ssa_name != definition.ssa_name:
         #                     raise "We have to handle side effects!"
-
-

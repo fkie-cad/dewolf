@@ -2,27 +2,18 @@ from __future__ import annotations
 
 from typing import Dict, Iterable, Optional, Type, Union
 
-from networkx import MultiDiGraph
-
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.side_effect_handling.data_graph_visitor import (
     ASTDataGraphVisitor,
     SubtreeProperty,
 )
-from decompiler.structures.ast.ast_nodes import (
-    AbstractSyntaxTreeNode,
-    CaseNode,
-    CodeNode,
-    ConditionNode,
-    LoopNode,
-    SwitchNode,
-    TrueNode,
-)
+from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, CodeNode, ConditionNode, LoopNode, SwitchNode, TrueNode
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.graphs.branches import BasicBlockEdge, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import Assignment, Branch, Call, Condition, Constant, ListOperation, Variable
+from networkx import MultiDiGraph
 
 
 class DataNode(BasicBlock):
