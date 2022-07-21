@@ -171,9 +171,13 @@ def _single_defininition_reaches_node(ast: AbstractSyntaxTree, variable_init: As
     return True
 
 
-def _separated_by_loop_node(init_node: AbstractSyntaxTreeNode, usage_node: AbstractSyntaxTreeNode) -> bool:
+def _initialization_reaches_loop_node(init_node: AbstractSyntaxTreeNode, usage_node: AbstractSyntaxTreeNode) -> bool:
     """
-    Check if init node and usage node are separated by a LoopNode.
+    Check if init node always reaches the usage node
+
+    This is not the case if:
+        - nodes are separated by a LoopNode
+        - init-nodes parent is not a sequence node or not on a path from root to usage-node (only initialized under certain conditions)
 
     :param init_node: node where initialization takes place
     :param usage_node: node that is potentially inside a LoopNode
@@ -181,12 +185,15 @@ def _separated_by_loop_node(init_node: AbstractSyntaxTreeNode, usage_node: Abstr
     """
     init_parent = init_node.parent
     iter_parent = usage_node.parent
-
+    if not isinstance(init_parent, SeqNode):
+        return False
     while iter_parent is not init_parent:
         if isinstance(iter_parent, LoopNode):
-            return True
+            return False
         iter_parent = iter_parent.parent
-    return False
+        if iter_parent is None:
+            return False
+    return True
 
 
 def _requirement_without_reinitialization(ast: AbstractSyntaxTree, node: AbstractSyntaxTreeNode, variable: Variable) -> bool:
@@ -261,7 +268,7 @@ class WhileLoopReplacer:
 
         declaration = None
 
-        if _single_defininition_reaches_node(self._ast, init, loop_node) and not _separated_by_loop_node(init.node, loop_node):
+        if _single_defininition_reaches_node(self._ast, init, loop_node) and _initialization_reaches_loop_node(init.node, loop_node):
             declaration = Assignment(continuation.instruction.destination, init.instruction.value)
             init.node.instructions.remove(init.instruction)
         elif not self._hide_non_init_decl:
