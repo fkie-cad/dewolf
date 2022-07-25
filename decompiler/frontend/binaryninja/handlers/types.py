@@ -1,4 +1,15 @@
-from binaryninja.types import ArrayType, BoolType, CharType, FloatType, IntegerType, NamedTypeReferenceType, PointerType, StructureType, Type,  VoidType
+from binaryninja.types import (
+    ArrayType,
+    BoolType,
+    CharType,
+    FloatType,
+    IntegerType,
+    NamedTypeReferenceType,
+    PointerType,
+    StructureType,
+    Type,
+    VoidType,
+)
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import CustomType, Float, Integer, Pointer, UnknownType
 
