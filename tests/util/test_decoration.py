@@ -357,28 +357,28 @@ class TestDecoratedAST:
                 "style": "filled",
                 "fillcolor": "#e6f5c9",
                 "highlight": HighlightStandardColor.GreenHighlightColor,
-                "label": "0. SeqNode\n\nSequence",
+                "label": "0. SeqNode\\n\\nSequence",
             },
             {
                 "style": "filled",
                 "fillcolor": "#e6f5c9",
                 "highlight": HighlightStandardColor.RedHighlightColor,
-                "label": "1. ConditionNode\n\nif (true)",
+                "label": "1. ConditionNode\\n\\nif (true)",
             },
             {
                 "style": "filled",
                 "fillcolor": "#e6f5c9",
                 "highlight": HighlightStandardColor.GreenHighlightColor,
-                "label": "2. SeqNode\n\nSequence",
+                "label": "2. SeqNode\\n\\nSequence",
             },
-            {"style": "filled", "fillcolor": "#fff2ae", "label": "3. CodeNode\n\nc = 0x5\nreturn c"},
+            {"style": "filled", "fillcolor": "#fff2ae", "label": "3. CodeNode\\n\\nc = 0x5\\nreturn c"},
             {
                 "style": "filled",
                 "fillcolor": "#e6f5c9",
                 "highlight": HighlightStandardColor.GreenHighlightColor,
-                "label": "4. SeqNode\n\nSequence",
+                "label": "4. SeqNode\\n\\nSequence",
             },
-            {"style": "filled", "fillcolor": "#fff2ae", "label": "5. CodeNode\n\nreturn 0x0"},
+            {"style": "filled", "fillcolor": "#fff2ae", "label": "5. CodeNode\\n\\nreturn 0x0"},
         ]
 
     # FlowGraph representation tests
@@ -387,59 +387,33 @@ class TestDecoratedAST:
     def test_flow_graph_for_loop(self, ast_for_loop):
         graph = DecoratedAST().from_ast(ast_for_loop)._generate_flowgraph()
         expected = [
-            ["0. SeqNode"],
-            [""],
-            ["Sequence"],
-            ["1. ForLoopNode"],
-            [""],
-            ["for (i = 0x0; x < 0x5; i = 0xa)"],
-            ["2. CodeNode"],
-            [""],
-            ["c = 0x5"],
+            ["0. SeqNode", "", "Sequence"],
+            ["1. ForLoopNode", "", "for (i = 0x0; x < 0x5; i = 0xa)"],
+            ["2. CodeNode", "", "c = 0x5"],
         ]
-        assert str([line.tokens for node in graph.nodes for line in node.lines]) == str(expected)
+        assert str([line.tokens[0].text.split("\\n") for node in graph.nodes for line in node.lines]) == str(expected)
 
     @pytest.mark.usefixtures("ast_while_loop")
     def test_flow_graph_while_loop(self, ast_while_loop):
         graph = DecoratedAST().from_ast(ast_while_loop)._generate_flowgraph()
-        expected = [["0. SeqNode"], [""], ["Sequence"], ["1. WhileLoopNode"], [""], ["while (x < 0x5)"], ["2. CodeNode"], [""], ["c = 0x5"]]
-        assert str([line.tokens for node in graph.nodes for line in node.lines]) == str(expected)
+        expected = [["0. SeqNode", "", "Sequence"], ["1. WhileLoopNode", "", "while (x < 0x5)"], ["2. CodeNode", "", "c = 0x5"]]
+        assert str([line.tokens[0].text.split("\\n") for node in graph.nodes for line in node.lines]) == str(expected)
 
     @pytest.mark.usefixtures("ast_switch")
     def test_flow_graph_switch(self, ast_switch):
         graph = DecoratedAST.from_ast(ast_switch)._generate_flowgraph()
-        assert str([line.tokens for node in graph.nodes for line in node.lines]) == str(
+        assert str([line.tokens[0].text.split("\\n") for node in graph.nodes for line in node.lines]) == str(
             [
-                ["0. SeqNode"],
-                [""],
-                ["Sequence"],
-                ["1. SwitchNode"],
-                [""],
-                ["switch (0x29)"],
-                ["2. CaseNode"],
-                [""],
-                ["case 0x0:"],
-                ["3. CodeNode"],
-                [""],
-                ["return 0x0"],
-                ["4. CaseNode"],
-                [""],
-                ["case 0x1:"],
-                ["5. CodeNode"],
-                [""],
-                ["return 0x1"],
-                ["6. CaseNode"],
-                [""],
-                ["case 0x29:"],
-                ["7. CodeNode"],
-                [""],
-                ["return 0x29"],
-                ["8. CaseNode"],
-                [""],
-                ["default:"],
-                ["9. CodeNode"],
-                [""],
-                ["return -0x1"],
+                ["0. SeqNode", "", "Sequence"],
+                ["1. SwitchNode", "", "switch (0x29)"],
+                ['"2. CaseNode', "", 'case 0x0:"'],
+                ["3. CodeNode", "", "return 0x0"],
+                ['"4. CaseNode', "", 'case 0x1:"'],
+                ["5. CodeNode", "", "return 0x1"],
+                ['"6. CaseNode', "", 'case 0x29:"'],
+                ["7. CodeNode", "", "return 0x29"],
+                ['"8. CaseNode', "", 'default:"'],
+                ["9. CodeNode", "", "return -0x1"],
             ]
         )
 
