@@ -766,7 +766,7 @@ def ast_initialization_in_condition() -> AbstractSyntaxTree:
     if(b < 10 ){
         a = 5;
     while (x < 10) {
-        printf("counter: %d", x);
+        printf("counter: %d", a);
         a = a + 1;
     }
     """
@@ -804,7 +804,7 @@ def ast_initialization_in_condition_sequence() -> AbstractSyntaxTree:
         }
         a = 5;
     while (x < 10) {
-        printf("counter: %d", x);
+        printf("counter: %d", a);
         a = a + 1;
     }
     """
