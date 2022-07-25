@@ -240,7 +240,8 @@ class DecoratedAST(DecoratedGraph):
                 label += self._format_node_content(f"{node}")
         else:
             label += self._format_node_content(f"{node}")
-
+        if ":" in label:
+            label = f'"{label}"'
         self._graph.add_node(node_id, **attributes, label=label)
         self._node_to_id[node] = node_id
 
@@ -290,9 +291,9 @@ class DecoratedAST(DecoratedGraph):
     @staticmethod
     def _format_node_content(label: str, max_width: int = 60):
         """Keep content of decorated nodes <= max_width for readability purposes."""
-        splitted_lines = "\n"
+        splitted_lines = r"\n"
         for label in label.splitlines():
-            splitted_lines += "\n" + textwrap.fill(label, max_width)
+            splitted_lines += r"\n" + textwrap.fill(label, max_width)
         return splitted_lines
 
 
