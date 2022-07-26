@@ -5,7 +5,7 @@ from decompiler.pipeline.controlflowanalysis.readability_based_refinement import
     WhileLoopVariableRenamer,
     _find_continuation_instruction,
     _has_deep_requirement,
-    _separated_by_loop_node,
+    _initialization_reaches_loop_node,
 )
 from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, ForLoopNode, SeqNode, SwitchNode, WhileLoopNode
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
@@ -760,6 +760,92 @@ def ast_continuation_is_not_first_var() -> AbstractSyntaxTree:
     return ast
 
 
+@pytest.fixture
+def ast_initialization_in_condition() -> AbstractSyntaxTree:
+    """
+    if(b < 10 ){
+        a = 5;
+    while (x < 10) {
+        printf("counter: %d", a);
+        a = a + 1;
+    }
+    """
+    true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(
+        root := SeqNode(true_value),
+        condition_map={
+            logic_cond("x0", context): Condition(OperationType.less, [Variable("b"), Constant(10)]),
+            logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(10)]),
+        },
+    )
+
+    true_branch = ast._add_code_node([Assignment(Variable("a"), Constant(5))])
+    if_condition = ast._add_condition_node_with(logic_cond("x0", context), true_branch)
+    while_loop = ast.factory.create_while_loop_node(logic_cond("x1", context))
+    while_loop_body = ast._add_code_node(
+        [
+            Assignment(ListOperation([]), Call(ImportedFunctionSymbol("printf", 0), [Constant("counter: %d\n"), Variable("a")])),
+            Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)])),
+        ]
+    )
+
+    ast._add_node(while_loop)
+    ast._add_edges_from([(root, if_condition), (root, while_loop), (while_loop, while_loop_body)])
+    root._sorted_children = (if_condition, while_loop)
+    return ast
+
+
+@pytest.fixture
+def ast_initialization_in_condition_sequence() -> AbstractSyntaxTree:
+    """
+    if(b < 10 ){
+        if(c < 10){
+            b = 5;
+        }
+        a = 5;
+    while (x < 10) {
+        printf("counter: %d", a);
+        a = a + 1;
+    }
+    """
+    true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(
+        root := SeqNode(true_value),
+        condition_map={
+            logic_cond("x0", context): Condition(OperationType.less, [Variable("b"), Constant(10)]),
+            logic_cond("x1", context): Condition(OperationType.less, [Variable("c"), Constant(10)]),
+            logic_cond("x2", context): Condition(OperationType.less, [Variable("a"), Constant(10)]),
+        },
+    )
+
+    true_branch_c = ast._add_code_node([Assignment(Variable("b"), Constant(5))])
+    code_node = ast._add_code_node([Assignment(Variable("a"), Constant(5))])
+    if_condition_c = ast._add_condition_node_with(logic_cond("x1", context), true_branch_c)
+    ast._add_node(true_branch_b := ast.factory.create_seq_node())
+    if_condition_b = ast._add_condition_node_with(logic_cond("x1", context), true_branch_b)
+    while_loop = ast.factory.create_while_loop_node(logic_cond("x2", context))
+    while_loop_body = ast._add_code_node(
+        [
+            Assignment(ListOperation([]), Call(ImportedFunctionSymbol("printf", 0), [Constant("counter: %d\n"), Variable("a")])),
+            Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)])),
+        ]
+    )
+
+    ast._add_node(while_loop)
+    ast._add_edges_from(
+        [
+            (root, if_condition_b),
+            (root, while_loop),
+            (while_loop, while_loop_body),
+            (true_branch_b, if_condition_c),
+            (true_branch_b, code_node),
+        ]
+    )
+    true_branch_b._sorted_children = (if_condition_c, code_node)
+    root._sorted_children = (if_condition_b, while_loop)
+    return ast
+
+
 class TestReadabilityBasedRefinement:
     """Test Readability functionality with all its substages."""
 
@@ -1082,6 +1168,36 @@ class TestReadabilityBasedRefinement:
         assert loop_body.instructions == [
             Assignment(ListOperation([]), Call(ImportedFunctionSymbol("printf", 0), [Constant("counter: %d\n"), Variable("a")])),
         ]
+
+    def test_init_may_not_reach_loop_1(self, ast_initialization_in_condition):
+        assert (
+            _initialization_reaches_loop_node(
+                ast_initialization_in_condition.root.children[0].true_branch_child, ast_initialization_in_condition.root.children[1]
+            )
+            is False
+        )
+
+        self.run_rbr(ast_initialization_in_condition, _generate_options())
+        assert any(
+            isinstance(for_loop := loop, ForLoopNode) for loop in ast_initialization_in_condition.get_for_loop_nodes_topological_order()
+        )
+        assert for_loop.declaration == Variable("a")
+
+    def test_init_may_not_reach_loop_2(self, ast_initialization_in_condition_sequence):
+        assert (
+            _initialization_reaches_loop_node(
+                ast_initialization_in_condition_sequence.root.children[0].true_branch_child.children[1],
+                ast_initialization_in_condition_sequence.root.children[1],
+            )
+            is False
+        )
+
+        self.run_rbr(ast_initialization_in_condition_sequence, _generate_options())
+        assert any(
+            isinstance(for_loop := loop, ForLoopNode)
+            for loop in ast_initialization_in_condition_sequence.get_for_loop_nodes_topological_order()
+        )
+        assert for_loop.declaration == Variable("a")
 
     @pytest.mark.parametrize("keep_empty_for_loops", [True, False])
     def test_keep_empty_for_loop(self, keep_empty_for_loops: bool, ast_single_instruction_while):
@@ -1499,7 +1615,7 @@ class TestReadabilityUtils:
 
         ast._add_edges_from([(root, init_code_node), (root, endless_loop), (endless_loop, inner_while), (inner_while, inner_while_body)])
 
-        assert _separated_by_loop_node(init_code_node, inner_while) is True
+        assert _initialization_reaches_loop_node(init_code_node, inner_while) is False
 
     def test_separated_by_loop_node_2(self):
         """
@@ -1529,7 +1645,7 @@ class TestReadabilityUtils:
         ast._add_edges_from([(root, init_code_node), (root, while_loop), (while_loop, while_loop_body)])
         root._sorted_children = (init_code_node, while_loop)
 
-        assert _separated_by_loop_node(init_code_node, while_loop) is False
+        assert _initialization_reaches_loop_node(init_code_node, while_loop) is True
 
     def test_separated_by_loop_node_3(self):
         """
@@ -1574,7 +1690,7 @@ class TestReadabilityUtils:
 
         ast._add_edges_from([(root, init_code_node), (root, endless_loop), (endless_loop, condition_node), (inner_while, inner_while_body)])
 
-        assert _separated_by_loop_node(init_code_node, inner_while) is True
+        assert _initialization_reaches_loop_node(init_code_node, inner_while) is False
 
     def test_separated_by_loop_node_4(self, ast_while_in_else):
         init_code_node = ast_while_in_else.root
@@ -1585,7 +1701,7 @@ class TestReadabilityUtils:
         assert isinstance(condition_node, ConditionNode)
         inner_while = condition_node.false_branch_child
 
-        assert _separated_by_loop_node(init_code_node, inner_while) is True
+        assert _initialization_reaches_loop_node(init_code_node, inner_while) is False
 
     def test_for_loop_variable_generation(self):
         renamer = ForLoopVariableRenamer(
