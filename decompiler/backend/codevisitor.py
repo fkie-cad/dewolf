@@ -141,7 +141,7 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
         if array_elem_access.array_info.confidence or self._aggressive_array_detection:
             return result
         array_elem_access.array_info = None
-        return f"{super(CodeVisitor, self).visit_unary_operation(array_elem_access)}/*{result}*/"
+        return f"{super(CodeVisitor, self).visit_unary_operation(array_elem_access)}/* {result} */"
 
     @staticmethod
     def _parse_array_element_access_attributes(
@@ -155,7 +155,10 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
         ssa_name_to_name_mapping = {i.ssa_name.name: i.name for i in array_elem_access.requirements if
                                     isinstance(i, expressions.Variable)}
         if isinstance(array_elem_access.array_info.base, UnaryOperation):
-            base = ssa_name_to_name_mapping[array_elem_access.array_info.base.operand.name]
+            try:
+                base = ssa_name_to_name_mapping[array_elem_access.array_info.base.operand.name]
+            except KeyError:
+                base = array_elem_access.array_info.base.operand.name
         else:
             base = ssa_name_to_name_mapping[array_elem_access.array_info.base.name]
         index = (
