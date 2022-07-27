@@ -141,7 +141,7 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
         if array_elem_access.array_info.confidence or self._aggressive_array_detection:
             return result
         array_elem_access.array_info = None
-        return f"{super(CodeVisitor, self).visit_unary_operation(array_elem_access)}/* {result} */"
+        return f"{super(CodeVisitor, self).visit_unary_operation(array_elem_access)}/*{result}*/"
 
     @staticmethod
     def _parse_array_element_access_attributes(
