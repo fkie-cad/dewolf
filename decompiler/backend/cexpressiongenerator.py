@@ -185,6 +185,7 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
             if op.type == op.operand.type:
                 return operand
             elif isinstance(op.type, Integer) and isinstance(op.operand.type, Integer):
+            #if isinstance(op.type, Integer) and isinstance(op.operand.type, Integer):
                 if isinstance(op.operand, expressions.Constant):
                     value = self._get_integer_literal_value(op.operand)
                     eliminated_val = expressions.Constant(value, op.type)
@@ -193,9 +194,9 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
                             return self.visit(eliminated_val)
                     except ValueError:
                         pass
-                else:
-                    if op.type.is_signed == op.operand.type.is_signed and op.type.size >= op.operand.type.size:
-                        return operand
+                # else:
+                #     if op.type.is_signed == op.operand.type.is_signed and op.type.size >= op.operand.type.size:
+                #         return operand
             return f"({op.type}){operand}"
         return f"{self.C_SYNTAX[op.operation]}{operand}"
 
