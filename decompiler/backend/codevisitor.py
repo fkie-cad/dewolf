@@ -205,7 +205,11 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
             return f"{condition}"
         condition = condition.simplify_to_shortest(self.complexity_bound)
 
-        if condition.is_symbol:
+        if condition.is_true:
+            return "true"
+        elif condition.is_false:
+            return "false"
+        elif condition.is_symbol:
             return f"{self.visit(self._condition_map[condition])}"
         elif condition.is_negation:
             original_condition = self._condition_map[~condition]
