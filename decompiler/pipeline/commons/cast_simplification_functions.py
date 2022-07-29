@@ -94,7 +94,7 @@ def _remove_cast_to_largest_register(instruction: Instruction):
     """
     operations_to_not_remove_casts = {OperationType.right_shift, OperationType.left_shift, OperationType.right_shift_us, OperationType.bitwise_and, OperationType.bitwise_or, OperationType.bitwise_xor}
     for old, expr in _find_cast_subexpressions_parents(instruction):
-        if _is_cast(expr) and not (isinstance(old, BinaryOperation) and old.operation in operations_to_not_remove_casts) and not (isinstance(old, Constant) or isinstance(old, Variable)):
+        if _is_cast(expr) and not (isinstance(old, BinaryOperation) and old.operation in operations_to_not_remove_casts) and not (isinstance(old, Constant)):
             if expr.type.size == MAX_REGISTER_SIZE:
                 instruction.substitute(expr, expr.operand)
 
