@@ -1,4 +1,4 @@
-git+https://github.com/fkie-cad/dewolf-logic.git
+git+https://github.com/fkie-cad/dewolf-logic.git#egg=delogic
 black
 isort
 networkx != 2.8.4
