@@ -77,6 +77,7 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         # Handled in code
         # OperationType.list_op: "list",
         # OperationType.adc: "adc",
+        OperationType.sizeof: "sizeof",
     }
 
     SIGNED_FORMATS = {
@@ -150,6 +151,7 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         OperationType.list_op: 10,
         # TODO: Figure out what these are / how to handle this
         # OperationType.adc: "adc",
+        OperationType.sizeof: 150,
     }
 
     def visit_unknown_expression(self, expr: expressions.UnknownExpression) -> str:
@@ -179,6 +181,8 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
     def visit_unary_operation(self, op: operations.UnaryOperation) -> str:
         """Return a string representation of the given unary operation (e.g. !a or &a)."""
         operand = self._visit_bracketed(op.operand) if self._has_lower_precedence(op.operand, op) else self.visit(op.operand)
+        if op.operation == OperationType.sizeof:
+            return f"sizeof({operand})"
         if op.operation == OperationType.cast and op.contraction:
             return f"({int(op.type.size / 8)}: ){operand}"
         if op.operation == OperationType.cast:
