@@ -1,6 +1,18 @@
-from typing import Iterator
+from typing import Iterator, Tuple
 
-from decompiler.structures.pseudo import Assignment, DataflowObject, Expression, Instruction, Integer, OperationType, Type, UnaryOperation
+from decompiler.structures.pseudo import (
+    Assignment,
+    BinaryOperation,
+    Constant,
+    DataflowObject,
+    Expression,
+    Instruction,
+    Integer,
+    OperationType,
+    Type,
+    UnaryOperation,
+    Variable,
+)
 
 MAX_REGISTER_SIZE = 64
 
@@ -80,9 +92,11 @@ def _remove_cast_to_largest_register(instruction: Instruction):
 
     Mandatory the last step, after no expression propagation is performed
     """
-    for expr in _find_cast_subexpressions(instruction):
-        if expr.type.size == MAX_REGISTER_SIZE:
-            instruction.substitute(expr, expr.operand)
+    operations_to_not_remove_casts = {OperationType.right_shift, OperationType.left_shift, OperationType.right_shift_us, OperationType.bitwise_and, OperationType.bitwise_or, OperationType.bitwise_xor}
+    for old, expr in _find_cast_subexpressions_parents(instruction):
+        if _is_cast(expr) and not (isinstance(old, BinaryOperation) and old.operation in operations_to_not_remove_casts) and not (isinstance(old, Constant) or isinstance(old, Variable)):
+            if expr.type.size == MAX_REGISTER_SIZE:
+                instruction.substitute(expr, expr.operand)
 
 
 def _remove_casts_of_subexpressions_to_the_same_type(instruction: Instruction):
@@ -105,8 +119,21 @@ def _find_cast_subexpressions(expression: DataflowObject) -> Iterator[UnaryOpera
     todo = [expression]
     while todo and (subexpression := todo.pop()):
         todo.extend(subexpression)
-        if not (isinstance(expression, Assignment) and expression.destination == subexpression) and _is_cast(subexpression):
+        if not (isinstance(expression, Assignment) and expression.destination == subexpression) and _is_cast(
+                subexpression):
             yield subexpression
+
+
+def _find_cast_subexpressions_parents(expression: DataflowObject) -> Iterator[Tuple[UnaryOperation]]:
+    """Yield all subexpressions of the given expression or instruction."""
+    todo = [expression]
+
+    while todo and (subexpression := todo.pop()):
+        old = expression.copy()
+        todo.extend(subexpression)
+        expression = subexpression
+
+        yield old, subexpression
 
 
 def _is_cast(expression: Expression) -> bool:
