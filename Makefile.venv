@@ -1,22 +1,25 @@
 PYTHON_VERSION := 3.8
 BINARY_NINJA_PATH := /opt/binaryninja
 PREFIX := .
+DEWOLF_IDIOMS_PATH := $(shell find $(PREFIX)/.. $(PREFIX)/. $(BINARY_NINJA_PATH)/plugins -maxdepth 2 -name "dewolf-idioms" -print 2>/dev/null | head -n 1)
 
 .PHONY: venv
 venv: $(VENV_PATH) $(VENV_PATH)/lib/python$(PYTHON_VERSION)/site-packages/binaryninja.pth
 
-
 .ONESHELL: $(VENV_PATH)
-$(VENV_PATH):
+$(VENV_PATH): $(DEWOLF_IDIOMS_PATH)/requirements.txt
 	virtualenv -ppython$(PYTHON_VERSION) $(VENV_PATH)
 	$(VENV_PATH)/bin/python -mpip install -r $(PREFIX)/requirements.txt
-	$(VENV_PATH)/bin/python -mpip install -r $(PREFIX)/requirements-compiler-idioms.txt
+	$(VENV_PATH)/bin/python -mpip install -r $(DEWOLF_IDIOMS_PATH)/requirements.txt
 
 
 $(VENV_PATH)/lib/python$(PYTHON_VERSION)/site-packages/binaryninja.pth: $(BINARY_NINJA_PATH)/python $(BINARY_NINJA_PATH)/scripts/install_api.py
 	$(VENV_PATH)/bin/python $$(readlink -f $(BINARY_NINJA_PATH)/scripts/install_api.py)
 	echo "$(BINARY_NINJA_PATH)/python" > $(VENV_PATH)/lib/python$(PYTHON_VERSION)/site-packages/binaryninja.pth
 
+
+$(DEWOLF_IDIOMS_PATH)/requirements.txt:
+	@$(error requirements.txt of dewolf-idioms not found. Please make sure you have cloned the repository and optionally set the DEWOLF_IDIOMS_PATH variable manually.)
 
 $(BINARY_NINJA_PATH)/python:
 	@$(error Failed to find Binary Ninja at '$(BINARY_NINJA_PATH)'. \
