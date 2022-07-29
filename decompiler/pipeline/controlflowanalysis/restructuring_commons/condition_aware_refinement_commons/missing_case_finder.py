@@ -221,9 +221,12 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
                 logging.info(f"We will handle in a later Issue how to insert Case nodes whose constant already exists.")
                 continue
             else:
+                if isinstance(possible_case.node.parent, (TrueNode, FalseNode)):
+                    possible_case.node.reaching_condition &= possible_case.node.parent.branch_condition
                 possible_case.node.reaching_condition.substitute_by_true(possible_case.condition)
                 reachability_graph.update_when_inserting_new_case_node(possible_case.node, switch_node)
                 self._insert_case_node(possible_case.node, case_constants_for_node[possible_case.node], switch_node)
+                cases_of_switch_node.update(case_constants_for_node[possible_case.node])
                 if self._current_seq_node in self.asforest:
                     self._current_seq_node.clean()
 

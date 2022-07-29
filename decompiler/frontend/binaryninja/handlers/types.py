@@ -1,4 +1,15 @@
-from binaryninja.types import ArrayType, BoolType, CharType, FloatType, IntegerType, NamedTypeReferenceType, PointerType, Type, VoidType
+from binaryninja.types import (
+    ArrayType,
+    BoolType,
+    CharType,
+    FloatType,
+    IntegerType,
+    NamedTypeReferenceType,
+    PointerType,
+    StructureType,
+    Type,
+    VoidType,
+)
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import CustomType, Float, Integer, Pointer, UnknownType
 
@@ -16,7 +27,8 @@ class TypeHandler(Handler):
                 BoolType: self.lift_bool,
                 VoidType: self.lift_void,
                 CharType: self.lift_integer,
-                NamedTypeReferenceType: self.lift_unknown,
+                NamedTypeReferenceType: self.lift_custom,
+                StructureType: self.lift_custom,
                 type(None): self.lift_none,
             }
         )
@@ -24,8 +36,8 @@ class TypeHandler(Handler):
     def lift_none(self, _: None, **kwargs):
         return UnknownType()
 
-    def lift_unknown(self, unknown: Type, **kwargs) -> CustomType:
-        return CustomType(str(unknown), unknown.width * self.BYTE_SIZE)
+    def lift_custom(self, custom: Type, **kwargs) -> CustomType:
+        return CustomType(str(custom), custom.width * self.BYTE_SIZE)
 
     def lift_void(self, _, **kwargs) -> CustomType:
         return CustomType.void()

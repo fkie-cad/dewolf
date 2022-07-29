@@ -1,4 +1,5 @@
 """ Tests for the PatternIndependentRestructuring pipeline stage condition aware refinement."""
+from itertools import combinations
 from typing import List, Union
 
 import pytest
@@ -3799,3 +3800,86 @@ def test_fallthrough_reaching_problem(task):
         and isinstance(cn := cond_16.true_branch_child, CodeNode)
         and cn.instructions == vertices[16].instructions
     )
+
+
+def test_only_one_occurrence_of_each_case(task):
+    """Make sure that each case is only added once to a switch node."""
+    var_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
+    var_1 = Variable(
+        "var_1", Pointer(Integer(32, True), 32), None, False, Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
+    )
+    arg1 = Variable("arg1", Integer(32, True), None, True, Variable("arg1", Integer(32, True), 0, True, None))
+    task.graph.add_nodes_from(
+        vertices := [
+            BasicBlock(
+                0,
+                [
+                    Assignment(ListOperation([]), print_call("Enter week number(1-7): ", 1)),
+                    Assignment(var_1, UnaryOperation(OperationType.address, [var_0], Pointer(Integer(32, True), 32), None, False)),
+                    Assignment(ListOperation([]), scanf_call(var_1, 134524965, 2)),
+                    Branch(Condition(OperationType.not_equal, [var_0, Constant(1, Integer(32, True))], CustomType("bool", 1))),
+                ],
+            ),
+            BasicBlock(1, [Branch(Condition(OperationType.not_equal, [arg1, Constant(7, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(2, [Branch(Condition(OperationType.not_equal, [var_0, Constant(2, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(
+                3,
+                [Assignment(ListOperation([]), print_call("The Input is 7 and you choose week number %d", 2)), Assignment(var_1, var_0)],
+            ),
+            BasicBlock(4, [Assignment(ListOperation([]), print_call("Tuesday", 3))]),
+            BasicBlock(5, [Assignment(ListOperation([]), print_call("common case", 4))]),
+            BasicBlock(6, [Branch(Condition(OperationType.not_equal, [var_0, Constant(3, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(7, [Assignment(ListOperation([]), print_call("Wednesday", 5))]),
+            BasicBlock(8, [Branch(Condition(OperationType.not_equal, [var_0, Constant(4, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(9, [Assignment(ListOperation([]), print_call("Thursday", 6))]),
+            BasicBlock(10, [Branch(Condition(OperationType.not_equal, [var_0, Constant(5, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(11, [Assignment(ListOperation([]), print_call("Friday", 7))]),
+            BasicBlock(12, [Branch(Condition(OperationType.not_equal, [var_0, Constant(6, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(13, [Assignment(ListOperation([]), print_call("Saturday", 8))]),
+            BasicBlock(14, [Branch(Condition(OperationType.not_equal, [var_0, Constant(7, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(15, [Assignment(ListOperation([]), print_call("Sunday", 9))]),
+            BasicBlock(16, [Branch(Condition(OperationType.not_equal, [var_0, Constant(1, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(17, [Assignment(ListOperation([]), print_call("Monday", 10))]),
+            BasicBlock(18, [Return(ListOperation([Constant(0, Integer(32, True))]))]),
+        ]
+    )
+    task.graph.add_edges_from(
+        [
+            FalseCase(vertices[0], vertices[1]),
+            TrueCase(vertices[0], vertices[2]),
+            TrueCase(vertices[1], vertices[2]),
+            FalseCase(vertices[1], vertices[3]),
+            UnconditionalEdge(vertices[3], vertices[5]),
+            FalseCase(vertices[2], vertices[4]),
+            TrueCase(vertices[2], vertices[6]),
+            UnconditionalEdge(vertices[4], vertices[6]),
+            FalseCase(vertices[6], vertices[7]),
+            TrueCase(vertices[6], vertices[8]),
+            UnconditionalEdge(vertices[7], vertices[8]),
+            FalseCase(vertices[8], vertices[9]),
+            TrueCase(vertices[8], vertices[10]),
+            UnconditionalEdge(vertices[9], vertices[10]),
+            FalseCase(vertices[10], vertices[11]),
+            TrueCase(vertices[10], vertices[12]),
+            UnconditionalEdge(vertices[11], vertices[12]),
+            FalseCase(vertices[12], vertices[13]),
+            TrueCase(vertices[12], vertices[14]),
+            UnconditionalEdge(vertices[13], vertices[14]),
+            FalseCase(vertices[14], vertices[15]),
+            TrueCase(vertices[14], vertices[16]),
+            UnconditionalEdge(vertices[15], vertices[16]),
+            TrueCase(vertices[16], vertices[18]),
+            FalseCase(vertices[16], vertices[17]),
+            UnconditionalEdge(vertices[17], vertices[5]),
+            UnconditionalEdge(vertices[5], vertices[18]),
+        ]
+    )
+
+    PatternIndependentRestructuring().run(task)
+
+    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 4
+    assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
+    assert isinstance(switch := seq_node.children[1], SwitchNode) and len(switch.cases) == 7
+    assert isinstance(case1 := switch.cases[0], CaseNode) and case1.constant.value == 1 and isinstance(case1.child, ConditionNode)
+    assert all(case1.constant != case2.constant for case1, case2 in combinations(switch.cases, 2))
+    assert isinstance(seq_node.children[2], ConditionNode)
