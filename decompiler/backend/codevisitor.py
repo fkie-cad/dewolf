@@ -221,7 +221,7 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
             if len(operands := condition.operands) > 1:
                 return f" {self.C_SYNTAX[OperationType.logical_and]} ".join([f"({self._condition_string(x)})" for x in operands])
             return self._condition_string(condition)
-        raise ValueError("Condition couldn't be parsed to string")
+        raise ValueError("Condition {condition} couldn't be printed correctly.")
 
     def _format_integer_literal(self, type_info: Integer, value: int) -> str:
         """Format the integer based on the codegenerators settings."""
