@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import TYPE_CHECKING, Dict, Iterable, List, Literal, Optional, Tuple, TypeVar, Union
 
+from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.structures.ast.reachability_graph import CaseDependencyGraph, SiblingReachability
 from decompiler.structures.graphs.interface import GraphNodeInterface
 from decompiler.structures.logic.logic_condition import LogicCondition, PseudoLogicCondition
@@ -163,10 +164,10 @@ class AbstractSyntaxTreeNode(BaseAbstractSyntaxTreeNode, ABC):
         """Makes clean ups, depending on the node. This helps to standardize the AST."""
         pass
 
-    def simplify_reaching_condition(self, z3_condition_of: Dict[LogicCondition, PseudoLogicCondition]):
+    def simplify_reaching_condition(self, condition_handler: ConditionHandler):
         """Simplify the reaching condition. If it is false we remove the subtree of this node."""
         if not self.reaching_condition.is_true:
-            self.reaching_condition.remove_redundancy(z3_condition_of)
+            self.reaching_condition.remove_redundancy(condition_handler)
         if self.reaching_condition.is_false:
             logging.warning(f"The CFG node {self} has reaching condition false, therefore, we remove it.")
             self._ast.remove_subtree(self)
@@ -534,16 +535,16 @@ class ConditionNode(AbstractSyntaxTreeNode):
             return self.reaching_condition & self.condition
         return None
 
-    def simplify_reaching_condition(self, z3_condition_of: Dict[LogicCondition, PseudoLogicCondition]):
+    def simplify_reaching_condition(self, condition_handler: ConditionHandler):
         """
         Add the reaching condition to the condition of the condition node if the false-branch does not exist. Otherwise, only simplify it.
         """
         self.clean()
         if self.false_branch is None and not self.reaching_condition.is_true:
             self.condition &= self.reaching_condition
-            self.condition.remove_redundancy(z3_condition_of)
+            self.condition.remove_redundancy(condition_handler)
             self.reaching_condition = LogicCondition.initialize_true(self.reaching_condition.context)
-        super().simplify_reaching_condition(z3_condition_of)
+        super().simplify_reaching_condition(condition_handler)
 
     def switch_branches(self):
         """Switch the true-branch and false-branch, this includes negating the condition."""

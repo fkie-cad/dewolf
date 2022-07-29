@@ -268,7 +268,9 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
             else:
                 exception_condition &= ~literal
         case_node.reaching_condition = (
-            LogicCondition.disjunction_of(literals_of_case_node) if literals_of_case_node else self.condition_handler.get_false_value()
+            LogicCondition.disjunction_of(list(literals_of_case_node))
+            if literals_of_case_node
+            else self.condition_handler.get_false_value()
         )
         if not exception_condition.is_true:
             case_node.child.reaching_condition = case_node.child.reaching_condition & exception_condition

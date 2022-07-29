@@ -1,11 +1,12 @@
 import pytest
+from decompiler.structures.ast.condition_symbol import ConditionHandler, ConditionSymbol
 from decompiler.structures.logic.logic_condition import generate_logic_condition_class, generate_pseudo_logic_condition_class
 from decompiler.structures.logic.z3_logic import PseudoZ3LogicCondition, Z3LogicCondition
 from decompiler.structures.pseudo import BinaryOperation, Condition, Constant, Integer, OperationType, Variable
 from z3 import UGT, ULE, And, BitVec, BitVecVal, Bool, BoolVal, Not, Or
 
 LogicCondition = generate_logic_condition_class(Z3LogicCondition)
-PseudoLogicCondition = generate_pseudo_logic_condition_class(PseudoZ3LogicCondition)
+PseudoLogicCondition = generate_pseudo_logic_condition_class(PseudoZ3LogicCondition, LogicCondition)
 context = LogicCondition.generate_new_context()
 z3_symbol = [Bool(f"x{i}", ctx=context) for i in [0, 1, 2, 3, 4, 5, 6]]
 logic_x = [LogicCondition.initialize_symbol(f"x{i}", context) for i in [0, 1, 2, 3, 4, 5, 6, 7, 8]]
@@ -18,6 +19,8 @@ var_ule_10 = PseudoLogicCondition(ULE(z3_variable, BitVecVal(10, 32, ctx=context
 var_ugt_10 = PseudoLogicCondition(UGT(z3_variable, BitVecVal(10, 32, ctx=context))).simplify()
 
 constant_5 = Constant(5, Integer.int32_t())
+constant_10 = Constant(10, Integer.int32_t())
+constant_20 = Constant(20, Integer.int32_t())
 
 var_a = Variable(
     "a", Integer.int32_t(), ssa_label=None, is_aliased=False, ssa_name=Variable("eax", Integer.int32_t(), ssa_label=3, is_aliased=False)
@@ -315,6 +318,7 @@ class TestLogicConditionZ3:
             ),
             (logic_x[2].copy(), logic_x[2].copy(), LogicCondition.initialize_true(context)),
             (logic_x[2].copy(), logic_x[3].copy(), logic_x[2].copy()),
+            (logic_x[2].copy() | logic_x[3].copy(), logic_x[3].copy(), LogicCondition.initialize_true(context)),
         ],
     )
     def test_substitute_by_true_basics(self, term, condition, result):
@@ -359,10 +363,7 @@ class TestLogicConditionZ3:
                 & logic_x[6].copy()
                 & logic_x[7].copy()
                 & logic_x[8].copy(),
-                (logic_x[1].copy() | logic_x[2].copy() | logic_x[3].copy())
-                & (logic_x[4].copy() | logic_x[5].copy())
-                & logic_x[6].copy()
-                & logic_x[7].copy(),
+                LogicCondition.initialize_true(context),
             ),
         ],
     )
@@ -377,20 +378,53 @@ class TestLogicConditionZ3:
         assert term == result
 
     @pytest.mark.parametrize(
-        "term, condition_map, result",
+        "term, conditions, result",
         [
-            (logic_x[1].copy() & logic_x[2].copy(), {logic_x[1].copy(): var_eq_5, logic_x[2].copy(): var_ule_10}, logic_x[1].copy()),
             (
                 logic_x[1].copy() & logic_x[2].copy(),
-                {logic_x[1].copy(): var_l_5, logic_x[2].copy(): var_ule_10},
+                [Condition(OperationType.equal, [var_a, constant_5]), Condition(OperationType.less_or_equal_us, [var_a, constant_10])],
+                logic_x[1].copy(),
+            ),
+            (
+                logic_x[1].copy() & logic_x[2].copy(),
+                [Condition(OperationType.less, [var_a, constant_5]), Condition(OperationType.less_or_equal_us, [var_a, constant_10])],
                 logic_x[1].copy() & logic_x[2].copy(),
             ),
-            (logic_x[1].copy() & logic_x[2].copy(), {logic_x[1].copy(): var_l_20, logic_x[2].copy(): var_ule_10}, logic_x[2].copy()),
-            (logic_x[1].copy() & ~logic_x[2].copy(), {logic_x[1].copy(): var_l_20, logic_x[2].copy(): var_ugt_10}, ~logic_x[2].copy()),
+            (
+                logic_x[1].copy() & logic_x[2].copy(),
+                [Condition(OperationType.less, [var_a, constant_20]), Condition(OperationType.less_or_equal_us, [var_a, constant_10])],
+                logic_x[2].copy(),
+            ),
+            (
+                logic_x[1].copy() & ~logic_x[2].copy(),
+                [Condition(OperationType.less, [var_a, constant_20]), Condition(OperationType.greater_us, [var_a, constant_10])],
+                ~logic_x[2].copy(),
+            ),
         ],
     )
-    def test_remove_redundancy(self, term, condition_map, result):
-        term.remove_redundancy(condition_map)
+    def test_remove_redundancy(self, term, conditions, result):
+        class MockConditionHandler(ConditionHandler):
+            LogicCondition = generate_logic_condition_class(Z3LogicCondition)
+            PseudoLogicCondition = generate_logic_condition_class(Z3LogicCondition)
+
+            def add_condition(self, condition: Condition) -> ConditionSymbol:
+                """Adds a condition to the condition map."""
+                symbol = self._get_next_symbol()
+                z3_condition = PseudoLogicCondition.initialize_from_condition(condition, self._logic_context)
+                condition_symbol = ConditionSymbol(condition, symbol, z3_condition)
+                self._condition_map[symbol] = condition_symbol
+                return condition_symbol
+
+            def _get_next_symbol(self) -> Z3LogicCondition:
+                """Get the next unused symbol name."""
+                self._symbol_counter += 1
+                return LogicCondition.initialize_symbol(f"x{self._symbol_counter}", self._logic_context)
+
+        condition_handler = MockConditionHandler()
+        condition_handler._logic_context = term.context
+        for cond in conditions:
+            condition_handler.add_condition(cond)
+        term.remove_redundancy(condition_handler)
         assert term == result
 
     @pytest.mark.parametrize(
@@ -433,7 +467,6 @@ class TestLogicConditionZ3:
         ],
     )
     def test_simplify_to_shortest(self, term, bound, result):
-
         assert term.z3.is_equal(term.simplify_to_shortest(bound)._condition, result)
 
     @pytest.mark.parametrize(

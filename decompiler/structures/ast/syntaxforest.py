@@ -395,7 +395,7 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
                     & condition_node.reaching_condition
                     & nested_condition_node.reaching_condition
                 )
-                condition_node.condition = new_condition.remove_redundancy(self.condition_handler.get_z3_condition_map())
+                condition_node.condition = new_condition.remove_redundancy(self.condition_handler)
                 condition_node.reaching_condition = self.condition_handler.get_true_value()
 
                 self.replace_condition_node_by_single_branch(nested_condition_node)

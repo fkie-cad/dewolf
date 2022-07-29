@@ -1,6 +1,7 @@
 from typing import List, Tuple
 
 import pytest as pytest
+from decompiler.structures.ast.condition_symbol import ConditionHandler, ConditionSymbol
 from decompiler.structures.logic.z3_implementations import Z3Implementation
 from decompiler.structures.logic.z3_logic import PseudoZ3LogicCondition, Z3LogicCondition
 from decompiler.structures.pseudo import BinaryOperation, Condition, Constant, Integer, OperationType, Variable
@@ -25,6 +26,8 @@ var_ule_10 = PseudoZ3LogicCondition(ULE(z3_variable, const10)).simplify()
 var_ugt_10 = PseudoZ3LogicCondition(UGT(z3_variable, const10)).simplify()
 
 constant_5 = Constant(5, Integer.int32_t())
+constant_10 = Constant(10, Integer.int32_t())
+constant_20 = Constant(20, Integer.int32_t())
 
 var_a = Variable(
     "a", Integer.int32_t(), ssa_label=None, is_aliased=False, ssa_name=Variable("eax", Integer.int32_t(), ssa_label=3, is_aliased=False)
@@ -518,6 +521,7 @@ class TestZ3LogicCondition:
             (false_value, z3_x[2].copy(), false_value),
             (z3_x[2].copy(), z3_x[2].copy(), true_value),
             (z3_x[2].copy(), z3_x[3].copy(), z3_x[2].copy()),
+            (z3_x[1].copy() | z3_x[2].copy(), z3_x[2].copy(), true_value),
         ],
     )
     def test_substitute_by_true_basics(self, term, condition, result):
@@ -544,7 +548,7 @@ class TestZ3LogicCondition:
                 & z3_x[6].copy()
                 & z3_x[7].copy()
                 & z3_x[8].copy(),
-                (z3_x[1].copy() | z3_x[2].copy() | z3_x[3].copy()) & (z3_x[4].copy() | z3_x[5].copy()) & z3_x[6].copy() & z3_x[7].copy(),
+                true_value,
             ),
         ],
     )
@@ -554,16 +558,50 @@ class TestZ3LogicCondition:
         assert term.simplify() == result.simplify()
 
     @pytest.mark.parametrize(
-        "term, condition_map, result",
+        "term, conditions, result",
         [
-            (z3_x[1].copy() & z3_x[2].copy(), {z3_x[1].copy(): var_eq_5, z3_x[2].copy(): var_ule_10}, z3_x[1].copy()),
-            (z3_x[1].copy() & z3_x[2].copy(), {z3_x[1].copy(): var_l_5, z3_x[2].copy(): var_ule_10}, z3_x[1].copy() & z3_x[2].copy()),
-            (z3_x[1].copy() & z3_x[2].copy(), {z3_x[1].copy(): var_l_20, z3_x[2].copy(): var_ule_10}, z3_x[2].copy()),
-            (z3_x[1].copy() & ~z3_x[2].copy(), {z3_x[1].copy(): var_l_20, z3_x[2].copy(): var_ugt_10}, ~z3_x[2].copy()),
+            (
+                z3_x[1].copy() & z3_x[2].copy(),
+                [Condition(OperationType.equal, [var_a, constant_5]), Condition(OperationType.less_or_equal_us, [var_a, constant_10])],
+                z3_x[1].copy(),
+            ),
+            (
+                z3_x[1].copy() & z3_x[2].copy(),
+                [Condition(OperationType.less, [var_a, constant_5]), Condition(OperationType.less_or_equal_us, [var_a, constant_10])],
+                z3_x[1].copy() & z3_x[2].copy(),
+            ),
+            (
+                z3_x[1].copy() & z3_x[2].copy(),
+                [Condition(OperationType.less, [var_a, constant_20]), Condition(OperationType.less_or_equal_us, [var_a, constant_10])],
+                z3_x[2].copy(),
+            ),
+            (
+                z3_x[1].copy() & ~z3_x[2].copy(),
+                [Condition(OperationType.less, [var_a, constant_20]), Condition(OperationType.greater_us, [var_a, constant_10])],
+                ~z3_x[2].copy(),
+            ),
         ],
     )
-    def test_remove_redundancy(self, term, condition_map, result):
-        assert term.remove_redundancy(condition_map) == result
+    def test_remove_redundancy(self, term, conditions, result):
+        class MockConditionHandler(ConditionHandler):
+            def add_condition(self, condition: Condition) -> ConditionSymbol:
+                """Adds a condition to the condition map."""
+                symbol = self._get_next_symbol()
+                z3_condition = PseudoZ3LogicCondition.initialize_from_condition(condition, self._logic_context).simplify()
+                condition_symbol = ConditionSymbol(condition, symbol, z3_condition)
+                self._condition_map[symbol] = condition_symbol
+                return condition_symbol
+
+            def _get_next_symbol(self) -> Z3LogicCondition:
+                """Get the next unused symbol name."""
+                self._symbol_counter += 1
+                return Z3LogicCondition.initialize_symbol(f"x{self._symbol_counter}", self._logic_context)
+
+        condition_handler = MockConditionHandler()
+        condition_handler._logic_context = term.context
+        for cond in conditions:
+            condition_handler.add_condition(cond)
+        assert term.remove_redundancy(condition_handler) == result
 
     @pytest.mark.parametrize(
         "term, bound1, bound2,  result",
