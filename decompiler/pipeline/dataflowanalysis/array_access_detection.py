@@ -128,7 +128,7 @@ class ArrayAccessDetection(PipelineStage):
         return self._size_in_bytes(array_type.type.size)
 
     def _mark_candidates_if_consistent_offsets(
-        self, base: Variable, offset_class: OffsetInfo, available_array_type_size: Optional[int] = None
+            self, base: Variable, offset_class: OffsetInfo, available_array_type_size: Optional[int] = None
     ) -> None:
         """
         Mark candidates for the given base if the following conditions are true:
@@ -157,7 +157,7 @@ class ArrayAccessDetection(PipelineStage):
             self._set_array_element_access_attributes(base, computed_element_size, available_array_type_size)
 
     def _set_array_element_access_attributes(
-        self, base_variable: Variable, element_size: int, available_array_type_size: Optional[int]
+            self, base_variable: Variable, element_size: int, available_array_type_size: Optional[int]
     ) -> None:
         """Sets for all candidate occurrences of the base field array_accesses to true and their array_type_size to offset value"""
         for candidate in self._candidates[base_variable]:
@@ -170,7 +170,8 @@ class ArrayAccessDetection(PipelineStage):
             array_info = ArrayInfo(base_variable, index, confidence)
             candidate.dereference.array_info = array_info
 
-    def _get_base_and_offset(self, operand: BinaryOperation) -> Tuple[Optional[Variable[Pointer]], Optional[Expression]]:
+    def _get_base_and_offset(self, operand: BinaryOperation) -> Tuple[
+        Optional[Variable[Pointer]], Optional[Expression]]:
         """
         Given operand of *(addition), we want to check, if it is of form base+offset or offset+base,
         where base is a variable of type pointer. We return both values and not just True or False
@@ -219,7 +220,7 @@ class ArrayAccessDetection(PipelineStage):
 
         var = vars[0] if isinstance(vars[0], Variable) else vars[0].operand
         if self._is_left_shift(offset) and offset.right == constant:
-            return "mul", var, 2**constant.value
+            return "mul", var, 2 ** constant.value
         if self._is_multiplication(offset) and constant.value % 2 == 0:  # test % 2 for array of structs
             return "mul", var, constant.value
         return None
@@ -248,7 +249,8 @@ class ArrayAccessDetection(PipelineStage):
         :param expression: expression to be checked
         :return: true if expression is a Variable of type Pointer false otherwise
         """
-        return isinstance(expression, Variable) and isinstance(expression.type, Pointer)
+        return isinstance(expression, Variable) and isinstance(expression.type, Pointer) or (
+                    isinstance(expression, UnaryOperation) and expression.operation == OperationType.address)
 
     @staticmethod
     def _find_dereference_subexpressions(expression: DataflowObject) -> Iterator[UnaryOperation]:
@@ -273,7 +275,8 @@ class ArrayAccessDetection(PipelineStage):
         :param expression: expression to be checked
         :return: true if expression is multiplication (signed/unsigned) false otherwise
         """
-        return isinstance(expression, BinaryOperation) and expression.operation in {OperationType.multiply_us, OperationType.multiply}
+        return isinstance(expression, BinaryOperation) and expression.operation in {OperationType.multiply_us,
+                                                                                    OperationType.multiply}
 
     @staticmethod
     def _is_left_shift(expression: Expression) -> bool:
@@ -307,8 +310,8 @@ class ArrayAccessDetection(PipelineStage):
     @staticmethod
     def _is_variable_cast(expression: Expression) -> bool:
         return (
-            isinstance(expression, UnaryOperation)
-            and expression.operation == OperationType.cast
-            and (expression.type in {Integer.int32_t(), Integer.uint32_t(), Integer.int64_t(), Integer.uint64_t()})
-            and isinstance(expression.operand, Variable)
+                isinstance(expression, UnaryOperation)
+                and expression.operation == OperationType.cast
+                and (expression.type in {Integer.int32_t(), Integer.uint32_t(), Integer.int64_t(), Integer.uint64_t()})
+                and isinstance(expression.operand, Variable)
         )
