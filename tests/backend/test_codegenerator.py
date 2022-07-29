@@ -54,6 +54,11 @@ def x2_symbol(context=None):
     return LogicCondition.initialize_symbol("x2", context)
 
 
+def true_condition(context=None):
+    context = LogicCondition.generate_new_context() if context is None else context
+    return LogicCondition.initialize_true(context)
+
+
 var_a = Variable("a", int32)
 var_b = Variable("b", int32)
 var_c = Variable("c", int32)
@@ -194,6 +199,20 @@ class TestCodeGeneration:
 
         assert self._regex_matches(
             r"^%int +test_function\(%int +a%,%int +b%\)%{%int%c;%if%\(%c%<%5%\)%{%c%=%5%;%return%c%;%}%}%$".replace("%", "\\s*"),
+            self._task(ast, params=[var_a.copy(), var_b.copy()]),
+        )
+
+    def test_function_with_true_condition(self):
+        context = LogicCondition.generate_new_context()
+        root = SeqNode(LogicCondition.initialize_true(context))
+        ast = AbstractSyntaxTree(root, {x1_symbol(context): Condition(OperationType.less, [var_c.copy(), const_5.copy()])})
+        seq_node = ast.factory.create_seq_node()
+        ast._add_node(seq_node)
+        code_node = ast._add_code_node([instructions.Assignment(var_c.copy(), const_5.copy()), instructions.Return([var_c.copy()])])
+        condition_node = ast._add_condition_node_with(condition=true_condition(ast.factory.logic_context), true_branch=seq_node)
+        ast._add_edges_from(((root, condition_node), (seq_node, code_node)))
+        assert self._regex_matches(
+            r"^%int +test_function\(%int +a%,%int +b%\)%{%int%c;%if%\(%true%\)%{%c%=%5%;%return%c%;%}%}%$".replace("%", "\\s*"),
             self._task(ast, params=[var_a.copy(), var_b.copy()]),
         )
 
