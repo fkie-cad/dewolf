@@ -67,13 +67,10 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
     def visit_condition_node(self, node: ast_nodes.ConditionNode) -> str:
         """Generate code for a conditional."""
         true_str = self.visit(node.true_branch_child)
-        try:
-            if node.false_branch is None:
-                return f"if ({self._condition_string(node.condition)}) {{{true_str}}}"
-            false_str = self.visit(node.false_branch_child)
-            return f"if ({self._condition_string(node.condition)}){{{true_str}}} else{{{false_str}}}"
-        except ValueError:
-            raise ValueError("invalid condition found; Issue is tracked in #65")
+        if node.false_branch is None:
+            return f"if ({self._condition_string(node.condition)}) {{{true_str}}}"
+        false_str = self.visit(node.false_branch_child)
+        return f"if ({self._condition_string(node.condition)}){{{true_str}}} else{{{false_str}}}"
 
     def visit_true_node(self, node: ast_nodes.TrueNode) -> str:
         """Generate code for the given TrueNode by evaluating its child (Wrapper)."""
@@ -224,7 +221,7 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
             if len(operands := condition.operands) > 1:
                 return f" {self.C_SYNTAX[OperationType.logical_and]} ".join([f"({self._condition_string(x)})" for x in operands])
             return self._condition_string(condition)
-        raise ValueError("invalid condition")
+        raise ValueError("Condition couldn't be parsed to string")
 
     def _format_integer_literal(self, type_info: Integer, value: int) -> str:
         """Format the integer based on the codegenerators settings."""
