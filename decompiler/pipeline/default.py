@@ -1,6 +1,6 @@
 """Module defining the available pipelines."""
 
-from decompiler.pipeline.controlflowanalysis import ExpressionSimplification, InstructionLengthHandler, ReadabilityBasedRefinement
+from decompiler.pipeline.controlflowanalysis import ExpressionSimplification, InstructionLengthHandler, ReadabilityBasedRefinement, VariableNameGeneration
 from decompiler.pipeline.dataflowanalysis import (
     ArrayAccessDetection,
     CommonSubexpressionElimination,
@@ -36,4 +36,4 @@ CFG_STAGES = [
     EdgePruner,
 ]
 
-AST_STAGES = [ReadabilityBasedRefinement, ExpressionSimplification, InstructionLengthHandler]
+AST_STAGES = [ReadabilityBasedRefinement, ExpressionSimplification, InstructionLengthHandler, VariableNameGeneration]
