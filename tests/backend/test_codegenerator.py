@@ -519,8 +519,8 @@ class TestExpression:
     @pytest.mark.parametrize(
         "input_expr, expected",
         [
-            # (UnaryOperation(OperationType.cast, [var_x_u.copy()], vartype=int32), "(int)x_u"),
-            # (UnaryOperation(OperationType.cast, [var_x.copy()], vartype=int32), "x"),
+            (UnaryOperation(OperationType.cast, [var_x_u.copy()], vartype=int32), "(int)x_u"),
+            (UnaryOperation(OperationType.cast, [var_x.copy()], vartype=int32), "x"),
             (UnaryOperation(OperationType.cast, [const_1.copy()], vartype=int32), "1"),
             (UnaryOperation(OperationType.cast, [Constant(1, uint32)], vartype=int32), "1"),
             (UnaryOperation(OperationType.cast, [Constant(1, int64)], vartype=int32), "1"),

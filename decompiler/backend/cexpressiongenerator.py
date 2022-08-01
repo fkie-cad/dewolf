@@ -185,7 +185,6 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
             if op.type == op.operand.type:
                 return operand
             elif isinstance(op.type, Integer) and isinstance(op.operand.type, Integer):
-            #if isinstance(op.type, Integer) and isinstance(op.operand.type, Integer):
                 if isinstance(op.operand, expressions.Constant):
                     value = self._get_integer_literal_value(op.operand)
                     eliminated_val = expressions.Constant(value, op.type)
