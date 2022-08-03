@@ -37,10 +37,8 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
         self._byte_format: str = task.options.getstring("code-generator.byte_format", fallback="char")
         self._byte_format_hint: str = task.options.getstring("code-generator.byte_format_hint", fallback="none")
         self._int_repr_scope: int = task.options.getint("code-generator.int_representation_scope", fallback=256)
-        self._neg_hex_as_twos_complement: bool = task.options.getboolean(
-            "code-generator.negative_hex_as_twos_complement", fallback=True)
-        self._aggressive_array_detection: bool = task.options.getboolean("code-generator.aggressive_array_detection",
-                                                                         fallback=False)
+        self._neg_hex_as_twos_complement: bool = task.options.getboolean("code-generator.negative_hex_as_twos_complement", fallback=True)
+        self._aggressive_array_detection: bool = task.options.getboolean("code-generator.aggressive_array_detection", fallback=False)
         self.task = task
 
     def visit_seq_node(self, node: ast_nodes.SeqNode) -> str:
@@ -145,15 +143,14 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
 
     @staticmethod
     def _parse_array_element_access_attributes(
-            array_elem_access: UnaryOperation,
+        array_elem_access: UnaryOperation,
     ) -> Tuple[expressions.Variable, Union[int, expressions.Variable]]:
         """
         Store in base and index old ssa versions of variables.
 
         Therefore we need to remap old ssa names on non-ssa names
         """
-        ssa_name_to_name_mapping = {i.ssa_name.name: i.name for i in array_elem_access.requirements if
-                                    isinstance(i, expressions.Variable)}
+        ssa_name_to_name_mapping = {i.ssa_name.name: i.name for i in array_elem_access.requirements if isinstance(i, expressions.Variable)}
         if isinstance(array_elem_access.array_info.base, UnaryOperation):
             try:
                 base = ssa_name_to_name_mapping[array_elem_access.array_info.base.operand.name]
@@ -172,26 +169,25 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
     def _is_compoundable(instr: Assignment) -> bool:
         """Check if the assignment is compoundable (e.g. x = x + y <=> x += y)."""
         return (
-                isinstance(instr.value, BinaryOperation)
-                and instr.value.operation not in NON_COMPOUNDABLE_OPERATIONS
-                and (
-                        instr.destination == instr.value.left
-                        or (instr.destination == instr.value.right and instr.value.operation in COMMUTATIVE_OPERATIONS)
-                )
+            isinstance(instr.value, BinaryOperation)
+            and instr.value.operation not in NON_COMPOUNDABLE_OPERATIONS
+            and (
+                instr.destination == instr.value.left
+                or (instr.destination == instr.value.right and instr.value.operation in COMMUTATIVE_OPERATIONS)
+            )
         )
 
     def _is_incrementable(self, instr: Assignment, target_operand: expressions.Expression) -> bool:
         """Check if the assignment is incrementable (e.g. x = x + 1 -> x++)."""
         return (
-                isinstance(instr.value, BinaryOperation)
-                and (instr.value.operation == OperationType.plus or instr.value.operation == OperationType.minus)
-                and isinstance(target_operand, expressions.Constant)
-                and (
-                        (isinstance(target_operand.type, Float) and self._use_increment_float)
-                        or ((isinstance(target_operand.type, Integer) and not isinstance(target_operand.type,
-                                                                                         Float)) and self._use_increment_int)
-                )
-                and (target_operand.value == 0x1 or target_operand.value == -0x1)
+            isinstance(instr.value, BinaryOperation)
+            and (instr.value.operation == OperationType.plus or instr.value.operation == OperationType.minus)
+            and isinstance(target_operand, expressions.Constant)
+            and (
+                (isinstance(target_operand.type, Float) and self._use_increment_float)
+                or ((isinstance(target_operand.type, Integer) and not isinstance(target_operand.type, Float)) and self._use_increment_int)
+            )
+            and (target_operand.value == 0x1 or target_operand.value == -0x1)
         )
 
     def _get_compound_syntax(self, instr: Assignment, target_operand: expressions.Expression) -> str:
@@ -225,13 +221,11 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
             return f"{self.visit(original_condition.negate())}"
         elif condition.is_disjunction:
             if len(operands := condition.operands) >= 1:
-                return f" {self.C_SYNTAX[OperationType.logical_or]} ".join(
-                    [f"({self._condition_string(x)})" for x in operands])
+                return f" {self.C_SYNTAX[OperationType.logical_or]} ".join([f"({self._condition_string(x)})" for x in operands])
             return self._condition_string(condition)
         elif condition.is_conjunction:
             if len(operands := condition.operands) > 1:
-                return f" {self.C_SYNTAX[OperationType.logical_and]} ".join(
-                    [f"({self._condition_string(x)})" for x in operands])
+                return f" {self.C_SYNTAX[OperationType.logical_and]} ".join([f"({self._condition_string(x)})" for x in operands])
             return self._condition_string(condition)
         raise ValueError("Condition {condition} couldn't be printed correctly.")
 
