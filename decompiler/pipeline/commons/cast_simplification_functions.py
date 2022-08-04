@@ -94,7 +94,7 @@ def _remove_cast_to_largest_register(instruction: Instruction):
     Do not remove casts involved in bitwise binary operations - since removing cast from such operations may change the
     semantics of the decompiled code thus leading to incorrect result.
     """
-    for _, expr in _find_cast_subexpressions_filter_bitwise_binops_parents(instruction):
+    for expr in _find_cast_subexpressions_filter_bitwise_binops_parents(instruction):
         if expr.type.size == MAX_REGISTER_SIZE:
             instruction.substitute(expr, expr.operand)
 
@@ -123,7 +123,7 @@ def _find_cast_subexpressions(expression: DataflowObject) -> Iterator[UnaryOpera
             yield subexpression
 
 
-def _find_cast_subexpressions_filter_bitwise_binops_parents(expression: DataflowObject) -> Iterator[Tuple[UnaryOperation]]:
+def _find_cast_subexpressions_filter_bitwise_binops_parents(expression: DataflowObject) -> Iterator[UnaryOperation]:
     """Yield pairs of (expression, subexpression) for all subexpressions of the given expression or instruction if:
     - subexpression is cast &
     - expression is not bitwise binary operation.
@@ -145,7 +145,7 @@ def _find_cast_subexpressions_filter_bitwise_binops_parents(expression: Dataflow
             if _is_cast(subexpression) and not (
                 isinstance(current_expr, BinaryOperation) and current_expr.operation in operations_to_not_remove_casts
             ):
-                yield current_expr, subexpression
+                yield subexpression
 
 
 def _is_cast(expression: Expression) -> bool:
