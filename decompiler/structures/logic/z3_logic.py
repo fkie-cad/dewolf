@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import functools
 from itertools import product
-from typing import Dict, Generic, Iterable, Iterator, List, TypeVar
+from typing import TYPE_CHECKING, Dict, Generic, Iterable, Iterator, List, Sequence, TypeVar
 
 from decompiler.structures.logic.logic_interface import ConditionInterface, PseudoLogicInterface
 from decompiler.structures.logic.z3_implementations import Z3Implementation
 from decompiler.structures.pseudo import Condition
 from z3 import And, Bool, BoolRef, BoolVal, Context, Not, Or, Solver, is_and, is_false, is_not, is_or, is_true, substitute
 
+if TYPE_CHECKING:
+    from decompiler.structures.ast.condition_symbol import ConditionHandler
 LOGICCLASS = TypeVar("LOGICCLASS", bound="Z3LogicCondition")
 PseudoLOGICCLASS = TypeVar("PseudoLOGICCLASS", bound="PseudoZ3LogicCondition")
 
@@ -19,7 +21,7 @@ class Z3LogicCondition(ConditionInterface, Generic[LOGICCLASS]):
     SIMPLIFICATION_THRESHOLD = 2000
     COMPLEXITY_THRESHOLD = 100000
 
-    def __init__(self, condition: BoolRef):
+    def __init__(self, condition: BoolRef, tmp: bool = False):
         self._condition: BoolRef = condition
         self.z3 = Z3Implementation(True, self.SIMPLIFICATION_THRESHOLD, self.COMPLEXITY_THRESHOLD)
 
@@ -52,12 +54,12 @@ class Z3LogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         return cls(BoolVal(False, ctx=context))
 
     @classmethod
-    def disjunction_of(cls, clauses: Iterable[LOGICCLASS]) -> LOGICCLASS:
+    def disjunction_of(cls, clauses: Sequence[LOGICCLASS]) -> LOGICCLASS:
         """Creates a disjunction for the list of given clauses."""
         return cls(functools.reduce(Or, [clause._condition for clause in clauses]))
 
     @classmethod
-    def conjunction_of(cls, clauses: List[LOGICCLASS]) -> LOGICCLASS:
+    def conjunction_of(cls, clauses: Sequence[LOGICCLASS]) -> LOGICCLASS:
         """Creates a conjunction for the list of given clauses."""
         return cls(functools.reduce(And, [clause._condition for clause in clauses]))
 
@@ -189,7 +191,7 @@ class Z3LogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         Example: substituting in the expression (a∨b)∧c the condition (a∨b) by true results in the condition c,
              and substituting the condition c by true in the condition (a∨b)
         """
-        if self.is_equivalent_to(condition):
+        if condition.does_imply(self):
             self._condition = BoolVal(True, ctx=condition.context)
             return self
         self.to_cnf()
@@ -212,7 +214,7 @@ class Z3LogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         self._condition = expression
         return self
 
-    def remove_redundancy(self, condition_map: Dict[LOGICCLASS, PseudoZ3LogicCondition]) -> LOGICCLASS:
+    def remove_redundancy(self, condition_handler: ConditionHandler) -> LOGICCLASS:
         """
         More advanced simplification of conditions.
 
@@ -220,6 +222,9 @@ class Z3LogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         - This helps, for example for finding switch cases, because it simplifies the condition
           'x1 & x2' if 'x1 = var < 10' and 'x2 = var == 5' to the condition 'x2'.
         """
+        if self.is_literal or self.is_true or self.is_false:
+            return self
+        condition_map = condition_handler.get_z3_condition_map()
         condition: BoolRef = self._condition
         replacement_to_z3 = list()
         replacement_to_symbol = list()
@@ -255,7 +260,7 @@ class Z3LogicCondition(ConditionInterface, Generic[LOGICCLASS]):
 
 
 class PseudoZ3LogicCondition(PseudoLogicInterface, Z3LogicCondition, Generic[LOGICCLASS, PseudoLOGICCLASS]):
-    def __init__(self, condition: BoolRef):
+    def __init__(self, condition: BoolRef, tmp: bool = False):
         super().__init__(condition)
         self.z3 = Z3Implementation(False, self.SIMPLIFICATION_THRESHOLD, self.COMPLEXITY_THRESHOLD)
 

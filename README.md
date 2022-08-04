@@ -24,7 +24,7 @@ ___
 Before we start, please make sure you have the following dependencies installed and available on your computer:
 
 - At least [Python 3.8](https://www.python.org/)
-- Latest stable release of [Binary Ninja (>=2.4)](https://binary.ninja/)
+- Latest stable release of [Binary Ninja (>=3.0)](https://binary.ninja/)
 - [astyle](https://code.tools/man/1/astyle/) for proper indentation of the decompiled code
 - [libgraph-easy-perl](https://packages.ubuntu.com/source/focal/libgraph-easy-perl) only required for printing ASCII graphs
 
@@ -39,24 +39,24 @@ Under **Windows**, please make sure the **astyle**-binary has been added to the 
 Follow the steps below to setup dewolf as a GUI plugin for Binary Ninja.
 Afterwards, you will be able to inspect decompiled code from a Binary Ninja dock.
 
-#### Step 1: 
+#### Step 1:
 Clone the dewolf repository into the Binary Ninja plugin folder which is located in one of the following paths corresponding to your operating system:
 
-**Linux:** `~/.binaryninja/plugins`  
-**MacOS:** `~/Library/Application Support/Binary Ninja`  
-**Windows:** `%APPDATA%\Binary Ninja`  
+**Linux:** `~/.binaryninja/plugins`
+**MacOS:** `~/Library/Application Support/Binary Ninja`
+**Windows:** `%APPDATA%\Binary Ninja`
 
 **Attention:**
 If you want to use a python virtual environment, make sure it is enabled for the next steps and also when starting Binary Ninja.
 
-#### Step 2: 
+#### Step 2:
 Install dewolf's python dependencies with:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-#### Step 3: 
+#### Step 3:
 Install Binary Ninja python API with:
 
 ```bash
@@ -69,13 +69,11 @@ python <binaryninja_path>/scripts/install_api.py [-v if using virtualenv]
 ___
 ## Usage
 
-The dewolf decompiler can be used from both the command line and within Binary Ninja. 
+The dewolf decompiler can be used from both the command line and within Binary Ninja.
 
 ### GUI
-After enabling the dewolf decompilation dock widget via **View > Other Docks > Show Dewolf**, the decompiled code for the currently active symbol will be displayed.
-In the dewolf dock, it is possible to navigate through functions by double-clicking them.
-
-![Widget Menu](https://user-images.githubusercontent.com/12004321/145460440-be4b7dfd-bf7e-497f-a7af-1911bf3efc50.png)
+After enabling the dewolf decompilation widget via **Tools > dewolf decompiler**, the decompiled code for the currently active symbol will be displayed.
+In the dewolf widget, it is possible to navigate through functions by double-clicking them.
 
 The automatic decompilation of selected functions can be toggled with the *follow* button.
 Decompiled code is cached and can be generated again with the *decompile* button, e.g. after patching instructions in the binary view.
@@ -102,7 +100,7 @@ Please use the `--help` flag for more information.
 
 ___
 ## Configuration
-dewolf has multiple configuration options of which some are configurable via the GUI. 
+dewolf has multiple configuration options of which some are configurable via the GUI.
 
 ### via GUI
 You can configure dewolf from the Binary Ninja GUI by navigating to **Edit > Preferences > Settings** or by pressing <kbd>Ctrl</kbd> + <kbd>,</kbd>.

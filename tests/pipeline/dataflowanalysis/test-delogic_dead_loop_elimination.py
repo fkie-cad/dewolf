@@ -19,6 +19,7 @@ x3 = Variable("x", Integer.int32_t(), 3)
 def _run_dead_loop_elimination(cfg: ControlFlowGraph):
     options = Options()
     options.set("dead-loop-elimination.timeout_satisfiable", 1000)
+    options.set("logic-engine.engine", "delogic")
     DeadLoopElimination().run(DecompilerTask("test", cfg, options=options))
 
 

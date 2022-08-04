@@ -81,7 +81,7 @@ class AbnormalEntryRestructurer(AbnormalLoopRestructurer):
         super().__init__(t_cfg, asforest)
         self.entry_edges_to_loop_entry: Optional[Dict[TransitionBlock, Tuple[TransitionEdge]]] = None
 
-    def restructure(self, head: TransitionBlock, current_region: TransitionCFG) -> TransitionBlock:
+    def restructure(self, current_region: TransitionCFG) -> None:
         """
         This function restructures multiple entry loops, by redirecting all loop entries to a new header and adding cascading conditions to
          start as an abnormal entry.
@@ -91,9 +91,9 @@ class AbnormalEntryRestructurer(AbnormalLoopRestructurer):
             4. The new head of the cyclic region is the condition node that decides whether we enter the region through the original head.
             5. Restructure the region accordingly (cf. DREAM  Figure 12)
 
-        :param head: The head of the multiple entry loop.
         :param current_region: The region of the multiple entry loop.
         """
+        head = current_region.root
         self.current_region = current_region
         self._initialize_abnormal_entries()
 
@@ -108,8 +108,6 @@ class AbnormalEntryRestructurer(AbnormalLoopRestructurer):
         new_head: TransitionBlock = condition_nodes[0][0]
         self._update_transition_cfg(code_nodes, condition_nodes, head, new_head)
         self._update_loop_region_abnormal_entry(condition_nodes)
-
-        return new_head
 
     def _update_transition_cfg(self, code_nodes, condition_nodes, head, new_head):
         """Updates the transition cfg such that the current loop region has no abnormal entry anymore."""
@@ -186,15 +184,15 @@ class AbnormalExitRestructurer(AbnormalLoopRestructurer):
         self.exit_edges_to_loop_successor: Optional[Dict[TransitionBlock, Tuple[TransitionEdge]]] = None
         self.exit_nodes: Optional[Set[TransitionBlock]] = None
 
-    def restructure(self, head: TransitionBlock, current_region: TransitionCFG, loop_successors: List[TransitionBlock]) -> TransitionBlock:
+    def restructure(self, current_region: TransitionCFG, loop_successors: List[TransitionBlock]) -> TransitionBlock:
         """
         This function restructures multiple exit loops, by redirecting all each abnormal exit to one exit node and use cascading condition
         nodes that transfer control to the original exit.
 
         :param current_region: The loop region.
-        :param head: The head of the multiple exit loop
         :param loop_successors: The region of the multiple exit loop.
         """
+        head = current_region.root
         self.current_region = current_region
         self._find_abnormal_exits(loop_successors)
 

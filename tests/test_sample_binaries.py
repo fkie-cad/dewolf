@@ -1,5 +1,7 @@
 import subprocess
 
+import pytest
+
 
 def test_sample(test_cases):
     """Test the decompiler with the given test case."""
@@ -53,7 +55,7 @@ def test_global_strings_and_tables():
     # Make sure the global string contains the string hello world.
     assert output2.count('"Hello World"') == 1
     # Ensure that string is referenced correctly
-    assert output2.count("*&hello_string") == 1
+    assert output2.count("puts(/* str */ hello_string") == 1
 
 
 def test_global_indirect_ptrs():
@@ -86,3 +88,17 @@ def test_global_import_address_symbol():
     assert output1.count("g_35_1 = &(g_35)") == 1
     assert output1.count("g_38 = ") == 1
     assert output1.count("g_38_1 = &(g_38)") == 1
+
+
+def test_tailcall_display():
+    """Test that we display tailcalls correctly."""
+    args = ["python", "decompile.py", "tests/coreutils/binaries/sha224sum", "rpl_fseeko"]
+    output = str(subprocess.run(args, check=True, capture_output=True).stdout)
+
+    assert output.count("return fseeko(") == 1
+
+
+def test_issue_70():
+    """Test Issue #70."""
+    args = ["python", "decompile.py", "tests/samples/others/issue-70.bin", "main"]
+    subprocess.run(args, check=True)

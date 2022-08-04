@@ -150,8 +150,7 @@ class ConditionBasedRefinement:
             return ~condition
         return negated_condition
 
-    @staticmethod
-    def _is_subexpression_of_cnf_formula(term: LogicCondition, expression: LogicCondition) -> bool:
+    def _is_subexpression_of_cnf_formula(self, term: LogicCondition, expression: LogicCondition) -> bool:
         """
         Check whether the input term is a conjunction of a subset of clauses of a CNF expression.
         :param term: assumed to be CNF. May contain more than one clause.
@@ -162,12 +161,8 @@ class ConditionBasedRefinement:
         term = (a∨b)∧c, expression = (a∨b)∧(b∨d)∧c, returns True
         term = ¬(a∨b), expression = ¬a∧¬b∧¬c, returns False; term is not CNF and will not match (although this case should not occur).
         """
-        if expression.is_true or expression.is_false:
-            return False
-        if term.is_equivalent_to(expression):
-            return True
-        if expression.is_negation or expression.is_symbol:
-            return False
+        if (is_subexpression := self._preliminary_subexpression_checks(term, expression)) is not None:
+            return is_subexpression
 
         expression_operands = expression.operands
         term_operands = term.operands
@@ -178,17 +173,35 @@ class ConditionBasedRefinement:
             return False
 
         subexpressions = [term] if numb_of_arg_term == 1 else term_operands
-        for sub_expr_1 in subexpressions:
-            for sub_expr_2 in expression_operands:
-                if sub_expr_1.is_equivalent_to(sub_expr_2):
-                    # break and run outer for-loop.
-                    # this is because all expr in term must be a subexpression of expression and we found the subexpression equivalent to expr.
-                    break
-            else:
-                # inner for loop ran all the way without breaking.
-                # so return false as none of the expr in term is in expression
-                return False
-        return True
+        return all(self._is_contained_in_logic_conditions(sub_expr, expression_operands) for sub_expr in subexpressions)
+
+    @staticmethod
+    def _preliminary_subexpression_checks(term: LogicCondition, expression: LogicCondition) -> Optional[bool]:
+        """
+        Check whether we can easily decide whether term is a conjunction of a subset of clauses of a CNF expression.
+
+        - if expression is true or false, this is trivially not the case
+        - if they are equal, this is the case
+        - if expression does not imply term, this is not the case
+        - if they are equivalent, this is the case.
+        - if expression and term are not equivalent, but expression is still a symbol or negation, then it is not the case.
+        """
+        if expression.is_true or expression.is_false:
+            return False
+        if term.is_equal_to(expression):
+            return True
+        if not expression.does_imply(term):
+            return False
+        elif term.does_imply(expression):
+            return True
+        if expression.is_negation or expression.is_symbol:
+            return False
+        return None
+
+    @staticmethod
+    def _is_contained_in_logic_conditions(sub_expression: LogicCondition, logic_conditions: List[LogicCondition]) -> bool:
+        """Check whether the given sub_expression is contained in the list of logic conditions"""
+        return any(sub_expression.is_equivalent_to(condition) for condition in logic_conditions)
 
     def _get_logical_and_subexpressions_of(self, condition: LogicCondition) -> List[LogicCondition]:
         """
@@ -209,7 +222,7 @@ class ConditionBasedRefinement:
                 if len(sub_expression) == 1:
                     and_subexpressions.append(sub_expression[0])
                 else:
-                    and_subexpressions.append(LogicCondition.disjunction_of(sub_expression))
+                    and_subexpressions.append(LogicCondition.conjunction_of(sub_expression))
             return and_subexpressions
         raise ValueError(f"Received a condition which is not a Symbol, Or, Not, or And: {condition}")
 

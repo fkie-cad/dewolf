@@ -291,6 +291,13 @@ int test10(int a, int b)
 	printf("loop terminated\r\n");
 }
 
+int test11(int a, int b)
+{
+	while(1){ 
+    }
+    return 0;
+}
+
 int main()
 {
 	test1();

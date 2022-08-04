@@ -260,7 +260,169 @@ int test13()
     }
 
     return 0;
+} 
+
+int test14()
+{
+    int num1, num2;
+    printf("Enter two numbers: ");
+    scanf("%d%d", &num1, &num2);
+    
+
+    if(num1 > 5){
+        if(num2  > num1){
+            printf("second number is larger than first");
+            goto RETURN;
+        }else{
+            printf("first number is larger than second");
+        }
+    }else{
+        printf("first number is <= 5");
+    }
+    num1 = 5;
+    printf("set first number to 5");
+    
+    RETURN: return num1;
 }
+
+int test15()
+{
+    int num0, num1, num2;
+    printf("Enter two numbers: ");
+    scanf("%d%d%d", &num0, &num1, &num2);
+    
+    if(num0 > 10){
+        if(num1 > 5){
+            if(num2  > num1){
+                printf("second number is larger than first");
+            }else{
+                printf("first number is larger than second");
+                goto POS;
+            }
+        }else{
+            printf("first number is <= 5");
+        }
+    }else{
+        POS: num0 += num2;
+    }
+    printf("The numbers are: %d, %d, %d", num0, num1, num2);
+    
+    return 0;
+}
+
+int test16()
+{
+    int num0, num1, num2;
+    printf("Enter two numbers: ");
+    scanf("%d%d", &num0, &num1);
+    
+    if(num0 < 5){
+        num0 += 5;
+        if(num1 < 5){
+            num1 += num0;
+            }
+    }else{
+        num0 -= 5;
+    }
+    printf("The numbers are: %d, %d", num0, num1);
+    return 0;
+}
+
+int test17(int a){
+    int week;
+    printf("Enter week number (1-7): ");
+    scanf("%d", &week);
+    
+
+    if(week == 1){
+        if(a == 7){
+            printf("The Input is 7 and you choose week number %d", week);
+            goto STEP;
+        }
+    }
+    if(week == 2)
+    {
+        printf("Tuesday");
+    }
+    if(week == 3)
+    {
+        printf("Wednesday");
+    }
+    if(week == 4)
+    {
+        printf("Thursday");
+    }
+    if(week == 5)
+    {
+        printf("Friday");
+    }
+    if(week == 6)
+    {
+        printf("Saturday");
+    }
+    if(week == 7)
+    {
+        printf("Sunday");
+    }
+
+    if(week == 1){
+        printf("Monday");
+        STEP: printf("common case");
+        return 0;
+    }
+    return 0;
+}
+
+int test18(int a){
+    int week;
+    printf("Enter week number (1-7): ");
+    scanf("%d", &week);
+    
+
+    if(week == 1){
+        printf("Possible switch case but not the one we want");
+        if(a > 5){
+            goto CASE1;
+        }else{
+            a += 5;
+            goto CASE2;
+        }
+    }else{
+        if(week == 2){
+            CASE2: printf("Tuesday");
+            if(a > 10){
+                goto CASE3;
+            }else{
+                goto END;
+            }
+        }else{
+            if(week == 3){
+                CASE3: printf("Wednesday");
+                if(week == 1){
+                    CASE1: printf("Monday");
+                    goto END;
+                }
+                goto CASE4;
+            }else{
+                if(week == 4){
+                    CASE4: printf("Thursday");
+                }
+            }
+        }
+    }
+
+    END: return 0;
+}
+
+int print_problem(){
+  int b;
+  scanf("%d", &b);
+  printf("you entered: %d\n", b);
+  b *= b;
+  printf("squared: %d\n", b);
+  return 0;
+}
+
 int main()
 {
 	test4();

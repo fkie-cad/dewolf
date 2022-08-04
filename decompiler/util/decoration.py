@@ -23,6 +23,8 @@ from decompiler.structures.ast.ast_nodes import (
     SwitchNode,
     TrueNode,
 )
+from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
+from decompiler.structures.ast.syntaxgraph import AbstractSyntaxInterface
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.graphs.cfg import BasicBlock, BasicBlockEdge, BasicBlockEdgeCondition, ControlFlowGraph
 from decompiler.structures.logic.logic_condition import LogicCondition
@@ -34,7 +36,7 @@ from pygments.formatters.html import HtmlFormatter
 from pygments.lexers.c_like import CLexer
 
 try:
-    run(["graph-easy"], capture_output=True)
+    run(["graph-easy", "-v"], capture_output=True)
     GRAPH_EASY_INSTALLED = True
 except FileNotFoundError as _:
     GRAPH_EASY_INSTALLED = False
@@ -198,25 +200,31 @@ class DecoratedAST(DecoratedGraph):
         self.condition_map: Dict[z3.BoolRef, Condition] = {}
 
     @classmethod
-    def from_ast(cls, ast: AbstractSyntaxTree) -> DecoratedAST:
-        """Generate a decorated graph based on the given AbstractSyntaxTree."""
+    def from_ast(cls, ast: AbstractSyntaxInterface, with_reaching_condition: bool = False) -> DecoratedAST:
+        """Generate a decorated graph based on the given AbstractSyntaxTree or AbstractSyntaxForest."""
         graph = cls()
-        graph.condition_map = ast.condition_map
+        graph.condition_map = dict()
+        if isinstance(ast, AbstractSyntaxForest):
+            graph.condition_map = ast.condition_handler.get_condition_map()
+        elif isinstance(ast, AbstractSyntaxTree):
+            graph.condition_map = ast.condition_map
         node_id = 0
         for node in ast.topological_order():
             if isinstance(node, (TrueNode, FalseNode)):
                 continue
-            graph.decorate_node(node, node_id)
+            graph.decorate_node(node, node_id, with_reaching_condition)
             node_id += 1
         graph._add_edges()
         return graph
 
-    def decorate_node(self, node: AbstractSyntaxTreeNode, node_id: int):
+    def decorate_node(self, node: AbstractSyntaxTreeNode, node_id: int, with_reaching_condition: bool = False):
         """Decorate the given node while adding it to the DecoratedAST."""
         attributes = self.GENERAL_NODE_DECORATION.copy()
         attributes.update(self.NODE_DECORATION.get(type(node), {}))
 
         label = f"{node_id}. {node.__class__.__name__}"
+        if with_reaching_condition:
+            label += f"\n {node.reaching_condition.rich_string_representation(self.condition_map)}"
 
         if hasattr(node, "condition"):
             resolved_condition = node.condition.rich_string_representation(self.condition_map)
@@ -232,7 +240,8 @@ class DecoratedAST(DecoratedGraph):
                 label += self._format_node_content(f"{node}")
         else:
             label += self._format_node_content(f"{node}")
-
+        if ":" in label:
+            label = f'"{label}"'
         self._graph.add_node(node_id, **attributes, label=label)
         self._node_to_id[node] = node_id
 
@@ -282,9 +291,9 @@ class DecoratedAST(DecoratedGraph):
     @staticmethod
     def _format_node_content(label: str, max_width: int = 60):
         """Keep content of decorated nodes <= max_width for readability purposes."""
-        splitted_lines = "\n"
+        splitted_lines = r"\n"
         for label in label.splitlines():
-            splitted_lines += "\n" + textwrap.fill(label, max_width)
+            splitted_lines += r"\n" + textwrap.fill(label, max_width)
         return splitted_lines
 
 

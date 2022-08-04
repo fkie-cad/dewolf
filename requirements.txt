@@ -1,11 +1,8 @@
-git+https://github.com/fkie-cad/dewolf-logic.git
+git+https://github.com/fkie-cad/dewolf-logic.git#egg=delogic
 black
 isort
-networkx
+networkx != 2.8.4
 pydot
 pygments
-sympy == 1.4
-numpy
-scipy
 pytest !=5.3.4
 z3-solver == 4.8.10

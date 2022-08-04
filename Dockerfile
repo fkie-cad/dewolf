@@ -1,4 +1,4 @@
-FROM ubuntu:latest
+FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt -y update && apt -y upgrade && apt install -y --no-install-recommends \
@@ -34,10 +34,8 @@ COPY license.txt /root/.binaryninja/license.dat
 RUN mkdir -p /opt/dewolf && test -f /opt/dewolf/install_api.py || ln -s /opt/binaryninja/scripts/install_api.py /opt/dewolf/install_api.py
 
 # update binja and cache this docker image
-COPY Makefile.venv requirements.txt update_binja.py /opt/dewolf/
-COPY ./dewolf-idioms/requirements.txt /opt/dewolf/requirements-compiler-idioms.txt
-RUN make -f /opt/dewolf/Makefile.venv venv VENV_PATH=/opt/dewolf/.venv PREFIX=/opt/dewolf
-
 COPY . /opt/dewolf
+RUN cd /opt/dewolf & make -f /opt/dewolf/Makefile.venv venv VENV_PATH=/opt/dewolf/.venv PREFIX=/opt/dewolf
+
 RUN mkdir -p /root/.binaryninja/plugins/ && cp -r /opt/dewolf/dewolf-idioms/ /root/.binaryninja/plugins/
 WORKDIR /opt/dewolf
