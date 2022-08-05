@@ -16,7 +16,7 @@ class GlobalHandler(Handler):
         """Register the handler at its parent lifter."""
         self._lifter.HANDLERS.update({DataVariable: self.lift_global_variable})
 
-    def lift_global_variable(self, variable: DataVariable, **kwargs) -> UnaryOperation:
+    def lift_global_variable(self, variable: DataVariable, **kwargs) -> Union[UnaryOperation, GlobalVariable]:
         """Lift a global variable.
         kwargs should contain 2 keys:
         parent_addr: an address in int if this is a recursive pointer, None otherwise.
@@ -38,14 +38,21 @@ class GlobalHandler(Handler):
         initial_value = self._get_initial_value(bv, variable, addr, type_tokens)
 
         # Create the global variable.
+        # since load(global) is used by Binja to access a global variable's value, we lift
+        # int... VAR as &VAR -> *(&VAR) -> VAR in the decompiled code
+        # void... VAR as VAR -> *(VAR) will actually access the data the global variable points to
         # Convert all void and void* to char* for the C compiler.
+        print(type_tokens)
         if "void" in type_tokens:
             vartype = self._lifter.lift(bv.parse_type_string("char*")[0])
-        return UnaryOperation(
-            OperationType.address,
-            [GlobalVariable(variable_name, vartype=vartype, ssa_label=0, initial_value=initial_value)],
-            vartype=Pointer(vartype),
-        )
+            return GlobalVariable(variable_name, vartype=vartype, ssa_label=0, initial_value=initial_value)
+        else:
+            vartype = self._lifter.lift(variable.type)
+            return UnaryOperation(
+                OperationType.address,
+                [GlobalVariable(variable_name, vartype=vartype, ssa_label=0, initial_value=initial_value)],
+                vartype=Pointer(vartype),
+            )
 
     def _lift_jump_table(self, bv: BinaryView, variable_name: str, vartype: Type, addr: int) -> UnaryOperation:
         """Lift a jump table."""
