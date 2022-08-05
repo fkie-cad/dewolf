@@ -48,8 +48,9 @@ def test_global_strings_and_tables():
     assert output1.count("extern char * table") == 1
     # Make sure the contents of this table variable are bytes
     assert output1.count("\\\\x20\\\\x14\\\\x13\\\\x63\\\\x63") == 1
-    # Make sure that table is referenced by address
-    assert output1.count("&table") == 1
+    # Make sure that table is referenced by its name, not by address
+    assert output1.count("&table") == 0
+    assert output1.count("table") > 1
     # Ensure string type is char *
     assert output2.count("extern char * hello_string") == 1
     # Make sure the global string contains the string hello world.
