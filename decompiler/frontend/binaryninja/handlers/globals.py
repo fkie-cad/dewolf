@@ -42,7 +42,6 @@ class GlobalHandler(Handler):
         # int... VAR as &VAR  -> *(&VAR) -> VAR in the decompiled code
         # void... VAR as VAR  -> *(VAR) will actually access the data the global variable points to
         # Convert all void and void* to char* for the C compiler.
-        print(type_tokens)
         if "void" in type_tokens:
             vartype = self._lifter.lift(bv.parse_type_string("char*")[0])
             return GlobalVariable(variable_name, vartype=vartype, ssa_label=0, initial_value=initial_value)
