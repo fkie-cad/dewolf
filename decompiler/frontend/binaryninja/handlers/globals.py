@@ -38,9 +38,9 @@ class GlobalHandler(Handler):
         initial_value = self._get_initial_value(bv, variable, addr, type_tokens)
 
         # Create the global variable.
-        # since load(global) is used by Binja to access a global variable's value, we lift
-        # int... VAR as &VAR -> *(&VAR) -> VAR in the decompiled code
-        # void... VAR as VAR -> *(VAR) will actually access the data the global variable points to
+        # since store(global) -- *(global) -- is used by Binja to access a global variable's value, we lift
+        # int... VAR as &VAR  -> *(&VAR) -> VAR in the decompiled code
+        # void... VAR as VAR  -> *(VAR) will actually access the data the global variable points to
         # Convert all void and void* to char* for the C compiler.
         print(type_tokens)
         if "void" in type_tokens:
