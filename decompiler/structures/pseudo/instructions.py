@@ -95,11 +95,12 @@ class Comment(Instruction):
 class BaseAssignment(Instruction, ABC, Generic[E, F]):
     """Baseclass for Assignments an Relations."""
 
-    def __init__(self, destination: E, value: F, tags: Optional[Tuple[Tag, ...]] = None):
+    def __init__(self, destination: E, value: F, tags: Optional[Tuple[Tag, ...]] = None, writes_memory=None):
         """Initialize a new assignment operation."""
         super().__init__(tags)
         self._destination = destination
         self._value = value
+        self._writes_memory = writes_memory
 
     def __iter__(self) -> Iterator[Expression]:
         """Yield all subexpressions of the given Assignment."""
@@ -148,6 +149,8 @@ class BaseAssignment(Instruction, ABC, Generic[E, F]):
             return self.value.writes_memory
         if isinstance(self.destination, UnaryOperation) and self.destination.operation == OperationType.dereference:
             return self.destination.writes_memory
+        if self._writes_memory:
+            return self._writes_memory
         for variable in self.definitions:
             if variable.is_aliased:
                 return variable.ssa_label
@@ -157,9 +160,9 @@ class BaseAssignment(Instruction, ABC, Generic[E, F]):
 class Assignment(BaseAssignment[Expression, Expression]):
     """Base class for all instructions yielding a result."""
 
-    def __init__(self, destination: Expression, value: Expression, tags: Optional[Tuple[Tag, ...]] = None):
+    def __init__(self, destination: Expression, value: Expression, tags: Optional[Tuple[Tag, ...]] = None, writes_memory=None):
         """Init a new Assignment."""
-        super(Assignment, self).__init__(destination, value, tags=tags)
+        super(Assignment, self).__init__(destination, value, tags=tags, writes_memory=writes_memory)
 
     def __str__(self) -> str:
         """Return a string representation starting with the lhs."""

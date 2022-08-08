@@ -3,7 +3,7 @@ from typing import List, Union
 
 from binaryninja import BinaryView, DataVariable, Endianness, SymbolType, TypeClass
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import Constant, GlobalVariable, Integer, OperationType, Pointer, Symbol, Type, UnaryOperation
+from decompiler.structures.pseudo import Constant, CustomType, GlobalVariable, Integer, OperationType, Pointer, Symbol, Type, UnaryOperation
 
 
 class GlobalHandler(Handler):
@@ -38,23 +38,10 @@ class GlobalHandler(Handler):
         initial_value = self._get_initial_value(bv, variable, addr, type_tokens)
 
         # Create the global variable.
-        # since store(global) -- *(global) -- is used by Binja to access a global variable's value, we lift
-        # int... VAR as &VAR  -> *(&VAR) -> VAR in the decompiled code
-        # void... VAR as VAR  -> *(VAR) will actually access the data the global variable points to
-        # Convert all void and void* to char* for the C compiler.
-        if "void" in type_tokens and "*" not in type_tokens:
+        vartype = self._lifter.lift(variable.type)
+        if initial_value and str(initial_value).isprintable() and "void" in type_tokens:
             vartype = self._lifter.lift(bv.parse_type_string("char*")[0])
-            return GlobalVariable(variable_name, vartype=vartype, ssa_label=0, initial_value=initial_value)
-        else:
-            if "void" in type_tokens and "*" in type_tokens:
-                vartype = self._lifter.lift(bv.parse_type_string("char*")[0])
-            else:
-                vartype = self._lifter.lift(variable.type)
-            return UnaryOperation(
-                OperationType.address,
-                [GlobalVariable(variable_name, vartype=vartype, ssa_label=0, initial_value=initial_value)],
-                vartype=Pointer(vartype),
-            )
+        return GlobalVariable(variable_name, vartype=vartype, ssa_label=0, initial_value=initial_value)
 
     def _lift_jump_table(self, bv: BinaryView, variable_name: str, vartype: Type, addr: int) -> UnaryOperation:
         """Lift a jump table."""
@@ -85,7 +72,7 @@ class GlobalHandler(Handler):
             if "*" in type_tokens:
                 indirect_ptr_addr = self._get_value(bv, addr, bv.arch.address_size)
                 if (var2 := bv.get_data_var_at(indirect_ptr_addr)) is not None:
-                    return self.lift_global_variable(var2, bv=bv, parent_addr=addr)
+                    return UnaryOperation(OperationType.address, [self.lift_global_variable(var2, bv=bv, parent_addr=addr)])
                 else:
                     return self._lift_no_data_var(bv, indirect_ptr_addr)
             else:

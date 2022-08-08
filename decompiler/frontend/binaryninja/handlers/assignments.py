@@ -7,6 +7,7 @@ from decompiler.structures.pseudo import (
     Assignment,
     BinaryOperation,
     Constant,
+    GlobalVariable,
     Integer,
     Operation,
     OperationType,
@@ -84,6 +85,9 @@ class AssignmentHandler(Handler):
 
     def lift_store(self, assignment: mediumlevelil.MediumLevelILStoreSsa, **kwargs) -> Assignment:
         """Lift a store operation to pseudo (e.g. [ebp+4] = eax)."""
+        op = self._lifter.lift(assignment.dest, parent=assignment)
+        if isinstance(op, GlobalVariable):
+            return Assignment(op, self._lifter.lift(assignment.src), writes_memory=assignment.dest_memory)
         return Assignment(
             UnaryOperation(
                 OperationType.dereference,

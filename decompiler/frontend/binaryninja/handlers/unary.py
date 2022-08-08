@@ -3,7 +3,16 @@ from functools import partial
 
 from binaryninja import MediumLevelILInstruction, MediumLevelILOperation, mediumlevelil
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import BinaryOperation, Constant, Integer, Operation, OperationType, Pointer, UnaryOperation
+from decompiler.structures.pseudo import (
+    BinaryOperation,
+    Constant,
+    GlobalVariable,
+    Integer,
+    Operation,
+    OperationType,
+    Pointer,
+    UnaryOperation,
+)
 
 
 class UnaryOperationHandler(Handler):
@@ -32,6 +41,9 @@ class UnaryOperationHandler(Handler):
 
     def lift_unary_operation(self, op_type: OperationType, operation: MediumLevelILOperation, **kwargs) -> UnaryOperation:
         """Lift the given constant value."""
+        operands = [self._lifter.lift(x, parent=operation) for x in operation.operands]
+        if op_type == OperationType.dereference and isinstance(global_var := operands[0], GlobalVariable):
+            return global_var
         return UnaryOperation(
             op_type,
             [self._lifter.lift(x, parent=operation) for x in operation.operands],
