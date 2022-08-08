@@ -87,6 +87,7 @@ class AssignmentHandler(Handler):
         """Lift a store operation to pseudo (e.g. [ebp+4] = eax)."""
         op = self._lifter.lift(assignment.dest, parent=assignment)
         if isinstance(op, GlobalVariable):
+            op.ssa_label = assignment.dest_memory
             return Assignment(op, self._lifter.lift(assignment.src), writes_memory=assignment.dest_memory)
         return Assignment(
             UnaryOperation(
