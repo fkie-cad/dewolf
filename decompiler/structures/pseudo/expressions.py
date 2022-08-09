@@ -391,7 +391,7 @@ class GlobalVariable(Variable):
 
     def __str__(self) -> str:
         """Return a string representation of the global variable."""
-        return f"glob_{self._name}" if (label := self.ssa_label) is None else f"{self._name}#{label}"
+        return f"{self._name}" if (label := self.ssa_label) is None else f"{self._name}#{label}"
 
 
 class RegisterPair(Variable):

@@ -10,7 +10,7 @@ from decompiler.structures.pseudo import (
     OperationType,
     Phi,
     UnaryOperation,
-    Variable,
+    Variable, GlobalVariable,
 )
 from decompiler.structures.pseudo.typing import Pointer
 
@@ -29,6 +29,8 @@ class Pointers:
         """Fills points_to and is_pointed_by with the corresponding pointer information for the given control flow graph"""
         self._collect_single_level_pointers(cfg)
         self._revert_points_to()
+        print(self.is_pointed_by)
+        print(self.points_to)
         return self
 
     def _collect_single_level_pointers(self, cfg: ControlFlowGraph):
@@ -72,6 +74,8 @@ class Pointers:
             if self._assigns_to_address_of(instr):
                 if not isinstance(instr.value.operand, BinaryOperation):
                     self.points_to[instr.destination].add(instr.value.operand.name)
+            if isinstance(instr, Assignment) and isinstance(instr.value, GlobalVariable) and isinstance(instr.value.type, Pointer):
+                self.points_to[instr.destination] = set()
             self._add_pointers_without_aliased_variables(instr)
 
     def _add_pointers_without_aliased_variables(self, instr: Instruction):
@@ -80,7 +84,7 @@ class Pointers:
         the points-to with empty set of associated variables
         """
         for var in instr.requirements:
-            if isinstance(var, Variable) and isinstance(var.type, Pointer):
+            if (isinstance(var, Variable) or isinstance(var, GlobalVariable)) and isinstance(var.type, Pointer):
                 if var not in self.points_to:
                     self.points_to[var] = set()
 
@@ -103,5 +107,5 @@ class Pointers:
         return (
             isinstance(instruction, BaseAssignment)
             and isinstance(instruction.destination, Variable)
-            and isinstance(instruction.value, Variable)
+            and (isinstance(instruction.value, Variable) or isinstance(instruction.value, GlobalVariable))
         )

@@ -187,7 +187,11 @@ class InsertMissingDefinitions(PipelineStage):
 
         position_insert_definition = self._find_position_to_insert_aliased_definition(basicblock_for_definition, memory_instruction)
         ssa_label_rhs_variable = self._get_ssa_label_of_rhs_variable(basicblock_for_definition, prev_ssa_labels)
-        rhs_variable = Variable(variable.name, variable.type, ssa_label_rhs_variable, True) if isinstance(variable, Variable) else GlobalVariable(variable.name, variable.type, ssa_label_rhs_variable)
+        if isinstance(variable, GlobalVariable):
+            rhs_variable = GlobalVariable(variable.name, variable.type, ssa_label_rhs_variable)
+        else:
+            rhs_variable = Variable(variable.name, variable.type, ssa_label_rhs_variable, True)
+        #rhs_variable = Variable(variable.name, variable.type, ssa_label_rhs_variable, True) if isinstance(variable, Variable) else GlobalVariable(variable.name, variable.type, ssa_label_rhs_variable)
 
         if self._memory_instruction_changes_variable(memory_instruction, rhs_variable):
             definition = Relation(variable, rhs_variable)

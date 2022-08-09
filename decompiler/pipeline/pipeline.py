@@ -83,7 +83,7 @@ class DecompilerPipeline:
         show_all = task.options.getboolean("logging.show_all_stages", fallback=False)
         show_starting_point = task.options.getboolean("logging.show_starting_point", fallback=False)
         showed_stages = task.options.getlist("logging.show_selected", fallback=[])
-        print_ascii = output_format == "ascii" or output_format == "ascii_and_tabs"
+        print_ascii = True#output_format == "ascii" or output_format == "ascii_and_tabs"
         show_in_tabs = output_format == "tabs" or output_format == "ascii_and_tabs"
 
         self.validate()
@@ -95,6 +95,7 @@ class DecompilerPipeline:
             debug(f"stage {stage.name}")
             instance = stage()
             instance.run(task)
+            self._show_stage(task, stage.name, print_ascii, show_in_tabs)
             if show_all or stage.name in showed_stages:
                 self._show_stage(task, f"After {stage.name}", print_ascii, show_in_tabs)
 
