@@ -1,6 +1,18 @@
-from typing import Iterator
+from typing import Iterator, Tuple
 
-from decompiler.structures.pseudo import Assignment, DataflowObject, Expression, Instruction, Integer, OperationType, Type, UnaryOperation
+from decompiler.structures.pseudo import (
+    Assignment,
+    BinaryOperation,
+    Constant,
+    DataflowObject,
+    Expression,
+    Instruction,
+    Integer,
+    OperationType,
+    Type,
+    UnaryOperation,
+    Variable,
+)
 
 MAX_REGISTER_SIZE = 64
 
@@ -79,8 +91,10 @@ def _remove_cast_to_largest_register(instruction: Instruction):
     Currently only for 64 bit.
 
     Mandatory the last step, after no expression propagation is performed
+    Do not remove casts involved in bitwise binary operations - since removing cast from such operations may change the
+    semantics of the decompiled code thus leading to incorrect result.
     """
-    for expr in _find_cast_subexpressions(instruction):
+    for expr in _find_cast_subexpressions_filter_bitwise_binops_parents(instruction):
         if expr.type.size == MAX_REGISTER_SIZE:
             instruction.substitute(expr, expr.operand)
 
@@ -101,12 +115,37 @@ def _remove_casts_where_type_of_var_is_same_to_casted(instruction: Instruction):
 
 
 def _find_cast_subexpressions(expression: DataflowObject) -> Iterator[UnaryOperation]:
-    """Yield all subexpressions of the given expression or instruction."""
+    """Yield all cast subexpressions of the given expression or instruction."""
     todo = [expression]
     while todo and (subexpression := todo.pop()):
         todo.extend(subexpression)
         if not (isinstance(expression, Assignment) and expression.destination == subexpression) and _is_cast(subexpression):
             yield subexpression
+
+
+def _find_cast_subexpressions_filter_bitwise_binops_parents(expression: DataflowObject) -> Iterator[UnaryOperation]:
+    """Yield pairs of (expression, subexpression) for all subexpressions of the given expression or instruction if:
+    - subexpression is cast &
+    - expression is not bitwise binary operation.
+    """
+    todo = [expression]
+    operations_to_not_remove_casts = {
+        OperationType.right_shift,
+        OperationType.left_shift,
+        OperationType.right_shift_us,
+        OperationType.bitwise_and,
+        OperationType.bitwise_or,
+        OperationType.bitwise_xor,
+    }
+    while todo:
+        current_expr = todo.pop()
+        for subexpression in current_expr:
+            if not isinstance(subexpression, Variable) and not isinstance(subexpression, Constant):
+                todo.append(subexpression)
+            if _is_cast(subexpression) and not (
+                isinstance(current_expr, BinaryOperation) and current_expr.operation in operations_to_not_remove_casts
+            ):
+                yield subexpression
 
 
 def _is_cast(expression: Expression) -> bool:

@@ -336,3 +336,34 @@ def test_cast_simplification_for_returns(instruction, simplified_instruction):
 def test_cast_simplification_for_ptr_int_cast(instruction, simplified_instruction):
     simplify_casts_in_instruction(instruction)
     assert instruction == simplified_instruction
+
+
+@pytest.mark.parametrize(
+    "instruction, simplified_instruction",
+    [
+        (
+            Return(
+                [
+                    cast(
+                        signed_long,
+                        BinaryOperation(
+                            OperationType.plus,
+                            [int_var, BinaryOperation(OperationType.right_shift_us, [cast(signed_long, int_var), Constant(32)])],
+                        ),
+                    )
+                ]
+            ),
+            Return(
+                [
+                    BinaryOperation(
+                        OperationType.plus,
+                        [int_var, BinaryOperation(OperationType.right_shift_us, [cast(signed_long, int_var), Constant(32)])],
+                    )
+                ]
+            ),
+        )
+    ],
+)
+def test_cast_simplification_ignores_bitwise_binop(instruction, simplified_instruction):
+    simplify_casts_in_instruction(instruction)
+    assert instruction == simplified_instruction
