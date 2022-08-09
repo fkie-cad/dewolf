@@ -5,7 +5,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Generic, Iterator, List, Optional, Sequence, Set, Tuple, TypeVar, Union, final
 
-from .expressions import Constant, DataflowObject, Expression, Tag, Variable
+from .expressions import Constant, DataflowObject, Expression, Tag, Variable, GlobalVariable
 from .operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
 
 E = TypeVar("E", bound=Expression)
@@ -549,11 +549,21 @@ class MemPhi(Phi):
 
     def _generate_phi_function_for_variable(self, var: Variable) -> Phi:
         """Given a variable, creates a Phi-Function for it using ssa versions of mem variables"""
-        phi_target = Variable(var.name, var.type, ssa_label=self.destination.ssa_label)
+        if isinstance(var, GlobalVariable):
+            phi_target = GlobalVariable(var.name, var.type, ssa_label=self.destination.ssa_label)
+        else:
+            phi_target = Variable(var.name, var.type, ssa_label=self.destination.ssa_label)
         phi_target.is_aliased = True
         phi_arguments = []
+        print(f"Mem op: {self.value.operands}")
         for variable in self.value.operands:
-            phi_arg = Variable(var.name, var.type, ssa_label=variable.ssa_label)
+
+            if isinstance(var, GlobalVariable):
+                print("HAHAHAAAA")
+                phi_arg = GlobalVariable(var.name, var.type, ssa_label=variable.ssa_label)
+            else:
+                phi_arg = Variable(var.name, var.type, ssa_label=variable.ssa_label)
+
             phi_arg.is_aliased = True
             phi_arguments.append(phi_arg)
         return Phi(phi_target, phi_arguments)

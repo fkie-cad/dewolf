@@ -373,7 +373,7 @@ class GlobalVariable(Variable):
         name: str,
         vartype: Type = UnknownType(),
         ssa_label: int = None,
-        is_aliased: bool = False,
+        is_aliased: bool = True,
         ssa_name: Optional[Variable] = None,
         initial_value: Union[float, int, str, GlobalVariable] = None,
         tags: Optional[Tuple[Tag, ...]] = None,
@@ -391,7 +391,7 @@ class GlobalVariable(Variable):
 
     def __str__(self) -> str:
         """Return a string representation of the global variable."""
-        return f"{self._name}"
+        return f"glob_{self._name}" if (label := self.ssa_label) is None else f"{self._name}#{label}"
 
 
 class RegisterPair(Variable):

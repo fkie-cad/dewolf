@@ -2,8 +2,8 @@ from typing import Optional, Set
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import ControlFlowGraph
-from decompiler.structures.pseudo.expressions import Variable
-from decompiler.structures.pseudo.instructions import MemPhi
+from decompiler.structures.pseudo.expressions import Variable, GlobalVariable
+from decompiler.structures.pseudo.instructions import MemPhi, Phi
 from decompiler.task import DecompilerTask
 
 
@@ -30,6 +30,17 @@ class MemPhiConverter(PipelineStage):
             self._replace_mem_phis_with_phis()
         else:
             self._remove_all_mem_phis()
+        for i in self._aliased_variables:
+            if isinstance(i, GlobalVariable):
+                print(f"After Mem-phi: {i}")
+        for basic_block in self._cfg.nodes:
+            for instruction in basic_block.instructions:
+                if isinstance(instruction, Phi):
+                    print(f'phi: {instruction}')
+                    print(isinstance(instruction.destination, GlobalVariable))
+                    for x in instruction.requirements:
+                        print(f'argphi: {x}, {isinstance(x, GlobalVariable)}')
+
 
     def _collect_aliased_variables(self) -> None:
         """
@@ -46,10 +57,16 @@ class MemPhiConverter(PipelineStage):
         for instruction in self._cfg.instructions:
             for variable in instruction.requirements:
                 if variable.is_aliased:
-                    self._aliased_variables.add(Variable(variable.name, variable.type, ssa_label=None))
+                    if isinstance(variable, GlobalVariable):
+                        self._aliased_variables.add(GlobalVariable(variable.name, variable.type, ssa_label=None))
+                    else:
+                        self._aliased_variables.add(Variable(variable.name, variable.type, ssa_label=None))
             for variable in instruction.definitions:
                 if variable.is_aliased:
-                    self._aliased_variables.add(Variable(variable.name, variable.type, ssa_label=None))
+                    if isinstance(variable, GlobalVariable):
+                        self._aliased_variables.add(GlobalVariable(variable.name, variable.type, ssa_label=None))
+                    else:
+                        self._aliased_variables.add(Variable(variable.name, variable.type, ssa_label=None))
 
     def _replace_mem_phis_with_phis(self) -> None:
         """
