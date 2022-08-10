@@ -44,12 +44,18 @@ class ConstantHandler(Handler):
     def lift_constant_pointer(self, pointer: mediumlevelil.MediumLevelILConstPtr, **kwargs) -> Union[Constant, Symbol, UnaryOperation]:
         bv = pointer.function.source_function.view
         address = pointer.constant
+        print(f"Here we are for pointer {pointer} and address {hex(address)}")
 
         if address == 0:
             # TODO: hack - Binja thinks that 0 is a null pointer, even though it may be just integer 0.
             return Constant(0, vartype=Integer.uint64_t() if bv.address_size == 8 else Integer.uint32_t())
 
         symbol = self._get_symbol(bv, address)
+
+        # entry from .got sections: addresses(offsets) of global variables and functions
+        if symbol is not None and symbol.type is SymbolType.ImportAddressSymbol:
+            return self._lift_import_address_symbol(bv, symbol)
+
         if symbol is not None and symbol.type in (SymbolType.ImportedFunctionSymbol, SymbolType.ExternalSymbol, SymbolType.FunctionSymbol):
             return self._lift_symbol_pointer(address, symbol)
 
@@ -69,6 +75,17 @@ class ConstantHandler(Handler):
             return FunctionSymbol(symbol.name, address, vartype=Pointer(Integer.char()))
         if symbol.type in (SymbolType.ImportedFunctionSymbol, SymbolType.ExternalSymbol):
             return ImportedFunctionSymbol(symbol.name, address, vartype=Pointer(Integer.char()))
+
+    def _lift_import_address_symbol(self, bv: BinaryView, symbol: bSymbol):
+        """Lift entry from .got section: addresses(offsets) of external symbols
+        First lift the global variable pointed by the symbol.
+        Second construct &global_variable.
+        """
+        pointer_value = bv.read_pointer(symbol.address)
+        global_data_pointed_by_symbol = bv.get_data_var_at(pointer_value)
+        if global_data_pointed_by_symbol:
+            lifted_global_var = self._lifter.lift(global_data_pointed_by_symbol, bv=bv, parent_addr=symbol.address)
+            return UnaryOperation(OperationType.address, [lifted_global_var])
 
     @staticmethod
     def _get_symbol(bv: BinaryView, address: int) -> Optional[bSymbol]:

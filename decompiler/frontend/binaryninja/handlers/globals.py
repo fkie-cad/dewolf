@@ -72,6 +72,7 @@ class GlobalHandler(Handler):
             if "*" in type_tokens:
                 indirect_ptr_addr = self._get_value(bv, addr, bv.arch.address_size)
                 if (var2 := bv.get_data_var_at(indirect_ptr_addr)) is not None:
+                    print(f"Indirect ptr {variable.name} on {var2.name}")
                     return UnaryOperation(OperationType.address, [self.lift_global_variable(var2, bv=bv, parent_addr=addr)])
                 else:
                     return self._lift_no_data_var(bv, indirect_ptr_addr)
