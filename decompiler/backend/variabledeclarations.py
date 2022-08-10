@@ -13,7 +13,7 @@ from decompiler.structures.pseudo import (
     GlobalVariable,
     OperationType,
     UnaryOperation,
-    Variable,
+    Variable, Operation,
 )
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask
@@ -126,4 +126,8 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
             return str(variable.initial_value.value)
         if isinstance(variable.initial_value, bytes):
             return str(convert_bytes(variable.initial_value, variable.type))
+        if isinstance(operation:=variable.initial_value, Operation):
+            for requirement in operation.requirements:
+                if isinstance(requirement, GlobalVariable) and requirement.ssa_label is not None:
+                    requirement.ssa_label = None
         return str(variable.initial_value)
