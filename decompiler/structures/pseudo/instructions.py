@@ -555,11 +555,8 @@ class MemPhi(Phi):
             phi_target = Variable(var.name, var.type, ssa_label=self.destination.ssa_label)
         phi_target.is_aliased = True
         phi_arguments = []
-        print(f"Mem op: {self.value.operands}")
         for variable in self.value.operands:
-
             if isinstance(var, GlobalVariable):
-                print("HAHAHAAAA")
                 phi_arg = GlobalVariable(var.name, var.type, ssa_label=variable.ssa_label)
             else:
                 phi_arg = Variable(var.name, var.type, ssa_label=variable.ssa_label)

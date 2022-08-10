@@ -120,8 +120,6 @@ class InsertMissingDefinitions(PipelineStage):
           (no change) or a relation (change).
         """
         undefined_variables: Set[Variable] = self._get_undefined_variables()
-        # for v in undefined_variables:
-        #     print(f"{v} is global {isinstance(v, GlobalVariable)}")
         variable_copies: _VariableCopyPool = _VariableCopyPool(undefined_variables | self._def_map.defined_variables)
         variable_copies.sort_copies_of(*undefined_variables)
 
@@ -142,8 +140,6 @@ class InsertMissingDefinitions(PipelineStage):
         -> We assume that every aliased variable has to be defined for every memory version.
         """
         undefined_variables = self._use_map.used_variables - self._def_map.defined_variables
-        for v in undefined_variables:
-            print(f"Here {v} is global {isinstance(v, GlobalVariable)}")
         all_variables = self._use_map.used_variables | self._def_map.defined_variables
 
         aliased_names = {(variable.name, variable.type, isinstance(variable, GlobalVariable)) for variable in all_variables if variable.is_aliased}
@@ -179,10 +175,6 @@ class InsertMissingDefinitions(PipelineStage):
         :param prev_ssa_labels: The labels of the ssa-variables of this aliased-variable that are already defined.
         """
         self._check_definition_is_insertable(variable)
-        # print(f"Var def to be inserted {variable}")
-        # if variable.ssa_label == 0:
-        #     return
-
         basicblock_for_definition, memory_instruction = self._node_of_memory_version[variable.ssa_label]
 
         position_insert_definition = self._find_position_to_insert_aliased_definition(basicblock_for_definition, memory_instruction)
@@ -191,19 +183,16 @@ class InsertMissingDefinitions(PipelineStage):
             rhs_variable = GlobalVariable(variable.name, variable.type, ssa_label_rhs_variable)
         else:
             rhs_variable = Variable(variable.name, variable.type, ssa_label_rhs_variable, True)
-        #rhs_variable = Variable(variable.name, variable.type, ssa_label_rhs_variable, True) if isinstance(variable, Variable) else GlobalVariable(variable.name, variable.type, ssa_label_rhs_variable)
 
         if self._memory_instruction_changes_variable(memory_instruction, rhs_variable):
             definition = Relation(variable, rhs_variable)
         else:
             definition = Assignment(variable, rhs_variable)
         basicblock_for_definition.instructions.insert(position_insert_definition, definition)
-        print(f"Definition: {definition}")
 
         self._update_pointer_info_for(definition)
         self._update_usages_and_definitions(definition, basicblock_for_definition)
-        print(f"Basic block after insertion: {basicblock_for_definition}")
-        print("=================================")
+
 
     def _find_position_to_insert_aliased_definition(self, basicblock: BasicBlock, memory_instruction: Instruction) -> int:
         """
@@ -306,7 +295,6 @@ class InsertMissingDefinitions(PipelineStage):
             raise ValueError(error_message)
         _, memory_instruction = self._node_of_memory_version[variable.ssa_label]
         if isinstance(memory_instruction, Phi):
-            print(f"Is insertable {variable}")
             error_message = (
                 f"Variable {variable} should have been defined during 'ExtendPhiFunctions' because memory version {variable.ssa_label} "
                 f"depends on the memory versions {[variable.ssa_label for variable in memory_instruction.requirements]}"

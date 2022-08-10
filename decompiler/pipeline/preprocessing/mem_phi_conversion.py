@@ -30,17 +30,6 @@ class MemPhiConverter(PipelineStage):
             self._replace_mem_phis_with_phis()
         else:
             self._remove_all_mem_phis()
-        for i in self._aliased_variables:
-            if isinstance(i, GlobalVariable):
-                print(f"After Mem-phi: {i}")
-        for basic_block in self._cfg.nodes:
-            for instruction in basic_block.instructions:
-                if isinstance(instruction, Phi):
-                    print(f'phi: {instruction}')
-                    print(isinstance(instruction.destination, GlobalVariable))
-                    for x in instruction.requirements:
-                        print(f'argphi: {x}, {isinstance(x, GlobalVariable)}')
-
 
     def _collect_aliased_variables(self) -> None:
         """

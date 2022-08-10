@@ -44,7 +44,6 @@ class UnaryOperationHandler(Handler):
         operands = [self._lifter.lift(x, parent=operation) for x in operation.operands]
         if op_type == OperationType.dereference and isinstance(global_var := operands[0], GlobalVariable):
             global_var.ssa_label = operation.ssa_memory_version
-            print(f"Lifted global {global_var}")
             return global_var
         return UnaryOperation(
             op_type,

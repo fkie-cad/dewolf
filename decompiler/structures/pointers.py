@@ -29,8 +29,6 @@ class Pointers:
         """Fills points_to and is_pointed_by with the corresponding pointer information for the given control flow graph"""
         self._collect_single_level_pointers(cfg)
         self._revert_points_to()
-        print(self.is_pointed_by)
-        print(self.points_to)
         return self
 
     def _collect_single_level_pointers(self, cfg: ControlFlowGraph):
