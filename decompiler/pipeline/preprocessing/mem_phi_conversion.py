@@ -47,13 +47,13 @@ class MemPhiConverter(PipelineStage):
             for variable in instruction.requirements:
                 if variable.is_aliased:
                     if isinstance(variable, GlobalVariable):
-                        self._aliased_variables.add(GlobalVariable(variable.name, variable.type, ssa_label=None))
+                        self._aliased_variables.add(GlobalVariable(variable.name, variable.type, ssa_label=None, initial_value=variable.initial_value))
                     else:
                         self._aliased_variables.add(Variable(variable.name, variable.type, ssa_label=None))
             for variable in instruction.definitions:
                 if variable.is_aliased:
                     if isinstance(variable, GlobalVariable):
-                        self._aliased_variables.add(GlobalVariable(variable.name, variable.type, ssa_label=None))
+                        self._aliased_variables.add(GlobalVariable(variable.name, variable.type, ssa_label=None, initial_value=variable.initial_value))
                     else:
                         self._aliased_variables.add(Variable(variable.name, variable.type, ssa_label=None))
 

@@ -550,14 +550,14 @@ class MemPhi(Phi):
     def _generate_phi_function_for_variable(self, var: Variable) -> Phi:
         """Given a variable, creates a Phi-Function for it using ssa versions of mem variables"""
         if isinstance(var, GlobalVariable):
-            phi_target = GlobalVariable(var.name, var.type, ssa_label=self.destination.ssa_label)
+            phi_target = GlobalVariable(var.name, var.type, ssa_label=self.destination.ssa_label, initial_value=var.initial_value)
         else:
             phi_target = Variable(var.name, var.type, ssa_label=self.destination.ssa_label)
         phi_target.is_aliased = True
         phi_arguments = []
         for variable in self.value.operands:
             if isinstance(var, GlobalVariable):
-                phi_arg = GlobalVariable(var.name, var.type, ssa_label=variable.ssa_label)
+                phi_arg = GlobalVariable(var.name, var.type, ssa_label=variable.ssa_label, initial_value=var.initial_value)
             else:
                 phi_arg = Variable(var.name, var.type, ssa_label=variable.ssa_label)
 

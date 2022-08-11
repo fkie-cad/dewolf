@@ -44,7 +44,6 @@ class ConstantHandler(Handler):
     def lift_constant_pointer(self, pointer: mediumlevelil.MediumLevelILConstPtr, **kwargs) -> Union[Constant, Symbol, UnaryOperation]:
         bv = pointer.function.source_function.view
         address = pointer.constant
-        print(f"Here we are for pointer {pointer} and address {hex(address)}")
 
         if address == 0:
             # TODO: hack - Binja thinks that 0 is a null pointer, even though it may be just integer 0.

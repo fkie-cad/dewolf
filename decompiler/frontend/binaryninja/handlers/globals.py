@@ -25,6 +25,7 @@ class GlobalHandler(Handler):
         parent_addr = kwargs["parent_addr"]
         addr = variable.address
 
+        # TODO: why do we need that? variable.name should work, ImportAddressSymbols are now lifted as &global
         variable_name = self._get_global_var_name(bv, addr)
         vartype = self._lifter.lift(variable.type)
         if "jump_table" in variable_name:
@@ -36,12 +37,15 @@ class GlobalHandler(Handler):
         # Retrieve the initial value of the global variable if there is any
         type_tokens = [t.text for t in variable.type.tokens]
         initial_value = self._get_initial_value(bv, variable, addr, type_tokens)
+        # if not initial_value:
+        #     initial_value = variable.value
 
         # Create the global variable.
         vartype = self._lifter.lift(variable.type)
         if initial_value and str(initial_value).isprintable() and "void" in type_tokens:
             vartype = self._lifter.lift(bv.parse_type_string("char*")[0])
-        return GlobalVariable(variable_name, vartype=vartype, ssa_label=0, initial_value=initial_value)
+        glob = GlobalVariable(variable_name, vartype=vartype, ssa_label=0, initial_value=initial_value)
+        return glob
 
     def _lift_jump_table(self, bv: BinaryView, variable_name: str, vartype: Type, addr: int) -> UnaryOperation:
         """Lift a jump table."""

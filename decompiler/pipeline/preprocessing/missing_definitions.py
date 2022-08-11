@@ -142,12 +142,12 @@ class InsertMissingDefinitions(PipelineStage):
         undefined_variables = self._use_map.used_variables - self._def_map.defined_variables
         all_variables = self._use_map.used_variables | self._def_map.defined_variables
 
-        aliased_names = {(variable.name, variable.type, isinstance(variable, GlobalVariable)) for variable in all_variables if variable.is_aliased}
+        aliased_names = {(variable.name, variable.type, isinstance(variable, GlobalVariable), variable) for variable in all_variables if variable.is_aliased}
 
         for memory_version in self._node_of_memory_version.keys():
-            for var_name, var_type, is_global in aliased_names:
+            for var_name, var_type, is_global, variable in aliased_names:
                 if is_global:
-                    aliased_variable = GlobalVariable(var_name, var_type, memory_version)
+                    aliased_variable = variable.copy()
                 else:
                     aliased_variable = Variable(var_name, var_type, memory_version, is_aliased=True)
                 if aliased_variable not in all_variables:
@@ -180,7 +180,8 @@ class InsertMissingDefinitions(PipelineStage):
         position_insert_definition = self._find_position_to_insert_aliased_definition(basicblock_for_definition, memory_instruction)
         ssa_label_rhs_variable = self._get_ssa_label_of_rhs_variable(basicblock_for_definition, prev_ssa_labels)
         if isinstance(variable, GlobalVariable):
-            rhs_variable = GlobalVariable(variable.name, variable.type, ssa_label_rhs_variable)
+            rhs_variable = variable.copy()
+            rhs_variable.ssa_label = ssa_label_rhs_variable
         else:
             rhs_variable = Variable(variable.name, variable.type, ssa_label_rhs_variable, True)
 
