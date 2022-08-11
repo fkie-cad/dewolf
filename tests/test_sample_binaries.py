@@ -1,3 +1,4 @@
+import re
 import subprocess
 
 import pytest
@@ -56,8 +57,25 @@ def test_global_strings_and_tables():
     # Make sure the global string contains the string hello world.
     assert output2.count('"Hello World"') == 1
     # Ensure that string is referenced correctly
-    # TODO uncomment this after global variable prop
-    #assert output2.count("puts(/* str */ hello_string") == 1
+    # TODO use this line instead of last assertion when expression propagation is adapted for global variables
+    # assert output2.count("puts(/* str */ hello_string") == 1
+
+    # Assert that the output looks like this:
+    # ==============================================
+    # extern char * hello_string = "Hello World";
+    #
+    # long global_string()
+    # {
+    #     char * var_1;
+    #     var_1 = hello_string;
+    #     return puts( / * str * / var_1);
+    # }
+    # ==============================================
+    # important here that var is the same type as global string
+    # and puts gets the variable as argument and not the *variable
+    # after propagation done, should be simply ...return puts( / * str * / hello_string);...
+    assert re.search(r'char\s*\*\s+var_\d.*\svar_\d\s*=\s*hello_string;', output2)
+    assert re.search(r'return\s+puts\(/\*\s*str\s*\*/\s+var_\d\)', output2)
 
 
 def test_global_indirect_ptrs():
@@ -76,21 +94,29 @@ def test_global_import_address_symbol():
     args1 = base_args + ["test_case"]
     output1 = str(subprocess.run(args1, check=True, capture_output=True).stdout)
 
-    assert output1.count("g_22 = ") == 1
-    assert output1.count("g_22_1 = &(g_22)") == 1
-    #TODO
-    assert output1.count("g_26 = ") == 1
-    assert output1.count("g_26_1 = &(g_26)") == 1
-    assert output1.count("g_29 = ") == 1
-    assert output1.count("g_29_1 = &(g_29)") == 1
-    assert output1.count("g_30 = ") == 1
-    assert output1.count("g_30_1 = &(g_30)") == 1
-    assert output1.count("g_32 = ") == 1
-    assert output1.count("g_32_1 = &(g_32)") == 1
-    assert output1.count("g_35 = ") == 1
-    assert output1.count("g_35_1 = &(g_35)") == 1
-    assert output1.count("g_38 = ") == 1
-    assert output1.count("g_38_1 = &(g_38)") == 1
+    # TODO add tests for " = &g_x" after solving issue with deleting stack strings/arrays
+    # since for the moment we delete all variables storing stack string components,
+    # e.g. var_e0#1 = &g_22
+
+    # test occurences of global variables in decompiled code
+    # first occurence in declaration
+    # second when they are assigned some value
+    assert output1.count("g_22 = ") == 2
+    assert output1.count("g_26 = ") == 2
+    assert output1.count("g_29 = ") == 2
+    assert output1.count("g_30 = ") == 2
+    assert output1.count("g_32 = ") == 2
+    assert output1.count("g_35 = ") == 2
+    assert output1.count("g_38 = ") == 2
+
+    # test types and initial values (dec or hex) are correct in declarations
+    assert re.search(r'unsigned short\s*g_22\s*=\s*54249', output1) or re.search(r'unsigned short\s*g_26\s*=\s*0xd3e9', output1)
+    assert re.search(r'unsigned char\s*g_26\s*=\s*157', output1) or re.search(r'unsigned char\s*g_26\s*=\s*0x9d', output1)
+    assert re.search(r'unsigned int\s*g_29\s*=\s*65537', output1) or re.search(r'unsigned int\s*g_29\s*=\s*0x10001', output1)
+    assert re.search(r'unsigned char\s*g_30\s*=\s*236', output1) or re.search(r'unsigned char\s*g_30\s*=\s*0xec', output1)
+    assert re.search(r'unsigned int\s*g_32\s*=\s*1578356047', output1) or re.search(r'unsigned int\s*g_32\s*=\s*0x5e13cd4f', output1)
+    assert re.search(r'unsigned char\s*g_35\s*=\s*255', output1) or re.search(r'unsigned char\s*g_35\s*=\s*0xff', output1)
+    assert re.search(r'unsigned int\s*g_38\s*=\s*130747369', output1) or re.search(r'unsigned int\s*g_38\s*=\s*0x7cb0be9', output1)
 
 
 def test_tailcall_display():
