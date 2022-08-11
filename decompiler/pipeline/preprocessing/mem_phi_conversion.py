@@ -2,7 +2,7 @@ from typing import Optional, Set
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import ControlFlowGraph
-from decompiler.structures.pseudo.expressions import Variable, GlobalVariable
+from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import MemPhi, Phi
 from decompiler.task import DecompilerTask
 

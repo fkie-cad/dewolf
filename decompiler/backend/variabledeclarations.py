@@ -11,9 +11,10 @@ from decompiler.structures.pseudo import (
     ExternConstant,
     ExternFunctionPointer,
     GlobalVariable,
+    Operation,
     OperationType,
     UnaryOperation,
-    Variable, Operation,
+    Variable,
 )
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask

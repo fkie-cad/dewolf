@@ -6,11 +6,12 @@ from decompiler.structures.pseudo import (
     Assignment,
     BaseAssignment,
     BinaryOperation,
+    GlobalVariable,
     Instruction,
     OperationType,
     Phi,
     UnaryOperation,
-    Variable, GlobalVariable,
+    Variable,
 )
 from decompiler.structures.pseudo.typing import Pointer
 

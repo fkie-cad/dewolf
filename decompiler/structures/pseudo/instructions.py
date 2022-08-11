@@ -5,7 +5,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Generic, Iterator, List, Optional, Sequence, Set, Tuple, TypeVar, Union, final
 
-from .expressions import Constant, DataflowObject, Expression, Tag, Variable, GlobalVariable
+from .expressions import Constant, DataflowObject, Expression, GlobalVariable, Tag, Variable
 from .operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
 
 E = TypeVar("E", bound=Expression)

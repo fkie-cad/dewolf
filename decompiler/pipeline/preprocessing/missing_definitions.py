@@ -6,7 +6,7 @@ from typing import DefaultDict, Dict, List, Optional, Set, Tuple, Union
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.pointers import Pointers
-from decompiler.structures.pseudo.expressions import Variable, GlobalVariable
+from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Instruction, Phi, Relation
 from decompiler.structures.pseudo.operations import Call, ListOperation
 from decompiler.task import DecompilerTask
