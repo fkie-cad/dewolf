@@ -2,7 +2,7 @@ from typing import Tuple
 
 from decompiler.pipeline.preprocessing import MemPhiConverter
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, UnconditionalEdge
-from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, GlobalVariable, ImportedFunctionSymbol, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, MemPhi, Phi
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import Integer, UnknownType
@@ -80,6 +80,11 @@ def test_no_mem_phi_target_used_only_mem_phi_arguments_used(no_mem_phi_target_in
 
 def test_no_mem_phi_connected_explicitly_to_aliased_variable(no_connection_between_aliased_variables_and_mem_phi_for_calls):
     input_cfg, expected_cfg = no_connection_between_aliased_variables_and_mem_phi_for_calls
+    _test_mem_phi_converter(input_cfg, expected_cfg)
+
+
+def test_phi_created_for_global_variables(cfg_with_single_global_variable):
+    input_cfg, expected_cfg = cfg_with_single_global_variable
     _test_mem_phi_converter(input_cfg, expected_cfg)
 
 
@@ -1129,6 +1134,65 @@ def no_connection_between_aliased_variables_and_mem_phi_for_calls(x, z_aliased):
         ],
     )
     expected_cfg.add_edges_from([UnconditionalEdge(n0, n1), UnconditionalEdge(n0, n2), UnconditionalEdge(n1, n2)])
+    return cfg, expected_cfg
+
+
+@fixture
+def cfg_with_single_global_variable(x) -> Tuple[ControlFlowGraph, ControlFlowGraph]:
+    """
+          +-------------+                        +-------------+
+          |  x#0 = x#1  |                        | x#0 = x#1 |
+          +------+------+                        +------+------+
+                 |                                      |
+    +------------+------------+              +----------+----------+
+    | mem#1 = φ(mem#0, mem#3) |<--+          |  g#1 = φ(g#0, g#3)  |<----+
+    | x#2  = g#1              |   |          |  x#2 = g#1          |     |
+    +-------------------------+   |          +----------+----------+     |
+                 |                |                     |                |
+         +-------+-------+        |             +-------+-------+        |
+         |               |        |             |               |        |
+    +----+----+     +----+----+   |        +----+----+     +----+----+   |
+    |         |     |         |   |   ->   |         »     |         |   |
+    +----+----+     +----+----+   |        +----+----+     +----+----+   |
+         |               |        |             |               |        |
+         +-------+-------+        |             +-------+-------+        |
+                 |                |                     |                |
+    +------------+------------+   |        +------------+------------+   |
+    | mem#3 = φ(mem#1, mem#2) |---+        |   g#3 = φ(g#1, g#2)     |---+
+    +-------------------------+            +-------------------------+
+    """
+    cfg = ControlFlowGraph()
+    mem0, mem1, mem2, mem3 = generate_mem_phi_variables(4)
+    g = [GlobalVariable("g", Integer.char(), i, initial_value=42) for i in range(4)]
+    n1 = BasicBlock(1, [Assignment(x[0], x[1])])
+    n2 = BasicBlock(2, [MemPhi(mem1, [mem0, mem3]), Assignment(x[2], g[1])])
+    n3 = BasicBlock(3, [])
+    n4 = BasicBlock(4, [])
+    n5 = BasicBlock(5, [MemPhi(mem3, [mem1, mem2])])
+    cfg.add_edges_from(
+        [
+            UnconditionalEdge(n1, n2),
+            UnconditionalEdge(n2, n3),
+            UnconditionalEdge(n2, n4),
+            UnconditionalEdge(n3, n5),
+            UnconditionalEdge(n4, n5),
+            UnconditionalEdge(n5, n2),
+        ]
+    )
+
+    expected_cfg = ControlFlowGraph()
+    n2 = BasicBlock(2, [Phi(g[1], [g[0], g[3]]), Assignment(x[2], g[1])])
+    n5 = BasicBlock(5, [Phi(g[3], [g[1], g[2]])])
+    expected_cfg.add_edges_from(
+        [
+            UnconditionalEdge(n1, n2),
+            UnconditionalEdge(n2, n3),
+            UnconditionalEdge(n2, n4),
+            UnconditionalEdge(n3, n5),
+            UnconditionalEdge(n4, n5),
+            UnconditionalEdge(n5, n2),
+        ]
+    )
     return cfg, expected_cfg
 
 

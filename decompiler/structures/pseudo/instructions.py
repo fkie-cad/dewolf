@@ -195,7 +195,7 @@ class Assignment(BaseAssignment[Expression, Expression]):
 
     def copy(self) -> Assignment:
         """Generate a copy of the assignment, copying both left and right hand side."""
-        return Assignment(self._destination.copy(), self._value.copy(), self.tags)
+        return Assignment(self._destination.copy(), self._value.copy(), self.tags, self._writes_memory)
 
     def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
         """Invoke the appropriate visitor for this Instruction."""

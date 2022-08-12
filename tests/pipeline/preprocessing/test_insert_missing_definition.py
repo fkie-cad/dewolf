@@ -4,7 +4,7 @@ from typing import List
 import pytest
 from decompiler.pipeline.preprocessing import InsertMissingDefinitions
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, UnconditionalEdge
-from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, Variable
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Instruction, Phi, Relation, Return
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import Integer
@@ -1010,3 +1010,31 @@ def test_same_instruction_with_different_memory_version():
         Assignment(var_v[3], Constant(3)),
         Return([Constant(3)]),
     ]
+
+
+def test_missing_definitions_for_global_variables_are_correct():
+    """The aliased variable v_4 is not defined but no assignment writes the memory version 4."""
+    vars = [Variable("var", Integer.int32_t(), i) for i in range(10)]
+    globals = [GlobalVariable("g", Integer.int32_t(), ssa_label=i) for i in range(10)]
+    instructions_0 = [
+        Assignment(ListOperation([]), Call(function_symbol("rand"), [], writes_memory=1)),
+        Assignment(vars[0], globals[1], writes_memory=2),
+        Branch(Condition(OperationType.less, [vars[0], Constant(10)])),
+    ]
+    instructions_1 = [Assignment(globals[2], Constant(30), writes_memory=2)]
+    instructions_2 = [Phi(globals[3], [globals[1], globals[2]]), Return([BinaryOperation(OperationType.plus, [globals[3], vars[0]])])]
+
+    cfg = ControlFlowGraph()
+    cfg.add_node(n0 := BasicBlock(0, instructions_0))
+    cfg.add_node(n1 := BasicBlock(1, instructions_1))
+    cfg.add_node(n2 := BasicBlock(2, instructions_2))
+    cfg.add_edges_from([UnconditionalEdge(n0, n1), UnconditionalEdge(n0, n2), UnconditionalEdge(n1, n2)])
+    task = DecompilerTask("test", cfg)
+
+    from decompiler.util.decoration import DecoratedCFG
+
+    DecoratedCFG.print_ascii(task.graph)
+    InsertMissingDefinitions().run(task)
+
+    DecoratedCFG.print_ascii(task.graph)
+    assert n0.instructions[1] == Assignment(globals[1], globals[0])

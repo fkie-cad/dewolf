@@ -48,22 +48,26 @@ class _VariableCopyPool:
         for variable in variables:
             var_name = self._get_variable_name(variable)
             self._sorted_copies_of[var_name] = sorted(self._copies_of_variable[var_name], key=lambda var: var.ssa_label)
-            self._insert_label_zero_for_aliased_if_missing(var_name)
+            self._insert_label_zero_for_aliased_if_missing(var_name, variable)
 
-    def _insert_label_zero_for_aliased_if_missing(self, var_name: str):
+    def _insert_label_zero_for_aliased_if_missing(self, var_name: str, variable: Variable):
         """
         If the copy with the smallest SSA-label is an aliased variable whose label is not zero, then we insert a copy with label zero
         at the first position of the sorted list.
         """
         first_copy = self.get_smallest_label_copy(var_name)
         if first_copy.ssa_label > 0 and first_copy.is_aliased:
-            first_copy = Variable(var_name, first_copy.type, 0, is_aliased=True)
+            if isinstance(variable, GlobalVariable):
+                first_copy = variable.copy()
+                first_copy.ssa_label = 0
+            else:
+                first_copy = Variable(var_name, first_copy.type, 0, is_aliased=True)
             self._sorted_copies_of[var_name].insert(0, first_copy)
 
     def get_smallest_label_copy(self, variable: Union[str, Variable]):
         """Returns the copy with the smallest SSA-label, i.e. the first one."""
         variable = self._get_variable_name(variable)
-        if variable in self._sorted_copies_of[variable]:
+        if variable in self._sorted_copies_of:
             return self._sorted_copies_of[variable][0]
         return min(self._copies_of_variable[variable], key=lambda var: var.ssa_label)
 
@@ -142,7 +146,11 @@ class InsertMissingDefinitions(PipelineStage):
         undefined_variables = self._use_map.used_variables - self._def_map.defined_variables
         all_variables = self._use_map.used_variables | self._def_map.defined_variables
 
-        aliased_names = {(variable.name, variable.type, isinstance(variable, GlobalVariable), variable) for variable in all_variables if variable.is_aliased}
+        aliased_names = {
+            (variable.name, variable.type, isinstance(variable, GlobalVariable), variable)
+            for variable in all_variables
+            if variable.is_aliased
+        }
 
         for memory_version in self._node_of_memory_version.keys():
             for var_name, var_type, is_global, variable in aliased_names:
@@ -193,7 +201,6 @@ class InsertMissingDefinitions(PipelineStage):
 
         self._update_pointer_info_for(definition)
         self._update_usages_and_definitions(definition, basicblock_for_definition)
-
 
     def _find_position_to_insert_aliased_definition(self, basicblock: BasicBlock, memory_instruction: Instruction) -> int:
         """
@@ -250,7 +257,7 @@ class InsertMissingDefinitions(PipelineStage):
                     f"No definition of a previous copy dominates the basic block {basicblock_for_definition} where we want to insert the "
                     f"definition"
                 )
-
+        print(last_known_memory_versions_in[current_basicblock])
         return last_known_memory_versions_in[current_basicblock]
 
     def _compute_last_known_memory_version_in_each_basicblock(self, prev_ssa_labels: Set[int]) -> Dict[BasicBlock, int]:
