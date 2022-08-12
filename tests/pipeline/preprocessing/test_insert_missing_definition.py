@@ -1013,9 +1013,33 @@ def test_same_instruction_with_different_memory_version():
 
 
 def test_missing_definitions_for_global_variables_are_correct():
-    """The aliased variable v_4 is not defined but no assignment writes the memory version 4."""
+    """Missing definition is inserted correctly: both rhs and lhs are global variables, ssa labels are correct, initial_value is not lost
+    +--------------------+                        +--------------------+
+    |         0.         |                        |         0.         |
+    |       rand()       |                        |       rand()       |
+    |    var#0 = g#1     |                        |     g#1 = g#0      |
+    |  if(var#0 < 0xa)   | -+                     |    var#0 = g#1     |
+    +--------------------+  |                     |  if(var#0 < 0xa)   | -+
+      |                     |                     +--------------------+  |
+      |                     |                       |                     |
+      v                     |                       |                     |
+    +--------------------+  |                       v                     |
+    |         1.         |  |                     +--------------------+  |
+    |     g#2 = 0x1e     |  |                     |         1.         |  |
+    +--------------------+  |                     |     g#2 = 0x1e     |  |
+      |                     |                     +--------------------+  |
+      |                     |                       |                     |
+      v                     |                       |                     |
+    +--------------------+  |                       v                     |
+    |         2.         |  |                     +--------------------+  |
+    |  g#3 = ϕ(g#1,g#2)  |  |                     |         2.         |  |
+    | return g#3 + var#0 | <+                     |  g#3 = ϕ(g#1,g#2)  |  |
+    +--------------------+                        | return g#3 + var#0 | <+
+                                                  +--------------------+
+    """
+
     vars = [Variable("var", Integer.int32_t(), i) for i in range(10)]
-    globals = [GlobalVariable("g", Integer.int32_t(), ssa_label=i) for i in range(10)]
+    globals = [GlobalVariable("g", Integer.int32_t(), ssa_label=i, initial_value=42) for i in range(10)]
     instructions_0 = [
         Assignment(ListOperation([]), Call(function_symbol("rand"), [], writes_memory=1)),
         Assignment(vars[0], globals[1], writes_memory=2),
@@ -1037,4 +1061,9 @@ def test_missing_definitions_for_global_variables_are_correct():
     InsertMissingDefinitions().run(task)
 
     DecoratedCFG.print_ascii(task.graph)
-    assert n0.instructions[1] == Assignment(globals[1], globals[0])
+    expected_inserted_definition = Assignment(globals[1], globals[0])
+    inserted_definition: Assignment = n0.instructions[1]
+    assert inserted_definition == expected_inserted_definition
+    assert inserted_definition.writes_memory == 1
+    assert isinstance(inserted_definition.value, GlobalVariable) and isinstance(inserted_definition.destination, GlobalVariable)
+    assert inserted_definition.value.initial_value == inserted_definition.destination.initial_value == 42

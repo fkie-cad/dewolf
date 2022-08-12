@@ -76,15 +76,19 @@ class ConstantHandler(Handler):
             return ImportedFunctionSymbol(symbol.name, address, vartype=Pointer(Integer.char()))
 
     def _lift_import_address_symbol(self, bv: BinaryView, symbol: bSymbol):
-        """Lift entry from .got section: addresses(offsets) of external symbols
-        First lift the global variable pointed by the symbol.
-        Second construct &global_variable.
+        """Lift entry from .got section: addresses(offsets) of external symbols:
+           - first lift the global variable pointed by the symbol.
+           - second construct &global_variable.
+        Lift IAT symbol:
+           - construct ImportedFunctionSymbol with the same name.
         """
         pointer_value = bv.read_pointer(symbol.address)
         global_data_pointed_by_symbol = bv.get_data_var_at(pointer_value)
         if global_data_pointed_by_symbol:
             lifted_global_var = self._lifter.lift(global_data_pointed_by_symbol, bv=bv, parent_addr=symbol.address)
             return UnaryOperation(OperationType.address, [lifted_global_var])
+        else:
+            return ImportedFunctionSymbol(symbol.name, symbol.address, vartype=Pointer(Integer.char()))
 
     @staticmethod
     def _get_symbol(bv: BinaryView, address: int) -> Optional[bSymbol]:

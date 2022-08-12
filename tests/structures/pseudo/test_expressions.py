@@ -82,11 +82,21 @@ class TestGlobalVariable:
     def test_initial_value(self):
         assert GlobalVariable("var_1", initial_value=42).initial_value == 42
 
+    def test_defaults(self):
+        global_var = GlobalVariable("var_1", Integer.char())
+        assert global_var.initial_value is None
+        assert global_var.ssa_label is None
+        assert global_var.is_aliased is True
+
     def test_copy(self):
-        original = GlobalVariable("var_1")
+        original = GlobalVariable("var_1", Integer.char(), ssa_label=3, initial_value=42)
         copy = original.copy()
         assert isinstance(copy, GlobalVariable)
         assert id(original) != id(copy) and original == copy
+        assert copy.type == Integer.char()
+        assert copy.ssa_label == original.ssa_label == 3
+        assert copy.initial_value == original.initial_value == 42
+        assert copy.is_aliased and original.is_aliased
 
 
 class TestConstant:
