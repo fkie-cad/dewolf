@@ -6,9 +6,11 @@ from __future__ import annotations
 import logging
 from typing import List, Optional
 
+from decompiler.pipeline.commons.reaching_definitions import ReachingDefinitions
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.acyclic_restructuring import AcyclicRegionRestructurer
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.cyclic_restructuring import CyclicRegionStructurer
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.empty_basic_block_remover import EmptyBasicBlockRemover
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.side_effect_handling.side_effect_handler import SideEffectHandler
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
@@ -33,6 +35,7 @@ class PatternIndependentRestructuring(PipelineStage):
         """
         self.t_cfg: TransitionCFG = tcfg
         self.asforest: AbstractSyntaxForest = asforest
+        self._reaching_definitions: Optional[ReachingDefinitions] = None
 
     def run(self, task: DecompilerTask):
         """
@@ -48,6 +51,7 @@ class PatternIndependentRestructuring(PipelineStage):
         self.asforest.set_current_root(self.t_cfg.root.ast)
         assert (roots := len(self.asforest.get_roots)) == 1, f"After the restructuring the forest should have one root, but it has {roots}!"
         task._ast = AbstractSyntaxTree.from_asforest(self.asforest, self.asforest.current_root)
+        SideEffectHandler.resolve(task)
         task._cfg = None
 
     def restructure_cfg(self) -> None:

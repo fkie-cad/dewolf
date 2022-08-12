@@ -298,6 +298,34 @@ int test11(int a, int b)
     return 0;
 }
 
+
+int test_do_while(){
+    char c;
+    int choice,dummy;
+    do{
+    printf("\n1. Print Hello\n2. Print Javatpoint\n3. Exit\n");
+    scanf("%d",&choice);
+    switch(choice)
+    {
+        case 1 :
+        printf("Hello");
+        break;
+        case 2:
+        printf("Javatpoint");
+        break;
+        case 3:
+        return 0;
+        break;
+        default:
+        printf("please enter valid choice");
+    }
+    printf("do you want to enter more?");
+    scanf("%d",&dummy);
+    scanf("%c",&c);
+    }while(c=='y');
+    return 0;
+}
+
 int main()
 {
 	test1();
