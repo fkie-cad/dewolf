@@ -131,3 +131,11 @@ def test_issue_70():
     """Test Issue #70."""
     args = ["python", "decompile.py", "tests/samples/others/issue-70.bin", "main"]
     subprocess.run(args, check=True)
+
+
+def test_iat_entries_are_decompiled_correctly():
+    """Test Win API call to GetModuleHandleW is decompiled correctly."""
+    args = ["python", "decompile.py", "tests/samples/others/test.exe", "0x401865"]
+    subprocess.run(args, check=True)
+    output = str(subprocess.run(args, check=True, capture_output=True).stdout)
+    assert re.search(r'=\s*GetModuleHandleW\((0x0|/\* lpModuleName \*/ 0x0\))', output)

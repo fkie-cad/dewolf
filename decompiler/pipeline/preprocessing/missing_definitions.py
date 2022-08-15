@@ -257,7 +257,6 @@ class InsertMissingDefinitions(PipelineStage):
                     f"No definition of a previous copy dominates the basic block {basicblock_for_definition} where we want to insert the "
                     f"definition"
                 )
-        print(last_known_memory_versions_in[current_basicblock])
         return last_known_memory_versions_in[current_basicblock]
 
     def _compute_last_known_memory_version_in_each_basicblock(self, prev_ssa_labels: Set[int]) -> Dict[BasicBlock, int]:
