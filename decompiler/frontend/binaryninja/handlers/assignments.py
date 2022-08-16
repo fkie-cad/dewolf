@@ -88,7 +88,7 @@ class AssignmentHandler(Handler):
         op = self._lifter.lift(assignment.dest, parent=assignment)
         if isinstance(op, GlobalVariable):
             op.ssa_label = assignment.dest_memory
-            return Assignment(op, self._lifter.lift(assignment.src), writes_memory=assignment.dest_memory)
+            return Assignment(op, self._lifter.lift(assignment.src))
         return Assignment(
             UnaryOperation(
                 OperationType.dereference,

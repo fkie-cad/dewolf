@@ -95,12 +95,11 @@ class Comment(Instruction):
 class BaseAssignment(Instruction, ABC, Generic[E, F]):
     """Baseclass for Assignments an Relations."""
 
-    def __init__(self, destination: E, value: F, tags: Optional[Tuple[Tag, ...]] = None, writes_memory=None):
+    def __init__(self, destination: E, value: F, tags: Optional[Tuple[Tag, ...]] = None):
         """Initialize a new assignment operation."""
         super().__init__(tags)
         self._destination = destination
         self._value = value
-        self._writes_memory = writes_memory
 
     def __iter__(self) -> Iterator[Expression]:
         """Yield all subexpressions of the given Assignment."""
@@ -149,8 +148,6 @@ class BaseAssignment(Instruction, ABC, Generic[E, F]):
             return self.value.writes_memory
         if isinstance(self.destination, UnaryOperation) and self.destination.operation == OperationType.dereference:
             return self.destination.writes_memory
-        if self._writes_memory:
-            return self._writes_memory
         for variable in self.definitions:
             if variable.is_aliased:
                 return variable.ssa_label
@@ -160,9 +157,9 @@ class BaseAssignment(Instruction, ABC, Generic[E, F]):
 class Assignment(BaseAssignment[Expression, Expression]):
     """Base class for all instructions yielding a result."""
 
-    def __init__(self, destination: Expression, value: Expression, tags: Optional[Tuple[Tag, ...]] = None, writes_memory=None):
+    def __init__(self, destination: Expression, value: Expression, tags: Optional[Tuple[Tag, ...]] = None):
         """Init a new Assignment."""
-        super(Assignment, self).__init__(destination, value, tags=tags, writes_memory=writes_memory)
+        super(Assignment, self).__init__(destination, value, tags=tags)
 
     def __str__(self) -> str:
         """Return a string representation starting with the lhs."""
@@ -195,7 +192,7 @@ class Assignment(BaseAssignment[Expression, Expression]):
 
     def copy(self) -> Assignment:
         """Generate a copy of the assignment, copying both left and right hand side."""
-        return Assignment(self._destination.copy(), self._value.copy(), self.tags, self._writes_memory)
+        return Assignment(self._destination.copy(), self._value.copy(), self.tags)
 
     def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
         """Invoke the appropriate visitor for this Instruction."""

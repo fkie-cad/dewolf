@@ -1042,10 +1042,10 @@ def test_missing_definitions_for_global_variables_are_correct():
     globals = [GlobalVariable("g", Integer.int32_t(), ssa_label=i, initial_value=42) for i in range(10)]
     instructions_0 = [
         Assignment(ListOperation([]), Call(function_symbol("rand"), [], writes_memory=1)),
-        Assignment(vars[0], globals[1], writes_memory=2),
+        Assignment(vars[0], globals[1]),
         Branch(Condition(OperationType.less, [vars[0], Constant(10)])),
     ]
-    instructions_1 = [Assignment(globals[2], Constant(30), writes_memory=2)]
+    instructions_1 = [Assignment(globals[2], Constant(30))]
     instructions_2 = [Phi(globals[3], [globals[1], globals[2]]), Return([BinaryOperation(OperationType.plus, [globals[3], vars[0]])])]
 
     cfg = ControlFlowGraph()
