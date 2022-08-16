@@ -1054,13 +1054,7 @@ def test_missing_definitions_for_global_variables_are_correct():
     cfg.add_node(n2 := BasicBlock(2, instructions_2))
     cfg.add_edges_from([UnconditionalEdge(n0, n1), UnconditionalEdge(n0, n2), UnconditionalEdge(n1, n2)])
     task = DecompilerTask("test", cfg)
-
-    from decompiler.util.decoration import DecoratedCFG
-
-    DecoratedCFG.print_ascii(task.graph)
     InsertMissingDefinitions().run(task)
-
-    DecoratedCFG.print_ascii(task.graph)
     expected_inserted_definition = Assignment(globals[1], globals[0])
     inserted_definition: Assignment = n0.instructions[1]
     assert inserted_definition == expected_inserted_definition

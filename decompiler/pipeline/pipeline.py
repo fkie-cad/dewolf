@@ -95,7 +95,6 @@ class DecompilerPipeline:
             debug(f"stage {stage.name}")
             instance = stage()
             instance.run(task)
-            #self._show_stage(task, stage.name, print_ascii, show_in_tabs)
             if show_all or stage.name in showed_stages:
                 self._show_stage(task, f"After {stage.name}", print_ascii, show_in_tabs)
 
