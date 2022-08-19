@@ -11,22 +11,19 @@ from tempfile import NamedTemporaryFile
 from typing import Dict, Optional, TextIO
 
 import z3
-from binaryninja import BranchType, EdgePenStyle, EdgeStyle, FlowGraph, FlowGraphNode, HighlightStandardColor, show_graph_report, ThemeColor
-from networkx import DiGraph
-from pygments import format, lex
-from pygments.formatters.html import HtmlFormatter
-from pygments.lexers.c_like import CLexer
-
+from binaryninja import BranchType, EdgePenStyle, EdgeStyle, FlowGraph, FlowGraphNode, HighlightStandardColor, ThemeColor, show_graph_report
 from decompiler.structures.ast.ast_nodes import (
     AbstractSyntaxTreeNode,
     CaseNode,
     ConditionNode,
-    DoWhileLoopNode, FalseNode,
+    DoWhileLoopNode,
+    FalseNode,
     ForLoopNode,
     LoopNode,
     SeqNode,
     SwitchNode,
-    TrueNode, WhileLoopNode,
+    TrueNode,
+    WhileLoopNode,
 )
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.ast.syntaxgraph import AbstractSyntaxInterface
@@ -34,6 +31,10 @@ from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.graphs.cfg import BasicBlock, BasicBlockEdge, BasicBlockEdgeCondition, ControlFlowGraph
 from decompiler.structures.pseudo.operations import Condition
 from decompiler.util.to_dot_converter import ToDotConverter
+from networkx import DiGraph
+from pygments import format, lex
+from pygments.formatters.html import HtmlFormatter
+from pygments.lexers.c_like import CLexer
 
 try:
     run(["graph-easy", "-v"], capture_output=True)
