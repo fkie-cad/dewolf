@@ -46,20 +46,14 @@ class MemPhiConverter(PipelineStage):
         for instruction in self._cfg.instructions:
             for variable in instruction.requirements:
                 if variable.is_aliased:
-                    if isinstance(variable, GlobalVariable):
-                        self._aliased_variables.add(GlobalVariable(variable.name, variable.type, ssa_label=None, initial_value=variable.initial_value))
-                    else:
-                        self._aliased_variables.add(Variable(variable.name, variable.type, ssa_label=None))
+                    self._aliased_variables.add(variable.copy(ssa_label=None))
             for variable in instruction.definitions:
                 if variable.is_aliased:
-                    if isinstance(variable, GlobalVariable):
-                        self._aliased_variables.add(GlobalVariable(variable.name, variable.type, ssa_label=None, initial_value=variable.initial_value))
-                    else:
-                        self._aliased_variables.add(Variable(variable.name, variable.type, ssa_label=None))
+                    self._aliased_variables.add(variable.copy(ssa_label=None))
 
     def _replace_mem_phis_with_phis(self) -> None:
         """
-        Replaces every memory φ-function instruction in the graph with regular φ-functions for aliased variables.
+        Replaces every memory φ-function instruction in the graph with regular φ-functgit ions for aliased variables.
 
         E.g. aliased_variables = {v, w};
              mem#5 = φ(mem#4, mem#3);
