@@ -4,11 +4,12 @@ from decompiler.structures.ast.ast_nodes import SeqNode
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
 from decompiler.structures.logic.logic_condition import LogicCondition
-from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, Variable
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Phi, Return
-from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, OperationType
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType
 from decompiler.structures.pseudo.typing import Integer
 from decompiler.util.decoration import ASTYLE_INSTALLED, GRAPH_EASY_INSTALLED, DecoratedAST, DecoratedCFG, DecoratedCode
+from decompiler.util.to_dot_converter import ToDotConverter
 
 
 class TestDecoratedCFG:
@@ -83,11 +84,96 @@ class TestDecoratedCFG:
         cfg.add_edges_from([TrueCase(start, true), FalseCase(start, end), UnconditionalEdge(true, end)])
         return cfg
 
+    @pytest.fixture()
+    def graph_with_string(self):
+        cfg = ControlFlowGraph()
+        cfg.add_nodes_from(
+            [
+                start := BasicBlock(
+                    0,
+                    instructions=[
+                        Assignment(Variable("a", Integer.int32_t(), ssa_label=0), Constant(2, Integer.int8_t())),
+                        Assignment(
+                            Variable("b", Integer.int64_t(), ssa_label=0),
+                            Call(FunctionSymbol("foo", 0x42), [Variable("a", Integer.int32_t(), ssa_label=0)]),
+                        ),
+                        Branch(
+                            Condition(
+                                OperationType.less,
+                                [Variable("a", Integer.int32_t(), ssa_label=0), Variable("b", Integer.int64_t(), ssa_label=0)],
+                            )
+                        ),
+                    ],
+                ),
+                true := BasicBlock(
+                    1,
+                    instructions=[
+                        Assignment(
+                            Variable("b", Integer.int64_t(), ssa_label=2),
+                            BinaryOperation(
+                                OperationType.minus,
+                                [Variable("a", Integer.int32_t(), ssa_label=0), Variable("b", Integer.int64_t(), ssa_label=0)],
+                            ),
+                        )
+                    ],
+                ),
+                end := BasicBlock(
+                    2,
+                    instructions=[
+                        Phi(
+                            Variable("b", Integer.int64_t(), ssa_label=1),
+                            [Variable("b", Integer.int64_t(), ssa_label=0), Variable("b", Integer.int64_t(), ssa_label=2)],
+                        ),
+                        Assignment(
+                            ListOperation([]),
+                            Call(
+                                ImportedFunctionSymbol("printf", 0),
+                                [Constant("The result is : %i"), Variable("b", Integer.int64_t(), ssa_label=1)],
+                            ),
+                        ),
+                        Return([Variable("b", Integer.int64_t(), ssa_label=1)]),
+                    ],
+                ),
+            ]
+        )
+        cfg.add_edges_from([TrueCase(start, true), FalseCase(start, end), UnconditionalEdge(true, end)])
+        return cfg
+
     @pytest.mark.usefixtures("simple_graph")
     @pytest.mark.skipif(not GRAPH_EASY_INSTALLED, reason="requires graph-easy")
     def test_does_return_anything_at_all(self, simple_graph):
         decorated = DecoratedCFG.from_cfg(simple_graph)
         assert decorated.export_ascii()
+
+    @pytest.mark.usefixtures("graph_with_string")
+    @pytest.mark.skipif(not GRAPH_EASY_INSTALLED, reason="requires graph-easy")
+    def test_does_print_ascii(self, graph_with_string):
+        decorated = DecoratedCFG.from_cfg(graph_with_string)
+        print(decorated.export_ascii())
+        assert decorated.export_ascii().splitlines() == [
+            "+-----------------------------------+",
+            "|                0.                 |",
+            "|             a#0 = 0x2             |",
+            "|          b#0 = foo(a#0)           |",
+            "|           if(a#0 < b#0)           | -+",
+            "+-----------------------------------+  |",
+            "  |                                    |",
+            "  |                                    |",
+            "  v                                    |",
+            "+-----------------------------------+  |",
+            "|                1.                 |  |",
+            "|          b#2 = a#0 - b#0          |  |",
+            "+-----------------------------------+  |",
+            "  |                                    |",
+            "  |                                    |",
+            "  v                                    |",
+            "+-----------------------------------+  |",
+            "|                2.                 |  |",
+            "|         b#1 = ϕ(b#0,b#2)          |  |",
+            '| printf("The result is : %i", b#1) |  |',
+            "|            return b#1             | <+",
+            "+-----------------------------------+",
+        ]
 
     @pytest.mark.usefixtures("simple_graph")
     @pytest.mark.skipif(not GRAPH_EASY_INSTALLED, reason="requires graph-easy")
@@ -96,6 +182,38 @@ class TestDecoratedCFG:
         assert decorated.graph.nodes[0] == {"color": "blue", "shape": "box", "label": "0.\na#0 = 0x2\nb#0 = foo(a#0)\nif(a#0 < b#0)"}
         assert decorated.graph.nodes[1] == {"color": "blue", "shape": "box", "label": "1.\nb#2 = a#0 - b#0"}
         assert decorated.graph.nodes[2] == {"color": "blue", "shape": "box", "label": "2.\nb#1 = ϕ(b#0,b#2)\nreturn b#1"}
+
+    def test_convert_to_dot(self, simple_graph):
+        decorated = DecoratedCFG.from_cfg(simple_graph)
+        dot_converter = ToDotConverter(decorated.graph)
+        content = dot_converter._create_dot()
+        assert (
+            content
+            == """strict digraph  {
+0 [shape="box", color="blue", label="0.\\na#0 = 0x2\\nb#0 = foo(a#0)\\nif(a#0 < b#0)"]; 
+1 [shape="box", color="blue", label="1.\\nb#2 = a#0 - b#0"]; 
+2 [shape="box", color="blue", label="2.\\nb#1 = ϕ(b#0,b#2)\\nreturn b#1"]; 
+0 -> 1 [color="darkgreen"]; 
+0 -> 2 [color="darkred"]; 
+1 -> 2 [color="blue"]; 
+}"""
+        )
+
+    def test_convert_to_dot_with_string(self, graph_with_string):
+        decorated = DecoratedCFG.from_cfg(graph_with_string)
+        dot_converter = ToDotConverter(decorated.graph)
+        content = dot_converter._create_dot()
+        assert (
+            content
+            == """strict digraph  {
+0 [shape="box", color="blue", label="0.\\na#0 = 0x2\\nb#0 = foo(a#0)\\nif(a#0 < b#0)"]; 
+1 [shape="box", color="blue", label="1.\\nb#2 = a#0 - b#0"]; 
+2 [shape="box", color="blue", label="2.\\nb#1 = ϕ(b#0,b#2)\\nprintf(\\"The result is : %i\\", b#1)\\nreturn b#1"]; 
+0 -> 1 [color="darkgreen"]; 
+0 -> 2 [color="darkred"]; 
+1 -> 2 [color="blue"]; 
+}"""
+        )
 
 
 class TestDecoratedAST:
@@ -333,16 +451,12 @@ class TestDecoratedAST:
                 x in data
                 for x in [
                     r"strict digraph  {",
-                    r'[fillcolor="#e6f5c9", highlight="HighlightStandardColor.GreenHighlightColor", label="0. SeqNode\n\nSequence", '
-                    r"style=filled];",
-                    r'[fillcolor="#e6f5c9", highlight="HighlightStandardColor.RedHighlightColor", label="1. ConditionNode\n\nif (true)", '
-                    r"style=filled]",
-                    r'[fillcolor="#e6f5c9", highlight="HighlightStandardColor.GreenHighlightColor", label="2. SeqNode\n\nSequence", '
-                    r"style=filled];",
-                    r'[fillcolor="#fff2ae", label="3. CodeNode\n\nc = 0x5\nreturn c", style=filled];',
-                    r'[fillcolor="#e6f5c9", highlight="HighlightStandardColor.GreenHighlightColor", label="4. SeqNode\n\nSequence", '
-                    r"style=filled];",
-                    r'[fillcolor="#fff2ae", label="5. CodeNode\n\nreturn 0x0", style=filled];',
+                    r'[style="filled", fillcolor="#e6f5c9", label="0. SeqNode\n\nSequence"];',
+                    r'[style="filled", fillcolor="#e6f5c9", label="1. ConditionNode\n\nif (true)"]',
+                    r'[style="filled", fillcolor="#e6f5c9", label="2. SeqNode\n\nSequence"];',
+                    r'[style="filled", fillcolor="#fff2ae", label="3. CodeNode\n\nc = 0x5\nreturn c"];',
+                    r'[style="filled", fillcolor="#e6f5c9", label="4. SeqNode\n\nSequence"];',
+                    r'[style="filled", fillcolor="#fff2ae", label="5. CodeNode\n\nreturn 0x0"];',
                 ]
             ]
         )
@@ -357,28 +471,28 @@ class TestDecoratedAST:
                 "style": "filled",
                 "fillcolor": "#e6f5c9",
                 "highlight": HighlightStandardColor.GreenHighlightColor,
-                "label": "0. SeqNode\\n\\nSequence",
+                "label": "0. SeqNode\n\nSequence",
             },
             {
                 "style": "filled",
                 "fillcolor": "#e6f5c9",
                 "highlight": HighlightStandardColor.RedHighlightColor,
-                "label": "1. ConditionNode\\n\\nif (true)",
+                "label": "1. ConditionNode\n\nif (true)",
             },
             {
                 "style": "filled",
                 "fillcolor": "#e6f5c9",
                 "highlight": HighlightStandardColor.GreenHighlightColor,
-                "label": "2. SeqNode\\n\\nSequence",
+                "label": "2. SeqNode\n\nSequence",
             },
-            {"style": "filled", "fillcolor": "#fff2ae", "label": "3. CodeNode\\n\\nc = 0x5\\nreturn c"},
+            {"style": "filled", "fillcolor": "#fff2ae", "label": "3. CodeNode\n\nc = 0x5\nreturn c"},
             {
                 "style": "filled",
                 "fillcolor": "#e6f5c9",
                 "highlight": HighlightStandardColor.GreenHighlightColor,
-                "label": "4. SeqNode\\n\\nSequence",
+                "label": "4. SeqNode\n\nSequence",
             },
-            {"style": "filled", "fillcolor": "#fff2ae", "label": "5. CodeNode\\n\\nreturn 0x0"},
+            {"style": "filled", "fillcolor": "#fff2ae", "label": "5. CodeNode\n\nreturn 0x0"},
         ]
 
     # FlowGraph representation tests
@@ -387,34 +501,110 @@ class TestDecoratedAST:
     def test_flow_graph_for_loop(self, ast_for_loop):
         graph = DecoratedAST().from_ast(ast_for_loop)._generate_flowgraph()
         expected = [
-            ["0. SeqNode", "", "Sequence"],
-            ["1. ForLoopNode", "", "for (i = 0x0; x < 0x5; i = 0xa)"],
-            ["2. CodeNode", "", "c = 0x5"],
+            ["0. SeqNode"],
+            [""],
+            ["Sequence"],
+            ["1. ForLoopNode"],
+            [""],
+            ["for (i = 0x0; x < 0x5; i = 0xa)"],
+            ["2. CodeNode"],
+            [""],
+            ["c = 0x5"],
         ]
-        assert str([line.tokens[0].text.split("\\n") for node in graph.nodes for line in node.lines]) == str(expected)
+        assert str([line.tokens for node in graph.nodes for line in node.lines]) == str(expected)
 
     @pytest.mark.usefixtures("ast_while_loop")
     def test_flow_graph_while_loop(self, ast_while_loop):
         graph = DecoratedAST().from_ast(ast_while_loop)._generate_flowgraph()
-        expected = [["0. SeqNode", "", "Sequence"], ["1. WhileLoopNode", "", "while (x < 0x5)"], ["2. CodeNode", "", "c = 0x5"]]
-        assert str([line.tokens[0].text.split("\\n") for node in graph.nodes for line in node.lines]) == str(expected)
+        expected = [["0. SeqNode"], [""], ["Sequence"], ["1. WhileLoopNode"], [""], ["while (x < 0x5)"], ["2. CodeNode"], [""], ["c = 0x5"]]
+        assert str([line.tokens for node in graph.nodes for line in node.lines]) == str(expected)
 
     @pytest.mark.usefixtures("ast_switch")
     def test_flow_graph_switch(self, ast_switch):
         graph = DecoratedAST.from_ast(ast_switch)._generate_flowgraph()
-        assert str([line.tokens[0].text.split("\\n") for node in graph.nodes for line in node.lines]) == str(
+        assert str([line.tokens for node in graph.nodes for line in node.lines]) == str(
             [
-                ["0. SeqNode", "", "Sequence"],
-                ["1. SwitchNode", "", "switch (0x29)"],
-                ['"2. CaseNode', "", 'case 0x0:"'],
-                ["3. CodeNode", "", "return 0x0"],
-                ['"4. CaseNode', "", 'case 0x1:"'],
-                ["5. CodeNode", "", "return 0x1"],
-                ['"6. CaseNode', "", 'case 0x29:"'],
-                ["7. CodeNode", "", "return 0x29"],
-                ['"8. CaseNode', "", 'default:"'],
-                ["9. CodeNode", "", "return -0x1"],
+                ["0. SeqNode"],
+                [""],
+                ["Sequence"],
+                ["1. SwitchNode"],
+                [""],
+                ["switch (0x29)"],
+                ["2. CaseNode"],
+                [""],
+                ["case 0x0:"],
+                ["3. CodeNode"],
+                [""],
+                ["return 0x0"],
+                ["4. CaseNode"],
+                [""],
+                ["case 0x1:"],
+                ["5. CodeNode"],
+                [""],
+                ["return 0x1"],
+                ["6. CaseNode"],
+                [""],
+                ["case 0x29:"],
+                ["7. CodeNode"],
+                [""],
+                ["return 0x29"],
+                ["8. CaseNode"],
+                [""],
+                ["default:"],
+                ["9. CodeNode"],
+                [""],
+                ["return -0x1"],
             ]
+        )
+
+    def test_convert_to_dot_if(self, ast_condition):
+        decorated = DecoratedAST.from_ast(ast_condition)
+        dot_converter = ToDotConverter(decorated.graph)
+        content = dot_converter._create_dot()
+        assert (
+            content
+            == """strict digraph  {
+0 [style="filled", fillcolor="#e6f5c9", label="0. SeqNode\\n\\nSequence"]; 
+1 [style="filled", fillcolor="#e6f5c9", label="1. ConditionNode\\n\\nif (true)"]; 
+2 [style="filled", fillcolor="#e6f5c9", label="2. SeqNode\\n\\nSequence"]; 
+3 [style="filled", fillcolor="#fff2ae", label="3. CodeNode\\n\\nc = 0x5\\nreturn c"]; 
+4 [style="filled", fillcolor="#e6f5c9", label="4. SeqNode\\n\\nSequence"]; 
+5 [style="filled", fillcolor="#fff2ae", label="5. CodeNode\\n\\nreturn 0x0"]; 
+0 -> 1 []; 
+1 -> 2 [label="T", color="#228B22"]; 
+1 -> 4 [label="F", color="#c2261f"]; 
+2 -> 3 []; 
+4 -> 5 []; 
+}"""
+        )
+
+    def test_convert_to_dot_switch(self, ast_switch):
+        decorated = DecoratedAST.from_ast(ast_switch)
+        dot_converter = ToDotConverter(decorated.graph)
+        content = dot_converter._create_dot()
+        assert (
+            content
+            == """strict digraph  {
+0 [style="filled", fillcolor="#e6f5c9", label="0. SeqNode\\n\\nSequence"]; 
+1 [style="filled", fillcolor="#fdcdac", label="1. SwitchNode\\n\\nswitch (0x29)"]; 
+2 [style="filled", fillcolor="#e6f5c9", label="2. CaseNode\\n\\ncase 0x0:"]; 
+3 [style="filled", fillcolor="#fff2ae", label="3. CodeNode\\n\\nreturn 0x0"]; 
+4 [style="filled", fillcolor="#e6f5c9", label="4. CaseNode\\n\\ncase 0x1:"]; 
+5 [style="filled", fillcolor="#fff2ae", label="5. CodeNode\\n\\nreturn 0x1"]; 
+6 [style="filled", fillcolor="#e6f5c9", label="6. CaseNode\\n\\ncase 0x29:"]; 
+7 [style="filled", fillcolor="#fff2ae", label="7. CodeNode\\n\\nreturn 0x29"]; 
+8 [style="filled", fillcolor="#e6f5c9", label="8. CaseNode\\n\\ndefault:"]; 
+9 [style="filled", fillcolor="#fff2ae", label="9. CodeNode\\n\\nreturn -0x1"]; 
+0 -> 1 []; 
+1 -> 2 []; 
+1 -> 4 []; 
+1 -> 6 []; 
+1 -> 8 []; 
+2 -> 3 []; 
+4 -> 5 []; 
+6 -> 7 []; 
+8 -> 9 []; 
+}"""
         )
 
 
