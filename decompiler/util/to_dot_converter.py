@@ -1,3 +1,4 @@
+"""Module handling conversion to dot-format."""
 from typing import TextIO
 
 from networkx import DiGraph
@@ -5,24 +6,9 @@ from networkx import DiGraph
 HEADER = "strict digraph  {"
 FOOTER = "}"
 
-"""
-########## CFG ##########
-
-node: NAME=node.name, label="string with content --> careful with `"` ", shape=box, color=blue
-edge: source.name, sink.name, type=not_needed?, color=orange/blue/red 
-"""
-
-
-"""
-########## AST ##########
-
-node: NAME=id, label="string with content --> careful with `"` ", style=filled, fillcolor=#llll, 
-        highlight=HighlightStandardColor.GreenHighlightColor, 
-edge: source.name, sink.name, branch_type=not_needed?, color="#....", label=T, 
-"""
-
 
 class ToDotConverter:
+    """Class in charge of writing a networkx DiGraph into dot-format"""
 
     ATTRIBUTES = {"color", "fillcolor", "label", "shape", "style"}
 
@@ -31,10 +17,12 @@ class ToDotConverter:
 
     @classmethod
     def write(cls, graph: DiGraph, handle: TextIO):
+        """Write dot-format of given graph into handle."""
         converter = cls(graph)
         handle.write(converter._create_dot())
 
-    def _create_dot(self):
+    def _create_dot(self) -> str:
+        """Create dot-file content."""
         content = HEADER + "\n"
         for node, data in self._graph.nodes(data=True):
             content += f"{node} [{self._get_attributes(data)}]; \n"
@@ -44,13 +32,11 @@ class ToDotConverter:
         return content
 
     def _get_attributes(self, data):
-        attributes = ""
-        return ', '.join(key + '=' + self._process(value) for key, value in data.items() if key in self.ATTRIBUTES)
+        """Return string for node attributes."""
+        return ", ".join(key + "=" + self._process(value) for key, value in data.items() if key in self.ATTRIBUTES)
 
     def _process(self, value: str):
-        """make sure that attribute value fulfills dot-notation"""
-        # while '"' in value:
+        """Ensure that attribute string fulfills dot-notation."""
         value = value.replace('"', '\\"')
-        # while "\n" in value:
         value = value.replace("\n", "\\n")
         return f'"{value}"'

@@ -558,6 +558,7 @@ class TestDecoratedAST:
         )
 
     def test_convert_to_dot_if(self, ast_condition):
+        """Test that convert to dot can if"""
         decorated = DecoratedAST.from_ast(ast_condition)
         dot_converter = ToDotConverter(decorated.graph)
         content = dot_converter._create_dot()
@@ -579,6 +580,7 @@ class TestDecoratedAST:
         )
 
     def test_convert_to_dot_switch(self, ast_switch):
+        """Test that convert to dot can handle switch"""
         decorated = DecoratedAST.from_ast(ast_switch)
         dot_converter = ToDotConverter(decorated.graph)
         content = dot_converter._create_dot()
