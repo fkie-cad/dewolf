@@ -26,6 +26,7 @@ class MemPhiConverter(PipelineStage):
         """
         self._cfg = task.graph
         self._collect_aliased_variables()
+        print(self._aliased_variables)
         if self._aliased_variables:
             self._replace_mem_phis_with_phis()
         else:
@@ -46,10 +47,14 @@ class MemPhiConverter(PipelineStage):
         for instruction in self._cfg.instructions:
             for variable in instruction.requirements:
                 if variable.is_aliased:
-                    self._aliased_variables.add(variable.copy(ssa_label=None))
+                    var_copy = variable.copy()
+                    var_copy.unsubscript()
+                    self._aliased_variables.add(var_copy)
             for variable in instruction.definitions:
                 if variable.is_aliased:
-                    self._aliased_variables.add(variable.copy(ssa_label=None))
+                    var_copy = variable.copy()
+                    var_copy.unsubscript()
+                    self._aliased_variables.add(var_copy)
 
     def _replace_mem_phis_with_phis(self) -> None:
         """
