@@ -57,11 +57,7 @@ class _VariableCopyPool:
         """
         first_copy = self.get_smallest_label_copy(var_name)
         if first_copy.ssa_label > 0 and first_copy.is_aliased:
-            if isinstance(variable, GlobalVariable):
-                first_copy = variable.copy()
-                first_copy.ssa_label = 0
-            else:
-                first_copy = Variable(var_name, first_copy.type, 0, is_aliased=True)
+            first_copy = variable.copy(vartype=first_copy.type.copy(), is_aliased=True, ssa_label=0)
             self._sorted_copies_of[var_name].insert(0, first_copy)
 
     def get_smallest_label_copy(self, variable: Union[str, Variable]):
@@ -187,11 +183,7 @@ class InsertMissingDefinitions(PipelineStage):
 
         position_insert_definition = self._find_position_to_insert_aliased_definition(basicblock_for_definition, memory_instruction)
         ssa_label_rhs_variable = self._get_ssa_label_of_rhs_variable(basicblock_for_definition, prev_ssa_labels)
-        if isinstance(variable, GlobalVariable):
-            rhs_variable = variable.copy()
-            rhs_variable.ssa_label = ssa_label_rhs_variable
-        else:
-            rhs_variable = Variable(variable.name, variable.type, ssa_label_rhs_variable, True)
+        rhs_variable = variable.copy(ssa_label=ssa_label_rhs_variable, is_aliased=True)
 
         if self._memory_instruction_changes_variable(memory_instruction, rhs_variable):
             definition = Relation(variable, rhs_variable)
