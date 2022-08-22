@@ -141,19 +141,11 @@ class InsertMissingDefinitions(PipelineStage):
         """
         undefined_variables = self._use_map.used_variables - self._def_map.defined_variables
         all_variables = self._use_map.used_variables | self._def_map.defined_variables
-
-        aliased_names = {
-            (variable.name, variable.type, isinstance(variable, GlobalVariable), variable)
-            for variable in all_variables
-            if variable.is_aliased
-        }
+        aliased_variables = {variable for variable in all_variables if variable.is_aliased}
 
         for memory_version in self._node_of_memory_version.keys():
-            for var_name, var_type, is_global, variable in aliased_names:
-                if is_global:
-                    aliased_variable = variable.copy()
-                else:
-                    aliased_variable = Variable(var_name, var_type, memory_version, is_aliased=True)
+            for variable in aliased_variables:
+                aliased_variable = variable.copy(ssa_label=memory_version)
                 if aliased_variable not in all_variables:
                     undefined_variables.add(aliased_variable)
         return undefined_variables
