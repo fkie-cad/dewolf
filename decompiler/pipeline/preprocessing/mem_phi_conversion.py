@@ -26,7 +26,6 @@ class MemPhiConverter(PipelineStage):
         """
         self._cfg = task.graph
         self._collect_aliased_variables()
-        print(self._aliased_variables)
         if self._aliased_variables:
             self._replace_mem_phis_with_phis()
         else:

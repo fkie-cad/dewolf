@@ -1,5 +1,6 @@
 """Module implementing the AssignmentHandler for binaryninja."""
 from functools import partial
+from typing import Union
 
 from binaryninja import mediumlevelil
 from decompiler.frontend.lifter import Handler
@@ -84,20 +85,22 @@ class AssignmentHandler(Handler):
         return UnaryOperation(OperationType.cast, [source], vartype=cast_type, contraction=True)
 
     def lift_store(self, assignment: mediumlevelil.MediumLevelILStoreSsa, **kwargs) -> Assignment:
-        """Lift a store operation to pseudo (e.g. [ebp+4] = eax)."""
-        op = self._lifter.lift(assignment.dest, parent=assignment)
-        if isinstance(op, GlobalVariable):
-            op.ssa_label = assignment.dest_memory
-            return Assignment(op, self._lifter.lift(assignment.src))
+        """Lift a store operation to pseudo (e.g. [ebp+4] = eax, or [global_var_label] = 25)."""
         return Assignment(
-            UnaryOperation(
-                OperationType.dereference,
-                [op := self._lifter.lift(assignment.dest, parent=assignment)],
-                vartype=op.type,
-                writes_memory=assignment.dest_memory,
-            ),
+            self._lift_store_destination(assignment),
             self._lifter.lift(assignment.src),
         )
+
+    def _lift_store_destination(self, store_assignment: mediumlevelil.MediumLevelILStoreSsa) -> Union[UnaryOperation, GlobalVariable]:
+        """
+        Lift destination operand of store operation which is used for modelling both assignments of dereferences and global variables.
+        """
+        memory_version = store_assignment.dest_memory
+        store_destination = self._lifter.lift(store_assignment.dest, parent=store_assignment)
+        if isinstance(store_destination, GlobalVariable):
+            store_destination.ssa_label = memory_version
+            return store_destination
+        return UnaryOperation(OperationType.dereference, [store_destination], vartype=store_destination.type, writes_memory=memory_version)
 
     def _lift_contraction(self, assignment: mediumlevelil.MediumLevelILSetVarField, is_aliased=False, **kwargs) -> UnaryOperation:
         """

@@ -1,5 +1,6 @@
 """Module implementing the UnaryOperationHandler."""
 from functools import partial
+from typing import Union
 
 from binaryninja import MediumLevelILInstruction, MediumLevelILOperation, mediumlevelil
 from decompiler.frontend.lifter import Handler
@@ -31,8 +32,8 @@ class UnaryOperationHandler(Handler):
                 mediumlevelil.MediumLevelILIntToFloat: self.lift_cast,
                 mediumlevelil.MediumLevelILAddressOf: partial(self.lift_unary_operation, OperationType.address),
                 mediumlevelil.MediumLevelILAddressOfField: self.lift_address_of_field,
-                mediumlevelil.MediumLevelILLoad: partial(self.lift_unary_operation, OperationType.dereference),
-                mediumlevelil.MediumLevelILLoadSsa: partial(self.lift_unary_operation, OperationType.dereference),
+                mediumlevelil.MediumLevelILLoad: self.lift_dereference_or_global_variable,
+                mediumlevelil.MediumLevelILLoadSsa: self.lift_dereference_or_global_variable,
                 mediumlevelil.MediumLevelILLoadStruct: self._lift_load_struct,
                 mediumlevelil.MediumLevelILLoadStructSsa: self._lift_load_struct,
                 mediumlevelil.MediumLevelILFtrunc: self._lift_ftrunc,
@@ -40,14 +41,24 @@ class UnaryOperationHandler(Handler):
         )
 
     def lift_unary_operation(self, op_type: OperationType, operation: MediumLevelILOperation, **kwargs) -> UnaryOperation:
-        """Lift the given constant value."""
-        operands = [self._lifter.lift(x, parent=operation) for x in operation.operands]
-        if op_type == OperationType.dereference and isinstance(global_var := operands[0], GlobalVariable):
-            global_var.ssa_label = operation.ssa_memory_version
-            return global_var
+        """Lift unary operation."""
         return UnaryOperation(
             op_type,
             [self._lifter.lift(x, parent=operation) for x in operation.operands],
+            vartype=self._lifter.lift(operation.expr_type, parent=operation),
+        )
+
+    def lift_dereference_or_global_variable(
+        self, operation: Union[mediumlevelil.MediumLevelILLoad, mediumlevelil.MediumLevelILLoadSsa], **kwargs
+    ) -> Union[GlobalVariable, UnaryOperation]:
+        """Lift load operation which is used both to model dereference operation and global variable read."""
+        load_operand = self._lifter.lift(operation.src, parent=operation)
+        if load_operand and isinstance(global_variable := load_operand, GlobalVariable):
+            global_variable.ssa_label = operation.ssa_memory_version
+            return global_variable
+        return UnaryOperation(
+            OperationType.dereference,
+            [load_operand],
             vartype=self._lifter.lift(operation.expr_type, parent=operation),
         )
 
