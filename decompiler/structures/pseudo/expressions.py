@@ -409,19 +409,28 @@ class GlobalVariable(Variable):
         tags: Optional[Tuple[Tag, ...]] = None,
     ) -> GlobalVariable:
         """Provide a copy of the current Variable."""
+
         return self.__class__(
             self._name[:] if name is None else name,
             self._type.copy() if vartype is None else vartype,
             self.ssa_label if ssa_label is None else ssa_label,
             self.is_aliased if is_aliased is None else is_aliased,
             self.ssa_name if ssa_name is None else ssa_name,
-            self.initial_value if initial_value is None else initial_value,
+            self._get_init_value_copy(initial_value),
             self.tags if tags is None else tags,
         )
 
     def __str__(self) -> str:
         """Return a string representation of the global variable."""
         return f"{self._name}" if (label := self.ssa_label) is None else f"{self._name}#{label}"
+
+    def _get_init_value_copy(self, initial_value: Union[float, int, str, GlobalVariable] = None) -> Union[float, int, str, GlobalVariable]:
+        """When copying, the original global variable object is responsible for copying initial value properly, not the caller of copy."""
+        if initial_value:
+            initial_value_copy = initial_value if not isinstance(initial_value, DataflowObject) else initial_value.copy()
+        else:
+            initial_value_copy = self.initial_value if not isinstance(self.initial_value, DataflowObject) else self.initial_value.copy()
+        return initial_value_copy
 
 
 class RegisterPair(Variable):

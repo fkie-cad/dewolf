@@ -1,3 +1,4 @@
+from decompiler.structures.pseudo import OperationType, UnaryOperation
 from decompiler.structures.pseudo.expressions import (
     Constant,
     ExternConstant,
@@ -97,6 +98,32 @@ class TestGlobalVariable:
         assert copy.ssa_label == original.ssa_label == 3
         assert copy.initial_value == original.initial_value == 42
         assert copy.is_aliased and original.is_aliased
+
+    def test_copy_with_replacement(self):
+        original = GlobalVariable("var_1", Integer.char(), ssa_label=3, initial_value=42)
+        copy = original.copy(ssa_label=4)
+        assert isinstance(copy, GlobalVariable)
+        assert id(original) != id(copy) and original != copy
+        assert copy.type == Integer.char()
+        assert copy.ssa_label == 4
+        assert copy.initial_value == original.initial_value == 42
+        assert copy.is_aliased and original.is_aliased
+
+    def test_initial_value_is_copied_correctly(self):
+        g1 = GlobalVariable("g1", Integer.char(), ssa_label=3, initial_value=42)
+        g1_copy = g1.copy()
+        assert g1_copy.initial_value == g1.initial_value == 42
+        g1_copy_with_replacement = g1.copy(initial_value=84)
+        assert g1_copy_with_replacement.initial_value == 84
+        some_glob = GlobalVariable("g", Integer.char())
+        g2 = GlobalVariable("g2", Integer.char(), ssa_label=3, initial_value=some_glob)
+        g2_copy = g2.copy()
+        assert g2.initial_value == g2_copy.initial_value == some_glob
+        assert id(g2.initial_value) != id(g2_copy.initial_value)
+        addr_glob = UnaryOperation(OperationType.address, [some_glob])
+        g2_copy_with_replacement = g2.copy(initial_value=addr_glob)
+        assert g2_copy_with_replacement.initial_value == addr_glob
+        assert id(addr_glob) != id(g2_copy_with_replacement.initial_value)
 
 
 class TestConstant:
