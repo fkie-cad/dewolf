@@ -124,7 +124,6 @@ class CodeDisplay(QPlainTextEdit):
         return code_display
 
 
-
 class DewolfNotifications(UIContextNotification):
     """Class handling notifications to the dewolf widget."""
 
@@ -142,6 +141,7 @@ class DewolfNotifications(UIContextNotification):
 
     def OnAddressChange(self, context, frame, view, location):
         self.widget.updateState()
+
 
 class DewolfWidget(QWidget, UIContextNotification):
     """Class for docking widget, displaying decompiled code"""
@@ -315,7 +315,7 @@ class DewolfWidget(QWidget, UIContextNotification):
         self.threadpool.start(worker)
 
     def updateState(self):
-        """ Update the current UI state (frame, view, data, function) """
+        """Update the current UI state (frame, view, data, function)"""
 
         self._current_frame = UIContext.currentViewFrameForWidget(self)
 
@@ -329,7 +329,7 @@ class DewolfWidget(QWidget, UIContextNotification):
 
     @staticmethod
     def createPane(context):
-        """ Create a WidgetPane """
+        """Create a WidgetPane"""
         if context.context and context.binaryView:
             widget = DewolfWidget(context.binaryView)
             pane = WidgetPane(widget, "dewolf decompiler")
@@ -337,9 +337,8 @@ class DewolfWidget(QWidget, UIContextNotification):
 
     @staticmethod
     def canCreatePane(context):
-        """ Determine if we can create a WidgetPane """
+        """Determine if we can create a WidgetPane"""
         return context.context and context.binaryView
-
 
 
 class Highlighter(QSyntaxHighlighter):
@@ -447,7 +446,5 @@ class Highlighter(QSyntaxHighlighter):
 def add_dewolf_widget():
     """Add widget to GUI"""
     UIAction.registerAction("dewolf decompiler")
-    UIActionHandler.globalActions().bindAction(
-            "dewolf decompiler", UIAction(DewolfWidget.createPane, DewolfWidget.canCreatePane)
-            )
+    UIActionHandler.globalActions().bindAction("dewolf decompiler", UIAction(DewolfWidget.createPane, DewolfWidget.canCreatePane))
     Menu.mainMenu("Tools").addAction("dewolf decompiler", "dewolf decompiler")
