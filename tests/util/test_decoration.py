@@ -149,7 +149,6 @@ class TestDecoratedCFG:
     @pytest.mark.skipif(not GRAPH_EASY_INSTALLED, reason="requires graph-easy")
     def test_does_print_ascii(self, graph_with_string):
         decorated = DecoratedCFG.from_cfg(graph_with_string)
-        print(decorated.export_ascii())
         assert decorated.export_ascii().splitlines() == [
             "+-----------------------------------+",
             "|                0.                 |",
