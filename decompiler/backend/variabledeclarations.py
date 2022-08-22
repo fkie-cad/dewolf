@@ -129,6 +129,6 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
             return str(convert_bytes(variable.initial_value, variable.type))
         if isinstance(operation:=variable.initial_value, Operation):
             for requirement in operation.requirements:
-                if isinstance(requirement, GlobalVariable) and requirement.ssa_label is not None:
-                    requirement.ssa_label = None
+                if isinstance(requirement, GlobalVariable):
+                    requirement.unsubscript()
         return str(variable.initial_value)
