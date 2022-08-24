@@ -39,7 +39,7 @@ class GlobalHandler(Handler):
 
         # Create the global variable.
         vartype = self._lifter.lift(variable.type)
-        if initial_value and str(initial_value).isprintable() and "void" in type_tokens:
+        if "void" in type_tokens:
             vartype = self._lifter.lift(bv.parse_type_string("char*")[0])
         return GlobalVariable(variable_name, vartype=vartype, ssa_label=0, initial_value=initial_value)
 
