@@ -1,4 +1,4 @@
-from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, Variable
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import (
     Assignment,
     Branch,
@@ -130,6 +130,7 @@ class TestAssignment:
         assert id(original) != id(copy) and original == copy
         assert id(original.destination) != id(copy.destination) and original.destination == copy.destination
         assert id(original.value) != id(copy.value) and original.value == copy.value
+        assert original.writes_memory == copy.writes_memory
 
 
 class TestRelation:
@@ -470,9 +471,14 @@ class TestMemPhi:
         a6, a3, a4, a5 = (Variable(a.name, a.type, i, is_aliased=True) for i in ssa_labels)
         b6, b3, b4, b5 = (Variable(b.name, b.type, i, is_aliased=True) for i in ssa_labels)
         c6, c3, c4, c5 = (Variable(c.name, c.type, i, is_aliased=True) for i in ssa_labels)
+        g6, g3, g4, g5 = (GlobalVariable("g", Integer.char(), i, initial_value=42) for i in ssa_labels)
+        g6_loc, g3_loc, g4_loc, g5_loc = (Variable("g", Integer.char(), is_aliased=True) for i in ssa_labels)
         phi_a = Phi(a6, [a3, a4, a5])
         phi_b = Phi(b6, [b3, b4, b5])
         phi_c = Phi(c6, [c3, c4, c5])
+        g = GlobalVariable("g", Integer.char(), initial_value=42)
+        phi_g = Phi(g6, [g3, g4, g5])
+        phi_g_loc = Phi(g6_loc, [g3_loc, g4_loc, g5_loc])
         assert set(phis) == {phi_a, phi_b, phi_c}
         # both mem phi variables and variables set are empty
         i2 = MemPhi(mem6, [mem3, mem4, mem5])
@@ -490,3 +496,8 @@ class TestMemPhi:
         i4 = MemPhi(mem6, [mem3, mem4, mem5])
         phis = i4.create_phi_functions_for_variables({b, c})
         assert set(phis) == {phi_b, phi_c}
+        # phis created for global variables contain also global, not local variables
+        i5 = MemPhi(mem6, [mem3, mem4, mem5])
+        phis = i5.create_phi_functions_for_variables({g})
+        assert set(phis) == {phi_g}
+        assert set(phis) != {phi_g_loc}

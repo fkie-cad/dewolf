@@ -11,6 +11,7 @@ from decompiler.structures.pseudo import (
     ExternConstant,
     ExternFunctionPointer,
     GlobalVariable,
+    Operation,
     OperationType,
     UnaryOperation,
     Variable,
@@ -126,4 +127,8 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
             return str(variable.initial_value.value)
         if isinstance(variable.initial_value, bytes):
             return str(convert_bytes(variable.initial_value, variable.type))
+        if isinstance(operation:=variable.initial_value, Operation):
+            for requirement in operation.requirements:
+                if isinstance(requirement, GlobalVariable):
+                    requirement.unsubscript()
         return str(variable.initial_value)

@@ -50,8 +50,9 @@ class ConstantHandler(Handler):
             return Constant(0, vartype=Integer.uint64_t() if bv.address_size == 8 else Integer.uint32_t())
 
         symbol = self._get_symbol(bv, address)
-        if symbol is not None and symbol.type in (SymbolType.ImportedFunctionSymbol, SymbolType.ExternalSymbol, SymbolType.FunctionSymbol):
-            return self._lift_symbol_pointer(address, symbol)
+
+        if symbol is not None and symbol.type in (SymbolType.ImportedFunctionSymbol, SymbolType.ExternalSymbol, SymbolType.FunctionSymbol, SymbolType.ImportAddressSymbol):
+            return self._lift_symbol_pointer(bv, address, symbol)
 
         if (
             not isinstance(pointer, mediumlevelil.MediumLevelILImport)
@@ -63,12 +64,26 @@ class ConstantHandler(Handler):
         if (variable := bv.get_data_var_at(address)) is not None:
             return self._lifter.lift(variable, bv=bv, parent_addr=None)
 
-    def _lift_symbol_pointer(self, address: int, symbol: bSymbol) -> Optional[Symbol]:
+    def _lift_symbol_pointer(self, bv:BinaryView, address: int, symbol: bSymbol) -> Optional[Union[Symbol, UnaryOperation]]:
         """Try to lift a pointer at the given address with a Symbol as a symbol pointer."""
+        # symbol containing custom function name, e.g. lookup
         if symbol.type == SymbolType.FunctionSymbol:
             return FunctionSymbol(symbol.name, address, vartype=Pointer(Integer.char()))
+        # symbol containing c function name, Win API name (tailcall), etc. e.g. memset
         if symbol.type in (SymbolType.ImportedFunctionSymbol, SymbolType.ExternalSymbol):
             return ImportedFunctionSymbol(symbol.name, address, vartype=Pointer(Integer.char()))
+        # IAT entry or .got entry
+        if symbol.type == SymbolType.ImportAddressSymbol:
+            # if it is .got entry, then it points at the external global variable or function
+            # so we try to get the symbol on that address, lift it and lift .got entry as an address of that (lifted) symbol
+            pointer_value = bv.read_pointer(symbol.address)
+            global_data_pointed_by_symbol = bv.get_data_var_at(pointer_value)
+            if global_data_pointed_by_symbol:
+                lifted_global_var = self._lifter.lift(global_data_pointed_by_symbol, bv=bv, parent_addr=symbol.address)
+                return UnaryOperation(OperationType.address, [lifted_global_var])
+            else:
+                # otherwise it is an IAT entry -> construct ImportedFunctionSymbol with the same name.
+                return ImportedFunctionSymbol(symbol.name, symbol.address, vartype=Pointer(Integer.char()))
 
     @staticmethod
     def _get_symbol(bv: BinaryView, address: int) -> Optional[bSymbol]:

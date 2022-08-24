@@ -5,7 +5,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Generic, Iterator, List, Optional, Sequence, Set, Tuple, TypeVar, Union, final
 
-from .expressions import Constant, DataflowObject, Expression, Tag, Variable
+from .expressions import Constant, DataflowObject, Expression, GlobalVariable, Tag, Variable
 from .operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
 
 E = TypeVar("E", bound=Expression)
@@ -546,11 +546,9 @@ class MemPhi(Phi):
 
     def _generate_phi_function_for_variable(self, var: Variable) -> Phi:
         """Given a variable, creates a Phi-Function for it using ssa versions of mem variables"""
-        phi_target = Variable(var.name, var.type, ssa_label=self.destination.ssa_label)
-        phi_target.is_aliased = True
+        phi_target = var.copy(ssa_label=self.destination.ssa_label, is_aliased=True)
         phi_arguments = []
         for variable in self.value.operands:
-            phi_arg = Variable(var.name, var.type, ssa_label=variable.ssa_label)
-            phi_arg.is_aliased = True
+            phi_arg = var.copy(ssa_label=variable.ssa_label, is_aliased=True)
             phi_arguments.append(phi_arg)
         return Phi(phi_target, phi_arguments)

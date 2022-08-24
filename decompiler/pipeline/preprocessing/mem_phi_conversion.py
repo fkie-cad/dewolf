@@ -2,8 +2,8 @@ from typing import Optional, Set
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import ControlFlowGraph
-from decompiler.structures.pseudo.expressions import Variable
-from decompiler.structures.pseudo.instructions import MemPhi
+from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
+from decompiler.structures.pseudo.instructions import MemPhi, Phi
 from decompiler.task import DecompilerTask
 
 
@@ -46,14 +46,18 @@ class MemPhiConverter(PipelineStage):
         for instruction in self._cfg.instructions:
             for variable in instruction.requirements:
                 if variable.is_aliased:
-                    self._aliased_variables.add(Variable(variable.name, variable.type, ssa_label=None))
+                    var_copy = variable.copy()
+                    var_copy.unsubscript()
+                    self._aliased_variables.add(var_copy)
             for variable in instruction.definitions:
                 if variable.is_aliased:
-                    self._aliased_variables.add(Variable(variable.name, variable.type, ssa_label=None))
+                    var_copy = variable.copy()
+                    var_copy.unsubscript()
+                    self._aliased_variables.add(var_copy)
 
     def _replace_mem_phis_with_phis(self) -> None:
         """
-        Replaces every memory φ-function instruction in the graph with regular φ-functions for aliased variables.
+        Replaces every memory φ-function instruction in the graph with regular φ-functgit ions for aliased variables.
 
         E.g. aliased_variables = {v, w};
              mem#5 = φ(mem#4, mem#3);

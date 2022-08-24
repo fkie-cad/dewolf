@@ -353,9 +353,24 @@ class Variable(Expression[DecompiledType]):
         """Remove the assigned ssa-label."""
         self.ssa_label = None
 
-    def copy(self) -> Variable:
+    def copy(
+        self,
+        name: str = None,
+        vartype: DecompiledType = None,
+        ssa_label: Optional[int] = None,
+        is_aliased: bool = None,
+        ssa_name: Optional[Variable] = None,
+        tags: Optional[Tuple[Tag, ...]] = None,
+    ) -> Variable:
         """Provide a copy of the current Variable."""
-        return Variable(self._name[:], self._type.copy(), self.ssa_label, self.is_aliased, self.ssa_name, self.tags)
+        return self.__class__(
+            self._name[:] if name is None else name,
+            self._type.copy() if vartype is None else vartype,
+            self.ssa_label if ssa_label is None else ssa_label,
+            self.is_aliased if is_aliased is None else is_aliased,
+            self.ssa_name if ssa_name is None else ssa_name,
+            self.tags if tags is None else tags,
+        )
 
     def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
         """Invoke the appropriate visitor for this Expression."""
@@ -373,7 +388,7 @@ class GlobalVariable(Variable):
         name: str,
         vartype: Type = UnknownType(),
         ssa_label: int = None,
-        is_aliased: bool = False,
+        is_aliased: bool = True,
         ssa_name: Optional[Variable] = None,
         initial_value: Union[float, int, str, GlobalVariable] = None,
         tags: Optional[Tuple[Tag, ...]] = None,
@@ -383,15 +398,39 @@ class GlobalVariable(Variable):
         super().__init__(name, vartype, ssa_label, is_aliased, ssa_name, tags=tags)
         self.initial_value = initial_value
 
-    def copy(self) -> GlobalVariable:
+    def copy(
+        self,
+        name: str = None,
+        vartype: Type = None,
+        ssa_label: int = None,
+        is_aliased: bool = None,
+        ssa_name: Optional[Variable] = None,
+        initial_value: Union[float, int, str, GlobalVariable] = None,
+        tags: Optional[Tuple[Tag, ...]] = None,
+    ) -> GlobalVariable:
         """Provide a copy of the current Variable."""
-        return GlobalVariable(
-            self._name[:], self._type.copy(), self.ssa_label, self.is_aliased, self.ssa_name, self.initial_value, self.tags
+
+        return self.__class__(
+            self._name[:] if name is None else name,
+            self._type.copy() if vartype is None else vartype,
+            self.ssa_label if ssa_label is None else ssa_label,
+            self.is_aliased if is_aliased is None else is_aliased,
+            self.ssa_name if ssa_name is None else ssa_name,
+            self._get_init_value_copy(initial_value),
+            self.tags if tags is None else tags,
         )
 
     def __str__(self) -> str:
         """Return a string representation of the global variable."""
-        return f"{self._name}"
+        return f"{self._name}" if (label := self.ssa_label) is None else f"{self._name}#{label}"
+
+    def _get_init_value_copy(self, initial_value: Union[float, int, str, GlobalVariable] = None) -> Union[float, int, str, GlobalVariable]:
+        """When copying, the original global variable object is responsible for copying initial value properly, not the caller of copy."""
+        if initial_value:
+            initial_value_copy = initial_value if not isinstance(initial_value, DataflowObject) else initial_value.copy()
+        else:
+            initial_value_copy = self.initial_value if not isinstance(self.initial_value, DataflowObject) else self.initial_value.copy()
+        return initial_value_copy
 
 
 class RegisterPair(Variable):
