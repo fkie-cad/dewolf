@@ -2,6 +2,7 @@
 """Main decompiler Interface."""
 from __future__ import annotations
 
+import logging
 from typing import Dict, List, Optional, Tuple
 
 from decompiler.backend.codegenerator import CodeGenerator
@@ -66,9 +67,13 @@ class Decompiler:
         pipeline = DecompilerPipeline.from_strings(task_options.getlist("pipeline.cfg_stages"), task_options.getlist("pipeline.ast_stages"))
         functions = self._frontend.get_all_function_names()
         for function in functions:
-            task = self._frontend.create_task(function, task_options)
-            pipeline.run(task)
-            tasks.append(task)
+            try:
+                task = self._frontend.create_task(function, task_options)
+                pipeline.run(task)
+                tasks.append(task)
+            except Exception:
+                logging.error(f"Failed to decompile {function}")
+                continue
         code = self._backend.generate(tasks)
         return code
 
