@@ -423,6 +423,7 @@
     "cfg_stages": {
       "default": [
         "expression-propagation",
+        "bit-field-comparison-unrolling",
         "type-propagation",
         "dead-path-elimination",
         "dead-loop-elimination",
@@ -492,7 +493,7 @@
       "is_hidden_from_gui": false
     },
     "show_selected": {
-      "default": [],
+      "default": ["expression-simplification"],
       "title": "Select stages for display",
       "type": "array",
       "elementType": "string",

@@ -14,12 +14,14 @@ from decompiler.pipeline.dataflowanalysis import (
     RedundantCastsElimination,
     TypePropagation,
 )
-from decompiler.pipeline.expressions import DeadComponentPruner, EdgePruner, GraphExpressionFolding
+from decompiler.pipeline.expressions import DeadComponentPruner, EdgePruner, GraphExpressionFolding, BitFieldComparisonUnrolling
+
 
 CFG_STAGES = [
     GraphExpressionFolding,
     DeadComponentPruner,
     ExpressionPropagation,
+    BitFieldComparisonUnrolling,
     TypePropagation,
     DeadPathElimination,
     DeadLoopElimination,
