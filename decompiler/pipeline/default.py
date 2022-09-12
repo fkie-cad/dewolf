@@ -14,8 +14,7 @@ from decompiler.pipeline.dataflowanalysis import (
     RedundantCastsElimination,
     TypePropagation,
 )
-from decompiler.pipeline.expressions import DeadComponentPruner, EdgePruner, GraphExpressionFolding, BitFieldComparisonUnrolling
-
+from decompiler.pipeline.expressions import BitFieldComparisonUnrolling, DeadComponentPruner, EdgePruner, GraphExpressionFolding
 
 CFG_STAGES = [
     GraphExpressionFolding,

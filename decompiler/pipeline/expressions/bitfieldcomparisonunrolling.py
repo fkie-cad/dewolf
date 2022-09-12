@@ -1,6 +1,5 @@
-from typing import Any, List, Optional, Tuple
-
 from logging import warning
+from typing import Any, List, Optional, Tuple
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.pseudo import Constant, Expression
@@ -22,7 +21,7 @@ class BitFieldComparisonUnrolling(PipelineStage):
     if ( amount == 1 || amount == 3 || amount == 4 ) { ... }
 
     This can subsequently be used to reconstruct switch-case statements.
-    Requires expression-propagation PipelineStage, such that bit-shift 
+    Requires expression-propagation PipelineStage, such that bit-shift
     gets forwarded into Branch.condition:
 
     if ( (1 << amount) & bit_mask) == 0) ) { ... }
@@ -38,10 +37,10 @@ class BitFieldComparisonUnrolling(PipelineStage):
                 replacement = self._unroll_condition(instr.condition)
                 if replacement:
                     instr.substitute(instr.condition, replacement)
-        DecoratedCFG.show_flowgraph(task.graph, "CFG after unrolling") # TODO for debugging
+        DecoratedCFG.show_flowgraph(task.graph, "CFG after unrolling")  # TODO for debugging
 
     def _unroll_condition(self, cond: Condition) -> Optional[Condition]:
-        """ Handle the following case of Condition: ((var & bit_field) == 0) """
+        """Handle the following case of Condition: ((var & bit_field) == 0)"""
         if cond.is_equality_with_constant_check():
             if (operands := self._left_or_right(cond, Constant)) is not None:
                 expr, const = operands
@@ -50,7 +49,7 @@ class BitFieldComparisonUnrolling(PipelineStage):
         return None
 
     def _get_unrolled_condition(self, expr: Expression) -> Optional[Condition]:
-        """ 
+        """
         Unroll bit-field to ORed integer comparisions.
         Assume Expression is of the form ((1 << (cast)var) & 0xffffffff)) & bit_field_constant)
         """
@@ -74,7 +73,7 @@ class BitFieldComparisonUnrolling(PipelineStage):
         return None
 
     def _bitmask_values(self, const: Constant) -> List[int]:
-        """ Return positions of set bits from integer Constant """
+        """Return positions of set bits from integer Constant"""
         bitmask = const.value
         values = []
         if not isinstance(bitmask, int):
@@ -95,16 +94,15 @@ class BitFieldComparisonUnrolling(PipelineStage):
         # find and ignore ... & 0xffffffff
         if expr.operation == OperationType.bitwise_and and (operands := self._left_or_right(expr, Constant)) is not None:
             sub_expression, bit_mask_constant = operands
-            if isinstance(sub_expression, BinaryOperation) and bit_mask_constant.value == 0xffffffff:
+            if isinstance(sub_expression, BinaryOperation) and bit_mask_constant.value == 0xFFFFFFFF:
                 # find bit-shift of 0x1
                 if sub_expression.operation == OperationType.left_shift:
                     if isinstance(sub_expression.left, Constant) and sub_expression.left.value == 0x1:
                         return sub_expression.right
         return None
 
-
     def _left_or_right(self, bin_op: BinaryOperation, target_type_rhs: Any) -> Optional[Tuple]:
-        """ 
+        """
         For BinaryOperation `a op b` return operands in canonical order: Expected type on right hand side.
         """
         if isinstance(bin_op.right, target_type_rhs):
@@ -112,4 +110,3 @@ class BitFieldComparisonUnrolling(PipelineStage):
         if isinstance(bin_op.left, target_type_rhs):
             return bin_op.right, bin_op.left
         return None
-
