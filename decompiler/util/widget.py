@@ -273,7 +273,7 @@ class DewolfWidget(QWidget, UIContextNotification):
         if self._current_function.name in self._cache.keys():
             self.update_code_view()
             return
-        self._cache[self._current_function.name] = "Add to queue..." # prevent multiple started workers for same function
+        self._cache[self._current_function.name] = "Add to queue..."  # prevent multiple started workers for same function
         self.start_worker(self._current_view, self._current_function)
 
     @Decorators.requires_function
