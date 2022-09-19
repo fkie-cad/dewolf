@@ -34,6 +34,8 @@ class DecompilerTask:
         self._function_return_type = function_return_type
         self._function_parameters = function_parameters if function_parameters else []
         self._options: Options = options if options else Options.load_default_options()
+        self._failed = False
+        self._failure_reason = None
 
     @property
     def name(self) -> str:
@@ -69,3 +71,18 @@ class DecompilerTask:
     def options(self, value: Options):
         """Setter function for task options."""
         self._options = value
+
+    @property
+    def failed(self):
+        return self._failed
+
+    def fail(self, reason: str = None):
+        self._failed = True
+        self._failure_reason = reason
+
+    @property
+    def failure_message(self):
+        msg = f"Failed to decompile"
+        if self._failure_reason:
+            msg += f" due to error during {self._failure_reason}"
+        return msg
