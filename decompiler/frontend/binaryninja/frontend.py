@@ -91,8 +91,7 @@ class BinaryninjaFrontend(Frontend):
 
     def _get_address(self, text: str) -> int:
         """Get the address of the target function by evaluating the given string."""
-        if text in self._bv.symbols:
-            sym = self._bv.symbols[text]
+        if sym := self._bv.symbols.get(text, None):
             if isinstance(sym, list):
                 # Sometimes Binja has 2 symbols for a library function, and returns a list:
                 # [ImportedFunctionSymbol, ExternalSymbol]
