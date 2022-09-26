@@ -35,7 +35,7 @@ class DecompilerTask:
         self._function_parameters = function_parameters if function_parameters else []
         self._options: Options = options if options else Options.load_default_options()
         self._failed = False
-        self._failure_reason = None
+        self._failure_origin = None
 
     @property
     def name(self) -> str:
@@ -73,16 +73,21 @@ class DecompilerTask:
         self._options = value
 
     @property
-    def failed(self):
+    def failed(self) -> bool:
+        """Returns True if an error occurred during a decompilation stage.
+
+        A failed tasks will not produce valid decompiled code but an error message will be shown."""
         return self._failed
 
-    def fail(self, reason: str = None):
+    def fail(self, origin: str = None):
+        """Sets the task to failed and the origin to the name of the stage where failure occurred."""
         self._failed = True
-        self._failure_reason = reason
+        self._failure_origin = origin
 
     @property
-    def failure_message(self):
+    def failure_message(self) -> str:
+        """Returns the message to be shown for a failed task."""
         msg = f"Failed to decompile"
-        if self._failure_reason:
-            msg += f" due to error during {self._failure_reason}"
+        if self._failure_origin:
+            msg += f" due to error during {self._failure_origin}."
         return msg

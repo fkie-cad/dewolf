@@ -102,7 +102,7 @@ class DecompilerPipeline:
                 if show_all or stage.name in showed_stages:
                     self._show_stage(task, f"After {stage.name}", print_ascii, show_in_tabs)
             except Exception as e:
-                task.fail(reason=stage.name)
+                task.fail(origin=stage.name)
                 error(f"Failed to decompile {task.name}, error during stage {stage.name}: {e}")
                 break
 

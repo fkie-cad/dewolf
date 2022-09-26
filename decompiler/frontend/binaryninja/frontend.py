@@ -60,7 +60,7 @@ class BinaryninjaFrontend(Frontend):
             task = DecompilerTask(function.name, cfg, function_return_type=return_type, function_parameters=params, options=options)
         except Exception as e:
             task = DecompilerTask(function.name, None, function_return_type=return_type, function_parameters=params, options=options)
-            task.fail(reason="CFG creation")
+            task.fail(origin="CFG creation")
             logging.error(f"Failed to decompile {task.name}, error during CFG creation: {e}")
         task.function = function
         return task
