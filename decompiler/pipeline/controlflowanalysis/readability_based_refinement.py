@@ -340,12 +340,11 @@ class WhileLoopVariableRenamer:
 class ForLoopVariableRenamer:
     """Iterate over ForLoopNodes and rename their variables to i, j, ..., i1, j1, ..."""
 
-    candidates = ["i", "j", "k", "l", "m", "n"]
-
-    def __init__(self, ast: AbstractSyntaxTree):
+    def __init__(self, ast: AbstractSyntaxTree, candidates: list(str)):
         self._ast = ast
         self._iteration: int = 0
         self._variable_counter: int = -1
+        self._candidates = candidates
 
     def rename(self):
         """
@@ -366,10 +365,10 @@ class ForLoopVariableRenamer:
     def _get_variable_name(self) -> str:
         """Return variable names in the form of [i, j, ..., i1, j1, ...]"""
         self._variable_counter += 1
-        if self._variable_counter >= len(self.candidates):
+        if self._variable_counter >= len(self._candidates):
             self._variable_counter = 0
             self._iteration += 1
-        return f"{self.candidates[self._variable_counter]}{self._iteration if self._iteration > 0 else ''}"
+        return f"{self._candidates[self._variable_counter]}{self._iteration if self._iteration > 0 else ''}"
 
 
 class ReadabilityBasedRefinement(PipelineStage):
@@ -390,8 +389,10 @@ class ReadabilityBasedRefinement(PipelineStage):
 
         WhileLoopReplacer(task.syntax_tree, task.options).run()
 
-        if task.options.getboolean("readability-based-refinement.rename_for_loop_variables"):
-            ForLoopVariableRenamer(task.syntax_tree).rename()
+        # getList does not check elements for empty str <== empty str will be used for renaming, maybe getList should change that?
+        variableNames = task.options.getlist("readability-based-refinement.rename_for_loop_variables", fallback=None)
+        if variableNames:
+            ForLoopVariableRenamer(task.syntax_tree, variableNames).rename()
 
         if task.options.getboolean("readability-based-refinement.rename_while_loop_variables"):
             WhileLoopVariableRenamer(task.syntax_tree).rename()

@@ -211,11 +211,12 @@
       "description": "Transform while-loops to for-loops although the resulting for-loop would be empty.",
       "is_hidden_from_gui": false
     },
-    "rename_for_loop_variables": {
-      "default": true,
-      "type": "boolean",
+    "rename_for_loop_variables" : {
+      "default": ["i", "j", "k", "l", "m", "n"],
+      "type": "array",
+      "elementType": "string",
       "title": "Rename for-loop variables",
-      "description": "Rename for-loop variables to i, j, k, ...",
+      "description": "Rename for-loop variables to values from list",
       "is_hidden_from_gui": false
     },
     "rename_while_loop_variables": {
