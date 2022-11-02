@@ -791,7 +791,7 @@ class ForLoopNode(LoopNode):
         self,
         declaration: Optional[Union[Expression, Assignment]],
         condition: LogicCondition,
-        modification: Assignment,
+        modification: Optional[Assignment],
         reaching_condition: LogicCondition,
         ast: Optional[AbstractSyntaxInterface] = None,
     ):

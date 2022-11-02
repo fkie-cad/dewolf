@@ -227,18 +227,21 @@ class AstInstruction:
 
 
 class WhileLoopReplacer:
-    """Convert WhileLoopNodes to ForLoopNodes when possible and also readability is improved."""
+    """Convert WhileLoopNodes to ForLoopNodes when possible (or forced) and also readability is improved."""
 
     def __init__(self, ast: AbstractSyntaxTree, options: Options):
         self._ast = ast
         self._keep_empty_for_loops = options.getboolean("readability-based-refinement.keep_empty_for_loops", fallback=False)
         self._hide_non_init_decl = options.getboolean("readability-based-refinement.hide_non_initializing_declaration", fallback=False)
+        self._force_for_loops = options.getboolean("readability-based-refinement.force_for_loops", fallback=False)
 
     def run(self):
         """
         For each WhileLoop in AST check the following conditions:
             -> any variable in loop condition has a valid continuation instruction in loop body
             -> variable is initialized
+        
+        If 'force_for_loops' is enabled, substitute every while loop with an for-loop with empty declaration and modification
         """
 
         for loop_node in list(self._ast.get_while_loop_nodes_topological_order()):
@@ -252,6 +255,18 @@ class WhileLoopReplacer:
                     continue
                 self._replace_with_for_loop(loop_node, continuation, variable_init)
                 break
+
+        if self._force_for_loops:
+            for loop_node in list(self._ast.get_while_loop_nodes_topological_order()):
+                self._ast.substitute_loop_node(
+                    loop_node,
+                    ForLoopNode(
+                    declaration=None,
+                    condition=loop_node.condition,
+                    modification=None,
+                    reaching_condition=loop_node.reaching_condition,
+                    )
+                )
 
     def _replace_with_for_loop(self, loop_node: WhileLoopNode, continuation: AstInstruction, init: AstInstruction):
         """
@@ -285,7 +300,7 @@ class WhileLoopReplacer:
         )
         continuation.node.instructions.remove(continuation.instruction)
         self._ast.clean_up()
-
+       
 
 class WhileLoopVariableRenamer:
     """Iterate over While-Loop Nodes and rename their counter variables to counter, counter1, ..."""
@@ -390,7 +405,7 @@ class ReadabilityBasedRefinement(PipelineStage):
         WhileLoopReplacer(task.syntax_tree, task.options).run()
 
         # getList does not check elements for empty str <== empty str will be used for renaming, maybe getList should change that?
-        variableNames = task.options.getlist("readability-based-refinement.rename_for_loop_variables", fallback=None)
+        variableNames = task.options.getlist("readability-based-refinement.rename_for_loop_variables", fallback=list())
         if variableNames:
             ForLoopVariableRenamer(task.syntax_tree, variableNames).rename()
 

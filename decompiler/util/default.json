@@ -219,6 +219,13 @@
       "description": "Rename for-loop variables to values from list",
       "is_hidden_from_gui": false
     },
+    "force_for_loops": {
+      "default": true,
+      "type": "boolean",
+      "title": "Force for-loops",
+      "description": "Forces every while loop into a for-loop",
+      "is_hidden_from_gui": false
+    },
     "rename_while_loop_variables": {
       "default": true,
       "type": "boolean",
