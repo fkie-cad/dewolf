@@ -255,6 +255,11 @@ class DewolfWidget(QWidget, UIContextNotification):
         elif symbol.startswith("sub_"):
             if function := self.data.get_function_at(int(symbol.replace("sub_", "0x"), 16)):
                 self._current_view.navigateToFunction(function, function.start)
+        elif symbol.startswith("0x"):
+            try:
+                self._current_view.navigate(int(symbol, 16))
+            except ValueError:
+                pass
 
     @Decorators.requires_view
     def get_function_from_address(self, address: int) -> Optional[Function]:
