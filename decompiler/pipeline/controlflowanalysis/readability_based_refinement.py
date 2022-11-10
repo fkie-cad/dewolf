@@ -413,7 +413,7 @@ class ReadabilityBasedRefinement(PipelineStage):
 
         WhileLoopReplacer(task.syntax_tree, task.options).run()
 
-        variableNames = task.options.getlist("readability-based-refinement.rename_for_loop_variables", fallback=list())
+        variableNames = task.options.getlist("readability-based-refinement.rename_for_loop_variables", fallback=[None])
         if variableNames:
             ForLoopVariableRenamer(task.syntax_tree, variableNames).rename()
 

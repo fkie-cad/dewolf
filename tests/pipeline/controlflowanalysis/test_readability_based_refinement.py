@@ -34,7 +34,9 @@ def _generate_options(empty_loops: bool = False, hide_decl: bool = False, rename
     options = Options()
     options.set("readability-based-refinement.keep_empty_for_loops", empty_loops)
     options.set("readability-based-refinement.hide_non_initializing_declaration", hide_decl)
-    options.set("readability-based-refinement.rename_for_loop_variables", rename_for)
+    if rename_for:
+        names = ["i", "j", "k", "l", "m", "n"]
+        options.set("readability-based-refinement.rename_for_loop_variables", names)
     options.set("readability-based-refinement.rename_while_loop_variables", rename_while)
     return options
 
@@ -1705,7 +1707,8 @@ class TestReadabilityUtils:
 
     def test_for_loop_variable_generation(self):
         renamer = ForLoopVariableRenamer(
-            AbstractSyntaxTree(SeqNode(LogicCondition.initialize_true(LogicCondition.generate_new_context())), {})
+            AbstractSyntaxTree(SeqNode(LogicCondition.initialize_true(LogicCondition.generate_new_context())), {}),
+            ["i", "j", "k", "l", "m", "n"]
         )
         assert [renamer._get_variable_name() for _ in range(14)] == [
             "i",
