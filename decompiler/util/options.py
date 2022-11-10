@@ -144,6 +144,7 @@ class Options:
         else:
             if (value := self._settings_key_values.get(key, fallback)) is not None:
                 if isinstance(value, list):
+                    value = [x for x in value if x]
                     return value
         raise KeyError(f"Invalid setting for {key}")
 

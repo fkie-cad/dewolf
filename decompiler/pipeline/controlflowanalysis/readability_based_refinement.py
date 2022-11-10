@@ -234,24 +234,33 @@ class WhileLoopReplacer:
         self._keep_empty_for_loops = options.getboolean("readability-based-refinement.keep_empty_for_loops", fallback=False)
         self._hide_non_init_decl = options.getboolean("readability-based-refinement.hide_non_initializing_declaration", fallback=False)
         self._force_for_loops = options.getboolean("readability-based-refinement.force_for_loops", fallback=False)
+        self._condition_max_complexity = options.getint("readability-based-refinement.max_condition_complexity_for_loop_recovery", fallback=2)
+        self._modification_max_complexity = options.getint("readability-based-refinement.max_modification_complexity_for_loop_recovery", fallback=3)
 
     def run(self):
         """
         For each WhileLoop in AST check the following conditions:
             -> any variable in loop condition has a valid continuation instruction in loop body
             -> variable is initialized
+            -> loop condition complexity (number of operands) < condition complexity 
+            -> possible modification complexity < modification complexity
         
-        If 'force_for_loops' is enabled, substitute every while loop with an for-loop with empty declaration and modification
+        If 'force_for_loops' is enabled, the complexity options are ignored and every while loop after the 
+        initial transformation will be forced into a for loop with an empty declaration/modification
         """
 
         for loop_node in list(self._ast.get_while_loop_nodes_topological_order()):
             if loop_node.is_endless_loop or (not self._keep_empty_for_loops and _is_single_instruction_loop_node(loop_node)):
                 continue
+            if len(loop_node.condition) > self._condition_max_complexity and not self._force_for_loops:
+                    continue  
 
             for condition_variable in loop_node.get_required_variables(self._ast.condition_map):
                 if not (continuation := _find_continuation_instruction(self._ast, loop_node, condition_variable)):
                     continue
                 if not (variable_init := _get_variable_initialisation(self._ast, condition_variable)):
+                    continue
+                if continuation.instruction.complexity > self._modification_max_complexity and not self._force_for_loops:
                     continue
                 self._replace_with_for_loop(loop_node, continuation, variable_init)
                 break
@@ -355,7 +364,7 @@ class WhileLoopVariableRenamer:
 class ForLoopVariableRenamer:
     """Iterate over ForLoopNodes and rename their variables to i, j, ..., i1, j1, ..."""
 
-    def __init__(self, ast: AbstractSyntaxTree, candidates: list(str)):
+    def __init__(self, ast: AbstractSyntaxTree, candidates: list[str]):
         self._ast = ast
         self._iteration: int = 0
         self._variable_counter: int = -1
@@ -404,7 +413,6 @@ class ReadabilityBasedRefinement(PipelineStage):
 
         WhileLoopReplacer(task.syntax_tree, task.options).run()
 
-        # getList does not check elements for empty str <== empty str will be used for renaming, maybe getList should change that?
         variableNames = task.options.getlist("readability-based-refinement.rename_for_loop_variables", fallback=list())
         if variableNames:
             ForLoopVariableRenamer(task.syntax_tree, variableNames).rename()
