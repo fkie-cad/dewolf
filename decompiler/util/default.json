@@ -152,7 +152,7 @@
   },
   "common-subexpression-elimination": {
     "threshold": {
-      "default": 2,
+      "default": 4,
       "title": "expression threshold",
       "type": "number",
       "description": "The amount of occurrences an expression needs to have to be considered for CSE.",
@@ -177,6 +177,15 @@
       "title": "string length threshold",
       "type": "number",
       "description": "The minimum amount of characters a string expression must have to be considered for elimination.",
+      "is_hidden_from_gui": true
+    }
+  },
+  "array-access-detection": {
+    "enabled": {
+      "default": false,
+      "title": "enabled",
+      "type": "boolean",
+      "description": "Array access detection is enabled by default. To disable and stick to pointer notation (*(base+offset)), set this option to false.",
       "is_hidden_from_gui": true
     }
   },
@@ -307,7 +316,7 @@
       "is_hidden_from_gui": true
     },
     "aggressive_array_detection": {
-      "default": false,
+      "default": true,
       "title": "Access array elements via index instead of pointer",
       "type": "boolean",
       "description": "aggressive: *(a+i*4) is printed as a[i] even if the type of a is void/unknown",
