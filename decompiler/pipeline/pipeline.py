@@ -1,7 +1,7 @@
 """Module containing pipeline definitions for the decompiler."""
 from __future__ import annotations
 
-from logging import debug, warning
+from logging import debug, error, warning
 from typing import List
 
 from decompiler.pipeline.controlflowanalysis.restructuring import PatternIndependentRestructuring
@@ -91,12 +91,20 @@ class DecompilerPipeline:
         if show_starting_point:
             self._show_stage(task, "Starting point", print_ascii, show_in_tabs)
 
+        if task.failed:
+            return
+
         for stage in self.stages:
             debug(f"stage {stage.name}")
             instance = stage()
-            instance.run(task)
-            if show_all or stage.name in showed_stages:
-                self._show_stage(task, f"After {stage.name}", print_ascii, show_in_tabs)
+            try:
+                instance.run(task)
+                if show_all or stage.name in showed_stages:
+                    self._show_stage(task, f"After {stage.name}", print_ascii, show_in_tabs)
+            except Exception as e:
+                task.fail(origin=stage.name)
+                error(f"Failed to decompile {task.name}, error during stage {stage.name}: {e}")
+                break
 
     @staticmethod
     def _show_stage(task: DecompilerTask, stage_name: str, print_ascii: bool, show_in_tabs: bool):
