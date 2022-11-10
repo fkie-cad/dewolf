@@ -152,7 +152,7 @@
   },
   "common-subexpression-elimination": {
     "threshold": {
-      "default": 4,
+      "default": 2,
       "title": "expression threshold",
       "type": "number",
       "description": "The amount of occurrences an expression needs to have to be considered for CSE.",
@@ -316,7 +316,7 @@
       "is_hidden_from_gui": true
     },
     "aggressive_array_detection": {
-      "default": true,
+      "default": false,
       "title": "Access array elements via index instead of pointer",
       "type": "boolean",
       "description": "aggressive: *(a+i*4) is printed as a[i] even if the type of a is void/unknown",
