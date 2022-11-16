@@ -86,7 +86,6 @@ class DecompilerPipeline:
         print_ascii = output_format == "ascii" or output_format == "ascii_and_tabs"
         show_in_tabs = output_format == "tabs" or output_format == "ascii_and_tabs"
         debug_mode = task.options.getboolean("pipeline.debug", fallback=False)
-        print(f"DEBUG MODE {debug_mode}")
 
         self.validate()
 
@@ -108,6 +107,7 @@ class DecompilerPipeline:
                 error(f"Failed to decompile {task.name}, error during stage {stage.name}: {e}")
                 if debug_mode:
                     raise e
+                break
 
     @staticmethod
     def _show_stage(task: DecompilerTask, stage_name: str, print_ascii: bool, show_in_tabs: bool):
