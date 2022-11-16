@@ -220,14 +220,14 @@
       "is_hidden_from_gui": false
     },
     "max_condition_complexity_for_loop_recovery": {
-      "default": 2,
+      "default": 1,
       "type": "number",
       "title": "Maximum condition complexity for loop recovery",
       "description": "Maximum complexity of a loop condition for for-loop restructuring",
       "is_hidden_from_gui": false
     },
     "max_modification_complexity_for_loop_recovery": {
-      "default": 2,
+      "default": 3,
       "type": "number",
       "title": "Maximum modification complexity for loop recovery",
       "description": "Maximum complexity of a loop modification for for-loop restructuring",

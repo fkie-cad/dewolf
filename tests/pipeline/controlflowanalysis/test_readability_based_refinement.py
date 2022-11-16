@@ -30,7 +30,8 @@ def logic_cond(name: str, context) -> LogicCondition:
     return LogicCondition.initialize_symbol(name, context)
 
 
-def _generate_options(empty_loops: bool = False, hide_decl: bool = False, rename_for: bool = True, rename_while: bool = True) -> Options:
+def _generate_options(empty_loops: bool = False, hide_decl: bool = False, rename_for: bool = True, rename_while: bool = True, \
+    max_condition: int = 1, max_modification: int = 3, force_for_loops: bool = False) -> Options:
     options = Options()
     options.set("readability-based-refinement.keep_empty_for_loops", empty_loops)
     options.set("readability-based-refinement.hide_non_initializing_declaration", hide_decl)
@@ -38,6 +39,9 @@ def _generate_options(empty_loops: bool = False, hide_decl: bool = False, rename
         names = ["i", "j", "k", "l", "m", "n"]
         options.set("readability-based-refinement.rename_for_loop_variables", names)
     options.set("readability-based-refinement.rename_while_loop_variables", rename_while)
+    options.set("readability-based-refinement.max_condition_complexity_for_loop_recovery", max_condition)
+    options.set("readability-based-refinement.max_modification_complexity_for_loop_recovery", max_modification)
+    options.set("readability-based-refinement.force_for_loops", force_for_loops)
     return options
 
 
@@ -568,7 +572,7 @@ def ast_switch_as_loop_body() -> AbstractSyntaxTree:
 def ast_switch_as_loop_body_increment() -> AbstractSyntaxTree:
     """
     This loop should be replaced with a for-loop because b has no usages after last definition, is in condition and is initialized
-    before loop without any usages inbetween.
+    before loop without any usages in between.
 
     Code of AST:
     a = 5;
@@ -846,6 +850,62 @@ def ast_initialization_in_condition_sequence() -> AbstractSyntaxTree:
     true_branch_b._sorted_children = (if_condition_c, code_node)
     root._sorted_children = (if_condition_b, while_loop)
     return ast
+
+
+@pytest.fixture
+def ast_innerWhile_simple_condition_complexity() -> AbstractSyntaxTree:
+    """
+    a = 0;
+    while (a < 1) {
+        b = 0;
+        c = 0;
+        d = 0;
+        while (b < 1 && c < 1 && d < 1){
+            b = b + 1;
+            c = c + 1;
+            d = d + 1;
+        }
+        a = a + 1;
+    }
+    """
+    true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(
+        root := SeqNode(true_value),
+        condition_map={
+            logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(5)]),
+            logic_cond("x2", context): Condition(OperationType.less, [Variable("b"), Constant(5)]),
+            logic_cond("x3", context): Condition(OperationType.less, [Variable("c"), Constant(5)]),
+            logic_cond("x4", context): Condition(OperationType.less, [Variable("d"), Constant(5)]),
+        },
+    )
+
+    init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
+
+    outer_while = ast.factory.create_while_loop_node(logic_cond("x1", context))
+    outer_while_body = ast.factory.create_seq_node()
+    outer_while_init = ast._add_code_node([Assignment(Variable("b"), Constant(0)), Assignment(Variable("c"), Constant(0))
+    , Assignment(Variable("d"), Constant(0))])
+    outer_while_exit = ast._add_code_node([Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))])
+
+    inner_while = ast.factory.create_while_loop_node(logic_cond("x2", context) & logic_cond("x3", context) & logic_cond("x4", context))
+    inner_while_body = ast._add_code_node([Assignment(Variable("b"), BinaryOperation(OperationType.plus, [Variable("b"), Constant(1)])),
+    Assignment(Variable("c"), BinaryOperation(OperationType.plus, [Variable("c"), Constant(1)])), 
+    Assignment(Variable("d"), BinaryOperation(OperationType.plus, [Variable("d"), Constant(1)]))])
+
+    ast._add_nodes_from((outer_while, outer_while_body, inner_while))
+    ast._add_edges_from(
+        [
+            (root, init_code_node),
+            (root, outer_while),
+            (outer_while, outer_while_body),
+            (outer_while_body, outer_while_init),
+            (outer_while_body, inner_while),
+            (outer_while_body, outer_while_exit),
+            (inner_while, inner_while_body),
+        ]
+    )
+    return ast
+
 
 
 class TestReadabilityBasedRefinement:
@@ -1209,6 +1269,36 @@ class TestReadabilityBasedRefinement:
             assert isinstance(ast_single_instruction_while.root, ForLoopNode)
         else:
             assert isinstance(ast_single_instruction_while.root.children[1], WhileLoopNode)
+
+class TestForLoopRecovery:
+    """ Test complexer for-loop recovery options """
+    @staticmethod
+    def run_rbr(ast: AbstractSyntaxTree, options: Options = _generate_options()):
+        ReadabilityBasedRefinement().run(DecompilerTask("func", cfg=None, ast=ast, options=options))
+
+    def test_max_condition_recovery(self, ast_innerWhile_simple_condition_complexity):
+        self.run_rbr(ast_innerWhile_simple_condition_complexity, _generate_options(max_condition=2))
+
+        for loop_node in list(ast_innerWhile_simple_condition_complexity.get_loop_nodes_post_order()):
+            if len(loop_node.condition) <= 2:
+                assert isinstance(loop_node, ForLoopNode)
+            else:
+                assert isinstance(loop_node, WhileLoopNode)
+
+    @pytest.mark.parametrize("func", [
+        "ast_while_true", "ast_single_instruction_while", "ast_replaceable_while",
+        "ast_replaceable_while_usage", "ast_replaceable_while_reinit_usage", "ast_replaceable_while_compound_usage",
+        "ast_endless_while_init_outside", "ast_call_init", # readd 'ast_nested_while' after debugger for pytest works...
+        "ast_redundant_init", "ast_reinit_in_condition_true", "ast_usage_in_condition",
+        "ast_sequenced_while_loops", "ast_switch_as_loop_body", "ast_switch_as_loop_body_increment",
+        "ast_switch_as_loop_body_increment", "ast_while_in_else", "ast_continuation_is_not_first_var",
+        "ast_initialization_in_condition", "ast_initialization_in_condition_sequence"])
+    def test_force_for_loops(self, func, request):
+        ast = request.getfixturevalue(func)
+        self.run_rbr(ast, _generate_options(force_for_loops=True))
+
+        for loop_node in list(ast.get_while_loop_nodes_topological_order()):
+            assert isinstance(loop_node, ForLoopNode)
 
 
 class TestReadabilityUtils:
@@ -1732,3 +1822,4 @@ class TestReadabilityUtils:
             AbstractSyntaxTree(SeqNode(LogicCondition.initialize_true(LogicCondition.generate_new_context())), {})
         )
         assert [renamer._get_variable_name() for _ in range(5)] == ["counter", "counter1", "counter2", "counter3", "counter4"]
+
