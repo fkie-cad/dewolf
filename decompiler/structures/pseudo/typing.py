@@ -158,6 +158,7 @@ class Float(Integer):
 @dataclass(frozen=True, order=True)
 class Pointer(Type):
     """Class representing types based on being pointers on other types."""
+
     basetype: Type
 
     def __init__(self, basetype: Type, size: int = 32):
@@ -180,6 +181,7 @@ class Pointer(Type):
 @dataclass(frozen=True, order=True)
 class CustomType(Type):
     """Class representing a non-basic type."""
+
     text: str
 
     def __init__(self, text: str, size: int):
