@@ -31,5 +31,5 @@ from .instructions import (
     Return,
 )
 from .operations import BinaryOperation, Call, Condition, ListOperation, Operation, OperationType, TernaryExpression, UnaryOperation
-from .typing import CustomType, Float, Integer, Pointer, Type, TypeParser, UnknownType
+from .typing import CustomType, Float, Integer, Pointer, Type, TypeParser, UnknownType, FunctionTypeDef
 from .z3_logic import Z3Converter
