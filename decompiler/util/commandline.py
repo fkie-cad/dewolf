@@ -41,15 +41,16 @@ def parse_commandline():
 def switch_to_dict(options: List[str]) -> Dict[str, Dict[str, str | int]]:
     """Function reformatting command line options for usage by the Options module."""
     parsed = {}
-    while options and (option := options.pop()):
+    while options and (option := options.pop(0)):
         if not option.startswith("--"):
             raise ValueError(f"Unknown positional argument '{option}'.")
         if "." not in option:
             raise ValueError(f"Argument without category '{option}'. Please use --<category>.<option>")
         category, name = option[2:].split(".")
         # Check if the next option element is the value of the current option, or mimic store_true
-        if len(options) > 0 and options[0].startswith("--"):
-            value = options.pop()
+        if len(options) > 0 and not options[0].startswith("--"):
+            print(f"popped {options[0]}")
+            value = options.pop(0)
         else:
             value = True
         if category not in parsed:
