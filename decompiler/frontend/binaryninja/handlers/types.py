@@ -3,17 +3,19 @@ from binaryninja.types import (
     BoolType,
     CharType,
     FloatType,
+    FunctionParameter,
+    FunctionType,
     IntegerType,
     NamedTypeReferenceType,
     PointerType,
     StructureType,
     Type,
     VoidType,
-    FunctionType,
-    FunctionParameter,
 )
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import CustomType, Float, Integer, Pointer, UnknownType, Type as pType, FunctionTypeDef
+from decompiler.structures.pseudo import CustomType, Float, FunctionTypeDef, Integer, Pointer
+from decompiler.structures.pseudo import Type as pType
+from decompiler.structures.pseudo import UnknownType
 
 
 class TypeHandler(Handler):
