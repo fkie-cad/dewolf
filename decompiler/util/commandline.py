@@ -4,7 +4,7 @@ from enum import Enum
 from os import isatty
 from os.path import isfile
 from sys import stdout
-from typing import Dict, List
+from typing import Dict, List, Union
 
 from decompiler.logger import configure_logging
 from decompiler.util.decoration import DecoratedCode
@@ -38,7 +38,7 @@ def parse_commandline():
     return parser.parse_known_args()
 
 
-def switch_to_dict(options: List[str]) -> Dict[str, Dict[str, str | int]]:
+def switch_to_dict(options: List[str]) -> Dict[str, Dict[str, Union[str, int]]]:
     """Function reformatting command line options for usage by the Options module."""
     parsed = {}
     while options and (option := options.pop(0)):
