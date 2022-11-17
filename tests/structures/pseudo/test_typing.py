@@ -54,7 +54,7 @@ def test_resize():
     assert Float.float().resize(64) == Float.double()
     assert Integer.uint8_t() + Integer.int16_t() == Integer(24, signed=False)
     assert CustomType.void() + CustomType.void() == CustomType.void()
-    assert CustomType.bool() + Float.float() == CustomType("bool", 33)
+    assert CustomType.bool().size + Float.float().size == CustomType("bool", 33).size
 
 
 def test_is_bool():
