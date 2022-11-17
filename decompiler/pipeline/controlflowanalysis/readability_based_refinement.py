@@ -233,7 +233,7 @@ class WhileLoopReplacer:
         self._ast = ast
         self._keep_empty_for_loops = options.getboolean("readability-based-refinement.keep_empty_for_loops", fallback=False)
         self._hide_non_init_decl = options.getboolean("readability-based-refinement.hide_non_initializing_declaration", fallback=False)
-        self._condition_type = options.getlist("readability-based-refinement.condition_types_for_loops_literals", fallback=[None])
+        self._condition_literal_type = options.getlist("readability-based-refinement.condition_recovery_types_for_loops", fallback=["greater", "less", "greater_or_egal", "less_or_equal"])
 
     def run(self):
         """
@@ -244,7 +244,7 @@ class WhileLoopReplacer:
 
         for loop_node in list(self._ast.get_while_loop_nodes_topological_order()):
             if loop_node.is_endless_loop or (not self._keep_empty_for_loops and _is_single_instruction_loop_node(loop_node)) \
-                or not self._validForLoopConditionType(loop_node.condition):
+                or not self._valid_literal_type(loop_node.condition):
                 continue
 
             for condition_variable in loop_node.get_required_variables(self._ast.condition_map):
@@ -288,13 +288,13 @@ class WhileLoopReplacer:
         continuation.node.instructions.remove(continuation.instruction)
         self._ast.clean_up()
 
-    def _validForLoopConditionType(self, condition : LogicCondition) -> bool:
+    def _valid_literal_type(self, condition : LogicCondition) -> bool:
         if not condition.is_symbol:
             return True
         if condition.is_negation:
             condition = ~condition
         condition = self._ast.condition_map[condition]
-        for allowedCondition in self._condition_type:
+        for allowedCondition in self._condition_literal_type:
             if condition.operation.name == allowedCondition:
                 return True
 
