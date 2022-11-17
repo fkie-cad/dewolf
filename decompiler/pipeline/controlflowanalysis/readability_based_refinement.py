@@ -211,6 +211,8 @@ def _requirement_without_reinitialization(ast: AbstractSyntaxTree, node: Abstrac
         assignment_visitor = AssignmentVisitor()
         assignment_visitor.visit(ast_node)
         for assignment in assignment_visitor.assignments:
+            if not assignment: 
+                return False
             if variable in assignment.definitions and variable not in assignment.requirements:
                 return False
             elif variable in assignment.definitions and variable in assignment.requirements:
@@ -218,6 +220,14 @@ def _requirement_without_reinitialization(ast: AbstractSyntaxTree, node: Abstrac
             elif variable in assignment.requirements:
                 return True
 
+
+def _get_logic_symbol_complexity(lCondition : LogicCondition, cond_map) -> int:
+    if lCondition.is_negation:
+        condition = cond_map[~lCondition]
+    else:
+        condition = cond_map[lCondition]
+
+    return condition.complexity
 
 @dataclass
 class AstInstruction:
@@ -252,7 +262,7 @@ class WhileLoopReplacer:
         for loop_node in list(self._ast.get_while_loop_nodes_topological_order()):
             if loop_node.is_endless_loop or (not self._keep_empty_for_loops and _is_single_instruction_loop_node(loop_node)):
                 continue
-            if len(loop_node.condition) > self._condition_max_complexity and not self._force_for_loops:
+            if self._get_complexity_of_logic_condition(loop_node.condition) > self._condition_max_complexity and not self._force_for_loops:
                     continue  
 
             for condition_variable in loop_node.get_required_variables(self._ast.condition_map):
@@ -310,6 +320,20 @@ class WhileLoopReplacer:
         continuation.node.instructions.remove(continuation.instruction)
         self._ast.clean_up()
        
+    def _get_complexity_of_logic_condition(self, lcondition : LogicCondition):
+        if lcondition.is_symbol:
+            return _get_logic_symbol_complexity(lcondition, self._ast.condition_map)
+        
+        complexity = 0
+        for subCondition in lcondition.operands: 
+            if subCondition.is_symbol:
+                complexity += _get_logic_symbol_complexity(subCondition, self._ast.condition_map)
+            elif subCondition.is_disjunction:
+                for subsubCondition in subCondition.operands:
+                    complexity += _get_logic_symbol_complexity(subsubCondition, self._ast.condition_map)
+
+        return complexity
+                
 
 class WhileLoopVariableRenamer:
     """Iterate over While-Loop Nodes and rename their counter variables to counter, counter1, ..."""

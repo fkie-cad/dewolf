@@ -31,7 +31,7 @@ def logic_cond(name: str, context) -> LogicCondition:
 
 
 def _generate_options(empty_loops: bool = False, hide_decl: bool = False, rename_for: bool = True, rename_while: bool = True, \
-    max_condition: int = 1, max_modification: int = 3, force_for_loops: bool = False) -> Options:
+    max_condition: int = 3, max_modification: int = 3, force_for_loops: bool = False) -> Options:
     options = Options()
     options.set("readability-based-refinement.keep_empty_for_loops", empty_loops)
     options.set("readability-based-refinement.hide_non_initializing_declaration", hide_decl)
