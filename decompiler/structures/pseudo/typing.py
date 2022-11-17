@@ -159,23 +159,22 @@ class Float(Integer):
 class Pointer(Type):
     """Class representing types based on being pointers on other types."""
 
-    basetype: Type
+    type: Type
 
     def __init__(self, basetype: Type, size: int = 32):
         """Custom constructor to change the order of the parameters."""
-        object.__setattr__(self, "basetype", basetype)
+        object.__setattr__(self, "type", basetype)
         object.__setattr__(self, "size", size)
-
-    @property
-    def type(self) -> Type:
-        """Return the pointee."""
-        return self.basetype
 
     def __str__(self) -> str:
         """Return a nice string representation."""
         if isinstance(self.type, Pointer):
-            return f"{self.basetype}*"
-        return f"{self.basetype} *"
+            return f"{self.type}*"
+        return f"{self.type} *"
+
+    def copy(self, **kwargs) -> Pointer:
+        """Generate a copy of the current pointer."""
+        return Pointer(self.type.copy(), self.size)
 
 
 @dataclass(frozen=True, order=True)
@@ -203,11 +202,27 @@ class CustomType(Type):
         """Return the given string representation."""
         return self.text
 
+    def copy(self, **kwargs) -> CustomType:
+        """Generate a copy of the current custom type."""
+        return CustomType(self.text, self.size)
+
+
+@dataclass(frozen=True, order=True)
+class Parameter(Type):
+    """Class representing a function parameter combining type and identifier."""
+
+    name: str
+    type: Type
+
+    def __str__(self) -> str:
+        """Return an anonymous string representation such as void*(int, int, char*)."""
+        return f"{self.type} {self.name}" if self.name else str(self.type)
+
 
 @dataclass(frozen=True, order=True)
 class FunctionTypeDef(Type):
     return_type: Type
-    parameters: Tuple[Type, ...]
+    parameters: Tuple[Parameter, ...]
 
     def __str__(self) -> str:
         """Return an anonymous string representation such as void*(int, int, char*)."""

@@ -13,9 +13,7 @@ from binaryninja.types import (
     VoidType,
 )
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import CustomType, Float, FunctionTypeDef, Integer, Pointer
-from decompiler.structures.pseudo import Type as pType
-from decompiler.structures.pseudo import UnknownType
+from decompiler.structures.pseudo import CustomType, Float, FunctionTypeDef, Integer, Parameter, Pointer, UnknownType
 
 
 class TypeHandler(Handler):
@@ -71,14 +69,14 @@ class TypeHandler(Handler):
         """Lift an array as a pointer of the given type, omitting the size information."""
         return Pointer(self._lifter.lift(array.element_type))
 
-    def lift_function_parameter(self, parameter: FunctionParameter, **kwargs) -> pType:
+    def lift_function_parameter(self, parameter: FunctionParameter, **kwargs) -> Parameter:
         """Omit the location information and lift a parameter as its basic type."""
-        return self._lifter.lift(parameter.type)
+        return Parameter(parameter.type.width * self.BYTE_SIZE, parameter.name, self._lifter.lift(parameter.type))
 
     def lift_function_type(self, function_type: FunctionType, **kwargs) -> FunctionTypeDef:
         """Lift an anonymous function signature such as void*(int, long)."""
         return FunctionTypeDef(
-            function_type.width,
+            function_type.width * self.BYTE_SIZE,
             self._lifter.lift(function_type.return_value),
             tuple(self._lifter.lift(param) for param in function_type.parameters),
         )
