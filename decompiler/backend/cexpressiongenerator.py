@@ -4,7 +4,7 @@ from itertools import chain, repeat
 from typing import Union
 
 from decompiler.structures import pseudo as expressions
-from decompiler.structures.pseudo import Float, Integer, OperationType, Pointer
+from decompiler.structures.pseudo import Float, Integer, OperationType, Pointer, Symbol
 from decompiler.structures.pseudo import instructions as instructions
 from decompiler.structures.pseudo import operations as operations
 from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInterface
@@ -158,6 +158,8 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
 
     def visit_constant(self, expr: expressions.Constant) -> str:
         """Return constant in a format that will be parsed correctly by a compiler."""
+        if isinstance(expr, Symbol):
+            return str(expr)
         if isinstance(expr.type, Integer) and not isinstance(expr.type, (Float, Pointer)):
             value = self._get_integer_literal_value(expr)
             return self._format_integer_literal(expr.type, value)

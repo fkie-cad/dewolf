@@ -55,13 +55,13 @@ class BinaryninjaFrontend(Frontend):
         if not isinstance(function, Function):
             function = self._find_function(function)
         return_type, params = self._extract_return_type_and_params(function)
-        try:
-            cfg = self._extract_cfg(function, options)
-            task = DecompilerTask(function.name, cfg, function_return_type=return_type, function_parameters=params, options=options)
-        except Exception as e:
-            task = DecompilerTask(function.name, None, function_return_type=return_type, function_parameters=params, options=options)
-            task.fail(origin="CFG creation")
-            logging.error(f"Failed to decompile {task.name}, error during CFG creation: {e}")
+        # try:
+        cfg = self._extract_cfg(function, options)
+        task = DecompilerTask(function.name, cfg, function_return_type=return_type, function_parameters=params, options=options)
+        # except Exception as e:
+        #    task = DecompilerTask(function.name, None, function_return_type=return_type, function_parameters=params, options=options)
+        #    task.fail(origin="CFG creation")
+        #    logging.error(f"Failed to decompile {task.name}, error during CFG creation: {e}")
         task.function = function
         return task
 
