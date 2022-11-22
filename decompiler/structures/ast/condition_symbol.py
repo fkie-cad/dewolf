@@ -80,7 +80,7 @@ class ConditionHandler:
         return dict((symbol, condition_symbol.z3_condition) for symbol, condition_symbol in self._condition_map.items())
 
     def add_condition(self, condition: Condition) -> ConditionSymbol:
-        """Adds a condition to the condition map."""
+        """Adds a new condition to the condition map and returns the corresponding condition_symbol"""
         for value in self._condition_map.values():
             if value.condition == condition:
                 return value

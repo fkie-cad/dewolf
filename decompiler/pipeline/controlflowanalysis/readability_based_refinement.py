@@ -10,12 +10,12 @@ from decompiler.structures.ast.ast_nodes import (
     CaseNode,
     CodeNode,
     ConditionNode,
+    DoWhileLoopNode,
     ForLoopNode,
     LoopNode,
     SeqNode,
     SwitchNode,
     WhileLoopNode,
-    DoWhileLoopNode,
 )
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.logic.logic_condition import LogicCondition
@@ -221,6 +221,11 @@ def _requirement_without_reinitialization(ast: AbstractSyntaxTree, node: Abstrac
 
 
 def removeGuardedDoWhile(ast: AbstractSyntaxTree):
+    """ Removes a if statement which guards a do-while loop when:
+            -> there is nothing in between the if-node and the do-while-node 
+            -> the if-node has only one branch
+            -> the condition of the branch is the same as the condition of the do-while-node
+    """
     for loop_node in list(ast.get_loop_nodes_post_order()):
         if not isinstance(loop_node, DoWhileLoopNode) or not isinstance(loop_node.parent.parent, ConditionNode):
             continue
