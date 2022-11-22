@@ -233,18 +233,20 @@ class WhileLoopReplacer:
         self._ast = ast
         self._keep_empty_for_loops = options.getboolean("readability-based-refinement.keep_empty_for_loops", fallback=False)
         self._hide_non_init_decl = options.getboolean("readability-based-refinement.hide_non_initializing_declaration", fallback=False)
-        self._condition_type = options.getlist("readability-based-refinement.condition_types_for_loops_literals", fallback=[None])
+        self._condition_type = options.getlist("readability-based-refinement.condition_types_for_loops_simple_loop_conditions", fallback=[])
 
     def run(self):
         """
         For each WhileLoop in AST check the following conditions:
             -> any variable in loop condition has a valid continuation instruction in loop body
             -> variable is initialized
+
+            -> if condition is only a symbol: check condition type for allowed one
         """
 
         for loop_node in list(self._ast.get_while_loop_nodes_topological_order()):
             if loop_node.is_endless_loop or (not self._keep_empty_for_loops and _is_single_instruction_loop_node(loop_node)) \
-                or not self._validForLoopConditionType(loop_node.condition):
+                or not self._valid_for_loop_condition_type(loop_node.condition):
                 continue
 
             for condition_variable in loop_node.get_required_variables(self._ast.condition_map):
@@ -260,7 +262,7 @@ class WhileLoopReplacer:
         Replaces a given WhileLoopNode with a ForLoopNode.
 
         If variable is not required between initialization and loop entry it will be moved into the loop declaration. And the continuation
-        instruction is moved from the loop body to the loop modifiation. Otherwise the initialization becomes a single variable and the
+        instruction is moved from the loop body to the loop modification. Otherwise the initialization becomes a single variable and the
         original initialization instruction will remain the same.
 
         :param loop_node: node to replace with a ForLoopNode
@@ -288,12 +290,15 @@ class WhileLoopReplacer:
         continuation.node.instructions.remove(continuation.instruction)
         self._ast.clean_up()
 
-    def _validForLoopConditionType(self, condition : LogicCondition) -> bool:
-        if not condition.is_symbol:
+    def _valid_for_loop_condition_type(self, logic_condition) -> bool:
+        """ Checks if a logic condition is only a symbol, if true checks condition type of symbol for allowed ones"""
+        if not logic_condition.is_symbol or not self._condition_type:
             return True
-        if condition.is_negation:
-            condition = ~condition
-        condition = self._ast.condition_map[condition]
+
+        if logic_condition.is_negation:
+            logic_condition = ~logic_condition
+
+        condition = self._ast.condition_map[logic_condition]
         for allowedCondition in self._condition_type:
             if condition.operation.name == allowedCondition:
                 return True
