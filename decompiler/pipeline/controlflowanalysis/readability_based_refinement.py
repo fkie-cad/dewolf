@@ -229,7 +229,12 @@ def removeGuardedDoWhile(ast: AbstractSyntaxTree):
         if len(condition_node.children) != 1:
             continue
 
-        if loop_node.condition.is_equal_to(condition_node.condition):
+        if condition_node.true_branch:
+            condition = condition_node.true_branch.branch_condition
+        else:
+            condition = condition_node.false_branch.branch_condition
+
+        if loop_node.condition.is_equal_to(condition):
             ast.replace_condition_node_by_single_branch(condition_node)
 
 @dataclass

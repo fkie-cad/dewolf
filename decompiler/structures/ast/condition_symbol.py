@@ -85,7 +85,7 @@ class ConditionHandler:
             if value.condition == condition:
                 return value
             elif value.condition.negate() == condition:
-                return ConditionSymbol(value.condition.negate(), ~value.symbol, ~value.z3_condition)
+                return ConditionSymbol(condition, ~value.symbol, ~value.z3_condition)
 
         symbol = self._get_next_symbol()
         z3_condition = PseudoLogicCondition.initialize_from_condition(condition, self._logic_context)
