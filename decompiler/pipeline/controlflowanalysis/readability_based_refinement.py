@@ -234,7 +234,6 @@ class WhileLoopReplacer:
         self._keep_empty_for_loops = options.getboolean("readability-based-refinement.keep_empty_for_loops", fallback=False)
         self._hide_non_init_decl = options.getboolean("readability-based-refinement.hide_non_initializing_declaration", fallback=False)
         self._condition_type = options.getlist("readability-based-refinement.condition_types_for_loops_simple_loop_conditions", fallback=[])
-
     def run(self):
         """
         For each WhileLoop in AST check the following conditions:
