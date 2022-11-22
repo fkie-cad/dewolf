@@ -81,6 +81,12 @@ class ConditionHandler:
 
     def add_condition(self, condition: Condition) -> ConditionSymbol:
         """Adds a condition to the condition map."""
+        for value in self._condition_map.values():
+            if value.condition == condition:
+                return value
+            elif value.condition.negate() == condition:
+                return ConditionSymbol(value.condition.negate(), ~value.symbol, ~value.z3_condition)
+
         symbol = self._get_next_symbol()
         z3_condition = PseudoLogicCondition.initialize_from_condition(condition, self._logic_context)
         condition_symbol = ConditionSymbol(condition, symbol, z3_condition)

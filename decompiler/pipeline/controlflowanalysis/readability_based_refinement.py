@@ -220,67 +220,24 @@ def _requirement_without_reinitialization(ast: AbstractSyntaxTree, node: Abstrac
                 return True
 
 
+def removeGuardedDoWhile(ast: AbstractSyntaxTree):
+    for loop_node in list(ast.get_loop_nodes_post_order()):
+        if not isinstance(loop_node, DoWhileLoopNode) or not isinstance(loop_node.parent.parent, ConditionNode):
+            continue
+
+        condition_node = loop_node.parent.parent
+        if len(condition_node.children) != 1:
+            continue
+
+        if loop_node.condition.is_equal_to(condition_node.condition):
+            ast.replace_condition_node_by_single_branch(condition_node)
+
 @dataclass
 class AstInstruction:
     instruction: Assignment
     position: int
     node: CodeNode
 
-
-class LoopModifier:
-    def __init__(self, ast: AbstractSyntaxTree):
-        self._ast = ast
-
-    def run(self):
-        self._remove_guarded_do_while()
-
-    def _remove_guarded_do_while(self):
-        for loop_node in list(self._ast.get_loop_nodes_post_order()):
-            if not isinstance(loop_node, DoWhileLoopNode) and not isinstance(loop_node.parent.parent, ConditionNode):
-                continue
-
-            condition_node : ConditionNode = loop_node.parent.parent
-            if len(condition_node.children) != 1:
-                continue
-
-            if self._compare_conditions(loop_node.condition, condition_node.condition):
-                self._ast.replace_condition_node_by_single_branch(condition_node)
-
-    def _compare_conditions(self, logic_condA: LogicCondition, logic_condB : LogicCondition) -> bool:
-        condA_list = self._resolve_logic_condition(logic_condA)
-        condB_list = self._resolve_logic_condition(logic_condB)
-
-        if len(condA_list) != len(condB_list):
-            return False
-        
-        for condA, condB in zip(condA_list, condB_list):  # sublist case missing
-            if condA != condB and condA.negate() != condB:
-                return False
-
-        return True
-
-    def _resolve_logic_condition(self, condition: LogicCondition) -> list: # very ugly with lists, wrapper needed
-        cond_And_list = []
-        if condition.is_literal:
-            cond_And_list.append(self._resolve_logic_literal(condition))
-  
-        if condition.is_conjunction:
-            for subCondition in condition.operands: 
-                cond_or_list = []
-                if subCondition.is_disjunction_of_literals:
-                    for literal in subCondition.operands:
-                        cond_or_list.append(self._resolve_logic_literal(literal))
-                else:
-                    cond_or_list.append(self._resolve_logic_literal(subCondition))
-
-                cond_And_list.append(cond_or_list)
-                
-        return cond_And_list
-
-    def _resolve_logic_literal(self, literal: LogicCondition) -> Condition:
-        if literal.is_negation:
-            return self._ast.condition_map[~literal]
-        return self._ast.condition_map[literal]
 
 class WhileLoopReplacer:
     """Convert WhileLoopNodes to ForLoopNodes when possible and also readability is improved."""
@@ -444,7 +401,7 @@ class ReadabilityBasedRefinement(PipelineStage):
     def run(self, task: DecompilerTask):
         task.syntax_tree.clean_up()
 
-        LoopModifier(task.syntax_tree).run()
+        removeGuardedDoWhile(task.syntax_tree)
 
         WhileLoopReplacer(task.syntax_tree, task.options).run()
 
