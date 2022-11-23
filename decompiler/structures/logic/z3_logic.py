@@ -258,6 +258,16 @@ class Z3LogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         """Replaces each symbol by the condition of the condition map and print this condition as string."""
         return self.z3.string_of(self._condition, {cond._condition: value for cond, value in condition_map.items()})
 
+    def get_complexity(self, condition_map: Dict[LOGICCLASS, Condition]) -> int:
+        """ Returns the complexity of a logic condition"""
+        complexity_sum = 0
+        for literal in self.get_literals():
+            if literal.is_negation: 
+                complexity_sum += condition_map[~literal].complexity
+            else:
+                complexity_sum += condition_map[literal].complexity
+
+        return complexity_sum
 
 class PseudoZ3LogicCondition(PseudoLogicInterface, Z3LogicCondition, Generic[LOGICCLASS, PseudoLOGICCLASS]):
     def __init__(self, condition: BoolRef, tmp: bool = False):

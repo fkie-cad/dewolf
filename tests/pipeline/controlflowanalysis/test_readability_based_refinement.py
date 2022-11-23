@@ -1271,16 +1271,16 @@ class TestReadabilityBasedRefinement:
             assert isinstance(ast_single_instruction_while.root.children[1], WhileLoopNode)
 
 class TestForLoopRecovery:
-    """ Test complexer for-loop recovery options """
+    """ Test options for for-loop recovery """
     @staticmethod
     def run_rbr(ast: AbstractSyntaxTree, options: Options = _generate_options()):
         ReadabilityBasedRefinement().run(DecompilerTask("func", cfg=None, ast=ast, options=options))
 
-    def test_max_condition_recovery(self, ast_innerWhile_simple_condition_complexity):
+    def test_max_condition_complexity(self, ast_innerWhile_simple_condition_complexity):
         self.run_rbr(ast_innerWhile_simple_condition_complexity, _generate_options(max_condition=2))
 
         for loop_node in list(ast_innerWhile_simple_condition_complexity.get_loop_nodes_post_order()):
-            if len(loop_node.condition) <= 2:
+            if loop_node.condition.get_complexity(ast_innerWhile_simple_condition_complexity.condition_map) <= 2:
                 assert isinstance(loop_node, ForLoopNode)
             else:
                 assert isinstance(loop_node, WhileLoopNode)
@@ -1288,17 +1288,18 @@ class TestForLoopRecovery:
     @pytest.mark.parametrize("func", [
         "ast_while_true", "ast_single_instruction_while", "ast_replaceable_while",
         "ast_replaceable_while_usage", "ast_replaceable_while_reinit_usage", "ast_replaceable_while_compound_usage",
-        "ast_endless_while_init_outside", "ast_call_init", # readd 'ast_nested_while' after debugger for pytest works...
+        "ast_endless_while_init_outside", "ast_nested_while","ast_call_init",
         "ast_redundant_init", "ast_reinit_in_condition_true", "ast_usage_in_condition",
         "ast_sequenced_while_loops", "ast_switch_as_loop_body", "ast_switch_as_loop_body_increment",
         "ast_switch_as_loop_body_increment", "ast_while_in_else", "ast_continuation_is_not_first_var",
-        "ast_initialization_in_condition", "ast_initialization_in_condition_sequence"])
-    def test_force_for_loops(self, func, request):
+        "ast_initialization_in_condition", "ast_initialization_in_condition_sequence", "ast_innerWhile_simple_condition_complexity"])
+    def test_condition_modification_complexity(self, func, request):
         ast = request.getfixturevalue(func)
-        self.run_rbr(ast, _generate_options(force_for_loops=True))
+        self.run_rbr(ast, _generate_options(max_condition=2, max_modification=3))
 
-        for loop_node in list(ast.get_while_loop_nodes_topological_order()):
-            assert isinstance(loop_node, ForLoopNode)
+        for loop_node in list(ast.get_for_loop_nodes_topological_order()):
+            assert loop_node.modification.complexity <= 3 
+            assert loop_node.condition.get_complexity(ast.condition_map) <= 2
 
 
 class TestReadabilityUtils:
