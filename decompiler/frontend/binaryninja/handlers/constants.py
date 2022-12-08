@@ -31,7 +31,7 @@ class ConstantHandler(Handler):
         """Lift the given constant pointer, e.g. &0x80000."""
         view = pointer.function.view
         if variable := view.get_data_var_at(pointer.constant):
-            return self._lifter.lift(variable)
+            return self._lifter.lift(variable, parent=pointer)
         if symbol := view.get_symbol_at(pointer.constant):
             return self._lifter.lift(symbol)
         if function := view.get_function_at(pointer.constant):
