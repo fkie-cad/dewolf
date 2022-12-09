@@ -37,4 +37,4 @@ class ConstantHandler(Handler):
         if function := view.get_function_at(pointer.constant):
             return self._lifter.lift(function.symbol)
         string = view.get_string_at(pointer.constant, partial=True) or view.get_ascii_string_at(pointer.constant, min_length=2)
-        return Constant(pointer.constant, vartype=self._lifter.lift(pointer.expr_type), pointee=string)
+        return Constant(pointer.constant, vartype=self._lifter.lift(pointer.expr_type), pointee=Constant(string.value) if string else None)

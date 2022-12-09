@@ -1,7 +1,7 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
-from typing import List, Union, Optional
+from typing import Union, Optional
 
-from binaryninja import BinaryView, DataVariable, Endianness, MediumLevelILInstruction
+from binaryninja import DataVariable, Endianness, MediumLevelILInstruction
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import Constant, GlobalVariable, OperationType, UnaryOperation
 
