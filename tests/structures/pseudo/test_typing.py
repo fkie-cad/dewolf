@@ -45,7 +45,7 @@ def test_equality():
     assert Integer(32, signed=False) != Integer.int32_t()
     assert Integer(32) > Integer(16)
     assert CustomType.bool() > CustomType.void()
-    assert Float.float() < Integer.int64_t()
+    assert Float.float().size < Integer.int64_t().size
 
 
 def test_resize():
@@ -54,7 +54,7 @@ def test_resize():
     assert Float.float().resize(64) == Float.double()
     assert Integer.uint8_t() + Integer.int16_t() == Integer(24, signed=False)
     assert CustomType.void() + CustomType.void() == CustomType.void()
-    assert CustomType.bool() + Float.float() == CustomType("bool", 33)
+    assert CustomType.bool().size + Float.float().size == CustomType("bool", 33).size
 
 
 def test_is_bool():

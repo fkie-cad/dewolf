@@ -2,35 +2,28 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, replace
+from typing import Tuple
 
 
+@dataclass(frozen=True, order=True)
 class Type(ABC):
     """Base interface for all type classes."""
 
-    def __init__(self, size: int):
-        """Create a type with the given size."""
-        self._size = size
-
-    @property
-    def size(self) -> int:
-        """Return the size of the type."""
-        return self._size
+    size: int
 
     @property
     def is_boolean(self) -> bool:
         """Check whether the given value is a boolean."""
-        return self._size == 1
+        return self.size == 1
 
-    def copy(self, data=None) -> Type:
+    def copy(self, **kwargs) -> Type:
         """Generate a copy of the current type."""
-        new_type = self.__class__.__new__(self.__class__)
-        new_type.__dict__ = self.__dict__.copy()
-        new_type.__dict__.update(data if data else {})
-        return new_type
+        return replace(self, **kwargs)
 
     def resize(self, new_size: int) -> Type:
         """Create an object of the type with a different size."""
-        return self.copy({"_size": new_size})
+        return self.copy(size=new_size)
 
     @abstractmethod
     def __str__(self) -> str:
@@ -38,50 +31,33 @@ class Type(ABC):
 
     def __add__(self, other) -> Type:
         """Add two types to generate one type of bigger size."""
-        return self.copy({"_size": self.size + other.size})
-
-    def __lt__(self, other) -> bool:
-        """Compare two types based on their size."""
-        return self.size.__lt__(other.size)
-
-    def __gt__(self, other) -> bool:
-        """Compare two types based on their size."""
-        return self.size.__gt__(other.size)
-
-    def __eq__(self, other: object) -> bool:
-        """Check the equality of two types."""
-        return repr(self) == repr(other)
-
-    def __repr__(self) -> str:
-        """Return a detailed string representation."""
-        return f"{self.__class__.__name__}{self.__dict__}"
+        return self.copy(size=self.size + other.size)
 
     def __hash__(self) -> int:
         """Return a hash value for the given type."""
         return hash(repr(self))
 
 
+@dataclass(frozen=True, order=True)
 class UnknownType(Type):
     """Represent an unknown type, mostly utilized for testing purposes."""
 
-    def __init__(self):
+    def __init__(self, size: int = 0):
         """Create a type with size 0."""
-        super().__init__(0)
+        super().__init__(size)
 
     def __str__(self):
         """Return the representation of the unknown type."""
         return "unknown type"
 
 
+@dataclass(frozen=True, order=True)
 class Integer(Type):
     """Type for values representing numbers."""
 
-    SIZE_TYPES = {8: "char", 16: "short", 32: "int", 64: "long"}
+    signed: bool = False
 
-    def __init__(self, size: int, signed: bool = False):
-        """Create a new integer type."""
-        super().__init__(size)
-        self._signed = signed
+    SIZE_TYPES = {8: "char", 16: "short", 32: "int", 64: "long"}
 
     @classmethod
     def char(cls) -> Integer:
@@ -145,23 +121,24 @@ class Integer(Type):
     @property
     def is_signed(self) -> bool:
         """Check whether the value is signed."""
-        return self._signed
+        return self.signed
 
     def __str__(self):
         """Generate a nice string representation based on known types."""
-        if size_type := self.SIZE_TYPES.get(self._size):
-            return f"{'unsigned ' if not self._signed else ''}{size_type}"
+        if size_type := self.SIZE_TYPES.get(self.size):
+            return f"{'unsigned ' if not self.signed else ''}{size_type}"
         return f"{'u' if not self.is_signed else ''}int{self.size}_t"
 
 
+@dataclass(frozen=True, order=True)
 class Float(Integer):
     """Class representing the type of a floating point number as defined in IEEE 754."""
 
     SIZE_TYPES = {16: "half", 32: "float", 64: "double", 80: "long double", 128: "quadruple", 256: "octuple"}
 
-    def __init__(self, size: int):
+    def __init__(self, size: int, signed=True):
         """Create a new float type with the given size."""
-        super().__init__(size, signed=True)
+        super().__init__(size, signed)
 
     @classmethod
     def float(cls) -> Float:
@@ -178,33 +155,38 @@ class Float(Integer):
         return self.SIZE_TYPES[self.size]
 
 
+@dataclass(frozen=True, order=True)
 class Pointer(Type):
     """Class representing types based on being pointers on other types."""
 
-    def __init__(self, basetype: Type, size: int = 32):
-        """Generate a new Pointer Type based on the given basetype."""
-        super().__init__(size)
-        self._basetype = basetype
+    type: Type
 
-    @property
-    def type(self) -> Type:
-        """Return the pointee."""
-        return self._basetype
+    def __init__(self, basetype: Type, size: int = 32):
+        """Custom constructor to change the order of the parameters."""
+        object.__setattr__(self, "type", basetype)
+        object.__setattr__(self, "size", size)
 
     def __str__(self) -> str:
         """Return a nice string representation."""
         if isinstance(self.type, Pointer):
-            return f"{self._basetype}*"
-        return f"{self._basetype} *"
+            return f"{self.type}*"
+        return f"{self.type} *"
+
+    def copy(self, **kwargs) -> Pointer:
+        """Generate a copy of the current pointer."""
+        return Pointer(self.type.copy(), self.size)
 
 
+@dataclass(frozen=True, order=True)
 class CustomType(Type):
     """Class representing a non-basic type."""
 
+    text: str
+
     def __init__(self, text: str, size: int):
-        """Generate a new custom type based on the given type string."""
-        super().__init__(size)
-        self._text = text
+        """Custom constructor to change the order of the parameters."""
+        object.__setattr__(self, "text", text)
+        object.__setattr__(self, "size", size)
 
     @classmethod
     def bool(cls) -> CustomType:
@@ -218,7 +200,33 @@ class CustomType(Type):
 
     def __str__(self) -> str:
         """Return the given string representation."""
-        return self._text
+        return self.text
+
+    def copy(self, **kwargs) -> CustomType:
+        """Generate a copy of the current custom type."""
+        return CustomType(self.text, self.size)
+
+
+@dataclass(frozen=True, order=True)
+class Parameter(Type):
+    """Class representing a function parameter combining type and identifier."""
+
+    name: str
+    type: Type
+
+    def __str__(self) -> str:
+        """Return an anonymous string representation such as void*(int, int, char*)."""
+        return f"{self.type} {self.name}" if self.name else str(self.type)
+
+
+@dataclass(frozen=True, order=True)
+class FunctionTypeDef(Type):
+    return_type: Type
+    parameters: Tuple[Parameter, ...]
+
+    def __str__(self) -> str:
+        """Return an anonymous string representation such as void*(int, int, char*)."""
+        return f"{self.return_type}({', '.join(str(x) for x in self.parameters)})"
 
 
 class TypeParser:
