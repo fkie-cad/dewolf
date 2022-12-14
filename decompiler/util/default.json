@@ -463,6 +463,13 @@
       "elementType": "string",
       "description": "Order of stage execution",
       "is_hidden_from_gui": true
+    },
+    "debug": {
+      "default": false,
+      "title": "Debug mode",
+      "type": "boolean",
+      "description": "Crash on error",
+      "is_hidden_from_gui": true
     }
   },
   "logging": {

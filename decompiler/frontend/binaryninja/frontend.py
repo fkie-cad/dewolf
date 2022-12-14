@@ -52,6 +52,7 @@ class BinaryninjaFrontend(Frontend):
 
     def create_task(self, function: Union[str, Function], options: Options) -> DecompilerTask:
         """Create a task from the given function identifier."""
+        debug_mode = options.getboolean("pipeline.debug", fallback=False)
         if not isinstance(function, Function):
             function = self._find_function(function)
         return_type, params = self._extract_return_type_and_params(function)
@@ -62,6 +63,8 @@ class BinaryninjaFrontend(Frontend):
             task = DecompilerTask(function.name, None, function_return_type=return_type, function_parameters=params, options=options)
             task.fail(origin="CFG creation")
             logging.error(f"Failed to decompile {task.name}, error during CFG creation: {e}")
+            if debug_mode:
+                raise e
         task.function = function
         return task
 
