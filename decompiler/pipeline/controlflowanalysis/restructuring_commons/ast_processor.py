@@ -256,8 +256,11 @@ class AcyclicProcessor(Processor):
     @staticmethod
     def _extract_return_from_conditional_node(node: ConditionNode) -> Optional[AbstractSyntaxTreeNode]:
         """
-        This function checks whether exactly one of the two branches of the given condition node ends with a return.
-        If this is the case we return the Branch that does not end with the return, if it is not None. Otherwise we return None.
+        This function checks whether one of the two branches of the given condition node ends with a return.
+
+        If exactly one branch ends with a return, then we return the Branch that does not end with the return
+        If no branch ends with a return, then we return None
+        If both branches end with a return, then we return the one with larger complexity.
         """
         branches_without_return = [branch for branch in node.children if not branch.does_end_with_return]
         if len(branches_without_return) == 1:
