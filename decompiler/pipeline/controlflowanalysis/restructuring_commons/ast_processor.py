@@ -259,8 +259,17 @@ class AcyclicProcessor(Processor):
         This function checks whether exactly one of the two branches of the given condition node ends with a return.
         If this is the case we return the Branch that does not end with the return, if it is not None. Otherwise we return None.
         """
-        branches_with_return = [branch for branch in node.children if not branch.does_end_with_return]
-        return branches_with_return[0] if len(branches_with_return) == 1 else None
+        branches_without_return = [branch for branch in node.children if not branch.does_end_with_return]
+        if len(branches_without_return) == 1:
+            return branches_without_return[0]
+        if len(branches_without_return) == 2:
+            return None
+        return_branches = node.children
+        first_branch_complexity = sum(len(cn.instructions) for cn in return_branches[0].get_descendant_code_nodes())
+        second_branch_complexity = sum(len(cn.instructions) for cn in return_branches[1].get_descendant_code_nodes())
+        if first_branch_complexity <= second_branch_complexity:
+            return return_branches[1]
+        return return_branches[0]
 
     def _sort_sequence_node_children_while_over_do_while(self) -> None:
         """
