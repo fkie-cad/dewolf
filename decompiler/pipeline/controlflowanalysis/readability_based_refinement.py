@@ -220,22 +220,25 @@ def _requirement_without_reinitialization(ast: AbstractSyntaxTree, node: Abstrac
                 return True
 
 
-def removeGuardedDoWhile(ast: AbstractSyntaxTree):
+def _get_potential_guarded_do_while_loops(ast: AbstractSyntaxTree) -> tuple(DoWhileLoopNode, ConditionNode):
+    for loop_node in list(ast.get_loop_nodes_post_order()):
+        if isinstance(loop_node, DoWhileLoopNode) and isinstance(loop_node.parent.parent, ConditionNode):
+            yield loop_node, loop_node.parent.parent
+
+
+def remove_guared_do_while(ast: AbstractSyntaxTree):
     """ Removes a if statement which guards a do-while loop when:
             -> there is nothing in between the if-node and the do-while-node 
-            -> the if-node has only one branch
+            -> the if-node has only one branch (true branch)
             -> the condition of the branch is the same as the condition of the do-while-node
     """
-    for loop_node in list(ast.get_loop_nodes_post_order()):
-        if not isinstance(loop_node, DoWhileLoopNode) or not isinstance(loop_node.parent.parent, ConditionNode):
+    for do_while_node, condition_node in _get_potential_guarded_do_while_loops(ast):
+        if condition_node.false_branch:
             continue
 
-        condition_node = loop_node.parent.parent
-        if len(condition_node.children) != 1:
-            continue
-
-        if loop_node.condition.is_equal_to(condition_node.condition):
+        if do_while_node.condition.is_equal_to(condition_node.condition):
             ast.replace_condition_node_by_single_branch(condition_node)
+
 
 @dataclass
 class AstInstruction:
@@ -406,7 +409,7 @@ class ReadabilityBasedRefinement(PipelineStage):
     def run(self, task: DecompilerTask):
         task.syntax_tree.clean_up()
 
-        removeGuardedDoWhile(task.syntax_tree)
+        remove_guared_do_while(task.syntax_tree)
 
         WhileLoopReplacer(task.syntax_tree, task.options).run()
 
