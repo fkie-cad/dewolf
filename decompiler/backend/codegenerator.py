@@ -29,7 +29,7 @@ class CodeGenerator:
         for task in tasks:
             if run_cleanup and not task.failed:
                 task.syntax_tree.clean_up()
-            string_blocks.append(self.generate_function(task))
+            string_blocks.append(self.generate_function(task).replace("'", '"'))
         return "\n\n".join(string_blocks)
 
     def generate_function(self, task: DecompilerTask) -> str:
