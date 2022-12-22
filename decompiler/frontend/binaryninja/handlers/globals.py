@@ -1,9 +1,9 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
 from typing import Union, Optional
 
-from binaryninja import DataVariable, Endianness, MediumLevelILInstruction, BinaryView, PointerType
+from binaryninja import DataVariable, Endianness, MediumLevelILInstruction, BinaryView, PointerType, FunctionType
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import Constant, GlobalVariable, OperationType, UnaryOperation
+from decompiler.structures.pseudo import Constant, GlobalVariable, OperationType, UnaryOperation, ImportedFunctionSymbol, Pointer, Integer
 
 
 class GlobalHandler(Handler):
@@ -18,18 +18,37 @@ class GlobalHandler(Handler):
 
     def lift_global_variable(self, variable: DataVariable, view: Optional[BinaryView], 
         parent: Optional[MediumLevelILInstruction] = None, **kwargs
-    ) -> Union[GlobalVariable, UnaryOperation]:
+    ) -> Union[ImportedFunctionSymbol, Constant, UnaryOperation]:
+        """Lift global variables, the following cases can occur:
+            - global variable has no name
+                ==> lift as constant
+            - global variable has a 'simple' (int, char etc.) type
+                ==> lift as pointer, pointing to the global variable 
+            - global variable is a function pointer 
+                ==> lift as Function symbol 
+            - global variable is a pointer pointing to something else
+                ==> lift as pointer, pointing to the global variable + lift the value of global variable aswell 
+        """
         if not variable.name:
             return Constant(variable.value, vartype=self._lifter.lift(variable.type))
 
-        # When a global pointer points to a global variable, we probably need to lift 
-        # the inital value as well, other wise we would only get a pointer which points to a address (where the global variable lives)
-        # (Maybe there is a better way to check if the current variable is a pointer?)
-        if isinstance(variable.type, PointerType):
-            ref_var = view.get_data_var_at(variable.value)
-            initial_value = self._lifter.lift(ref_var, view=view)
-        else:
-            initial_value = Constant(variable.value)
+        if not isinstance(variable.type, PointerType):
+            return UnaryOperation(
+            OperationType.address,
+            [
+                GlobalVariable(
+                    variable.name,
+                    self._lifter.lift(variable.type),
+                    ssa_label=parent.ssa_memory_version if parent else 0,
+                    initial_value=Constant(variable.value)
+                )
+            ],
+        )
+
+        if isinstance(variable.type.target, FunctionType):
+            return ImportedFunctionSymbol(variable.name, variable.address, vartype=Pointer(Integer.char())) 
+
+        ref_var = view.get_data_var_at(variable.value)
         return UnaryOperation(
             OperationType.address,
             [
@@ -37,7 +56,7 @@ class GlobalHandler(Handler):
                     variable.name,
                     self._lifter.lift(variable.type),
                     ssa_label=parent.ssa_memory_version if parent else 0,
-                    initial_value=initial_value
+                    initial_value=self._lifter.lift(ref_var, view=view)
                 )
             ],
         )
