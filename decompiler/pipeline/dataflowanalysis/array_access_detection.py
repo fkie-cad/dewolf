@@ -88,6 +88,8 @@ class ArrayAccessDetection(PipelineStage):
 
         :param task: task that contains cfg
         """
+        if not task.options.getboolean("array-access-detection.enabled"):
+            return
         self._candidates = defaultdict(list)
         self._candidate_offset_classes = defaultdict(OffsetInfo)
         for instr in task.graph.instructions:
