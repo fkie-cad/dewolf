@@ -184,7 +184,7 @@ class AssignmentHandler(Handler):
                     ),
                 ],
                 vartype=Pointer(vartype),
-                writes_memory=instruction.dest_memory # case None possible?
+                writes_memory=instruction.dest_memory
             ),
             self._lifter.lift(instruction.src),
         )
