@@ -16,6 +16,7 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
 )
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 
+
 class ConditionAwareRefinement(BaseClassConditionAwareRefinement):
     """Condition Aware Refinement"""
 
