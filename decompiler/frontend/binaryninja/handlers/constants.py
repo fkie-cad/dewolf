@@ -1,7 +1,7 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
-from binaryninja import mediumlevelil
+from binaryninja import mediumlevelil, BinaryView
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import Constant, Integer
+from decompiler.structures.pseudo import Constant, Integer, GlobalVariable
 
 
 class ConstantHandler(Handler):
@@ -35,6 +35,17 @@ class ConstantHandler(Handler):
         if variable := view.get_data_var_at(pointer.constant):
             return self._lifter.lift(variable, view=view, parent=pointer)
         if symbol := view.get_symbol_at(pointer.constant):
-            return self._lifter.lift(symbol)
-        string = view.get_string_at(pointer.constant, partial=True) or view.get_ascii_string_at(pointer.constant, min_length=2)
-        return Constant(pointer.constant, vartype=self._lifter.lift(pointer.expr_type), pointee=Constant(string.value) if string else None)
+            return self._lifter.lift(symbol, view=view, parent=pointer)
+
+        return GlobalVariable("data_" + str(variable.address),
+            vartype=self._lifter.lift(view.parse_type_string("char*")[0]), # cast to char*, because symbol does not have a type 
+            ssa_label=pointer.ssa_memory_version if pointer else 0, # give correct ssa_label if there is one
+            initial_value=self._get_raw_bytes(view, variable.address)
+            )
+
+    def _get_raw_bytes(self, view: BinaryView, addr: int) -> bytes:
+        """ Returns raw bytes after a given address to the next data structure (or section)"""
+        if next_data_var := view.get_next_data_var_after(addr):
+            return view.read(addr, next_data_var.address - addr)
+        else:
+            return view.read(addr, view.get_sections_at(addr)[0].end)

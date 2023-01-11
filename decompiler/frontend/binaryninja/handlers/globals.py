@@ -16,7 +16,7 @@ class GlobalHandler(Handler):
         """Register the handler at its parent lifter."""
         self._lifter.HANDLERS.update({DataVariable: self.lift_global_variable})
 
-    def lift_global_variable(self, variable: DataVariable, view: Optional[BinaryView], 
+    def lift_global_variable(self, variable: DataVariable, view: BinaryView, 
         parent: Optional[MediumLevelILInstruction] = None, **kwargs
     ) -> Union[ImportedFunctionSymbol, Constant, UnaryOperation]:
         """Lift global variables, the following cases can occur:
@@ -29,15 +29,17 @@ class GlobalHandler(Handler):
             - global variable is a pointer pointing to something else
                 ==> lift as pointer, pointing to the global variable + lift the value of global variable aswell 
         """
+        y = view.get_sections_at(variable.address)
+
         if not variable.name:
             return Constant(variable.value, vartype=self._lifter.lift(variable.type))
 
-        if not isinstance(variable.type, PointerType):
+        if not isinstance(variable.type, PointerType): # Not a ptr
             return UnaryOperation(
             OperationType.address,
             [
                 GlobalVariable(
-                    variable.name,
+                    variable.name + "@" + view.get_sections_at(variable.address)[0].name[1:],
                     self._lifter.lift(variable.type),
                     ssa_label=parent.ssa_memory_version if parent else 0,
                     initial_value=Constant(variable.value)
@@ -49,14 +51,14 @@ class GlobalHandler(Handler):
             return ImportedFunctionSymbol(variable.name, variable.address, vartype=Pointer(Integer.char())) 
 
         ref_var = view.get_data_var_at(variable.value)
-        return UnaryOperation(
+        return UnaryOperation( # Case ptr
             OperationType.address,
             [
                 GlobalVariable(
-                    variable.name,
+                    variable.name + "@" + view.get_sections_at(variable.address)[0].name[1:],
                     self._lifter.lift(variable.type),
                     ssa_label=parent.ssa_memory_version if parent else 0,
-                    initial_value=self._lifter.lift(ref_var, view=view)
+                    initial_value=self._lifter.lift(ref_var, view=view) if ref_var else Constant(variable.value) # else: case void* (could be done with above case)
                 )
             ],
         )
