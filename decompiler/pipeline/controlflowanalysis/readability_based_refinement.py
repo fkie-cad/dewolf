@@ -231,6 +231,7 @@ def remove_guared_do_while(ast: AbstractSyntaxTree):
             -> there is nothing in between the if-node and the do-while-node 
             -> the if-node has only one branch (true branch)
             -> the condition of the branch is the same as the condition of the do-while-node
+        Replacement is a WhileLoop, otherwise the control flow would not be correct
     """
     for do_while_node, condition_node in _get_potential_guarded_do_while_loops(ast):
         if condition_node.false_branch:
@@ -238,6 +239,7 @@ def remove_guared_do_while(ast: AbstractSyntaxTree):
 
         if do_while_node.condition.is_equal_to(condition_node.condition):
             ast.replace_condition_node_by_single_branch(condition_node)
+            ast.substitute_loop_node(do_while_node, WhileLoopNode(do_while_node.condition, do_while_node.reaching_condition))
 
 
 @dataclass

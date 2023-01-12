@@ -1257,11 +1257,17 @@ class TestReadabilityBasedRefinement:
         for cond_node in ast_guarded_do_while_if.get_condition_nodes_post_order():
             assert False, "There should be no condition node"
 
+        for loop_node in ast_guarded_do_while_if.get_loop_nodes_post_order():
+            assert isinstance(loop_node, WhileLoopNode)
+
     def test_guarded_do_while_else(self, ast_guarded_do_while_else):
         self.run_rbr(ast_guarded_do_while_else, _generate_options())
 
         for cond_node in ast_guarded_do_while_else.get_condition_nodes_post_order():
             assert False, "There should be no condition node"
+
+        for loop_node in ast_guarded_do_while_else.get_loop_nodes_post_order():
+            assert isinstance(loop_node, WhileLoopNode)
 
     @pytest.mark.parametrize("keep_empty_for_loops", [True, False])
     def test_keep_empty_for_loop(self, keep_empty_for_loops: bool, ast_single_instruction_while):
