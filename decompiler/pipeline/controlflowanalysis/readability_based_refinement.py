@@ -232,11 +232,11 @@ def remove_guarded_do_while(ast: AbstractSyntaxTree):
             -> the if-node has only one branch (true branch)
             -> the condition of the branch is the same as the condition of the do-while-node/while node
     """
-    for do_while_node, condition_node in _get_potential_guarded_do_while_loops(ast):
+    for while_node, condition_node in _get_potential_guarded_do_while_loops(ast):
         if condition_node.false_branch:
             continue
 
-        if do_while_node.condition.is_equal_to(condition_node.condition):
+        if while_node.condition.is_equal_to(condition_node.condition):
             ast.replace_condition_node_by_single_branch(condition_node)
 
 
