@@ -896,6 +896,32 @@ def ast_guarded_do_while_else() -> AbstractSyntaxTree:
     ast._add_node(do_while_loop)
     ast._add_edges_from([(root, init_code_node), (root, cond_node), (cond_node, false_branch), (false_branch, do_while_loop), (do_while_loop, do_while_loop_body)])
     return ast
+
+@pytest.fixture
+def ast_guarded_while_loop() -> AbstractSyntaxTree:
+    """
+    if(a >= 10){
+
+    }else{
+        while(a < 10){
+            a++;
+        }
+    }
+    """
+    true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(
+        root := SeqNode(true_value), condition_map={logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(10)])}
+    )
+    init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
+    cond_node = ast.factory.create_condition_node(~logic_cond("x1", context))
+    false_branch = ast.factory.create_false_node()
+    while_loop = ast.factory.create_while_loop_node(logic_cond("x1", context))
+    while_loop_body = ast._add_code_node([Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))])
+    ast._add_node(cond_node)
+    ast._add_node(false_branch)
+    ast._add_node(while_loop)
+    ast._add_edges_from([(root, init_code_node), (root, cond_node), (cond_node, false_branch), (false_branch, while_loop), (while_loop, while_loop_body)])
+    return ast
     
 
 class TestReadabilityBasedRefinement:
@@ -1261,6 +1287,12 @@ class TestReadabilityBasedRefinement:
         self.run_rbr(ast_guarded_do_while_else, _generate_options())
 
         for cond_node in ast_guarded_do_while_else.get_condition_nodes_post_order():
+            assert False, "There should be no condition node"
+
+    def test_guarded_while_loop(self, ast_guarded_while_loop):
+        self.run_rbr(ast_guarded_while_loop, _generate_options())
+
+        for cond_node in ast_guarded_while_loop.get_condition_nodes_post_order():
             assert False, "There should be no condition node"
 
     @pytest.mark.parametrize("keep_empty_for_loops", [True, False])
