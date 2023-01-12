@@ -41,7 +41,7 @@ class ConstantHandler(Handler):
         if string:
             return Constant(pointer.constant, vartype=self._lifter.lift(pointer.expr_type), pointee=Constant(string.value))
         else:
-            GlobalVariable("data_" + str(variable.address),
+            return GlobalVariable("data_" + f"{variable.address:x}",
             vartype=self._lifter.lift(view.parse_type_string("char*")[0]), # cast to char*, because symbol does not have a type 
             ssa_label=pointer.ssa_memory_version if pointer else 0, # give correct ssa_label if there is one
             initial_value=self._get_raw_bytes(view, variable.address)
