@@ -60,7 +60,9 @@ class GlobalHandler(Handler):
         vartype = Integer.uint64_t() if bv.address_size == 8 else Integer.uint32_t()
         return GlobalVariable(variable_name, vartype=vartype, ssa_label=0, initial_value=addr)
 
-    def _get_initial_value(self, bv: BinaryView, variable: DataVariable, addr: int, type_tokens: List[str]) -> Union[str, int, bytes, UnaryOperation]:
+    def _get_initial_value(
+        self, bv: BinaryView, variable: DataVariable, addr: int, type_tokens: List[str]
+    ) -> Union[str, int, bytes, UnaryOperation]:
         """Retrieve the initial value of the global variable if there is any."""
         if variable.type == variable.type.void():
             # If there is no type, just retrieve all the bytes from the current to the next address where a data variable is present.

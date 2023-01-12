@@ -14,6 +14,7 @@ from decompiler.structures.pseudo.operations import (
 )
 from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer
 from decompiler.task import DecompilerTask
+from decompiler.util.options import Options
 
 
 def imp_function_symbol(name: str, value: int = 0x42) -> ImportedFunctionSymbol:
@@ -30,7 +31,7 @@ def run_array_access_detection(cfg: ControlFlowGraph) -> None:
 
 
 def get_task(cfg: ControlFlowGraph) -> DecompilerTask:
-    task = DecompilerTask("test", cfg)
+    task = DecompilerTask("test", cfg, options=Options.from_dict({"array-access-detection.enabled": True}))
     return task
 
 
