@@ -37,7 +37,11 @@ class ConstantHandler(Handler):
         if symbol := view.get_symbol_at(pointer.constant):
             return self._lifter.lift(symbol, view=view, parent=pointer)
 
-        return GlobalVariable("data_" + str(variable.address),
+        string = view.get_string_at(pointer.constant, partial=True) or view.get_ascii_string_at(pointer.constant, min_length=2)
+        if string:
+            return Constant(pointer.constant, vartype=self._lifter.lift(pointer.expr_type), pointee=Constant(string.value))
+        else:
+            GlobalVariable("data_" + str(variable.address),
             vartype=self._lifter.lift(view.parse_type_string("char*")[0]), # cast to char*, because symbol does not have a type 
             ssa_label=pointer.ssa_memory_version if pointer else 0, # give correct ssa_label if there is one
             initial_value=self._get_raw_bytes(view, variable.address)

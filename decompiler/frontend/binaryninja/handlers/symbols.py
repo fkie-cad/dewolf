@@ -37,7 +37,7 @@ class SymbolHandler(Handler):
         """Lift the given symbol from binaryninja MLIL."""
         if symbol.type == SymbolType.DataSymbol:
             return GlobalVariable(
-                symbol.name[:-2], # purge ".0" from str, because bninja handles it as a symbol
+                symbol.name[:-2] if symbol.name.find(".0") != -1 else symbol.name, # purge ".0" from str, because bninja handles it as a symbol
                 vartype=self._lifter.lift(view.parse_type_string("char*")[0]), # cast to char*, because symbol does not have a type 
                 ssa_label=parent.ssa_memory_version if parent else 0, # give correct ssa_label if there is one
                 initial_value=self._get_raw_bytes(view, symbol.address)
