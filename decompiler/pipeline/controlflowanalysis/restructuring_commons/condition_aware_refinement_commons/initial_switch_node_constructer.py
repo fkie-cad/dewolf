@@ -85,14 +85,15 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
             if len(set(possible_switch_expressions)) == 1 and len(possible_switch_expressions) > 1:
                 switch_expression = possible_switch_expressions[0]
 
-        for child in seq_node.children:
-            if isinstance(child, CodeNode) and child.does_end_with_break and child != break_node and self._get_expression_compared_with_constant(child.reaching_condition) == switch_expression and self._can_move_break_instruction(seq_node, child, break_node):
-                break_node.reaching_condition = break_node.reaching_condition | child.reaching_condition
-                child.instructions.pop()
-                for reachable_sibling in self.asforest.reachable_code_nodes(child):
-                    self.asforest.add_reachability(break_node, reachable_sibling)
-                self.asforest.add_reachability(child, break_node)
-                seq_node.sort_children()
+        if switch_expression:
+            for child in seq_node.children:
+                if isinstance(child, CodeNode) and child.does_end_with_break and child != break_node and self._get_expression_compared_with_constant(child.reaching_condition) == switch_expression and self._can_move_break_instruction(seq_node, child, break_node):
+                    break_node.reaching_condition = break_node.reaching_condition | child.reaching_condition
+                    child.instructions.pop()
+                    for reachable_sibling in self.asforest.reachable_code_nodes(child):
+                        self.asforest.add_reachability(break_node, reachable_sibling)
+                    self.asforest.add_reachability(child, break_node)
+                    seq_node.sort_children()
 
         if break_node.reaching_condition == self.condition_handler.get_false_value():
             self.asforest.remove_subtree(break_node)
@@ -145,6 +146,8 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
                 Condition(OperationType.equal, [expression, Constant(0, expression.type)])).symbol
             if self._are_equivalent(other_condition, potentially_equivalent_condition):
                 return potentially_equivalent_condition
+            else:
+                del self.condition_handler._condition_map[potentially_equivalent_condition]
 
     def _are_equivalent(self, cond1: LogicCondition, cond2: LogicCondition) -> bool:
         """
