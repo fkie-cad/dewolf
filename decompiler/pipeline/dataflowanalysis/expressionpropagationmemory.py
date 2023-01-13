@@ -41,7 +41,7 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
             [
                 self._is_phi(definition),
                 self._is_call_assignment(definition),
-                self._is_address_assignment(definition),
+                self._is_address_into_dereference(definition, target),
                 self._defines_unknown_expression(definition),
                 self._contains_global_variable(definition),
                 self._operation_is_propagated_in_phi(target, definition),
