@@ -51,7 +51,12 @@ class ConstantHandler(Handler):
 
         symbol = self._get_symbol(bv, address)
 
-        if symbol is not None and symbol.type in (SymbolType.ImportedFunctionSymbol, SymbolType.ExternalSymbol, SymbolType.FunctionSymbol, SymbolType.ImportAddressSymbol):
+        if symbol is not None and symbol.type in (
+            SymbolType.ImportedFunctionSymbol,
+            SymbolType.ExternalSymbol,
+            SymbolType.FunctionSymbol,
+            SymbolType.ImportAddressSymbol,
+        ):
             return self._lift_symbol_pointer(bv, address, symbol)
 
         if (
@@ -64,7 +69,7 @@ class ConstantHandler(Handler):
         if (variable := bv.get_data_var_at(address)) is not None:
             return self._lifter.lift(variable, bv=bv, parent_addr=None)
 
-    def _lift_symbol_pointer(self, bv:BinaryView, address: int, symbol: bSymbol) -> Optional[Union[Symbol, UnaryOperation]]:
+    def _lift_symbol_pointer(self, bv: BinaryView, address: int, symbol: bSymbol) -> Optional[Union[Symbol, UnaryOperation]]:
         """Try to lift a pointer at the given address with a Symbol as a symbol pointer."""
         # symbol containing custom function name, e.g. lookup
         if symbol.type == SymbolType.FunctionSymbol:

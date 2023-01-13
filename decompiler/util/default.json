@@ -180,6 +180,15 @@
       "is_hidden_from_gui": true
     }
   },
+  "array-access-detection": {
+    "enabled": {
+      "default": false,
+      "title": "enabled",
+      "type": "boolean",
+      "description": "Array access detection is enabled by default. To disable and stick to pointer notation (*(base+offset)), set this option to false.",
+      "is_hidden_from_gui": true
+    }
+  },
   "instruction-length-handler": {
     "max_assignment_complexity": {
       "default": 10,
@@ -453,6 +462,13 @@
       "type": "array",
       "elementType": "string",
       "description": "Order of stage execution",
+      "is_hidden_from_gui": true
+    },
+    "debug": {
+      "default": false,
+      "title": "Debug mode",
+      "type": "boolean",
+      "description": "Crash on error",
       "is_hidden_from_gui": true
     }
   },
