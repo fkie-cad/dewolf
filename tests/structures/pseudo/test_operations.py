@@ -25,6 +25,7 @@ sub = OperationType.minus
 div = OperationType.divide
 udiv = OperationType.divide_us
 cast = OperationType.cast
+deref = OperationType.dereference
 
 
 def test_substitute():
@@ -32,6 +33,16 @@ def test_substitute():
     op = UnaryOperation(neg, [a])
     op.substitute(a, b)
     assert str(op) == "-(b#1)"
+    # *(a + c).substitute(a, b) -> *(b + c) 
+    # *(b + c).substitute(c, a) -> *(b + a)
+    # and check if ArrayInfo is updated
+    op = UnaryOperation(deref, [BinaryOperation(add, [a, c])], array_info=ArrayInfo(a, c))
+    op.substitute(a, b)
+    assert str(op.array_info.base) == "b#1"
+    assert str(op) == "*(b#1 + c#2)"
+    op.substitute(c, a)
+    assert str(op.array_info.index) == "a#0"
+    assert str(op) == "*(b#1 + a#0)"
     # a+a.substitute(a, c) -> c+c
     op = BinaryOperation(add, [a, a])
     op.substitute(a, c)
