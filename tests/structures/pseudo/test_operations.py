@@ -33,7 +33,7 @@ def test_substitute():
     op = UnaryOperation(neg, [a])
     op.substitute(a, b)
     assert str(op) == "-(b#1)"
-    # *(a + c).substitute(a, b) -> *(b + c) 
+    # *(a + c).substitute(a, b) -> *(b + c)
     # *(b + c).substitute(c, a) -> *(b + a)
     # and check if ArrayInfo is updated
     op = UnaryOperation(deref, [BinaryOperation(add, [a, c])], array_info=ArrayInfo(a, c))
