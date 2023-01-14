@@ -1,5 +1,5 @@
 export VENV_PATH := .venv
-TESTED_COMPILER_VERSIONS := 9.2.1 9.3.1 10.1.1 10.2.0
+TESTED_COMPILER_VERSIONS := 9.2.1 9.3.1 10.1.1 10.2.0 11.3.0
 
 COMPILER_VERSION := $(shell gcc --version | grep -oP '\d+\.\d+\.\d+' | head -n1)
 
