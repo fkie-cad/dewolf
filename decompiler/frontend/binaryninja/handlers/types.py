@@ -34,7 +34,7 @@ class TypeHandler(Handler):
                 StructureType: self.lift_custom,
                 FunctionParameter: self.lift_function_parameter,
                 FunctionType: self.lift_function_type,
-                # EnumerationType: self.lift_custom,
+                EnumerationType: self.lift_custom,
                 type(None): self.lift_none,
             }
         )
