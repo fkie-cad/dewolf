@@ -142,11 +142,17 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         is equivalent to the other condition.
         """
         if other_condition.is_literal:
+            """
+            If a new condition needs to be created for potentially_equivalent_condition which isn't used, we want to
+            delete it later on. Therefore, we save the size of the condition_map to determine whether a new condition
+            was added or not.
+            """
+            condition_map_size = len(self.condition_handler.get_condition_map())
             potentially_equivalent_condition = self.condition_handler.add_condition(
                 Condition(OperationType.equal, [expression, Constant(0, expression.type)])).symbol
             if self._are_equivalent(other_condition, potentially_equivalent_condition):
                 return potentially_equivalent_condition
-            else:
+            elif len(self.condition_handler.get_condition_map()) > condition_map_size:
                 del self.condition_handler._condition_map[potentially_equivalent_condition]
 
     def _are_equivalent(self, cond1: LogicCondition, cond2: LogicCondition) -> bool:
