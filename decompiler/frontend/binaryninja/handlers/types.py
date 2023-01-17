@@ -2,6 +2,7 @@ from binaryninja.types import (
     ArrayType,
     BoolType,
     CharType,
+    EnumerationType,
     FloatType,
     FunctionParameter,
     FunctionType,
@@ -33,6 +34,7 @@ class TypeHandler(Handler):
                 StructureType: self.lift_custom,
                 FunctionParameter: self.lift_function_parameter,
                 FunctionType: self.lift_function_type,
+                # EnumerationType: self.lift_custom,
                 type(None): self.lift_none,
             }
         )
@@ -43,6 +45,7 @@ class TypeHandler(Handler):
 
     def lift_custom(self, custom: Type, **kwargs) -> CustomType:
         """Lift custom types such as structs as a custom type."""
+        print("LIFT CUSTOM:", custom)
         return CustomType(str(custom), custom.width * self.BYTE_SIZE)
 
     def lift_void(self, _, **kwargs) -> CustomType:
