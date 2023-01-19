@@ -53,7 +53,7 @@ class Decompiler:
         pipeline = DecompilerPipeline.from_strings(task_options.getlist("pipeline.cfg_stages"), task_options.getlist("pipeline.ast_stages"))
         task = self._frontend.create_task(function, task_options)
         pipeline.run(task)
-        task.code = self._backend.generate([task])
+        task.code = self._backend.generate([task]) # TODO should we get rid of monkey patching?
         return task
 
     def decompile_all(self, task_options: Optional[Options] = None) -> str:

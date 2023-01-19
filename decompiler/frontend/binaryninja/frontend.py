@@ -1,6 +1,6 @@
 """Class implementing the main binaryninja frontend interface."""
 import logging
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 from binaryninja import BinaryView, BinaryViewType, Function
 from binaryninja.types import SymbolType
@@ -53,19 +53,21 @@ class BinaryninjaFrontend(Frontend):
     def create_task(self, function: Union[str, Function], options: Options) -> DecompilerTask:
         """Create a task from the given function identifier."""
         debug_mode = options.getboolean("pipeline.debug", fallback=False)
-        if not isinstance(function, Function):
-            function = self._find_function(function)
-        return_type, params = self._extract_return_type_and_params(function)
+        if isinstance(function, Function):
+            function_obj = function
+        elif (function_obj := self._get_function_from_str(function)) is None:
+            raise ValueError(f"Could not resolve function symbol {function}")
+        return_type, params = self._extract_return_type_and_params(function_obj)
         try:
-            cfg = self._extract_cfg(function, options)
-            task = DecompilerTask(function.name, cfg, function_return_type=return_type, function_parameters=params, options=options)
+            cfg = self._extract_cfg(function_obj, options)
+            task = DecompilerTask(function_obj.name, cfg, function_return_type=return_type, function_parameters=params, options=options)
         except Exception as e:
-            task = DecompilerTask(function.name, None, function_return_type=return_type, function_parameters=params, options=options)
+            task = DecompilerTask(function_obj.name, None, function_return_type=return_type, function_parameters=params, options=options)
             task.fail(origin="CFG creation")
             logging.error(f"Failed to decompile {task.name}, error during CFG creation: {e}")
             if debug_mode:
                 raise e
-        task.function = function
+        task.function = function_obj # TODO should we get rid of monkey patching?
         return task
 
     def get_all_function_names(self):
@@ -79,10 +81,33 @@ class BinaryninjaFrontend(Frontend):
             functions.append(function.name)
         return functions
 
-    def _find_function(self, function: str) -> Function:
-        """Return the function at the given address."""
-        address = self._get_address(function)
-        return self._bv.get_function_at(address)
+    def _get_function_from_str(self, symbol_str: str) -> Optional[Function]:
+        """Return Function object matching the given symbol string or hex address"""
+        if symbols_list := self._bv.symbols.get(symbol_str, []):  # alternative: bv.get_symbols_by_name(..)
+            logging.debug(f"symbols list: {symbols_list}")
+            for sym in symbols_list:
+                if sym.type == SymbolType.FunctionSymbol:
+                    if function := self._bv.get_function_at(sym.address):
+                        # check if function name matches symbol. 
+                        # Sometimes wrong symbols are contained in the list.
+                        if function.name == symbol_str:
+                            return function
+            # Sometimes Binja has 2 symbols for a library function, and returns a list:
+            # [ImportedFunctionSymbol, ExternalSymbol]
+            # We want the address of the ImportedFunctionSymbol
+            logging.debug(f"symbols list: {symbols_list}")
+            for sym in symbols_list:
+                if sym.type == SymbolType.ImportedFunctionSymbol:
+                    return self._bv.get_function_at(sym.address)
+        logging.info(f"Did not find matching function for symbol '{symbol_str}'. Try hex address...")
+        try:
+            hex_address = symbol_str[4:] if symbol_str.startswith("sub_") else symbol_str
+            address = int(hex_address, 16)
+            return self._bv.get_function_at(address)
+        except ValueError:
+            logging.info(f"{symbol_str} does not contain a hex value")
+        return None
+
 
     def _extract_cfg(self, function: Function, options: Options = None) -> ControlFlowGraph:
         """Extract a control flow graph utilizing the parser and fixing it afterwards."""
@@ -97,19 +122,3 @@ class BinaryninjaFrontend(Frontend):
         params: List[Variable] = [lifter.lift(param) for param in function.function_type.parameters]
         return_type: Type = lifter.lift(function.function_type.return_value)
         return return_type, params
-
-    def _get_address(self, text: str) -> int:
-        """Get the address of the target function by evaluating the given string."""
-        if sym := self._bv.symbols.get(text, None):
-            if isinstance(sym, list):
-                # Sometimes Binja has 2 symbols for a library function, and returns a list:
-                # [ImportedFunctionSymbol, ExternalSymbol]
-                # We want the address of the Imported Function Symbol
-                return sym[0].address
-            return sym.address
-        if "sub_" in text[0:4]:
-            return int(text[4:], 16)
-        try:
-            return int(text, 16)
-        except Exception as _:
-            raise ValueError(f"{text} is neither a valid function name or a hex address!")
