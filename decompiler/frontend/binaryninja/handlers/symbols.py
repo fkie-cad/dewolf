@@ -1,8 +1,8 @@
 """Module implementing lifting of binaryninja symbols."""
-from typing import Union, Optional
+from typing import Union
 from logging import warning
 
-from binaryninja import CoreSymbol, BinaryView, MediumLevelILInstruction
+from binaryninja import CoreSymbol
 from binaryninja import Symbol as bSymbol
 from binaryninja import SymbolType
 from decompiler.frontend.lifter import Handler, ObserverLifter
@@ -33,8 +33,9 @@ class SymbolHandler(Handler):
             }
         )
 
-    def lift_symbol(self, symbol: CoreSymbol, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None, **kwargs,) -> Union[GlobalVariable, Constant]:
+    def lift_symbol(self, symbol: CoreSymbol, **kwargs,) -> Union[GlobalVariable, Constant]:
         """Lift the given symbol from binaryninja MLIL."""
+<<<<<<< HEAD
         if symbol.type == SymbolType.DataSymbol:
             return GlobalVariable(
                 symbol.name[:-2] if symbol.name.find(".0") != -1 else symbol.name, # purge ".0" from str, because bninja handles it as a symbol
@@ -43,14 +44,9 @@ class SymbolHandler(Handler):
                 initial_value=self._get_raw_bytes(view, symbol.address)
                 )
 
+=======
+>>>>>>> 45302803d4b726bc9b53bbbae5311fee1810c00f
         if not (symbol_type := self.SYMBOL_MAP.get(symbol.type, None)):
             warning(f"[Lifter] Can not handle symbols of type {symbol.type}, falling back to constant lifting.")
             return Constant(symbol.address, vartype=Integer.uint32_t())
         return symbol_type(symbol.name, symbol.address, vartype=Integer.uint32_t())
-
-    def _get_raw_bytes(self, view: BinaryView, addr: int) -> bytes:
-        """ Returns raw bytes after a given address to the next data structure (or section)"""
-        if next_data_var := view.get_next_data_var_after(addr):
-            return view.read(addr, next_data_var.address - addr)
-        else:
-            return view.read(addr, view.get_sections_at(addr)[0].end)
