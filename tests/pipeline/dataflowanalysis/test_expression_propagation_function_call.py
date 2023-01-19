@@ -40,8 +40,9 @@ def test_function_propagation():
     node = cfg.nodes[0]
     assert node.instructions == [_assign(return_values, Constant(0x0)), Return([_func("f", [y])])]
 
+
 def test_function_propagation_no_list_op():
-    """ 
+    """
     Test if we do not crash when LHS is not of type ListOperation, but GlobalVariable.
     This can happen due to pipeline stages destroying assumption made for the lifter.
     Note: currently propagation into global variables is prohibited.
