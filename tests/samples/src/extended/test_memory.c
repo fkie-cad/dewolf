@@ -511,6 +511,30 @@ int test31() {
     return x;
 }
 
+int test32(){
+    int y, x;
+    int * ptr;
+    y = rand() + 5;
+    ptr = &y;
+    x = y;
+    scanf(ptr);
+    return x;
+
+
+}
+
+
+int test33(){
+    int x, y;
+    int * ptr;
+    y = rand() + 5;
+    ptr = &y;
+    x = y;
+    scanf(ptr);
+    return y;
+
+
+}
 
 
 

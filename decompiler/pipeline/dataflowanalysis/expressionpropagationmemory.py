@@ -1,7 +1,7 @@
 from decompiler.pipeline.commons.expressionpropagationcommons import ExpressionPropagationBase
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.pointers import Pointers
-from decompiler.structures.pseudo.instructions import Assignment, Instruction
+from decompiler.structures.pseudo.instructions import Assignment, Instruction, Relation
 from decompiler.task import DecompilerTask
 
 
@@ -37,6 +37,21 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
         :param target: instruction in which definition could be propagated
         :return: true if propagation is allowed false otherwise
         """
+        # for x, i in  enumerate([
+        #         self._is_phi(definition),
+        #         self._is_call_assignment(definition),
+        #         self._is_address_into_dereference(definition, target),
+        #         self._defines_unknown_expression(definition),
+        #         self._contains_global_variable(definition),
+        #         self._operation_is_propagated_in_phi(target, definition),
+        #         self._is_invalid_propagation_into_address_operation(target, definition),
+        #         self._resulting_instruction_is_too_long(target, definition),
+        #         self._definition_value_could_be_modified_via_memory_access_between_definition_and_target(definition, target),
+        #         self._pointer_value_used_in_definition_could_be_modified_via_memory_access_between_definition_and_target(
+        #             definition, target
+        #         ),
+        #     ]):
+        #     print(f"{x}: {i}")
         return isinstance(definition, Assignment) and not any(
             [
                 self._is_phi(definition),

@@ -53,6 +53,16 @@ class UseMap:
     def get(self, used: Variable) -> Set[Instruction]:
         return self._map[used]
 
+    def update(self, used, instruction) -> None:
+        """When instruction gets modified e.g. during propagation and does not contain certain variable anymore,
+        remove that instruction from the uses of that variable and add it to the correspondent variable's uses"""
+        if used not in instruction.requirements:
+            uses = self.get(used)
+            if instruction in uses:
+                uses.remove(instruction)
+            self.add(instruction)
+
+
     @property
     def used_variables(self) -> InsertionOrderedSet[Variable]:
         return InsertionOrderedSet(self._map.keys())
