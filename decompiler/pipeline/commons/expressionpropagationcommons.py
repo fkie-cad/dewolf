@@ -70,10 +70,9 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                         if self._definition_can_be_propagated_into_target(var_definition, instruction):
                             instruction.substitute(var, var_definition.value.copy())
                             self._update_block_map(old, str(instruction), basic_block, index)
+                            self._use_map.update(var, instruction)
                             if not is_changed:
                                 is_changed = old != str(instruction)
-                            else:
-                                self._use_map.update(var, instruction)
         return is_changed
 
     @abstractmethod
