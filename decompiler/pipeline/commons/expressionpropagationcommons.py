@@ -43,10 +43,8 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         self._parse_options(task)
         iteration = 0
         # execute until there are no more changes
-
         while self.perform(task.graph, iteration):
             iteration += 1
-            print('==========================================')
         logging.info(f"{self.name} took {iteration} iterations")
 
     def perform(self, graph, iteration) -> bool:
@@ -331,14 +329,16 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         is_pointed_by = self._pointers_info.is_pointed_by.get(var.name, set())
         dangerous_uses = set()
         for pointer in is_pointed_by:
-            dangerous_uses.update(self._get_dangerous_uses_of_pointer(pointer, var))
+            dangerous_uses.update(self._get_dangerous_uses_of_pointer(pointer))
         return dangerous_uses
 
-    def _get_dangerous_uses_of_pointer(self, pointer: Variable, var: Optional[Variable] = None) -> Set[Instruction]:
+    def _get_dangerous_uses_of_pointer(self, pointer: Variable) -> Set[Instruction]:
         """
-        :param pointer variable
-        :return: set of instructions that may potentially change the value pointed by given pointer. To such instructions belong
-        func(ptr) and *ptr = ... (OR *(ptr+....)=... when talking about arrays)
+        :param pointer to a variable
+        :return: set of instructions that may potentially change the value pointed by the given pointer. To such instructions belong:
+        - ret_val = func(ptr) - function call may modify value pointed by the ptr
+        - *ptr = new_val - pointer dereference assignment may change the value pointed by the ptr
+        - *(ptr + offset) = new_val - potential change of structure member or array element
         """
         dangerous_uses = set()
         for use in self._use_map.get(pointer):
@@ -347,8 +347,6 @@ class ExpressionPropagationBase(PipelineStage, ABC):
             if self._is_dereference(use.destination) and pointer in use.destination.requirements:
                 dangerous_uses.add(use)
             elif self._is_call_assignment(use) and pointer in use.value.requirements:
-                dangerous_uses.add(use)
-            elif self._is_call_assignment(use) and self._get_dangerous_uses_of_variable_address(var):
                 dangerous_uses.add(use)
         return dangerous_uses
 
