@@ -1,7 +1,7 @@
 from decompiler.pipeline.commons.expressionpropagationcommons import ExpressionPropagationBase
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.pointers import Pointers
-from decompiler.structures.pseudo.instructions import Assignment, Instruction, Relation
+from decompiler.structures.pseudo.instructions import Assignment, Instruction
 from decompiler.task import DecompilerTask
 
 
