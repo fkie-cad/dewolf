@@ -1017,8 +1017,8 @@ def test_address_assignments_propagated():
     +--------------+
     +-----------------+
     |      0.         |
-    | x#0 = &(z#0)    |
-    |  x#1 = x#0      |
+    |  x#0 = &(z#0)   |
+    |  x#1 = &(z#0)   |
     |  scanf(&(z#0))  |
     |  z#1 = z#0      |
     |  return z#0     |
@@ -1034,7 +1034,7 @@ def test_address_assignments_propagated():
     _run_expression_propagation(cfg)
     assert [i for i in cfg.instructions] == [
         _assign(x[0], _addr(z[0])),
-        # _assign(x[1], x[0]),
+        _assign(x[1], _addr(z[0])),
         _call("scanf", [], [_addr(z[0])]),
         _assign(z[1], z[0]),
         _ret(z[0]),
