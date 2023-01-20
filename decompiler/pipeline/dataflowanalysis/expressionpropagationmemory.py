@@ -1,6 +1,7 @@
 from decompiler.pipeline.commons.expressionpropagationcommons import ExpressionPropagationBase
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.pointers import Pointers
+from decompiler.structures.pseudo import Variable
 from decompiler.structures.pseudo.instructions import Assignment, Instruction
 from decompiler.task import DecompilerTask
 
@@ -67,3 +68,13 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
         self._blocks_map[new_instr_str].add((basic_block, index))
         if (basic_block, index) in self._blocks_map[old_instr_str]:
             self._blocks_map[old_instr_str].remove((basic_block, index))
+
+    def _update_use_map(self, variable: Variable, instruction: Instruction):
+        """
+        Update use map if instruction is changed and a variable is not being used by the instruction anymore:
+        - remove the instruction from the uses-set of the variable
+        - re-add the instruction to the map in order to update uses information for the instruction automatically
+        """
+        if variable not in instruction.requirements:
+            self._use_map.remove_use(variable, instruction)
+            self._use_map.add(instruction)

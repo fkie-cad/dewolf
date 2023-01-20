@@ -68,7 +68,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                         if self._definition_can_be_propagated_into_target(var_definition, instruction):
                             instruction.substitute(var, var_definition.value.copy())
                             self._update_block_map(old, str(instruction), basic_block, index)
-                            self._use_map.update(var, instruction)
+                            self._(var, instruction)
                             if not is_changed:
                                 is_changed = old != str(instruction)
         return is_changed
@@ -111,6 +111,11 @@ class ExpressionPropagationBase(PipelineStage, ABC):
     def _update_block_map(self, old_instr_str: str, new_instr_str: str, basic_block: BasicBlock, index: int):
         """Do nothing if EP, EPM re-implements this method to update the map when instructions change"""
         pass
+
+    def _update_use_map(self, variable: Variable, instruction: Instruction):
+        """Do nothing if EP, EPM re-implements this method to update the map when instructions change"""
+        pass
+
 
     def _try_to_propagate_contractions(self, instruction: Instruction):
         """
