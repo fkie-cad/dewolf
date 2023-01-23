@@ -747,7 +747,7 @@ def test_dangerous_pointer_use_in_single_block_graph():
     | y#0 = x#0 + 0x5 |
     | ptr#0 = &(y#0)  |
     | x#1 = x#0 + 0x5 |
-    |  scanf(ptr#0)   |
+    |  scanf(&(y#0))  |
     |    y#1 = y#0    |
     |   return y#0    |
     +-----------------+
@@ -1315,6 +1315,21 @@ def test_correct_propagation_relation():
     | __isoc99_scanf(0x804b01f, var_28#1) |
     |        var_14#5 -> var_14#4         |
     +-------------------------------------+
+
+    +------------------------------------------+
+    |                    0.                    |
+    |           var_14#1 = var_14#0            |
+    |          var_28#0 = &(var_14#1)          |
+    | "__isoc99_scanf"(0x804b01f, &(var_14#1)) |
+    |           var_14#2 -> var_14#1           |
+    |             eax#1 = var_14#2             |
+    |      "printf"(0x804b024, var_14#2)       |
+    |           var_14#3 = var_14#2            |
+    |        var_14#4 = var_14#2 + 0x2         |
+    |          var_28#1 = &(var_14#4)          |
+    | "__isoc99_scanf"(0x804b01f, &(var_14#4)) |
+    |           var_14#5 -> var_14#4           |
+    +------------------------------------------+
     """
     var_14 = vars("var_14", 6, Integer(32, True), True)
     var_28 = vars("var_28", 2, Pointer(Integer(32, True), 32), False)
@@ -1405,26 +1420,6 @@ def test_correct_propagation_relation():
         ),
         instructions[10],
     ]
-
-
-def test_no_propagation_of_contraction_address_assignment():
-    """
-    When taking care of contractions, avoid propagating those assignments, that have address on the right side.
-    +--------------------+
-    |         0.         |
-    | (4: ) x#1 = &(x#0) | <--- contraction definition
-    |  x#2 = (4: ) x#1   | <--- contraction use, do not propagate because we cannot handle &-propagtions for the moment
-    +--------------------+
-
-    +--------------------+
-    |         0.         |
-    | (4: ) x#1 = &(x#0) |
-    |  x#2 = (4: ) x#1   |
-    +--------------------+
-    """
-    input_cfg, output_cfg = graphs_with_no_propagation_of_contraction_address_assignment()
-    _run_expression_propagation(input_cfg)
-    assert _graphs_equal(input_cfg, output_cfg)
 
 
 def graphs_with_no_propagation_of_contraction_address_assignment():
