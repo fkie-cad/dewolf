@@ -772,7 +772,6 @@ def _graphs_with_dangerous_pointer_use() -> Tuple[ControlFlowGraph, ControlFlowG
             _assign(ptr[0], _addr(y[0])),
             _assign(x[1], y[0]),
             _call("scanf", [], [ptr[0]]),
-            # Relation(y[1], y[0]),
             _assign(y[1], y[0]),
             _ret(y[1]),
         ],
@@ -787,10 +786,8 @@ def _graphs_with_dangerous_pointer_use() -> Tuple[ControlFlowGraph, ControlFlowG
             _assign(ptr[0], _addr(y[0])),
             _assign(x[1], _add(x[0], c[5])),
             _call("scanf", [], [_addr(y[0])]),
-            # Relation(y[1], y[0]),
             _assign(y[1], y[0]),
             _ret(y[0]),
-            # _ret(y[1])
         ],
     )
     out_cfg.add_node(out_node)
