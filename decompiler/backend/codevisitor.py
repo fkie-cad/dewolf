@@ -144,20 +144,18 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
     @staticmethod
     def _parse_array_element_access_attributes(
         array_elem_access: UnaryOperation,
-    ) -> Tuple[expressions.Variable, Union[int, expressions.Variable]]:
+    ) -> Tuple[str, Union[int, str]]:
         """
-        Store in base and index old ssa versions of variables.
-
-        Therefore we need to remap old ssa names on non-ssa names
+        UnaryOperation updates ArrayInfo on .substitue(...)
+        Therefore we can directly read base and index from UnaryOperation.ArrayInfo
         """
-        ssa_name_to_name_mapping = {i.ssa_name.name: i.name for i in array_elem_access.requirements if isinstance(i, expressions.Variable)}
-        base = ssa_name_to_name_mapping[array_elem_access.array_info.base.name]
-        index = (
-            ssa_name_to_name_mapping[array_elem_access.array_info.index.name]
-            if isinstance(array_elem_access.array_info.index, expressions.Variable)
-            else array_elem_access.array_info.index
-        )
-        return base, index
+        if array_elem_access.array_info is None:
+            raise ValueError("Parsing array access, but ArrayInfo is None")
+        base = array_elem_access.array_info.base
+        index = array_elem_access.array_info.index
+        if isinstance(index, int):
+            return base.name, index
+        return base.name, index.name
 
     @staticmethod
     def _is_compoundable(instr: Assignment) -> bool:

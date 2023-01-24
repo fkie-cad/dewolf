@@ -183,10 +183,10 @@
   "array-access-detection": {
     "enabled": {
       "default": false,
-      "title": "enabled",
+      "title": "Array access detection",
       "type": "boolean",
-      "description": "Array access detection is enabled by default. To disable and stick to pointer notation (*(base+offset)), set this option to false.",
-      "is_hidden_from_gui": true
+      "description": "write array access as base[offset], instead of (*(base+offset))",
+      "is_hidden_from_gui": false
     }
   },
   "instruction-length-handler": {
