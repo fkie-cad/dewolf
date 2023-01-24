@@ -1,3 +1,5 @@
+import logging
+
 from binaryninja.types import (
     ArrayType,
     BoolType,
@@ -45,7 +47,7 @@ class TypeHandler(Handler):
 
     def lift_custom(self, custom: Type, **kwargs) -> CustomType:
         """Lift custom types such as structs as a custom type."""
-        print("LIFT CUSTOM:", custom)
+        logging.debug("lifting custom type: %s", custom)
         return CustomType(str(custom), custom.width * self.BYTE_SIZE)
 
     def lift_void(self, _, **kwargs) -> CustomType:
