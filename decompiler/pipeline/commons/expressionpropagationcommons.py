@@ -37,6 +37,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         self._pointers_info: Optional[Pointers] = None
         self._blocks_map: Optional[DefaultDict[str, Set]] = None
         self._cfg: Optional[ControlFlowGraph] = None
+        self._aliased: Set[Variable] = set()
 
     def run(self, task: DecompilerTask):
         """Execute the expression propagation on the current ControlFlowGraph."""
@@ -71,6 +72,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                             self._update_use_map(var, instruction)
                             if not is_changed:
                                 is_changed = old != str(instruction)
+        self._propagate_postponed_aliased_definitions()
         return is_changed
 
     @abstractmethod
@@ -116,6 +118,10 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         """Do nothing if EP, EPM re-implements this method to update the map when instructions change"""
         pass
 
+    def _propagate_postponed_aliased_definitions(self):
+        """Do nothing if EP, EPM re-implements this method to update the map when instructions change"""
+        pass
+
 
     def _try_to_propagate_contractions(self, instruction: Instruction):
         """
@@ -138,6 +144,21 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                     defined_contraction, value = definition.destination, definition.value
                     if subexpr == defined_contraction:
                         instruction.substitute(subexpr, value.copy())
+
+    def _is_aliased_postponed_for_propagation(self, target: Instruction, definition: Assignment) -> bool:
+        """
+        We have relation-like assignments of aliased, and we want to propagate them later if certain conditions are
+        met, because propagating them if more than one use may lead to invalid code since the value of the other uses
+        may be affected, todo better description
+        """
+        defined_var = definition.destination
+        if not isinstance(defined_var, Variable):
+            return False
+        if (aliased:=defined_var).name in self._pointers_info.is_pointed_by:
+            if self._is_aliased_redefinition(aliased, target):
+                self._aliased.add(aliased)
+                return True
+        return False
 
     def _is_invalid_propagation_into_address_operation(self, target: Instruction, definition: Assignment) -> bool:
         """
@@ -453,4 +474,19 @@ class ExpressionPropagationBase(PipelineStage, ABC):
             and expression.operation == OperationType.cast
             and expression.contraction
             and expression.operand.complexity == 1
+        )
+
+    @staticmethod
+    def _is_aliased_redefinition(aliased_variable: Variable, instruction: Instruction):
+        """
+        Given aliased variable check if the instruction is re-definition:
+        e.g. variable: a#10,  instruction: a#11 = a#10 redefines aliased variable a#10
+        :param aliased_variable: variable to be tested
+        :param instruction: instruction to be tested
+        """
+        return (
+            isinstance(instruction, Assignment)
+            and isinstance(instruction.destination, Variable)
+            and isinstance(instruction.value, Variable)
+            and instruction.destination.name == aliased_variable.name == instruction.value.name
         )

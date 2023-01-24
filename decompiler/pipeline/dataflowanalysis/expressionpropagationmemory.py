@@ -48,6 +48,7 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
                 self._operation_is_propagated_in_phi(target, definition),
                 self._is_invalid_propagation_into_address_operation(target, definition),
                 self._resulting_instruction_is_too_long(target, definition),
+                self._is_aliased_postponed_for_propagation(target, definition),
                 self._definition_value_could_be_modified_via_memory_access_between_definition_and_target(definition, target),
                 self._pointer_value_used_in_definition_could_be_modified_via_memory_access_between_definition_and_target(
                     definition, target
@@ -78,3 +79,22 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
         if variable not in instruction.requirements:
             self._use_map.remove_use(variable, instruction)
             self._use_map.add(instruction)
+
+    def _propagate_postponed_aliased_definitions(self):
+        """
+        We postpone propagation of some aliased variable definitions into their usages because of difference
+        between our and binja memory model. Since we insert helper definitions of aliased variables and those are not
+        always relations but also normal assignments, we still are not allowed to propagate such assignments deliberately
+        because we are loosing connection between different versions of aliased variable. However, if after all other propagations
+        are ready, and we have only a chain of aliased var assignments, we can propagate withing this chains.
+
+        The function checks the collected variables that have such inserted definitions uses (aliased set contains such variables)
+        If there is only one such uses (len(uses) == 1) then we allow propagation since it will make the chain shorter.
+        O.w. we do not propagate, since propagation into redefinition will break the connection with the other use of that variable.
+        """
+        for var in self._aliased:
+            uses = self._use_map.get(var)
+            definition = self._def_map.get(var)
+            if len(uses) == 1:
+                instruction = uses.pop()
+                instruction.substitute(var, definition.value.copy())
