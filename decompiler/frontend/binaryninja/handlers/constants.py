@@ -1,4 +1,5 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
+import logging
 from typing import List, Optional, Union
 
 from binaryninja import BinaryView
@@ -57,7 +58,11 @@ class ConstantHandler(Handler):
             SymbolType.FunctionSymbol,
             SymbolType.ImportAddressSymbol,
         ):
-            return self._lift_symbol_pointer(bv, address, symbol)
+            retval = self._lift_symbol_pointer(bv, address, symbol)
+            if retval is None:
+                logging.error(f"lifted symbol ptr to None {address=} {symbol=}")
+                raise ValueError("lifted to None")
+            return retval
 
         if (
             not isinstance(pointer, mediumlevelil.MediumLevelILImport)
@@ -68,6 +73,8 @@ class ConstantHandler(Handler):
 
         if (variable := bv.get_data_var_at(address)) is not None:
             return self._lifter.lift(variable, bv=bv, parent_addr=None)
+        raise ValueError("Lift pointer to None")
+        #return Constant(address, Pointer(Integer(pointer.size * 8))) # TODO maybe?
 
     def _lift_symbol_pointer(self, bv: BinaryView, address: int, symbol: bSymbol) -> Optional[Union[Symbol, UnaryOperation]]:
         """Try to lift a pointer at the given address with a Symbol as a symbol pointer."""
