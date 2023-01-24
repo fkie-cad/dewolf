@@ -92,7 +92,7 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
         If there is only one such uses (len(uses) == 1) then we allow propagation since it will make the chain shorter.
         O.w. we do not propagate, since propagation into redefinition will break the connection with the other use of that variable.
         """
-        for var in self._aliased:
+        for var in self._postponed_aliased:
             uses = self._use_map.get(var)
             definition = self._def_map.get(var)
             if len(uses) == 1:

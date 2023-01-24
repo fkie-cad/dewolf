@@ -37,7 +37,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         self._pointers_info: Optional[Pointers] = None
         self._blocks_map: Optional[DefaultDict[str, Set]] = None
         self._cfg: Optional[ControlFlowGraph] = None
-        self._aliased: Set[Variable] = set()
+        self._postponed_aliased: Set[Variable] = set()
 
     def run(self, task: DecompilerTask):
         """Execute the expression propagation on the current ControlFlowGraph."""
@@ -151,12 +151,9 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         met, because propagating them if more than one use may lead to invalid code since the value of the other uses
         may be affected, todo better description
         """
-        defined_var = definition.destination
-        if not isinstance(defined_var, Variable):
-            return False
-        if (aliased:=defined_var).name in self._pointers_info.is_pointed_by:
+        if self._is_aliased_variable(aliased:=definition.destination):
             if self._is_aliased_redefinition(aliased, target):
-                self._aliased.add(aliased)
+                self._postponed_aliased.add(aliased)
                 return True
         return False
 
@@ -476,8 +473,8 @@ class ExpressionPropagationBase(PipelineStage, ABC):
             and expression.operand.complexity == 1
         )
 
-    @staticmethod
-    def _is_aliased_redefinition(aliased_variable: Variable, instruction: Instruction):
+
+    def _is_aliased_redefinition(self, aliased_variable: Variable, instruction: Instruction):
         """
         Given aliased variable check if the instruction is re-definition:
         e.g. variable: a#10,  instruction: a#11 = a#10 redefines aliased variable a#10
@@ -486,7 +483,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         """
         return (
             isinstance(instruction, Assignment)
-            and isinstance(instruction.destination, Variable)
-            and isinstance(instruction.value, Variable)
+            and self._is_aliased_variable(instruction.destination)
+            and self._is_aliased_variable(instruction.value)
             and instruction.destination.name == aliased_variable.name == instruction.value.name
         )
