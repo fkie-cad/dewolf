@@ -95,6 +95,10 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
         for var in self._postponed_aliased:
             uses = self._use_map.get(var)
             definition = self._def_map.get(var)
+
             if len(uses) == 1:
                 instruction = uses.pop()
-                instruction.substitute(var, definition.value.copy())
+                if self._is_aliased_postponed_for_propagation(instruction, definition) and self._is_copy_assignment(definition):
+
+                    instruction.substitute(var, definition.value.copy())
+                    print(f"After: {instruction}")
