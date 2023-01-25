@@ -1,7 +1,7 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
-from binaryninja import mediumlevelil, BinaryView, SymbolType
+from binaryninja import mediumlevelil, BinaryView, SymbolType, Type, PointerType, VoidType
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import Constant, Integer, GlobalVariable, Symbol
+from decompiler.structures.pseudo import Constant, Integer, GlobalVariable, OperationType, UnaryOperation
 
 
 class ConstantHandler(Handler):
@@ -29,40 +29,61 @@ class ConstantHandler(Handler):
 
     def lift_constant_pointer(self, pointer: mediumlevelil.MediumLevelILConstPtr, **kwargs) -> Constant:
         """Lift the given constant pointer, e.g. &0x80000.
-
             For clarity all cases:
                 1. NULL (&0x0)
                     - is the definition of NULL in C, therefore a seperate case (otherwise elf/dos header lifting)
-                2. Address has datavariable with non void type (pointer/void pointer are allowed)
-                    - lift via datavariable
-                3. Adress has a datavariable with void type, but a 'Symbol' with type 'DataSymbol'
-                    - lift via datavariable (into char*/void*)
-                4. Adress has a symbol there (not 'DataSymbol' type)
-                    - lift via symbol
-                5. Adress has no symbol and the datavariable has type void
-                    - lift as void* data_addr
+                2. Address has datavariable with a basic type (everything except void/void*)
+                    - lift as datavariable
+                3. Adress has a symbol, which is not a datasymbol
+                    - lift as symbol
+                4. Adress has a function there 
+                    - lift the function symbol as symbol
+                5. Adress has a datasymbol or void/void* datavariable or None there 
+                    - lift as char* if there is a string, otherwise as void* with raw bytes (if the datavariable was a ptr, lift as &ptr*, otherwise as ptr*)
+
+                    - there were symbols which call themself recursivly, therefore a small check before the end
         """
         view = pointer.function.view
-        symbol = view.get_symbol_at(pointer.constant)
-        variable = view.get_data_var_at(pointer.constant)
 
         if pointer.constant == 0:
-            return Constant(0, vartype=Integer.uint64_t() if view.address_size == 8 else Integer.uint32_t())
+            return Constant(pointer.constant, vartype=Integer.uint64_t() if view.address_size == 8 else Integer.uint32_t())
 
-        if variable or (symbol and symbol.type == SymbolType.DataSymbol):
+        if (variable := view.get_data_var_at(pointer.constant)) and not (isinstance(variable.type, PointerType) and isinstance(variable.type.target, VoidType)):
             return self._lifter.lift(variable, view=view, parent=pointer)
 
-        if symbol:
+        if (symbol := view.get_symbol_at(pointer.constant)) and symbol.type != SymbolType.DataSymbol:
             return self._lifter.lift(symbol)
 
-        return GlobalVariable("data_" + f"{variable.address:x}",
-            vartype=self._lifter.lift(view.parse_type_string("void*")[0]),
+        if function := view.get_function_at(pointer.constant):
+            return self._lifter.lift(function.symbol)
+
+        string = (view.get_string_at(variable.value, True) or view.get_ascii_string_at(variable.value, min_length=2)) if variable and variable.value else None
+        ref_value = view.get_data_var_at(variable.value) if variable and variable.value else None
+
+        if ref_value and pointer.constant == ref_value.address: # Recursive ptr to itself (0x4040 := 0x4040), lift symbol if there, else None (raw_bytes)
+            ref_value = view.get_symbol_at(variable.value)
+
+        g_var = GlobalVariable(
+            name=symbol.name[:-2] if symbol and symbol.name.find(".0") != -1 else symbol.name if symbol else \
+                "data_" + f"{pointer.constant:x}", # Purge .0 from symbols 
+            vartype=self._lifter.lift(Type.pointer(view.arch, Type.char())) if string else self._lifter.lift(Type.pointer(view.arch, Type.void())),
             ssa_label=pointer.ssa_memory_version if pointer else 0,
-            initial_value=self._get_raw_bytes(view, variable.address)
-        )
+            initial_value=self._lifter.lift(ref_value, view=view) if ref_value else Constant(string.value) \
+            if string else self._get_raw_bytes(view, pointer.constant)
+        ) 
+        
+        if variable is not None and isinstance(variable.type, PointerType):  
+            return UnaryOperation(
+                OperationType.address,
+                [g_var]
+            )
+        else:
+            return g_var
+
 
     def _get_raw_bytes(self, view: BinaryView, addr: int) -> bytes:
-        """Returns raw bytes after a given address to the next data structure or section"""
-        if next_data_var := view.get_next_data_var_after(addr):
+        """ Returns raw bytes after a given address to the next data structure or section"""
+        if (next_data_var := view.get_next_data_var_after(addr)) is not None:
             return view.read(addr, next_data_var.address - addr)
-        return view.read(addr, view.get_sections_at(addr)[0].end)
+        else:
+            return view.read(addr, view.get_sections_at(addr)[0].end)
