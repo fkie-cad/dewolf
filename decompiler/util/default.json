@@ -180,6 +180,15 @@
       "is_hidden_from_gui": true
     }
   },
+  "array-access-detection": {
+    "enabled": {
+      "default": false,
+      "title": "Array access detection",
+      "type": "boolean",
+      "description": "write array access as base[offset], instead of (*(base+offset))",
+      "is_hidden_from_gui": false
+    }
+  },
   "instruction-length-handler": {
     "max_assignment_complexity": {
       "default": 10,
@@ -460,6 +469,13 @@
       "type": "array",
       "elementType": "string",
       "description": "Order of stage execution",
+      "is_hidden_from_gui": true
+    },
+    "debug": {
+      "default": false,
+      "title": "Debug mode",
+      "type": "boolean",
+      "description": "Crash on error",
       "is_hidden_from_gui": true
     }
   },

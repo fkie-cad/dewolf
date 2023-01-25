@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.ast.ast_nodes import (
@@ -10,6 +10,7 @@ from decompiler.structures.ast.ast_nodes import (
     CaseNode,
     CodeNode,
     ConditionNode,
+    DoWhileLoopNode,
     ForLoopNode,
     LoopNode,
     SeqNode,
@@ -219,6 +220,28 @@ def _requirement_without_reinitialization(ast: AbstractSyntaxTree, node: Abstrac
                 return True
 
 
+def _get_potential_guarded_do_while_loops(ast: AbstractSyntaxTree) -> tuple(Union[DoWhileLoopNode, WhileLoopNode], ConditionNode):
+    for loop_node in list(ast.get_loop_nodes_post_order()):
+        if isinstance(loop_node, DoWhileLoopNode) and isinstance(loop_node.parent.parent, ConditionNode):
+            yield loop_node, loop_node.parent.parent
+
+
+def remove_guarded_do_while(ast: AbstractSyntaxTree):
+    """ Removes a if statement which guards a do-while loop/while loop when:
+            -> there is nothing in between the if-node and the do-while-node/while-node 
+            -> the if-node has only one branch (true branch)
+            -> the condition of the branch is the same as the condition of the do-while-node
+        Replacement is a WhileLoop, otherwise the control flow would not be correct
+    """
+    for do_while_node, condition_node in _get_potential_guarded_do_while_loops(ast):
+        if condition_node.false_branch:
+            continue
+
+        if do_while_node.condition.is_equal_to(condition_node.condition):
+            ast.replace_condition_node_by_single_branch(condition_node)
+            ast.substitute_loop_node(do_while_node, WhileLoopNode(do_while_node.condition, do_while_node.reaching_condition))
+
+
 @dataclass
 class AstInstruction:
     instruction: Assignment
@@ -404,6 +427,8 @@ class ReadabilityBasedRefinement(PipelineStage):
 
     def run(self, task: DecompilerTask):
         task.syntax_tree.clean_up()
+
+        remove_guarded_do_while(task.syntax_tree)
 
         WhileLoopReplacer(task.syntax_tree, task.options).run()
 
