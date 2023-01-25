@@ -7,7 +7,7 @@ BIG_ENDIAN = "big"
 def convert_bytes(bytestring: bytes, vartype: Type, endian: int = 0) -> int:
     """Serialize a bytestring into a number representation if possible"""
     if isinstance(vartype, Pointer):
-        if vartype.type.size == 8:
+        if vartype.type.size == 8 or vartype.type.size == 0:
             # If there are only printable characters, display it properly
             if bytestring.strip(b"\x00").isalnum():
                 return bytestring.strip(b"\x00").decode("utf-8")
