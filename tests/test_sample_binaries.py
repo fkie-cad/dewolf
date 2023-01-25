@@ -37,63 +37,160 @@ def test_var_decls():
     assert output.count("int arg1") == 1
 
 
-def test_global_strings_and_tables():
-    """Test that strings appear when they should and global tables appear as bytes."""
+def test_global_table():
+    """Test that global tables appear as bytes."""
     base_args = ["python", "decompile.py", "tests/samples/bin/systemtests/64/0/globals"]
     args1 = base_args + ["global_table"]
-    args2 = base_args + ["global_string"]
 
-    output1 = str(subprocess.run(args1, check=True, capture_output=True).stdout)
-    output2 = str(subprocess.run(args2, check=True, capture_output=True).stdout)
+    output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
 
     # Make sure the global variable table.xxx is generated
-    assert output1.count("extern void * table") == 1
+    assert output.count("extern void * table") == 1
     # Make sure the contents of this table variable are bytes
-    assert output1.count("\\\\x20\\\\x14\\\\x13\\\\x63\\\\x63") == 1
+    assert output.count("\\\\x20\\\\x14\\\\x13\\\\x63\\\\x63") == 1
     # Make sure that table is referenced by its name, not by address
-    assert output1.count("&table") == 0
-    assert output1.count("table") > 1
-    # Ensure string type is char *
-    assert output2.count("extern char * hello_string") == 1
-    # Make sure the global string contains the string hello world.
-    assert output2.count('"Hello World"') == 1
-    # Ensure that string is referenced correctly
-    # TODO use this line instead of last assertion when expression propagation is adapted for global variables
-    # assert output2.count("puts(/* str */ hello_string") == 1
-
-    # Assert that the output looks like this:
-    # ==============================================
-    # extern char * hello_string = "Hello World";
-    #
-    # long global_string()
-    # {
-    #     char * var_1;
-    #     var_1 = hello_string;
-    #     return puts( / * str * / var_1);
-    # }
-    # ==============================================
-    # important here that var is the same type as global string
-    # and puts gets the variable as argument and not the *variable
-    # after propagation done, should be simply ...return puts( / * str * / hello_string);...
-    assert re.search(r'char\s*\*\s+var_\d.*\svar_\d\s*=\s*hello_string;', output2)
-    assert re.search(r'return\s+puts\(/\*\s*str\s*\*/\s+var_\d\)', output2)
+    assert output.count("&table") == 0
+    assert output.count("table") > 1
 
 
 def test_global_indirect_ptrs():
     """Test that indirect pointers in globals are dereferenced correctly."""
     base_args = ["python", "decompile.py", "tests/samples/bin/systemtests/64/0/globals"]
     args1 = base_args + ["global_indirect_ptrs"]
-    output1 = str(subprocess.run(args1, check=True, capture_output=True).stdout)
+    output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
 
-    assert output1.count("g_3_data = ") == 1
-    assert output1.count("g_2 = &(g_3_data)") == 1
+    assert output.count("g_3_data = ") == 1
+    assert output.count("g_2_data = &(g_3_data)") == 1
+
+
+def test_global_addr():
+    """Test that global variables are lifted correctly + address operator working"""
+    base_args = ["python", "decompile.py", "tests/samples/bin/systemtests/64/0/globals"]
+    args1 = base_args + ["global_addr_add"]
+
+    output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
+
+    # Assert global variables correct
+    assert output.count("a_bss = 0x0") == 1
+    assert output.count("b_bss = 0x0") == 1
+    # Asssert call correct; function signatur: int _add(int*, int*)
+    assert output.count("_add(&a_bss, &b_bss") == 1
+
+
+def test_global_ptr():
+    """Test that global pointers are lifted correctly."""
+    base_args = ["python", "decompile.py", "tests/samples/bin/systemtests/64/0/globals"]
+    args1 = base_args + ["global_ptr_add"]
+
+    output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
+
+    # Assert global pointer correct
+    assert output.count("c_bss = 0x0") == 1
+    assert output.count("d_bss = 0x0") == 1
+    # Assert call correct 
+    len(re.findall("var_[0-9]+= d_bss", output)) == 1
+    len(re.findall("var_[0-9]+= c_bss", output)) == 1
+    len(re.findall("_add(var_[0-9]+, var_[0-9]+)", output)) == 1
+
+
+def test_global_ptr_addr():
+    """Test that global pointer and variables are lifted correctly."""
+    base_args = ["python", "decompile.py", "tests/samples/bin/systemtests/64/0/globals"]
+    args1 = base_args + ["global_addr_ptr_add"]
+
+    output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
+
+    # Assert global pointer correct
+    assert output.count("e_data = 0x17") == 1
+    assert output.count("f_data = 0x42") == 1
+    assert output.count("h_bss = 0x0") == 1
+    assert output.count("void * g_data = &(e_data)") == 1
+    # Assert call correct
+    len(re.findall("h_bss = &f_data", output)) == 1
+    len(re.findall("var_[0-9]+= h_bss", output)) == 1
+    len(re.findall("var_[0-9]+= g_data", output)) == 1
+    len(re.findall("_add(var_[0-9]+, var_[0-9]+)", output)) == 1
+
+
+def test_global_struct():
+    """Test that global structs are lifted correctly."""
+    base_args = ["python", "decompile.py", "tests/samples/bin/systemtests/64/0/globals"]
+    args1 = base_args + ["global_add_struct"]
+
+    output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
+
+    # Assert global pointer correct
+    assert output.count("void * i_bss") == 1
+    # Assert call correct
+    len(re.findall("add_struct(i_bss)", output)) == 1
+
+
+def test_global_strings():
+    """Test that global strings are lifted correctly."""
+    base_args = ["python", "decompile.py", "tests/samples/bin/systemtests/64/0/globals"]
+    args1 = base_args + ["global_strings"]
+
+    output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
+
+    # Assert global pointer correct
+    assert output.count('char * j_data = "Hello Decompiler!"') == 1
+    assert output.count('char * k_data = "Hello Void*!"') == 1
+    # Assert call correct
+    assert output.count("Hello World!") == 1
+    len(re.findall("puts(/* str */ var_[0-9]+", output)) == 2
+
+
+def test_global_fkt_ptr():
+    """Test that global function pointers are lifted correctly."""
+    base_args = ["python", "decompile.py", "tests/samples/bin/systemtests/64/0/globals"]
+    args1 = base_args + ["global_fkt_ptr"]
+
+    output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
+
+    # Assert global variables correct
+    assert output.count("a_bss = 0x0") == 1
+    assert output.count("b_bss = 0x0") == 1
+    assert output.count("l_bss = 0x0") == 1
+    # Assert call correct
+    len(re.findall("var_[0-9]+(&a_bss, &b_bss, &a_bss)", output)) == 1
+
+
+def test_global_indirect_ptr2():
+    """Test that global indirect pointers are lifted correctly."""
+    base_args = ["python", "decompile.py", "tests/samples/bin/systemtests/64/0/globals"]
+    args1 = base_args + ["global_indirect_ptrs2"]
+
+    output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
+
+    # Assert global variables correct
+    assert output.count("p_data = 0xffffffbe") == 2
+    assert output.count("o_data = &(p_data)") == 1
+    assert output.count("n_data = &(o_data)") == 1
+    assert output.count("m_data = &(n_data)") == 1
+    # Assert call correct
+    len(re.findall("var_[0-9]+ = m_data", output)) == 1
+    len(re.findall("_add(\*\*var_[0-9]+, &p_data)", output)) == 1
+
+
+def test_global_recursive_ptr():
+    """Test that global recursiv pointers are lifted correctly."""
+    base_args = ["python", "decompile.py", "tests/samples/bin/systemtests/64/0/globals"]
+    args1 = base_args + ["global_recursive_ptr"]
+
+    output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
+
+    # Assert global variables correct
+    assert output.count("void * q_data = q") == 1
+    # Assert call correct
+    len(re.findall("var_[0-9]+ = q_data", output)) == 2
+    len(re.findall("_add(var_[0-9]+, var_[0-9]+)", output)) == 1
 
 
 def test_global_import_address_symbol():
     """Test that ImportAddressSymbols from Binja gets displayed correctly."""
     base_args = ["python", "decompile.py", "tests/samples/others/app1.so"]
     args1 = base_args + ["test_case"]
-    output1 = str(subprocess.run(args1, check=True, capture_output=True).stdout)
+    output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
 
     # TODO add tests for " = &g_x" after solving issue with deleting stack strings/arrays
     # since for the moment we delete all variables storing stack string components,
@@ -102,22 +199,22 @@ def test_global_import_address_symbol():
     # test occurences of global variables in decompiled code
     # first occurence in declaration
     # second when they are assigned some value
-    assert output1.count("g_22_got = ") == 2
-    assert output1.count("g_26_got = ") == 2
-    assert output1.count("g_29_got = ") == 2
-    assert output1.count("g_30_got = ") == 2
-    assert output1.count("g_32_got = ") == 2
-    assert output1.count("g_35_got = ") == 2
-    assert output1.count("g_38_got = ") == 2
+    assert output.count("g_22_got = ") == 2
+    assert output.count("g_26_got = ") == 2
+    assert output.count("g_29_got = ") == 2
+    assert output.count("g_30_got = ") == 2
+    assert output.count("g_32_got = ") == 2
+    assert output.count("g_35_got = ") == 2
+    assert output.count("g_38_got = ") == 2
 
     # test types and initial values (dec or hex) are correct in declarations
-    assert re.search(r'unsigned short\s*g_22_data\s*=\s*54249', output1) or re.search(r'unsigned short\s*g_22_data\s*=\s*0xd3e9', output1)
-    assert re.search(r'unsigned char\s*g_26_data\s*=\s*157', output1) or re.search(r'unsigned char\s*g_26_data\s*=\s*0x9d', output1)
-    assert re.search(r'unsigned int\s*g_29_data\s*=\s*65537', output1) or re.search(r'unsigned int\s*g_29_data\s*=\s*0x10001', output1)
-    assert re.search(r'unsigned char\s*g_30_data\s*=\s*236', output1) or re.search(r'unsigned char\s*g_30_data\s*=\s*0xec', output1)
-    assert re.search(r'unsigned int\s*g_32_data\s*=\s*1578356047', output1) or re.search(r'unsigned int\s*g_32_data\s*=\s*0x5e13cd4f', output1)
-    assert re.search(r'unsigned char\s*g_35_data\s*=\s*255', output1) or re.search(r'unsigned char\s*g_35_data\s*=\s*0xff', output1)
-    assert re.search(r'unsigned int\s*g_38_data\s*=\s*130747369', output1) or re.search(r'unsigned int\s*g_38_data\s*=\s*0x7cb0be9', output1)
+    assert re.search(r'unsigned short\s*g_22_data\s*=\s*54249', output) or re.search(r'unsigned short\s*g_22_data\s*=\s*0xd3e9', output)
+    assert re.search(r'unsigned char\s*g_26_data\s*=\s*157', output) or re.search(r'unsigned char\s*g_26_data\s*=\s*0x9d', output)
+    assert re.search(r'unsigned int\s*g_29_data\s*=\s*65537', output) or re.search(r'unsigned int\s*g_29_data\s*=\s*0x10001', output)
+    assert re.search(r'unsigned char\s*g_30_data\s*=\s*236', output) or re.search(r'unsigned char\s*g_30_data\s*=\s*0xec', output)
+    assert re.search(r'unsigned int\s*g_32_data\s*=\s*1578356047', output) or re.search(r'unsigned int\s*g_32_data\s*=\s*0x5e13cd4f', output)
+    assert re.search(r'unsigned char\s*g_35_data\s*=\s*255', output) or re.search(r'unsigned char\s*g_35_data\s*=\s*0xff', output)
+    assert re.search(r'unsigned int\s*g_38_data\s*=\s*130747369', output) or re.search(r'unsigned int\s*g_38_data\s*=\s*0x7cb0be9', output)
 
 
 def test_tailcall_display():

@@ -64,8 +64,9 @@ class ConstantHandler(Handler):
             ref_value = view.get_symbol_at(variable.value)
 
         g_var = GlobalVariable(
-            name=symbol.name[:-2] if symbol and symbol.name.find(".0") != -1 else symbol.name if symbol else \
-                "data_" + f"{pointer.constant:x}", # Purge .0 from symbols 
+            name=symbol.name[:-2] + "_" + view.get_sections_at(variable.address)[0].name[1:] if symbol and symbol.name.find(".0") != -1 \
+                else symbol.name + "_" + view.get_sections_at(variable.address)[0].name[1:] if symbol else \
+                "data_" + f"{pointer.constant:x}",
             vartype=self._lifter.lift(Type.pointer(view.arch, Type.char())) if string else self._lifter.lift(Type.pointer(view.arch, Type.void())),
             ssa_label=pointer.ssa_memory_version if pointer else 0,
             initial_value=self._lifter.lift(ref_value, view=view) if ref_value else Constant(string.value) \
