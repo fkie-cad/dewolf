@@ -99,6 +99,4 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
             if len(uses) == 1:
                 instruction = uses.pop()
                 if self._is_aliased_postponed_for_propagation(instruction, definition) and self._is_copy_assignment(definition):
-
                     instruction.substitute(var, definition.value.copy())
-                    print(f"After: {instruction}")
