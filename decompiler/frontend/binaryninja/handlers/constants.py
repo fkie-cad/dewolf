@@ -48,8 +48,10 @@ class ConstantHandler(Handler):
         if pointer.constant == 0:
             return Constant(pointer.constant, vartype=Integer.uint64_t() if view.address_size == 8 else Integer.uint32_t())
 
+
         if (variable := view.get_data_var_at(pointer.constant)) and not (isinstance(variable.type, PointerType) and isinstance(variable.type.target, VoidType)):
             return self._lifter.lift(variable, view=view, parent=pointer)
+
 
         if (symbol := view.get_symbol_at(pointer.constant)) and symbol.type != SymbolType.DataSymbol:
             return self._lifter.lift(symbol)
@@ -57,8 +59,10 @@ class ConstantHandler(Handler):
         if function := view.get_function_at(pointer.constant):
             return self._lifter.lift(function.symbol)
 
+
         string = (view.get_string_at(variable.value, True) or view.get_ascii_string_at(variable.value, min_length=2)) if variable and variable.value else None
         ref_value = view.get_data_var_at(variable.value) if variable and variable.value else None
+
 
         if ref_value and pointer.constant == ref_value.address: # Recursive ptr to itself (0x4040 := 0x4040), lift symbol if there, else None (raw_bytes) 
             ref_value = view.get_symbol_at(variable.value)
