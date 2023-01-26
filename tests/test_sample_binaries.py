@@ -59,8 +59,8 @@ def test_global_indirect_ptrs():
     args1 = base_args + ["global_indirect_ptrs"]
     output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
 
-    assert output.count("g_3_data = ") == 1
-    assert output.count("g_2_data = &(g_3_data)") == 1
+    assert output.count("g_3 = ") == 1
+    assert output.count("g_2 = &(g_3)") == 1
 
 
 def test_global_addr():
@@ -71,10 +71,10 @@ def test_global_addr():
     output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
 
     # Assert global variables correct
-    assert output.count("a_bss = 0x0") == 1
-    assert output.count("b_bss = 0x0") == 1
+    assert output.count("a = 0x0") == 1
+    assert output.count("b = 0x0") == 1
     # Asssert call correct; function signatur: int _add(int*, int*)
-    assert output.count("_add(&a_bss, &b_bss") == 1
+    assert output.count("_add(&a, &b") == 1
 
 
 def test_global_ptr():
@@ -85,11 +85,11 @@ def test_global_ptr():
     output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
 
     # Assert global pointer correct
-    assert output.count("c_bss = 0x0") == 1
-    assert output.count("d_bss = 0x0") == 1
+    assert output.count("c = 0x0") == 1
+    assert output.count("d = 0x0") == 1
     # Assert call correct 
-    len(re.findall("var_[0-9]+= d_bss", output)) == 1
-    len(re.findall("var_[0-9]+= c_bss", output)) == 1
+    len(re.findall("var_[0-9]+= d", output)) == 1
+    len(re.findall("var_[0-9]+= c", output)) == 1
     len(re.findall("_add(var_[0-9]+, var_[0-9]+)", output)) == 1
 
 
@@ -101,14 +101,14 @@ def test_global_ptr_addr():
     output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
 
     # Assert global pointer correct
-    assert output.count("e_data = 0x17") == 1
-    assert output.count("f_data = 0x42") == 1
-    assert output.count("h_bss = 0x0") == 1
-    assert output.count("void * g_data = &(e_data)") == 1
+    assert output.count("e = 0x17") == 1
+    assert output.count("f = 0x42") == 1
+    assert output.count("h = 0x0") == 1
+    assert output.count("void * g = &(e)") == 1
     # Assert call correct
-    len(re.findall("h_bss = &f_data", output)) == 1
-    len(re.findall("var_[0-9]+= h_bss", output)) == 1
-    len(re.findall("var_[0-9]+= g_data", output)) == 1
+    len(re.findall("h = &f", output)) == 1
+    len(re.findall("var_[0-9]+= h", output)) == 1
+    len(re.findall("var_[0-9]+= g", output)) == 1
     len(re.findall("_add(var_[0-9]+, var_[0-9]+)", output)) == 1
 
 
@@ -120,9 +120,9 @@ def test_global_struct():
     output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
 
     # Assert global pointer correct
-    assert output.count("void * i_bss") == 1
+    assert output.count("void * i") == 1
     # Assert call correct
-    len(re.findall("add_struct(i_bss)", output)) == 1
+    len(re.findall("add_struct(i)", output)) == 1
 
 
 def test_global_strings():
@@ -133,8 +133,8 @@ def test_global_strings():
     output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
 
     # Assert global pointer correct
-    assert output.count('char * j_data = "Hello Decompiler!"') == 1
-    assert output.count('char * k_data = "Hello Void*!"') == 1
+    assert output.count('char * j = "Hello Decompiler!"') == 1
+    assert output.count('char * k = "Hello Void*!"') == 1
     # Assert call correct
     assert output.count("Hello World!") == 1
     len(re.findall("puts(/* str */ var_[0-9]+", output)) == 2
@@ -148,11 +148,11 @@ def test_global_fkt_ptr():
     output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
 
     # Assert global variables correct
-    assert output.count("a_bss = 0x0") == 1
-    assert output.count("b_bss = 0x0") == 1
-    assert output.count("l_bss = 0x0") == 1
+    assert output.count("a = 0x0") == 1
+    assert output.count("b = 0x0") == 1
+    assert output.count("l = 0x0") == 1
     # Assert call correct
-    len(re.findall("var_[0-9]+(&a_bss, &b_bss, &a_bss)", output)) == 1
+    len(re.findall("var_[0-9]+(&a, &b, &a)", output)) == 1
 
 
 def test_global_indirect_ptr2():
@@ -163,13 +163,13 @@ def test_global_indirect_ptr2():
     output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
 
     # Assert global variables correct
-    assert output.count("p_data = 0xffffffbe") == 2
-    assert output.count("o_data = &(p_data)") == 1
-    assert output.count("n_data = &(o_data)") == 1
-    assert output.count("m_data = &(n_data)") == 1
+    assert output.count("p = 0xffffffbe") == 2
+    assert output.count("o = &(p)") == 1
+    assert output.count("n = &(o)") == 1
+    assert output.count("m = &(n)") == 1
     # Assert call correct
-    len(re.findall("var_[0-9]+ = m_data", output)) == 1
-    len(re.findall("_add(\*\*var_[0-9]+, &p_data)", output)) == 1
+    len(re.findall("var_[0-9]+ = m", output)) == 1
+    len(re.findall("_add(\*\*var_[0-9]+, &p)", output)) == 1
 
 
 def test_global_recursive_ptr():
@@ -180,9 +180,9 @@ def test_global_recursive_ptr():
     output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
 
     # Assert global variables correct
-    assert output.count("void * q_data = q") == 1
+    assert output.count("void * q = q") == 1
     # Assert call correct
-    len(re.findall("var_[0-9]+ = q_data", output)) == 2
+    len(re.findall("var_[0-9]+ = q", output)) == 2
     len(re.findall("_add(var_[0-9]+, var_[0-9]+)", output)) == 1
 
 
@@ -199,22 +199,22 @@ def test_global_import_address_symbol():
     # test occurences of global variables in decompiled code
     # first occurence in declaration
     # second when they are assigned some value
-    assert output.count("g_22_got = ") == 2
-    assert output.count("g_26_got = ") == 2
-    assert output.count("g_29_got = ") == 2
-    assert output.count("g_30_got = ") == 2
-    assert output.count("g_32_got = ") == 2
-    assert output.count("g_35_got = ") == 2
-    assert output.count("g_38_got = ") == 2
+    assert output.count("g_22 = ") == 2
+    assert output.count("g_26 = ") == 2
+    assert output.count("g_29 = ") == 2
+    assert output.count("g_30 = ") == 2
+    assert output.count("g_32 = ") == 2
+    assert output.count("g_35 = ") == 2
+    assert output.count("g_38 = ") == 2
 
     # test types and initial values (dec or hex) are correct in declarations
-    assert re.search(r'unsigned short\s*g_22_data\s*=\s*54249', output) or re.search(r'unsigned short\s*g_22_data\s*=\s*0xd3e9', output)
-    assert re.search(r'unsigned char\s*g_26_data\s*=\s*157', output) or re.search(r'unsigned char\s*g_26_data\s*=\s*0x9d', output)
-    assert re.search(r'unsigned int\s*g_29_data\s*=\s*65537', output) or re.search(r'unsigned int\s*g_29_data\s*=\s*0x10001', output)
-    assert re.search(r'unsigned char\s*g_30_data\s*=\s*236', output) or re.search(r'unsigned char\s*g_30_data\s*=\s*0xec', output)
-    assert re.search(r'unsigned int\s*g_32_data\s*=\s*1578356047', output) or re.search(r'unsigned int\s*g_32_data\s*=\s*0x5e13cd4f', output)
-    assert re.search(r'unsigned char\s*g_35_data\s*=\s*255', output) or re.search(r'unsigned char\s*g_35_data\s*=\s*0xff', output)
-    assert re.search(r'unsigned int\s*g_38_data\s*=\s*130747369', output) or re.search(r'unsigned int\s*g_38_data\s*=\s*0x7cb0be9', output)
+    assert re.search(r'unsigned short\s*g_22\s*=\s*54249', output) or re.search(r'unsigned short\s*g_22\s*=\s*0xd3e9', output)
+    assert re.search(r'unsigned char\s*g_26\s*=\s*157', output) or re.search(r'unsigned char\s*g_26\s*=\s*0x9d', output)
+    assert re.search(r'unsigned int\s*g_29\s*=\s*65537', output) or re.search(r'unsigned int\s*g_29\s*=\s*0x10001', output)
+    assert re.search(r'unsigned char\s*g_30\s*=\s*236', output) or re.search(r'unsigned char\s*g_30\s*=\s*0xec', output)
+    assert re.search(r'unsigned int\s*g_32\s*=\s*1578356047', output) or re.search(r'unsigned int\s*g_32\s*=\s*0x5e13cd4f', output)
+    assert re.search(r'unsigned char\s*g_35\s*=\s*255', output) or re.search(r'unsigned char\s*g_35\s*=\s*0xff', output)
+    assert re.search(r'unsigned int\s*g_38\s*=\s*130747369', output) or re.search(r'unsigned int\s*g_38\s*=\s*0x7cb0be9', output)
 
 
 def test_tailcall_display():

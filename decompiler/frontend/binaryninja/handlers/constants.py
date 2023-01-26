@@ -31,17 +31,17 @@ class ConstantHandler(Handler):
         """Lift the given constant pointer, e.g. &0x80000.
             For clarity all cases:
                 1. NULL (&0x0)
-                    - is the definition of NULL in C, therefore a seperate case (otherwise elf/dos header lifting)
+                    - is the definition of NULL in C, therefore a separate case (otherwise elf/dos header lifting)
                 2. Address has datavariable with a basic type (everything except void/void*)
                     - lift as datavariable
-                3. Adress has a symbol, which is not a datasymbol
+                3. Address has a symbol, which is not a datasymbol
                     - lift as symbol
-                4. Adress has a function there 
+                4. Address has a function there 
                     - lift the function symbol as symbol
-                5. Adress has a datasymbol or void/void* datavariable or None there 
+                5. Address has a datasymbol or void/void* datavariable or None there 
                     - lift as char* if there is a string, otherwise as void* with raw bytes (if the datavariable was a ptr, lift as &ptr*, otherwise as ptr*)
 
-                    - there were symbols which call themself recursivly, therefore a small check before the end
+                    - there were symbols which call them self recursively, therefore a small check before the end
         """
         view = pointer.function.view
 
@@ -60,16 +60,15 @@ class ConstantHandler(Handler):
         string = (view.get_string_at(variable.value, True) or view.get_ascii_string_at(variable.value, min_length=2)) if variable and variable.value else None
         ref_value = view.get_data_var_at(variable.value) if variable and variable.value else None
 
-        if ref_value and pointer.constant == ref_value.address: # Recursive ptr to itself (0x4040 := 0x4040), lift symbol if there, else None (raw_bytes)
+        if ref_value and pointer.constant == ref_value.address: # Recursive ptr to itself (0x4040 := 0x4040), lift symbol if there, else None (raw_bytes) 
             ref_value = view.get_symbol_at(variable.value)
 
         g_var = GlobalVariable(
             name=symbol.name[:-2] + "_" + view.get_sections_at(variable.address)[0].name[1:] if symbol and symbol.name.find(".0") != -1 \
-                else symbol.name + "_" + view.get_sections_at(variable.address)[0].name[1:] if symbol else \
-                "data_" + f"{pointer.constant:x}",
+                else symbol.name if symbol else "data_" + f"{pointer.constant:x}",
             vartype=self._lifter.lift(Type.pointer(view.arch, Type.char())) if string else self._lifter.lift(Type.pointer(view.arch, Type.void())),
             ssa_label=pointer.ssa_memory_version if pointer else 0,
-            initial_value=self._lifter.lift(ref_value, view=view) if ref_value else Constant(string.value) \
+            initial_value=self._lifter.lift(ref_value, view=view, parent=pointer) if ref_value else Constant(string.value) \
             if string else self._get_raw_bytes(view, pointer.constant)
         ) 
         

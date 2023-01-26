@@ -19,7 +19,7 @@ class GlobalHandler(Handler):
     def lift_global_variable(self, variable: DataVariable, view: BinaryView, 
         parent: Optional[MediumLevelILInstruction] = None, **kwargs
     ) -> Union[ImportedFunctionSymbol, Constant, UnaryOperation]:
-        """Lift global variables with basic types (pointer are possible, but not void pointer)"""
+        """Lift global variables with basic types (pointer are possible)"""
         if not variable.name:
             return Constant(
                 value=variable.value.decode("utf-8") if isinstance(variable.value, bytes) else variable.value, 
@@ -32,7 +32,7 @@ class GlobalHandler(Handler):
             OperationType.address,
                 [
                     GlobalVariable(
-                    variable.name + "_" + view.get_sections_at(variable.address)[0].name[1:],
+                    variable.name,
                     self._lifter.lift(variable.type),
                     ssa_label=parent.ssa_memory_version if parent else 0,
                     initial_value=self._lifter.lift(view.get_data_var_at(variable.value), view=view) if isinstance(variable.type, PointerType) \
