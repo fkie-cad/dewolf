@@ -1,7 +1,7 @@
 from decompiler.pipeline.preprocessing import RemoveStackCanary
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
 from decompiler.structures.pseudo.expressions import Constant, ImportedFunctionSymbol, Variable
-from decompiler.structures.pseudo.instructions import Branch, Return, Assignment
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Return
 from decompiler.structures.pseudo.operations import Call, Condition, OperationType
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
