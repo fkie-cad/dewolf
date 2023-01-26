@@ -289,6 +289,13 @@ class ArrayInfo:
     index: Union[int, Variable] = -1
     confidence: bool = False
 
+    def substitute(self, replacee: Variable, replacement: Variable):
+        """Replace Variable used in array access"""
+        if self.base == replacee:
+            self.base = replacement
+        if self.index == replacee:
+            self.index = replacement
+
 
 class UnaryOperation(Operation):
     """Represents an expression with a single operand."""
@@ -349,6 +356,8 @@ class UnaryOperation(Operation):
 
     def substitute(self, replacee: Expression, replacement: Expression) -> None:
         """Substitutes operand directly if possible, then recursively substitutes replacee in operands"""
+        if self.array_info is not None and isinstance(replacee, Variable) and isinstance(replacement, Variable):
+            self.array_info.substitute(replacee, replacement)
         super().substitute(replacee, replacement)
 
     def copy(self) -> UnaryOperation:

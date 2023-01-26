@@ -22,6 +22,7 @@ from decompiler.structures.pseudo import (
     OperationType,
     Variable,
 )
+from decompiler.structures.pseudo.operations import ArrayInfo, UnaryOperation
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
@@ -37,6 +38,32 @@ def _generate_options(empty_loops: bool = False, hide_decl: bool = False, rename
     options.set("readability-based-refinement.rename_for_loop_variables", rename_for)
     options.set("readability-based-refinement.rename_while_loop_variables", rename_while)
     return options
+
+
+@pytest.fixture
+def ast_array_access_for_loop() -> AbstractSyntaxTree:
+    """
+    for (var_0 = 0; var_0 < 10; var_0 = var_0 + 1) {
+        *(var_1 + var_0) = var_0;
+    }
+    """
+    true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(
+        root := SeqNode(true_value),
+        condition_map={logic_cond("x1", context): Condition(OperationType.less, [Variable("var_0"), Constant(10)])},
+    )
+    declaration = Assignment(Variable("var_0"), Constant(0))
+    condition = logic_cond("x1", context)
+    modification = Assignment(Variable("var_0"), BinaryOperation(OperationType.plus, [Variable("var_0"), Constant(1)]))
+    for_loop = ast.factory.create_for_loop_node(declaration, condition, modification)
+    array_info = ArrayInfo(Variable("var_1"), Variable("var_0"))
+    array_access_unary_operation = UnaryOperation(
+        OperationType.dereference, [BinaryOperation(OperationType.plus, [Variable("var_1"), Variable("var_0")])], array_info=array_info
+    )
+    for_loop_body = ast._add_code_node([Assignment(array_access_unary_operation, Variable("var_0"))])
+    ast._add_node(for_loop)
+    ast._add_edges_from([(root, for_loop), (for_loop, for_loop_body)])
+    return ast
 
 
 @pytest.fixture
@@ -1202,6 +1229,26 @@ class TestReadabilityBasedRefinement:
         assert ast_switch_as_loop_body_increment.condition_map == {
             logic_cond("x1", LogicCondition.generate_new_context()): Condition(OperationType.less, [Variable("i"), Constant(5)])
         }
+
+    def test_rename_unary_operation_updates_array_info(self, ast_array_access_for_loop):
+        """Test if UnaryOperation.ArrayInfo gets updated on renaming"""
+        self.run_rbr(ast_array_access_for_loop, _generate_options(rename_for=True))
+
+        def find_unary_op(ast):
+            """look for UnaryOperation in AST"""
+            for node in ast.get_code_nodes_topological_order():
+                for instr in node.instructions:
+                    for unary_op in instr:
+                        if isinstance(unary_op, UnaryOperation):
+                            return unary_op
+            return None
+
+        unary_operation = find_unary_op(ast_array_access_for_loop)
+        if not isinstance(unary_operation, UnaryOperation):
+            assert False, "Did not find UnaryOperation in AST (expect it for array access)"
+        assert unary_operation.array_info is not None
+        assert unary_operation.array_info.base in unary_operation.requirements
+        assert unary_operation.array_info.index in unary_operation.requirements
 
     def test_no_for_loop_renaming(self, ast_replaceable_while):
         self.run_rbr(ast_replaceable_while, _generate_options(rename_for=False))
