@@ -47,7 +47,7 @@ class TypeHandler(Handler):
 
     def lift_custom(self, custom: Type, **kwargs) -> CustomType:
         """Lift custom types such as structs as a custom type."""
-        logging.debug("lifting custom type: %s", custom)
+        logging.debug("[TypeHandler] lifting custom type: %s", custom)
         return CustomType(str(custom), custom.width * self.BYTE_SIZE)
 
     def lift_void(self, _, **kwargs) -> CustomType:
