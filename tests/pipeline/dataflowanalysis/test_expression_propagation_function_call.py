@@ -2,7 +2,7 @@ from typing import List
 
 from decompiler.pipeline.dataflowanalysis import ExpressionPropagationFunctionCall
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
-from decompiler.structures.pseudo.expressions import Constant, Expression, FunctionSymbol, Variable
+from decompiler.structures.pseudo.expressions import Constant, Expression, FunctionSymbol, GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Return
 from decompiler.structures.pseudo.operations import Call, ListOperation, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import Integer
@@ -11,6 +11,7 @@ from decompiler.util.options import Options
 
 int32 = Integer.int32_t()
 int64 = Integer.int64_t()
+global_x = GlobalVariable("global_x")
 x = Variable("x")
 y = Variable("y")
 z = Variable("z")
@@ -38,6 +39,34 @@ def test_function_propagation():
     _run_expression_propagation(cfg)
     node = cfg.nodes[0]
     assert node.instructions == [_assign(return_values, Constant(0x0)), Return([_func("f", [y])])]
+
+
+def test_function_propagation_no_list_op():
+    """
+    Test if we do not crash when LHS is not of type ListOperation, but GlobalVariable.
+    This can happen due to pipeline stages destroying assumption made for the lifter.
+    Note: currently propagation into global variables is prohibited.
+
+    +----------+
+    |    0.    |
+    | x = f(y) | LHS is of type GlobalVariable
+    | return x |
+    +----------+
+
+
+    +----------+
+    |    0.    |
+    | x = f(y) | Nothing is propagated
+    | return x |
+    +----------+
+    """
+    cfg = ControlFlowGraph()
+    return_values = global_x
+    function_call = _func("f", [y])
+    cfg.add_node(BasicBlock(0, [_assign(return_values, function_call), Return([global_x])]))
+    _run_expression_propagation(cfg)
+    node = cfg.nodes[0]
+    assert node.instructions == [_assign(return_values, function_call), Return([global_x])]
 
 
 def test_no_propagation_on_mult_return():
