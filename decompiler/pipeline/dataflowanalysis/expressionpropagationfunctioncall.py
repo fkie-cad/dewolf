@@ -60,7 +60,7 @@ class ExpressionPropagationFunctionCall(ExpressionPropagationBase):
         True on exactly one use.
         False otherwise, or Call has more than one return value.
         """
-        if len(return_values := definition.destination.operands) == 1:
+        if len(return_values := definition.destination.requirements) == 1:
             return len(self._use_map.get(return_values[0])) == 1
         return False
 
