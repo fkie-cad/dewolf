@@ -580,12 +580,12 @@ class TestExpression:
                                 d := Variable("d", vartype=Pointer(int32), ssa_name=(d0 := Variable("d", ssa_label=0))),
                                 BinaryOperation(
                                     OperationType.multiply,
-                                    [Variable("i", int32, ssa_name=(var0 := Variable("var", ssa_label=0))), Constant(4)],
+                                    [i := Variable("i", int32, ssa_name=(var0 := Variable("var", ssa_label=0))), Constant(4)],
                                 ),
                             ],
                         )
                     ],
-                    array_info=ArrayInfo(d0, var0, True),
+                    array_info=ArrayInfo(d, i, True),
                 ),
                 "d[i]",
             ),
@@ -596,15 +596,15 @@ class TestExpression:
                         BinaryOperation(
                             OperationType.plus,
                             [
-                                Variable("d", vartype=Pointer(int32), ssa_name=(d0 := Variable("d", ssa_label=0))),
+                                d := Variable("d", vartype=Pointer(int32), ssa_name=(d0 := Variable("d", ssa_label=0))),
                                 BinaryOperation(
                                     OperationType.multiply,
-                                    [Variable("i", int32, ssa_name=(var0 := Variable("var", ssa_label=0))), Constant(4)],
+                                    [i := Variable("i", int32, ssa_name=(var0 := Variable("var", ssa_label=0))), Constant(4)],
                                 ),
                             ],
                         )
                     ],
-                    array_info=ArrayInfo(d0, var0, False),
+                    array_info=ArrayInfo(d, i, False),
                 ),
                 "*(d + i * 0x4)/*d[i]*/",
             ),
@@ -639,15 +639,15 @@ class TestExpression:
                         BinaryOperation(
                             OperationType.plus,
                             [
-                                Variable("d", vartype=Pointer(int32), ssa_name=(d0 := Variable("d", ssa_label=0))),
+                                d := Variable("d", vartype=Pointer(int32), ssa_name=(d0 := Variable("d", ssa_label=0))),
                                 BinaryOperation(
                                     OperationType.multiply,
-                                    [Variable("i", int32, ssa_name=(var0 := Variable("var", ssa_label=0))), Constant(4)],
+                                    [i := Variable("i", int32, ssa_name=(var0 := Variable("var", ssa_label=0))), Constant(4)],
                                 ),
                             ],
                         )
                     ],
-                    array_info=ArrayInfo(d0, var0, False),
+                    array_info=ArrayInfo(d, i, False),
                 ),
                 "d[i]",
             ),
