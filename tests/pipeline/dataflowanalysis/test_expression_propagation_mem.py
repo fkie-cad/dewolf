@@ -22,6 +22,95 @@ from decompiler.util.options import Options
 int32 = Integer.int32_t()
 int64 = Integer.int64_t()
 
+def test_address_propagation_does_not_break_relations_between_aliased_versions():
+    """
+        +------------------+
+        |        0.        |
+        |    x#0 = 0x0     |
+        |    y#0 = 0x0     | <--- DO NOT propagate
+        | ptr_x#1 = &(x#0) | <--- can propagate
+        | ptr_y#1 = &(y#0) | <--- can propagate
+        |  func(ptr_x#1)   |
+        |    y#1 = y#0     | <--- propagation will cause connection loss between lhs and rhs variable
+        |    x#1 -> x#0    |
+        |  func(ptr_y#1)   |
+        |    y#2 -> y#1    |
+        |    x#2 = x#1     |
+        |    x#3 = x#2     | <--- can propagate, cause x#2 is not used anywhere else
+        |    y#3 = y#2     |
+        | return x#3 + y#3 |
+        +------------------+
+
+        After:
+        +------------------+
+        |        0.        |
+        |    x#0 = 0x0     |
+        |    y#0 = 0x0     |
+        | ptr_x#1 = &(x#0) |
+        | ptr_y#1 = &(y#0) |
+        |   func(&(x#0))   |
+        |    y#1 = y#0     |
+        |    x#1 -> x#0    |
+        |   func(&(y#0))   |
+        |    y#2 -> y#1    |
+        |    x#2 = x#1     |
+        |    x#3 = x#1     |
+        |    y#3 = y#2     |
+        | return x#1 + y#2 |
+        +------------------+
+    """
+    input_cfg, output_cfg = graphs_with_address_propagation_does_not_break_relations_between_aliased_versions()
+    _run_expression_propagation(input_cfg)
+    assert _graphs_equal(input_cfg, output_cfg)
+
+
+def graphs_with_address_propagation_does_not_break_relations_between_aliased_versions():
+    x = vars("x", 5, aliased=True)
+    y = vars("y", 5, aliased=True)
+    ptr_x = vars("ptr_x", 2, type=Pointer(int32))
+    ptr_y = vars("ptr_y", 2, type=Pointer(int32))
+    c = const(5)
+
+    in_n0 = BasicBlock(
+        0,
+        [_assign(x[0], c[0]),
+         _assign(y[0], c[0]),
+         _assign(ptr_x[1], _addr(x[0])),
+         _assign(ptr_y[1], _addr(y[0])),
+         _call("func", [], [ptr_x[1]]),
+         _assign(y[1], y[0]),
+         Relation(x[1], x[0]),
+         _call("func", [], [ptr_y[1]]),
+         Relation(y[2], y[1]),
+         _assign(x[2], x[1]),
+         _assign(x[3], x[2]),
+         _assign(y[3], y[2]),
+         _ret(_add(x[3], y[3])),
+         ]
+    )
+    in_cfg = ControlFlowGraph()
+    in_cfg.add_node(in_n0)
+    out_cfg = ControlFlowGraph()
+    out_cfg.add_node(
+        BasicBlock(
+            0,
+            [_assign(x[0], c[0]),
+             _assign(y[0], c[0]),
+             _assign(ptr_x[1], _addr(x[0])),
+             _assign(ptr_y[1], _addr(y[0])),
+             _call("func", [], [_addr(x[0])]),
+             _assign(y[1], y[0]),
+             Relation(x[1], x[0]),
+             _call("func", [], [_addr(y[0])]),
+             Relation(y[2], y[1]),
+             _assign(x[2], x[1]),
+             _assign(x[3], x[1]),
+             _assign(y[3], y[2]),
+             _ret(_add(x[1], y[2])),
+             ],
+        )
+    )
+    return in_cfg, out_cfg
 
 def test_assignments_with_dereference_subexpressions_on_rhs_are_propagated_when_no_modification_between_def_and_use():
     """

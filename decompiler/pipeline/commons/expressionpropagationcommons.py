@@ -47,6 +47,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         while self.perform(task.graph, iteration):
             iteration += 1
         logging.info(f"{self.name} took {iteration} iterations")
+        print(f"{self.name} took {iteration} iterations")
 
     def perform(self, graph, iteration) -> bool:
         """expression propagation forward pass:
@@ -57,8 +58,10 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         # cfg and defmap are updated automatically when substituting variables in instructions
         # block map is updated after substitution in EPM, in EP does nothing
         """
+        from decompiler.util.decoration import DecoratedCFG
         is_changed = False
         self._cfg = graph
+        print(DecoratedCFG.from_cfg(self._cfg).print_ascii(self._cfg, name="Before"))
         self._initialize_maps(graph)
         for basic_block in graph.nodes:
             for index, instruction in enumerate(basic_block.instructions):
@@ -73,6 +76,8 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                             if not is_changed:
                                 is_changed = old != str(instruction)
         self._propagate_postponed_aliased_definitions()
+
+        print(DecoratedCFG.from_cfg(self._cfg).print_ascii(self._cfg, name="After"))
         return is_changed
 
     @abstractmethod
@@ -119,7 +124,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         pass
 
     def _propagate_postponed_aliased_definitions(self):
-        """Do nothing if EP, EPM re-implements this method to update the map when instructions change"""
+        """Do nothing if EP, EPM re-implements this method to update the set of aliased variables, which definitions may be propagated later"""
         pass
 
 

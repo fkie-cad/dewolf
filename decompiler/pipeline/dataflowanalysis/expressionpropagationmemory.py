@@ -21,6 +21,14 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
         self._initialize_pointers(task.graph)
         super().run(task)
 
+    # def perform(self, graph, iteration) -> bool:
+    #     """
+    #     After performing normal propagation round, check if postponed aliased
+    #     """
+    #     super().perform(graph, iteration)
+    #     self._propagate_postponed_aliased_definitions()
+
+
     def _definition_can_be_propagated_into_target(self, definition: Assignment, target: Instruction):
         """Tests if propagation is allowed based on set of rules, namely
         definition can be propagated into target if:
@@ -92,11 +100,32 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
         If there is only one such uses (len(uses) == 1) then we allow propagation since it will make the chain shorter.
         O.w. we do not propagate, since propagation into redefinition will break the connection with the other use of that variable.
         """
+        print('PROP')
+        self._initialize_maps(self._cfg)
         for var in self._postponed_aliased:
             uses = self._use_map.get(var)
             definition = self._def_map.get(var)
+            print(f'Var: {var}')
+            print(f'Def: {definition}')
+            print(f'Uses: {",".join(str(x) for x in uses)}')
+
 
             if len(uses) == 1:
                 instruction = uses.pop()
-                if self._is_aliased_postponed_for_propagation(instruction, definition) and self._is_copy_assignment(definition):
+                if self._is_aliased_postponed_for_propagation(instruction, definition) and self._definition_can_be_propagated(definition):
+
                     instruction.substitute(var, definition.value.copy())
+                    self._update_use_map(var, instruction)
+                    print(f'After: {instruction}')
+            print('=================================')
+
+    def _definition_can_be_propagated(self, definition: Instruction):
+        return isinstance(definition, Assignment) and not any(
+            [
+                self._is_phi(definition),
+                self._is_call_assignment(definition),
+                self._defines_unknown_expression(definition),
+                self._contains_global_variable(definition),
+            ]
+        )
+
