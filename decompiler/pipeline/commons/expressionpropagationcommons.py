@@ -31,7 +31,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
 
     def __init__(self):
         self._limit: Optional[int] = None
-        self._limits: Dict[TypingType[Instruction], int]
+        self._limits: Dict[Instruction, int]
         self._use_map: UseMap
         self._def_map: DefMap
         self._pointers_info: Optional[Pointers] = None
@@ -47,7 +47,6 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         while self.perform(task.graph, iteration):
             iteration += 1
         logging.info(f"{self.name} took {iteration} iterations")
-        print(f"{self.name} took {iteration} iterations")
 
     def perform(self, graph, iteration) -> bool:
         """expression propagation forward pass:
@@ -155,18 +154,19 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         2: func(&b#1)
         3: b#2 <- b#1 (relation, b - aliased, inserted by us)
         4: a#2 = a#1 (assignment, a - aliased, inserted by us)
-        5: func(&a#1)
-        6: ...
-        7: ret a#2
+        5: func(&a#1) (after 1st propagation round)
+        6: a#3 <- a#2
+        7: ...
+        8: ret a#3
 
         Propagating a#1 = 0 (line 0) into a#2 = a#1 (line 4) leads to wrong decompiled code, since connection between aliased versions of variable a is removed:
-        a = 0
-        b = 0
-        func(&b)
-        a1 = 0 // a#2 = 0, since we propagated a#1 = 0 into a#2 = a#1
-        func(&a)
-        ...
-        ret a1
+        0: a = 0
+        1: b = 0
+        2: func(&b)
+        3: a1 = 0 // a#2 = 0, since we propagated a#1 = 0 into a#2 = a#1
+        4: func(&a)
+        5: ...
+        6: ret a1
 
         We can propagate this in case the variable is used once (in the example used twice). This way we revert insertion of redundant missing definition.
         If possible, such propagation is done after everything else is propagated.
