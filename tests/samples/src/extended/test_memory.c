@@ -536,6 +536,18 @@ int test33(){
 
 }
 
+int test34() {
+    //almost minimal example to show why propagating assignments that save the current value of aliased variable
+    // is a bad idea
+    int x = rand() + 5;
+    int *pointer = &x; // x is aliased
+    int y = x; // y saves old value of x, do not replace y with x in return
+    *pointer = rand() + 10; // changes aliased x
+    printf("POINTER %d\n", *pointer);
+    scanf("%d\n", &y);
+    return x; // returns OLD value of x (saved in y)
+}
+
 
 
 

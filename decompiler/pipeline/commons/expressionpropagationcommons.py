@@ -57,11 +57,10 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                  iterate through uses of all vars and substitute the vars with their definitions
         # cfg and defmap are updated automatically when substituting variables in instructions
         # block map is updated after substitution in EPM, in EP does nothing
+        # use map is updated after substitution in EPM, in EP does nothing
         """
-        from decompiler.util.decoration import DecoratedCFG
         is_changed = False
         self._cfg = graph
-        print(DecoratedCFG.from_cfg(self._cfg).print_ascii(self._cfg, name="Before"))
         self._initialize_maps(graph)
         for basic_block in graph.nodes:
             for index, instruction in enumerate(basic_block.instructions):
@@ -75,9 +74,6 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                             self._update_use_map(var, instruction)
                             if not is_changed:
                                 is_changed = old != str(instruction)
-        self._propagate_postponed_aliased_definitions()
-
-        print(DecoratedCFG.from_cfg(self._cfg).print_ascii(self._cfg, name="After"))
         return is_changed
 
     @abstractmethod
@@ -124,7 +120,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         pass
 
     def _propagate_postponed_aliased_definitions(self):
-        """Do nothing if EP, EPM re-implements this method to update the set of aliased variables, which definitions may be propagated later"""
+        """Do nothing if EP, EPM: one round of propagating postponed aliased definitions."""
         pass
 
 
@@ -152,9 +148,28 @@ class ExpressionPropagationBase(PipelineStage, ABC):
 
     def _is_aliased_postponed_for_propagation(self, target: Instruction, definition: Assignment) -> bool:
         """
-        We have relation-like assignments of aliased, and we want to propagate them later if certain conditions are
-        met, because propagating them if more than one use may lead to invalid code since the value of the other uses
-        may be affected, todo better description
+        We are not allowed to always propagate aliased definitions that we insert during missing definition stage
+        Consider the following:
+        0: a#1 = 0
+        1: b#1 = 0
+        2: func(&b#1)
+        3: b#2 <- b#1 (relation, b - aliased, inserted by us)
+        4: a#2 = a#1 (assignment, a - aliased, inserted by us)
+        5: func(&a#1)
+        6: ...
+        7: ret a#2
+
+        Propagating a#1 = 0 (line 0) into a#2 = a#1 (line 4) leads to wrong decompiled code, since connection between aliased versions of variable a is removed:
+        a = 0
+        b = 0
+        func(&b)
+        a1 = 0 // a#2 = 0, since we propagated a#1 = 0 into a#2 = a#1
+        func(&a)
+        ...
+        ret a1
+
+        We can propagate this in case the variable is used once (in the example used twice). This way we revert insertion of redundant missing definition.
+        If possible, such propagation is done after everything else is propagated.
         """
         if self._is_aliased_variable(aliased:=definition.destination):
             if self._is_aliased_redefinition(aliased, target):
