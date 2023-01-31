@@ -67,7 +67,7 @@ class BinaryninjaFrontend(Frontend):
             logging.error(f"Failed to decompile {task.name}, error during CFG creation: {e}")
             if debug_mode:
                 raise e
-        task.function = function_obj # TODO should we get rid of monkey patching?
+        task.function = function_obj
         return task
 
     def get_all_function_names(self):
