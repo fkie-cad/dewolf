@@ -2,7 +2,7 @@ from decompiler.pipeline.preprocessing import RemoveStackCanary
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
 from decompiler.structures.pseudo.expressions import Constant, ImportedFunctionSymbol, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Return
-from decompiler.structures.pseudo.operations import Call, Condition, OperationType
+from decompiler.structures.pseudo.operations import Call, Condition, ListOperation, OperationType
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
@@ -82,7 +82,7 @@ def test_one_branch_to_stack_fail():
             n0 := BasicBlock(0, instructions=[]),
             n1 := BasicBlock(1, instructions=[Branch(Condition(OperationType.equal, [Variable("canary"), Constant(0x0)]))]),
             n2 := BasicBlock(2, instructions=[Return([Constant(0)])]),
-            n3 := BasicBlock(3, instructions=[Call(ImportedFunctionSymbol("__stack_chk_fail", 0), [])]),
+            n3 := BasicBlock(3, instructions=[Assignment(ListOperation([]), Call(ImportedFunctionSymbol("__stack_chk_fail", 0), []))]),
         ]
     )
     cfg.add_edges_from([UnconditionalEdge(n0, n1), TrueCase(n1, n2), FalseCase(n1, n3)])
@@ -138,9 +138,9 @@ def test_multiple_returns_multiple_stackchecks():
             n3 := BasicBlock(3, instructions=[Branch(Condition(OperationType.equal, [Variable("canary"), Constant(0x0)]))]),
             n4 := BasicBlock(4, instructions=[Branch(Condition(OperationType.equal, [Variable("canary"), Constant(0x0)]))]),
             n5 := BasicBlock(5, instructions=[Return([Constant(0)])]),
-            n6 := BasicBlock(6, instructions=[Call(ImportedFunctionSymbol("__stack_chk_fail", 0), [])]),
+            n6 := BasicBlock(6, instructions=[Assignment(ListOperation([]), Call(ImportedFunctionSymbol("__stack_chk_fail", 0), []))]),
             n7 := BasicBlock(7, instructions=[Return([Constant(1)])]),
-            n8 := BasicBlock(8, instructions=[Call(ImportedFunctionSymbol("__stack_chk_fail", 0), [])]),
+            n8 := BasicBlock(8, instructions=[Assignment(ListOperation([]), Call(ImportedFunctionSymbol("__stack_chk_fail", 0), []))]),
         ]
     )
     cfg.add_edges_from(
@@ -214,7 +214,7 @@ def test_multiple_returns_one_stackcheck():
             n3 := BasicBlock(3, instructions=[Branch(Condition(OperationType.equal, [Variable("canary"), Constant(0x0)]))]),
             n4 := BasicBlock(4, instructions=[Branch(Condition(OperationType.equal, [Variable("canary"), Constant(0x0)]))]),
             n5 := BasicBlock(5, instructions=[Return([Constant(0)])]),
-            n6 := BasicBlock(6, instructions=[Call(ImportedFunctionSymbol("__stack_chk_fail", 0), [])]),
+            n6 := BasicBlock(6, instructions=[Assignment(ListOperation([]), Call(ImportedFunctionSymbol("__stack_chk_fail", 0), []))]),
             n7 := BasicBlock(7, instructions=[Return([Constant(1)])]),
         ]
     )
@@ -279,7 +279,7 @@ def test_one_branch_single_empty_block_between_stack_fail():
             n1 := BasicBlock(1, instructions=[Branch(Condition(OperationType.equal, [Variable("canary"), Constant(0x0)]))]),
             n2 := BasicBlock(2, instructions=[Return([Constant(0)])]),
             n3 := BasicBlock(3, instructions=[]),
-            n4 := BasicBlock(4, instructions=[Call(ImportedFunctionSymbol("__stack_chk_fail", 0), [])]),
+            n4 := BasicBlock(4, instructions=[Assignment(ListOperation([]), Call(ImportedFunctionSymbol("__stack_chk_fail", 0), []))]),
         ]
     )
     cfg.add_edges_from([UnconditionalEdge(n0, n1), TrueCase(n1, n2), FalseCase(n1, n3), UnconditionalEdge(n3, n4)])
@@ -333,7 +333,7 @@ def test_single_branch_multiple_empty_blocks_between_stack_fail():
             n2 := BasicBlock(2, instructions=[Return([Constant(0)])]),
             n3 := BasicBlock(3, instructions=[]),
             n4 := BasicBlock(4, instructions=[]),
-            n5 := BasicBlock(5, instructions=[Call(ImportedFunctionSymbol("__stack_chk_fail", 0), [])]),
+            n5 := BasicBlock(5, instructions=[Assignment(ListOperation([]), Call(ImportedFunctionSymbol("__stack_chk_fail", 0), []))]),
         ]
     )
     cfg.add_edges_from([UnconditionalEdge(n0, n1), TrueCase(n1, n2), FalseCase(n1, n3), UnconditionalEdge(n3, n4), \
@@ -380,15 +380,16 @@ def test_one_branch_single_non_empty_block_between_stack_fail():
             n1 := BasicBlock(1, instructions=[Branch(Condition(OperationType.equal, [Variable("canary"), Constant(0x0)]))]),
             n2 := BasicBlock(2, instructions=[Return([Constant(0)])]),
             n3 := BasicBlock(3, instructions=[Assignment(Variable("x_0"), Constant(5))]),
-            n4 := BasicBlock(4, instructions=[Call(ImportedFunctionSymbol("__stack_chk_fail", 0), [])]),
+            n4 := BasicBlock(4, instructions=[Assignment(ListOperation([]), Call(ImportedFunctionSymbol("__stack_chk_fail", 0), []))]),
         ]
     )
     cfg.add_edges_from([UnconditionalEdge(n0, n1), TrueCase(n1, n2), FalseCase(n1, n3), UnconditionalEdge(n3, n4)])
     error = False
     try:
         _run_remove_stack_canary(cfg)
-    except RuntimeError:
-        error = True
+    except RuntimeError as e:
+        if "did not expect to reach canary check this way" == f"{e}":
+            error = True
     assert error is True
 
 def test_multiple_returns_multiple_empty_blocks_one_stackcheck():
@@ -445,7 +446,7 @@ def test_multiple_returns_multiple_empty_blocks_one_stackcheck():
             n6 := BasicBlock(6, instructions=[]),
             n7 := BasicBlock(7, instructions=[]),
             n8 := BasicBlock(8, instructions=[]),
-            n9 := BasicBlock(9, instructions=[Call(ImportedFunctionSymbol("__stack_chk_fail", 0), [])]),
+            n9 := BasicBlock(9, instructions=[Assignment(ListOperation([]), Call(ImportedFunctionSymbol("__stack_chk_fail", 0), []))]),
             n10 := BasicBlock(10, instructions=[Return([Constant(1)])]),
         ]
     )
