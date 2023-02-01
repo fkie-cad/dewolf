@@ -1,7 +1,7 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
 from binaryninja import BinaryView, PointerType, SymbolType, Type, VoidType, mediumlevelil
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import Constant, GlobalVariable, Integer, OperationType, UnaryOperation
+from decompiler.structures.pseudo import Constant, GlobalVariable, Integer, OperationType, Symbol, UnaryOperation
 
 
 class ConstantHandler(Handler):
@@ -60,8 +60,9 @@ class ConstantHandler(Handler):
         string = (view.get_string_at(variable.value, True) or view.get_ascii_string_at(variable.value, min_length=2)) if variable and variable.value else None
         ref_value = view.get_data_var_at(variable.value) if variable and variable.value else None
 
-        if ref_value and pointer.constant == ref_value.address: # Recursive ptr to itself (0x4040 := 0x4040), lift symbol if there, else None (raw_bytes) 
-            ref_value = view.get_symbol_at(variable.value)
+        if ref_value and pointer.constant == ref_value.address: # Recursive ptr to itself (0x4040 := 0x4040), lift symbol if there, else just make a data_addr symbol
+            data_symbol =  view.get_symbol_at(variable.value)
+            ref_value = data_symbol if data_symbol else Symbol("data_" + f"{pointer.constant:x}", pointer.constant, vartype=Integer.uint32_t())
 
         g_var = GlobalVariable(
             name=symbol.name[:-2] + "_" + view.get_sections_at(variable.address)[0].name[1:] if symbol and symbol.name.find(".0") != -1 \
