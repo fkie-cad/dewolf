@@ -1140,9 +1140,11 @@ def test_restructure_cfg_ifelse(task):
     code_node_0 = resulting_ast._add_code_node([Assignment(variable("i"), Constant(0)), Assignment(variable("x"), Constant(42))])
     code_node_2 = resulting_ast._add_code_node([Return([variable("x")])])
     code_node_3 = resulting_ast._add_code_node([Return([variable("i")])])
-    condition_node = resulting_ast._add_condition_node_with(LogicCondition.initialize_symbol("x1", context), code_node_2, code_node_3)
-    resulting_ast._add_edges_from(((seq_node, code_node_0), (seq_node, condition_node)))
-    resulting_ast._code_node_reachability_graph.add_reachability_from(((code_node_0, code_node_2), (code_node_0, code_node_3)))
+    condition_node = resulting_ast._add_condition_node_with(LogicCondition.initialize_symbol("x1", context), code_node_2)
+    resulting_ast._add_edges_from(((seq_node, code_node_0), (seq_node, condition_node), (seq_node, code_node_3)))
+    resulting_ast._code_node_reachability_graph.add_reachability_from(
+        ((code_node_0, code_node_2), (code_node_0, code_node_3), (code_node_2, code_node_3))
+    )
     seq_node.sort_children()
 
     assert ASTComparator.compare(task.syntax_tree, resulting_ast) and task.syntax_tree.condition_map == resulting_ast.condition_map
@@ -4296,9 +4298,10 @@ def test_same_reaching_condition_but_not_groupable(task):
     PatternIndependentRestructuring().run(task)
 
     # first if-else
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 2
+    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(code_part := seq_node.children[0], ConditionNode)
     assert isinstance(return_part := seq_node.children[1], ConditionNode)
+    assert isinstance(second_return := seq_node.children[2], CodeNode) and second_return.instructions == vertices[10].instructions
 
     # code_part restructured correctly:
     assert code_part.condition.is_negation and (cond := ~code_part.condition).is_symbol
@@ -4340,17 +4343,9 @@ def test_same_reaching_condition_but_not_groupable(task):
     assert node_7.instructions == vertices[7].instructions and node_8.instructions == vertices[8].instructions[:-1]
 
     # return part
-    assert isinstance(branch_1 := return_part.true_branch_child, CodeNode) and isinstance(
-        branch_2 := return_part.false_branch_child, CodeNode
-    )
-    if len(return_part.condition.operands) == 2:
-        assert branch_1.instructions == vertices[9].instructions
-        assert branch_2.instructions == vertices[10].instructions
-
-    else:
-        assert len(return_part.condition.operands) == 3
-        assert branch_2.instructions == vertices[9].instructions
-        assert branch_1.instructions == vertices[10].instructions
+    assert isinstance(branch_1 := return_part.true_branch_child, CodeNode) and return_part.false_branch is None
+    assert len(return_part.condition.operands) == 2
+    assert branch_1.instructions == vertices[9].instructions
 
 
 def test_head_is_no_loop_predecessor(task):
@@ -4856,7 +4851,7 @@ def test_head_is_no_loop_predecessor(task):
     assert isinstance(inner_break_cond := inner_body.children[7], ConditionNode)
 
     # block 8 cond:
-    assert block_8_cond.condition.is_negation and str(task._ast.condition_map[~block_8_cond.condition]) == "var_2 == 0x0"
+    assert block_8_cond.condition and str(task._ast.condition_map[block_8_cond.condition]) == "var_2 != 0x0"
     assert isinstance(block_8_cond.true_branch_child, CodeNode) and block_8_cond.false_branch is None
     assert block_8_cond.true_branch_child.instructions == vertices[3].instructions
 
@@ -4875,14 +4870,71 @@ def test_head_is_no_loop_predecessor(task):
 
     # inner break cond:
     assert (
-        inner_break_cond.condition.is_negation
-        and str(task._ast.condition_map[~inner_break_cond.condition]) == "((unsigned int) var_5) != 0x0"
+        inner_break_cond.condition
+        and str(task._ast.condition_map[inner_break_cond.condition]) == "((unsigned int) var_5) == 0x0"
     )
     assert isinstance(inner_break_cond.true_branch_child, CodeNode) and inner_break_cond.false_branch is None
     assert inner_break_cond.true_branch_child.instructions == [
         Assignment(Variable("exit_4", Integer.int32_t()), Constant(1, Integer.int32_t())),
         Break(),
     ]
+
+
+def test_extract_return(task):
+    """Extract return statement, even if both branches end with return. Choose the one with less complexity!"""
+    var_i0 = Variable("var_i", Integer(32, False), ssa_name=Variable("rax_1", Integer(32, False), 0))
+    var_i1 = Variable("var_i", Integer(32, False), ssa_name=Variable("rax_1", Integer(32, False), 1))
+    var_x0 = Variable("var_x", Integer(32, False), ssa_name=Variable("var_c", Integer(32, False), 0))
+    var_x1 = Variable("var_x", Integer(32, False), ssa_name=Variable("var_c", Integer(32, False), 1))
+    task.graph.add_nodes_from(
+        vertices := [
+            BasicBlock(
+                0,
+                instructions=[
+                    Assignment(var_i0, Constant(0)),
+                    Assignment(var_x0, Constant(42)),
+                    Branch(Condition(OperationType.equal, [var_i0, Constant(0)])),
+                ],
+            ),
+            BasicBlock(
+                1,
+                instructions=[
+                    Assignment(var_x1, Constant(5)),
+                    Branch(Condition(OperationType.equal, [var_x1, Constant(0)])),
+                ],
+            ),
+            BasicBlock(2, instructions=[Return([var_x0])]),
+            BasicBlock(3, instructions=[Return([var_i0])]),
+            BasicBlock(4, instructions=[Assignment(var_i1, Constant(2)), Return([var_i1])]),
+        ]
+    )
+    task.graph.add_edges_from(
+        [
+            TrueCase(vertices[0], vertices[1]),
+            FalseCase(vertices[0], vertices[2]),
+            TrueCase(vertices[1], vertices[3]),
+            FalseCase(vertices[1], vertices[4]),
+        ]
+    )
+    PatternIndependentRestructuring().run(task)
+
+    # outer-loop
+    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 5
+    assert isinstance(node_0 := seq_node.children[0], CodeNode) and node_0.instructions == vertices[0].instructions[:-1]
+    assert isinstance(cond_1 := seq_node.children[1], ConditionNode) and cond_1.false_branch is None
+    assert isinstance(node_1 := seq_node.children[2], CodeNode) and node_1.instructions == vertices[1].instructions[:-1]
+    assert isinstance(cond_2 := seq_node.children[3], ConditionNode) and cond_2.false_branch is None
+    assert isinstance(node_4 := seq_node.children[4], CodeNode) and node_4.instructions == vertices[4].instructions
+
+    # cond 1:
+    assert (cond := cond_1.condition).is_negation and task._ast.condition_map[~cond] == vertices[0].instructions[-1].condition
+    assert isinstance(branch := cond_1.true_branch_child, CodeNode)
+    assert branch.instructions == vertices[2].instructions
+
+    # cond 2:
+    assert (cond := cond_2.condition).is_symbol and task._ast.condition_map[cond] == vertices[1].instructions[-1].condition
+    assert isinstance(branch := cond_2.true_branch_child, CodeNode)
+    assert branch.instructions == vertices[3].instructions
 
 
 # logging.info(f"Abstract syntax tree of this region:")

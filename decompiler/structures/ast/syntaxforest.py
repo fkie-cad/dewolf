@@ -368,13 +368,24 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         assert isinstance(parent, SeqNode), "The parent of all switches must be a Sequence node."
         self._add_node(new_switch_node := self.factory.create_switch_node(combinable_switch_nodes[0].expression))
         self._add_edge(parent, new_switch_node)
+        switch_node_cases: Dict[SwitchNode, List[CaseNode]] = dict()
         for switch_node in combinable_switch_nodes:
+            switch_node_cases[switch_node] = []
             for case in switch_node.cases:
                 self._add_edge(new_switch_node, case)
+                switch_node_cases[switch_node].append(case)
             self._remove_node(switch_node)
-        new_switch_node.sort_cases()
+        try:
+            new_switch_node.sort_cases()
+        except ValueError:
+            for switch_node, cases in switch_node_cases.items():
+                self._add_node(switch_node)
+                self._add_edges_from((switch_node, case) for case in cases)
+                self._add_edge(parent, switch_node)
+            self._remove_node(new_switch_node)
+
         parent.sort_children()
-        return new_switch_node
+        return new_switch_node if new_switch_node in set(self.nodes) else None
 
     def combine_cascading_single_branch_conditions(self, root: Optional[AbstractSyntaxTreeNode] = None):
         """

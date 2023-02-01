@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.ast.ast_nodes import (
@@ -10,6 +10,7 @@ from decompiler.structures.ast.ast_nodes import (
     CaseNode,
     CodeNode,
     ConditionNode,
+    DoWhileLoopNode,
     ForLoopNode,
     LoopNode,
     SeqNode,
@@ -221,6 +222,28 @@ def _requirement_without_reinitialization(ast: AbstractSyntaxTree, node: Abstrac
                 return True
 
 
+def _get_potential_guarded_do_while_loops(ast: AbstractSyntaxTree) -> tuple(Union[DoWhileLoopNode, WhileLoopNode], ConditionNode):
+    for loop_node in list(ast.get_loop_nodes_post_order()):
+        if isinstance(loop_node, DoWhileLoopNode) and isinstance(loop_node.parent.parent, ConditionNode):
+            yield loop_node, loop_node.parent.parent
+
+
+def remove_guarded_do_while(ast: AbstractSyntaxTree):
+    """ Removes a if statement which guards a do-while loop/while loop when:
+            -> there is nothing in between the if-node and the do-while-node/while-node 
+            -> the if-node has only one branch (true branch)
+            -> the condition of the branch is the same as the condition of the do-while-node
+        Replacement is a WhileLoop, otherwise the control flow would not be correct
+    """
+    for do_while_node, condition_node in _get_potential_guarded_do_while_loops(ast):
+        if condition_node.false_branch:
+            continue
+
+        if do_while_node.condition.is_equal_to(condition_node.condition):
+            ast.replace_condition_node_by_single_branch(condition_node)
+            ast.substitute_loop_node(do_while_node, WhileLoopNode(do_while_node.condition, do_while_node.reaching_condition))
+
+
 @dataclass
 class AstInstruction:
     instruction: Assignment
@@ -236,23 +259,25 @@ class WhileLoopReplacer:
         self._keep_empty_for_loops = options.getboolean("readability-based-refinement.keep_empty_for_loops", fallback=False)
         self._hide_non_init_decl = options.getboolean("readability-based-refinement.hide_non_initializing_declaration", fallback=False)
         self._force_for_loops = options.getboolean("readability-based-refinement.force_for_loops", fallback=False)
+        self._condition_type = options.getlist("readability-based-refinement.condition_types_for_loops_simple_loop_conditions", fallback=[])
         self._condition_max_complexity = options.getint("readability-based-refinement.max_condition_complexity_for_loop_recovery", fallback=1)
         self._modification_max_complexity = options.getint("readability-based-refinement.max_modification_complexity_for_loop_recovery", fallback=3)
 
     def run(self):
-        """
-        For each WhileLoop in AST check the following conditions:
+        """For each WhileLoop in AST check the following conditions:
             -> any variable in loop condition has a valid continuation instruction in loop body
             -> variable is initialized
             -> loop condition complexity < condition complexity 
             -> possible modification complexity < modification complexity
+            -> if condition is only a symbol: check condition type for allowed one
         
         If 'force_for_loops' is enabled, the complexity options are ignored and every while loop after the 
-        initial transformation will be forced into a for loop with an empty declaration/modification
+        initial transformation will be forced into a for loop with an empty declaration/modification      
         """
 
         for loop_node in list(self._ast.get_while_loop_nodes_topological_order()):
-            if loop_node.is_endless_loop or (not self._keep_empty_for_loops and _is_single_instruction_loop_node(loop_node)):
+            if loop_node.is_endless_loop or (not self._keep_empty_for_loops and _is_single_instruction_loop_node(loop_node)) \
+            or not self._valid_for_loop_condition_type(loop_node.condition):
                 continue
             if loop_node.condition.get_complexity(self._ast.condition_map) > self._condition_max_complexity and not self._force_for_loops:
                 continue  
@@ -284,7 +309,7 @@ class WhileLoopReplacer:
         Replaces a given WhileLoopNode with a ForLoopNode.
 
         If variable is not required between initialization and loop entry it will be moved into the loop declaration. And the continuation
-        instruction is moved from the loop body to the loop modifiation. Otherwise the initialization becomes a single variable and the
+        instruction is moved from the loop body to the loop modification. Otherwise the initialization becomes a single variable and the
         original initialization instruction will remain the same.
 
         :param loop_node: node to replace with a ForLoopNode
@@ -312,7 +337,21 @@ class WhileLoopReplacer:
         continuation.node.instructions.remove(continuation.instruction)
         self._ast.clean_up()
        
-                
+    def _valid_for_loop_condition_type(self, logic_condition) -> bool:
+        """ Checks if a logic condition is only a symbol, if true checks condition type of symbol for allowed ones"""
+        if not logic_condition.is_symbol or not self._condition_type:
+            return True
+
+        if logic_condition.is_negation:
+            logic_condition = ~logic_condition
+
+        condition = self._ast.condition_map[logic_condition]
+        for allowedCondition in self._condition_type:
+            if condition.operation.name == allowedCondition:
+                return True
+
+        return False
+
 class WhileLoopVariableRenamer:
     """Iterate over While-Loop Nodes and rename their counter variables to counter, counter1, ..."""
 
@@ -412,6 +451,8 @@ class ReadabilityBasedRefinement(PipelineStage):
 
     def run(self, task: DecompilerTask):
         task.syntax_tree.clean_up()
+
+        remove_guarded_do_while(task.syntax_tree)
 
         WhileLoopReplacer(task.syntax_tree, task.options).run()
 

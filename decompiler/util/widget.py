@@ -255,6 +255,11 @@ class DewolfWidget(QWidget, UIContextNotification):
         elif symbol.startswith("sub_"):
             if function := self.data.get_function_at(int(symbol.replace("sub_", "0x"), 16)):
                 self._current_view.navigateToFunction(function, function.start)
+        elif symbol.startswith("0x"):
+            try:
+                self._current_view.navigate(int(symbol, 16))
+            except ValueError:
+                pass
 
     @Decorators.requires_view
     def get_function_from_address(self, address: int) -> Optional[Function]:
@@ -273,12 +278,12 @@ class DewolfWidget(QWidget, UIContextNotification):
         if self._current_function.name in self._cache.keys():
             self.update_code_view()
             return
+        self._cache[self._current_function.name] = "Add to queue..."  # prevent multiple started workers for same function
         self.start_worker(self._current_view, self._current_function)
 
     @Decorators.requires_function
     def update_code_view(self):
         """Reload CodeDisplay content from cache"""
-        self.editor.set_font()  # responsive gui settings
         self.editor.setPlainText(self._cache.get(self._current_function.name, ""))
         self.highlighter.rehighlight()
 
@@ -297,7 +302,7 @@ class DewolfWidget(QWidget, UIContextNotification):
     def callback_worker_task_started(self, task_name: str):
         """Callback for decompilation task started"""
         logging.info(f"Started decompilation of {task_name}")
-        self._cache[task_name] = "In Queue"
+        self._cache[task_name] = "In queue"
         self.update_code_view()
 
     def callback_decompilation_finished(self):

@@ -272,7 +272,7 @@ class SeqNode(AbstractSyntaxTreeNode):
         if not (children := super().children):
             return children
         if set(self._sorted_children) != set(children):
-            logging.warning("The sorted tuple of children differs from the actual list of children, so we have to sort them!")
+            logging.debug("The sorted tuple of children differs from the actual list of children, so we have to sort them!")
             self.sort_children()
         return self._sorted_children
 
@@ -890,7 +890,7 @@ class SwitchNode(AbstractSyntaxTreeNode):
         if self._sorted_cases is None:
             return children
         if set(children) != set(self._sorted_cases):
-            logging.warning("The sorted cases are not the same as the children!")
+            logging.debug("The sorted cases are not the same as the children!")
             self.sort_cases()
         return self._sorted_cases
 

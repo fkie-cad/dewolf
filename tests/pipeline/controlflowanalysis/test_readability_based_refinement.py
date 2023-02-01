@@ -22,6 +22,7 @@ from decompiler.structures.pseudo import (
     OperationType,
     Variable,
 )
+from decompiler.structures.pseudo.operations import ArrayInfo, UnaryOperation
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
@@ -43,6 +44,32 @@ def _generate_options(empty_loops: bool = False, hide_decl: bool = False, rename
     options.set("readability-based-refinement.max_modification_complexity_for_loop_recovery", max_modification)
     options.set("readability-based-refinement.force_for_loops", force_for_loops)
     return options
+
+
+@pytest.fixture
+def ast_array_access_for_loop() -> AbstractSyntaxTree:
+    """
+    for (var_0 = 0; var_0 < 10; var_0 = var_0 + 1) {
+        *(var_1 + var_0) = var_0;
+    }
+    """
+    true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(
+        root := SeqNode(true_value),
+        condition_map={logic_cond("x1", context): Condition(OperationType.less, [Variable("var_0"), Constant(10)])},
+    )
+    declaration = Assignment(Variable("var_0"), Constant(0))
+    condition = logic_cond("x1", context)
+    modification = Assignment(Variable("var_0"), BinaryOperation(OperationType.plus, [Variable("var_0"), Constant(1)]))
+    for_loop = ast.factory.create_for_loop_node(declaration, condition, modification)
+    array_info = ArrayInfo(Variable("var_1"), Variable("var_0"))
+    array_access_unary_operation = UnaryOperation(
+        OperationType.dereference, [BinaryOperation(OperationType.plus, [Variable("var_1"), Variable("var_0")])], array_info=array_info
+    )
+    for_loop_body = ast._add_code_node([Assignment(array_access_unary_operation, Variable("var_0"))])
+    ast._add_node(for_loop)
+    ast._add_edges_from([(root, for_loop), (for_loop, for_loop_body)])
+    return ast
 
 
 @pytest.fixture
@@ -908,6 +935,114 @@ def ast_innerWhile_simple_condition_complexity() -> AbstractSyntaxTree:
 
 
 
+@pytest.fixture
+def ast_innerWhile_simple_condition_complexity() -> AbstractSyntaxTree:
+    """
+    a = 0;
+    while (a < 1) {
+        b = 0;
+        c = 0;
+        d = 0;
+        while (b < 1 && c < 1 && d < 1){
+            b = b + 1;
+            c = c + 1;
+            d = d + 1;
+        }
+        a = a + 1;
+    }
+    """
+    true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(
+        root := SeqNode(true_value),
+        condition_map={
+            logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(5)]),
+            logic_cond("x2", context): Condition(OperationType.less, [Variable("b"), Constant(5)]),
+            logic_cond("x3", context): Condition(OperationType.less, [Variable("c"), Constant(5)]),
+            logic_cond("x4", context): Condition(OperationType.less, [Variable("d"), Constant(5)]),
+        },
+    )
+
+    init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
+
+    outer_while = ast.factory.create_while_loop_node(logic_cond("x1", context))
+    outer_while_body = ast.factory.create_seq_node()
+    outer_while_init = ast._add_code_node([Assignment(Variable("b"), Constant(0)), Assignment(Variable("c"), Constant(0))
+    , Assignment(Variable("d"), Constant(0))])
+    outer_while_exit = ast._add_code_node([Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))])
+
+    inner_while = ast.factory.create_while_loop_node(logic_cond("x2", context) & logic_cond("x3", context) & logic_cond("x4", context))
+    inner_while_body = ast._add_code_node([Assignment(Variable("b"), BinaryOperation(OperationType.plus, [Variable("b"), Constant(1)])),
+    Assignment(Variable("c"), BinaryOperation(OperationType.plus, [Variable("c"), Constant(1)])), 
+    Assignment(Variable("d"), BinaryOperation(OperationType.plus, [Variable("d"), Constant(1)]))])
+
+    ast._add_nodes_from((outer_while, outer_while_body, inner_while))
+    ast._add_edges_from(
+        [
+            (root, init_code_node),
+            (root, outer_while),
+            (outer_while, outer_while_body),
+            (outer_while_body, outer_while_init),
+            (outer_while_body, inner_while),
+            (outer_while_body, outer_while_exit),
+            (inner_while, inner_while_body),
+        ]
+    )
+    return ast
+
+
+
+@pytest.fixture
+def ast_guarded_do_while_if() -> AbstractSyntaxTree:
+    """
+    if(a < 10){
+        do{
+            a++;
+        }while(a < 10)
+    }
+    """
+    true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(
+        root := SeqNode(true_value), condition_map={logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(10)])}
+    )
+    init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
+    cond_node = ast.factory.create_condition_node(logic_cond("x1", context))
+    true_branch = ast.factory.create_true_node()
+    do_while_loop = ast.factory.create_do_while_loop_node(logic_cond("x1", context))
+    do_while_loop_body = ast._add_code_node([Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))])
+    ast._add_node(cond_node)
+    ast._add_node(true_branch)
+    ast._add_node(do_while_loop)
+    ast._add_edges_from([(root, init_code_node), (root, cond_node), (cond_node, true_branch), (true_branch, do_while_loop), (do_while_loop, do_while_loop_body)])
+    return ast
+    
+
+@pytest.fixture
+def ast_guarded_do_while_else() -> AbstractSyntaxTree:
+    """
+    if(a >= 10){
+
+    }else{
+        do{
+            a++;
+        }while(a < 10)
+    }
+    """
+    true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(
+        root := SeqNode(true_value), condition_map={logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(10)])}
+    )
+    init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
+    cond_node = ast.factory.create_condition_node(~logic_cond("x1", context))
+    false_branch = ast.factory.create_false_node()
+    do_while_loop = ast.factory.create_do_while_loop_node(logic_cond("x1", context))
+    do_while_loop_body = ast._add_code_node([Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))])
+    ast._add_node(cond_node)
+    ast._add_node(false_branch)
+    ast._add_node(do_while_loop)
+    ast._add_edges_from([(root, init_code_node), (root, cond_node), (cond_node, false_branch), (false_branch, do_while_loop), (do_while_loop, do_while_loop_body)])
+    return ast
+    
+
 class TestReadabilityBasedRefinement:
     """Test Readability functionality with all its substages."""
 
@@ -1213,6 +1348,26 @@ class TestReadabilityBasedRefinement:
             logic_cond("x1", LogicCondition.generate_new_context()): Condition(OperationType.less, [Variable("i"), Constant(5)])
         }
 
+    def test_rename_unary_operation_updates_array_info(self, ast_array_access_for_loop):
+        """Test if UnaryOperation.ArrayInfo gets updated on renaming"""
+        self.run_rbr(ast_array_access_for_loop, _generate_options(rename_for=True))
+
+        def find_unary_op(ast):
+            """look for UnaryOperation in AST"""
+            for node in ast.get_code_nodes_topological_order():
+                for instr in node.instructions:
+                    for unary_op in instr:
+                        if isinstance(unary_op, UnaryOperation):
+                            return unary_op
+            return None
+
+        unary_operation = find_unary_op(ast_array_access_for_loop)
+        if not isinstance(unary_operation, UnaryOperation):
+            assert False, "Did not find UnaryOperation in AST (expect it for array access)"
+        assert unary_operation.array_info is not None
+        assert unary_operation.array_info.base in unary_operation.requirements
+        assert unary_operation.array_info.index in unary_operation.requirements
+
     def test_no_for_loop_renaming(self, ast_replaceable_while):
         self.run_rbr(ast_replaceable_while, _generate_options(rename_for=False))
 
@@ -1260,6 +1415,24 @@ class TestReadabilityBasedRefinement:
             for loop in ast_initialization_in_condition_sequence.get_for_loop_nodes_topological_order()
         )
         assert for_loop.declaration == Variable("a")
+
+    def test_guarded_do_while_if(self, ast_guarded_do_while_if):
+        self.run_rbr(ast_guarded_do_while_if, _generate_options())
+
+        for cond_node in ast_guarded_do_while_if.get_condition_nodes_post_order():
+            assert False, "There should be no condition node"
+
+        for loop_node in ast_guarded_do_while_if.get_loop_nodes_post_order():
+            assert isinstance(loop_node, WhileLoopNode)
+
+    def test_guarded_do_while_else(self, ast_guarded_do_while_else):
+        self.run_rbr(ast_guarded_do_while_else, _generate_options())
+
+        for cond_node in ast_guarded_do_while_else.get_condition_nodes_post_order():
+            assert False, "There should be no condition node"
+
+        for loop_node in ast_guarded_do_while_else.get_loop_nodes_post_order():
+            assert isinstance(loop_node, WhileLoopNode)
 
     @pytest.mark.parametrize("keep_empty_for_loops", [True, False])
     def test_keep_empty_for_loop(self, keep_empty_for_loops: bool, ast_single_instruction_while):
