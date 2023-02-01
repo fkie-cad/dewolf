@@ -1,12 +1,12 @@
 """Module implementing lifting of binaryninja symbols."""
-from typing import Union
 from logging import warning
+from typing import Union
 
 from binaryninja import CoreSymbol
 from binaryninja import Symbol as bSymbol
 from binaryninja import SymbolType
 from decompiler.frontend.lifter import Handler, ObserverLifter
-from decompiler.structures.pseudo import Constant, FunctionSymbol, ImportedFunctionSymbol, Integer, Symbol, GlobalVariable
+from decompiler.structures.pseudo import Constant, FunctionSymbol, GlobalVariable, ImportedFunctionSymbol, Integer, Symbol
 
 
 class SymbolHandler(Handler):

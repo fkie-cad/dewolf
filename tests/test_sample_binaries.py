@@ -137,7 +137,6 @@ def test_global_strings():
     assert output.count('char * k = "Hello Void*!"') == 1
     # Assert call correct
     assert output.count("Hello World!") == 1
-    len(re.findall("puts(/* str */ var_[0-9]+", output)) == 2
 
 
 def test_global_fkt_ptr():
@@ -163,7 +162,7 @@ def test_global_indirect_ptr2():
     output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
 
     # Assert global variables correct
-    assert output.count("p = 0xffffffbe") == 2
+    assert output.count("p = 0xffffffbe") == 2 # should be one, still one lifter issue
     assert output.count("o = &(p)") == 1
     assert output.count("n = &(o)") == 1
     assert output.count("m = &(n)") == 1
@@ -197,15 +196,23 @@ def test_global_import_address_symbol():
     # e.g. var_e0#1 = &g_22
 
     # test occurences of global variables in decompiled code
-    # first occurence in declaration
-    # second when they are assigned some value
-    assert output.count("g_22 = ") == 2
-    assert output.count("g_26 = ") == 2
-    assert output.count("g_29 = ") == 2
-    assert output.count("g_30 = ") == 2
-    assert output.count("g_32 = ") == 2
-    assert output.count("g_35 = ") == 2
-    assert output.count("g_38 = ") == 2
+    # test ptr versions (_got to _data)
+    assert output.count("g_22 = &(g_22)") == 1
+    assert output.count("g_26 = &(g_26)") == 1
+    assert output.count("g_29 = &(g_29)") == 1
+    assert output.count("g_30 = &(g_30)") == 1
+    assert output.count("g_32 = &(g_32)") == 1
+    assert output.count("g_35 = &(g_35)") == 1
+    assert output.count("g_38 = &(g_38)") == 1
+
+    # test _data values
+    assert output.count("g_22 = 0xd3e9") == 1
+    assert output.count("g_26 = 0x9d") == 1
+    assert output.count("g_29 = 0x10001") == 1
+    assert output.count("g_30 = 0xec") == 1
+    assert output.count("g_32 = 0x5e13cd4f") == 1
+    assert output.count("g_35 = 0xff") == 1
+    assert output.count("g_38 = 0x7cb0be9") == 1
 
     # test types and initial values (dec or hex) are correct in declarations
     assert re.search(r'unsigned short\s*g_22\s*=\s*54249', output) or re.search(r'unsigned short\s*g_22\s*=\s*0xd3e9', output)
