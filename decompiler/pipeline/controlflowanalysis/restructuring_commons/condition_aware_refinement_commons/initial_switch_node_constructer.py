@@ -12,7 +12,6 @@ from decompiler.structures.ast.reachability_graph import CaseDependencyGraph, Li
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import Condition, Constant, Expression
-from networkx import has_path
 
 
 @dataclass
@@ -353,7 +352,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         assert len(cross_nodes) <= 2, f"The number of cross nodes can be at most two. We eliminated all other case candidates before!"
 
         if len(cross_nodes) == 2:
-            if has_path(linear_order_dependency_graph, cross_nodes[1], cross_nodes[0]):
+            if linear_order_dependency_graph.has_path(cross_nodes[1], cross_nodes[0]):
                 cross_nodes = [cross_nodes[1], cross_nodes[0]]
             assert not linear_order_dependency_graph.cross_nodes_are_too_nested(
                 cross_nodes
