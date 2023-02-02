@@ -230,6 +230,7 @@
     "condition_types_for_loops_simple_loop_conditions": {
       "default": ["less", "greater", "less_or_equal", "greater_or_equal"],
       "type": "array",
+      "elementType": "string",
       "title": "Allowed condition type for simple for-loops conditions",
       "description": "Only transforms a given simple while loop to a for loop is the condition type is correct",
       "is_hidden_from_gui": false
