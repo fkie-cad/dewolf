@@ -63,6 +63,7 @@ class ConstantHandler(Handler):
         if ref_value and pointer.constant == ref_value.address: # Recursive ptr to itself (0x4040 := 0x4040), lift symbol if there, else just make a data_addr symbol
             data_symbol =  view.get_symbol_at(variable.value)
             ref_value = data_symbol if data_symbol else Symbol("data_" + f"{pointer.constant:x}", pointer.constant, vartype=Integer.uint32_t())
+        
 
         g_var = GlobalVariable(
             name=symbol.name[:-2] + "_" + view.get_sections_at(variable.address)[0].name[1:] if symbol and symbol.name.find(".0") != -1 \
