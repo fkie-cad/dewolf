@@ -1,6 +1,6 @@
 """Class implementing the main binaryninja frontend interface."""
 import logging
-from typing import List, Tuple, Union
+from typing import List, Optional
 
 from binaryninja import BinaryView, BinaryViewType, Function
 from binaryninja.types import SymbolType
@@ -13,6 +13,62 @@ from decompiler.util.options import Options
 from ..frontend import Frontend
 from .lifter import BinaryninjaLifter
 from .parser import BinaryninjaParser
+
+
+class FunctionObject:
+    """Wrapper class for dealing with Binaryninja Functions"""
+
+    def __init__(self, function: Function):
+        self._function = function
+        self._lifter = BinaryninjaLifter()
+
+    @classmethod
+    def from_string(cls, bv: BinaryView, function_name: str):
+        """Given a function identifier, locate Function object in BinaryView"""
+        if (function := cls._resolve_by_identifier_name(bv, function_name)) is not None:
+            return cls(function)
+        if (function := cls._resolve_by_address(bv, function_name)) is not None:
+            return cls(function)
+        raise RuntimeError(f"Frontend could not resolve function '{function_name}'")
+
+    @property
+    def function(self) -> Function:
+        """Function object"""
+        return self._function
+
+    @property
+    def name(self) -> str:
+        """Name of function object"""
+        return self._function.name
+
+    @property
+    def return_type(self) -> Type:
+        """Lifted return type of function"""
+        return self._lifter.lift(self._function.function_type.return_value)
+
+    @property
+    def params(self) -> List[Variable]:
+        """Lifted function parameters"""
+        return [self._lifter.lift(param) for param in self._function.function_type.parameters]
+
+    @staticmethod
+    def _resolve_by_identifier_name(bv: BinaryView, function_name: str) -> Optional[Function]:
+        """
+        Iterate BinaryView.functions and compare matching names.
+
+        note: we take this approach since bv.get_functions_by_name() may return wrong functions.
+        """
+        return next(filter(lambda f: f.name == function_name, bv.functions), None)
+
+    @staticmethod
+    def _resolve_by_address(bv: BinaryView, hex_str: str) -> Optional[Function]:
+        """Get Function object by hex address or 'sub_<address>'"""
+        try:
+            hex_address = hex_str[4:] if hex_str.startswith("sub_") else hex_str
+            address = int(hex_address, 16)
+            return bv.get_function_at(address)
+        except ValueError:
+            logging.info(f"{hex_str} does not contain hex value")
 
 
 class BinaryninjaFrontend(Frontend):
@@ -43,29 +99,31 @@ class BinaryninjaFrontend(Frontend):
     def from_path(cls, path: str, options: Options):
         """Create a frontend object by invoking binaryninja on the given sample."""
         file_options = {"analysis.limits.maxFunctionSize": options.getint("binaryninja.max_function_size")}
-        return cls(BinaryViewType.get_view_of_file_with_options(path, options=file_options))
+        if (bv := BinaryViewType.get_view_of_file_with_options(path, options=file_options)) is not None:
+            return cls(bv)
+        raise RuntimeError("Failed to create binary view")
 
     @classmethod
     def from_raw(cls, view: BinaryView):
         """Create a binaryninja frontend instance based on an initialized binary view."""
         return cls(view)
 
-    def create_task(self, function: Union[str, Function], options: Options) -> DecompilerTask:
+    def create_task(self, function_identifier: str, options: Options) -> DecompilerTask:
         """Create a task from the given function identifier."""
-        debug_mode = options.getboolean("pipeline.debug", fallback=False)
-        if not isinstance(function, Function):
-            function = self._find_function(function)
-        return_type, params = self._extract_return_type_and_params(function)
+        function = FunctionObject.from_string(self._bv, function_identifier)
         try:
-            cfg = self._extract_cfg(function, options)
-            task = DecompilerTask(function.name, cfg, function_return_type=return_type, function_parameters=params, options=options)
+            cfg = self._extract_cfg(function.function, options)
+            task = DecompilerTask(
+                function.name, cfg, function_return_type=function.return_type, function_parameters=function.params, options=options
+            )
         except Exception as e:
-            task = DecompilerTask(function.name, None, function_return_type=return_type, function_parameters=params, options=options)
+            task = DecompilerTask(
+                function.name, None, function_return_type=function.return_type, function_parameters=function.params, options=options
+            )
             task.fail(origin="CFG creation")
             logging.error(f"Failed to decompile {task.name}, error during CFG creation: {e}")
-            if debug_mode:
+            if options.getboolean("pipeline.debug", fallback=False):
                 raise e
-        task.function = function
         return task
 
     def get_all_function_names(self):
@@ -79,37 +137,9 @@ class BinaryninjaFrontend(Frontend):
             functions.append(function.name)
         return functions
 
-    def _find_function(self, function: str) -> Function:
-        """Return the function at the given address."""
-        address = self._get_address(function)
-        return self._bv.get_function_at(address)
-
-    def _extract_cfg(self, function: Function, options: Options = None) -> ControlFlowGraph:
+    def _extract_cfg(self, function: Function, options: Options) -> ControlFlowGraph:
         """Extract a control flow graph utilizing the parser and fixing it afterwards."""
         report_threshold = options.getint("lifter.report_threshold", fallback=3)
         no_masks = options.getboolean("lifter.no_bit_masks", fallback=True)
         parser = BinaryninjaParser(BinaryninjaLifter(no_masks), report_threshold)
         return parser.parse(function)
-
-    def _extract_return_type_and_params(self, function: Function) -> Tuple[Type, List[Variable]]:
-        """Extracts the type of the return value of the function and the list of its parameters"""
-        lifter = BinaryninjaLifter()
-        params: List[Variable] = [lifter.lift(param) for param in function.function_type.parameters]
-        return_type: Type = lifter.lift(function.function_type.return_value)
-        return return_type, params
-
-    def _get_address(self, text: str) -> int:
-        """Get the address of the target function by evaluating the given string."""
-        if sym := self._bv.symbols.get(text, None):
-            if isinstance(sym, list):
-                # Sometimes Binja has 2 symbols for a library function, and returns a list:
-                # [ImportedFunctionSymbol, ExternalSymbol]
-                # We want the address of the Imported Function Symbol
-                return sym[0].address
-            return sym.address
-        if "sub_" in text[0:4]:
-            return int(text[4:], 16)
-        try:
-            return int(text, 16)
-        except Exception as _:
-            raise ValueError(f"{text} is neither a valid function name or a hex address!")
