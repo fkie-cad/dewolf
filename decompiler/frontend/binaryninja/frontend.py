@@ -1,6 +1,8 @@
 """Class implementing the main binaryninja frontend interface."""
+from __future__ import annotations
+
 import logging
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from binaryninja import BinaryView, BinaryViewType, Function
 from binaryninja.types import SymbolType
@@ -23,7 +25,16 @@ class FunctionObject:
         self._lifter = BinaryninjaLifter()
 
     @classmethod
-    def from_string(cls, bv: BinaryView, function_name: str):
+    def get(cls, bv: BinaryView, identifier: Union[str, Function]) -> FunctionObject:
+        """Get a function object from the given identifier."""
+        if isinstance(identifier, Function):
+            return cls(identifier)
+        if isinstance(identifier, str):
+            return cls.from_string(bv, identifier)
+        raise ValueError(f"Could not parse function identifier of type {type(identifier)}.")
+
+    @classmethod
+    def from_string(cls, bv: BinaryView, function_name: str) -> FunctionObject:
         """Given a function identifier, locate Function object in BinaryView"""
         if (function := cls._resolve_by_identifier_name(bv, function_name)) is not None:
             return cls(function)
@@ -108,9 +119,9 @@ class BinaryninjaFrontend(Frontend):
         """Create a binaryninja frontend instance based on an initialized binary view."""
         return cls(view)
 
-    def create_task(self, function_identifier: str, options: Options) -> DecompilerTask:
+    def create_task(self, function_identifier: Union[str, Function], options: Options) -> DecompilerTask:
         """Create a task from the given function identifier."""
-        function = FunctionObject.from_string(self._bv, function_identifier)
+        function = FunctionObject.get(self._bv, function_identifier)
         try:
             cfg = self._extract_cfg(function.function, options)
             task = DecompilerTask(
