@@ -17,6 +17,9 @@ class Colorize(Enum):
     NEVER = "never"
     AUTO = "auto"
 
+    def __str__(self):
+        """Print choices=list(Colorize) as {always, never, auto}"""
+        return self.value
 
 def parse_commandline():
     """Parse the current command line options for the arguments required for the decompiler."""
@@ -31,7 +34,7 @@ def parse_commandline():
     parser = ArgumentParser("Decompiler")
     parser.add_argument("binary", type=_is_valid_decompile_target, help="Binaryninja input binary file")
     parser.add_argument("function", nargs="*", help="The name or address of a function to decompiled")
-    parser.add_argument("--verbose", "-v", dest="verbose", action="store_true", help="Utilize verbose logging")
+    parser.add_argument("--verbose", "-v", dest="verbose", action="count", help="Set logging verbosity, e.g., -vvv for DEBUG logging", default=0)
     parser.add_argument("--color", type=Colorize, choices=list(Colorize), default=Colorize.AUTO)
     parser.add_argument("--output", "-o", dest="outfile", help="The file in which to place decompilation output")
     parser.add_argument("--all", "-a", dest="all", action="store_true", help="Decompile all functions in this binary")
@@ -59,13 +62,18 @@ def switch_to_dict(options: List[str]) -> Dict[str, Dict[str, Union[str, int]]]:
     return parsed
 
 
+
 def main(interface: "Decompiler"):
     """Main function for command line invocation."""
     args, reminder = parse_commandline()
-    if args.verbose:
+    if args.verbose >= 3:
         configure_logging(level="DEBUG")
-    else:
+    elif args.verbose == 2:
+        configure_logging(level="INFO")
+    elif args.verbose == 1:
         configure_logging(level="WARNING")
+    else:
+        configure_logging(level="ERROR")
 
     options = interface.create_options(switch_to_dict(reminder))
     decompiler = interface.from_path(args.binary, options)
