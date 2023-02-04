@@ -1,11 +1,13 @@
 """File in charge of managing config and commandline options for decompilation."""
 import json
 import logging
+from argparse import ArgumentParser, Namespace
 from copy import deepcopy
 from os.path import dirname, isfile, join
 from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 from binaryninja import Settings
+from pygments.lexers.c_like import default
 
 
 def deprecated_option_setter(func):
@@ -57,6 +59,9 @@ class Options:
         self._is_gui: bool = False
         self._bn_settings: Settings
 
+    def __str__(self) -> str:
+        return json.dumps(self._settings_key_values, indent=4)
+
     @property
     def is_gui(self) -> bool:
         return self._is_gui
@@ -67,8 +72,6 @@ class Options:
         self._is_gui = flag
         if self._is_gui:
             self._register_gui_settings()
-        else:
-            self._load_user_config()
 
     def _load_user_config(self):
         """Load additional user settings and override defaults"""
@@ -176,16 +179,93 @@ class Options:
         return options
 
     @classmethod
-    def from_cli(cls):
-        """Parse default options and load user config"""
+    def from_cli(cls, args: Optional[Namespace] = None):
+        """
+        Create Options for CLI invocation. Different option sources are applied in (reverse) order of precedence:
+            1. Default options        (recommended settings from default.json)
+            2. User config            (config.json from dewolf root, overrides defaults)
+            3. Command line arguments (override the previous)
+        """
         options = cls.load_default_options()
         options.is_gui = False
+        options._load_user_config()
+        if args is not None:
+            options._settings_key_values.update(vars(args))
         return options
 
     @classmethod
     def from_dict(cls, options_dict: Dict[str, Union[bool, str, int, list]]):
-        """Create Options from dict only (primarily for unittests)"""
+        """Create Options from dict only"""
         return cls(settings_key_values=deepcopy(options_dict))
+
+    @classmethod
+    def register_args(cls, parser: ArgumentParser):
+        """Register default options in ArgumentParser"""
+        for args, kwargs in cls._iterate_argparse_kwargs_for_defaults():
+            parser.add_argument(*args, **kwargs)
+
+    @staticmethod
+    def _bn_to_argparse(section: str, setting: str, properties: Dict) -> Dict:
+        kwargs = {
+                "dest": f"{section}.{setting}",
+                "help": properties["description"],
+                "default": properties["default"],
+                }
+        return kwargs
+
+    @classmethod
+    def _arg_bool(cls, section: str, setting: str, properties: Dict):
+        args = [f"--{section}.{setting}"]
+        kwargs = cls._bn_to_argparse(section, setting, properties)
+        kwargs["action"] = "store_true"
+        kwargs["help"] += f" (default: {kwargs['default']})"
+        negate_args = [f"--{section}.no_{setting}"]
+        negate_kwargs = {"dest": kwargs["dest"], 
+                         "action": "store_false"}
+        return [(args, kwargs), (negate_args, negate_kwargs)]
+
+    @classmethod
+    def _arg_array(cls, section: str, setting: str, properties: Dict):
+        args = [f"--{section}.{setting}"]
+        kwargs = cls._bn_to_argparse(section, setting, properties)
+        if "enum" in properties:
+            kwargs["choices"] = properties["enum"]
+            if properties["enum"][0].lower() != properties["enumDescriptions"][0].lower():
+                kwargs["help"] += " " + "; ".join(f"*{e}*: {d}" for e, d in zip(properties["enum"], properties["enumDescriptions"]))
+        kwargs["metavar"] = "ARRAY"
+        # kwargs["type"] = list 
+        return [(args, kwargs)]
+
+    @classmethod
+    def _arg_number(cls, section: str, setting: str, properties: Dict):
+        args = [f"--{section}.{setting}"]
+        kwargs = cls._bn_to_argparse(section, setting, properties)
+        kwargs["metavar"] = f"(default: {kwargs['default']})"
+        return [(args, kwargs)]
+
+    @classmethod
+    def _arg_string(cls, section: str, setting: str, properties: Dict):
+        args = [f"--{section}.{setting}"]
+        kwargs = cls._bn_to_argparse(section, setting, properties)
+        if "enum" in properties:
+            kwargs["choices"] = properties["enum"]
+            if properties["enum"][0].lower() != properties["enumDescriptions"][0].lower():
+                kwargs["help"] += " " + "; ".join(f"*{e}*: {d}" for e, d in zip(properties["enum"], properties["enumDescriptions"]))
+        kwargs["metavar"] = f"(default: {kwargs['default']})"
+        return [(args, kwargs)]
+
+    @classmethod
+    def _iterate_argparse_kwargs_for_defaults(cls):
+        default_options = cls.load_default_options()
+
+        ARG_TYPE_HANDLER = {"boolean": cls._arg_bool, "array": cls._arg_array, "number": cls._arg_number, "string": cls._arg_string}
+
+        for section, section_settings in default_options._defaults.items():
+            for setting, properties in section_settings.items():
+                if properties["is_hidden_from_cli"]:
+                    continue
+                for args, kwargs in ARG_TYPE_HANDLER[properties["type"]](section, setting, properties):
+                    yield args, kwargs
 
     @classmethod
     def load_default_options(cls):

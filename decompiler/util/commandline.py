@@ -8,9 +8,10 @@ from typing import Dict, List, Union
 
 from decompiler.logger import configure_logging
 from decompiler.util.decoration import DecoratedCode
+from decompiler.util.options import Options
 
 
-class Colorize(Enum):
+class Colorize(str, Enum):
     """Enum specifying if output should be colorized."""
 
     ALWAYS = "always"
@@ -31,13 +32,15 @@ def parse_commandline():
         else:
             return path
 
-    parser = ArgumentParser("Decompiler")
+    # register CLI-specific arguments
+    parser = ArgumentParser(prog="Decompiler", description="", epilog="")
     parser.add_argument("binary", type=_is_valid_decompile_target, help="Binaryninja input binary file")
     parser.add_argument("function", nargs="*", help="The name or address of a function to decompiled")
     parser.add_argument("--verbose", "-v", dest="verbose", action="count", help="Set logging verbosity, e.g., -vvv for DEBUG logging", default=0)
     parser.add_argument("--color", type=Colorize, choices=list(Colorize), default=Colorize.AUTO)
     parser.add_argument("--output", "-o", dest="outfile", help="The file in which to place decompilation output")
     parser.add_argument("--all", "-a", dest="all", action="store_true", help="Decompile all functions in this binary")
+    Options.register_args(parser) # register expert arguments
     return parser.parse_known_args()
 
 
@@ -75,7 +78,12 @@ def main(interface: "Decompiler"):
     else:
         configure_logging(level="ERROR")
 
-    options = interface.create_options(switch_to_dict(reminder))
+    # options = interface.create_options(switch_to_dict(reminder))
+    print(args)
+    options = Options.from_cli(args)
+    print(options)
+    print(reminder)
+    assert False, "break here"
     decompiler = interface.from_path(args.binary, options)
     if args.outfile is None:
         output_stream = None
