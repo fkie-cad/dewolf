@@ -212,8 +212,6 @@ def _requirement_without_reinitialization(ast: AbstractSyntaxTree, node: Abstrac
         assignment_visitor = AssignmentVisitor()
         assignment_visitor.visit(ast_node)
         for assignment in assignment_visitor.assignments:
-            if not assignment: 
-                return False
             if variable in assignment.definitions and variable not in assignment.requirements:
                 return False
             elif variable in assignment.definitions and variable in assignment.requirements:
@@ -252,7 +250,16 @@ class AstInstruction:
 
 
 class WhileLoopReplacer:
-    """Convert WhileLoopNodes to ForLoopNodes when possible (or forced) and also readability is improved."""
+    """Convert WhileLoopNodes to ForLoopNodes depending on the configuration.
+        -> keep_empty_for_loops will keep empty for-loops in the code
+        -> force_for_loops will transform every while-loop into a for-loop, worst case with empty declaration/modification
+        -> condition_types_for_loops_simple_loop_condition will transform trivial for-loop candidates (with only one condition) into for-loops
+            if the operator matches one of the allowed operator list
+        -> max_condition_complexity_for_loop_recovery will transform for-loop candidates only into for-loops if the condition complexity is 
+            less/equal then the threshold
+        -> max_modification_complexity_for_loop_recovery will transform for-loop candidates only into for-loops if the modification complexity is 
+            less/equal then the threshold
+    """
 
     def __init__(self, ast: AbstractSyntaxTree, options: Options):
         self._ast = ast
@@ -260,7 +267,7 @@ class WhileLoopReplacer:
         self._hide_non_init_decl = options.getboolean("readability-based-refinement.hide_non_initializing_declaration", fallback=False)
         self._force_for_loops = options.getboolean("readability-based-refinement.force_for_loops", fallback=False)
         self._condition_type = options.getlist("readability-based-refinement.condition_types_for_loops_simple_loop_conditions", fallback=[])
-        self._condition_max_complexity = options.getint("readability-based-refinement.max_condition_complexity_for_loop_recovery", fallback=1)
+        self._condition_max_complexity = options.getint("readability-based-refinement.max_condition_complexity_for_loop_recovery", fallback=2)
         self._modification_max_complexity = options.getint("readability-based-refinement.max_modification_complexity_for_loop_recovery", fallback=3)
 
     def run(self):
@@ -279,15 +286,16 @@ class WhileLoopReplacer:
             if loop_node.is_endless_loop or (not self._keep_empty_for_loops and _is_single_instruction_loop_node(loop_node)) \
             or not self._valid_for_loop_condition_type(loop_node.condition):
                 continue
-            if loop_node.condition.get_complexity(self._ast.condition_map) > self._condition_max_complexity and not self._force_for_loops:
-                continue  
+
+            if not self._force_for_loops and loop_node.condition.get_complexity(self._ast.condition_map) > self._condition_max_complexity:
+                continue
 
             for condition_variable in loop_node.get_required_variables(self._ast.condition_map):
                 if not (continuation := _find_continuation_instruction(self._ast, loop_node, condition_variable)):
                     continue
                 if not (variable_init := _get_variable_initialisation(self._ast, condition_variable)):
                     continue
-                if continuation.instruction.complexity > self._modification_max_complexity and not self._force_for_loops:
+                if not self._force_for_loops and continuation.instruction.complexity > self._modification_max_complexity:
                     continue
                 self._replace_with_for_loop(loop_node, continuation, variable_init)
                 break
@@ -409,7 +417,7 @@ class ForLoopVariableRenamer:
         self._ast = ast
         self._iteration: int = 0
         self._variable_counter: int = -1
-        self._candidates = candidates
+        self._candidates: list[str] = candidates
 
     def rename(self):
         """
@@ -456,7 +464,7 @@ class ReadabilityBasedRefinement(PipelineStage):
 
         WhileLoopReplacer(task.syntax_tree, task.options).run()
 
-        variableNames = task.options.getlist("readability-based-refinement.rename_for_loop_variables", fallback=[None])
+        variableNames = task.options.getlist("readability-based-refinement.for_loop_variable_names", fallback=[])
         if variableNames:
             ForLoopVariableRenamer(task.syntax_tree, variableNames).rename()
 

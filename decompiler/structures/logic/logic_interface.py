@@ -234,6 +234,10 @@ class ConditionInterface(LogicInterface, ABC, Generic[CONTEXT]):
     def rich_string_representation(self, condition_map: Dict[LogicInterface, Condition]):
         """Replaces each symbol by the condition of the condition map."""
 
+    @abstractmethod
+    def get_complexity(self, condition_map: Dict[LogicInterface, Condition]) -> int:
+        """Get complexity for the condition by summing the complexity of each symbol"""
+
 
 class PseudoLogicInterface(ConditionInterface, ABC):
     @classmethod

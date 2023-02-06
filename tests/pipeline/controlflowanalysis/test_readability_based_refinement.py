@@ -934,63 +934,6 @@ def ast_innerWhile_simple_condition_complexity() -> AbstractSyntaxTree:
     return ast
 
 
-
-@pytest.fixture
-def ast_innerWhile_simple_condition_complexity() -> AbstractSyntaxTree:
-    """
-    a = 0;
-    while (a < 1) {
-        b = 0;
-        c = 0;
-        d = 0;
-        while (b < 1 && c < 1 && d < 1){
-            b = b + 1;
-            c = c + 1;
-            d = d + 1;
-        }
-        a = a + 1;
-    }
-    """
-    true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
-    ast = AbstractSyntaxTree(
-        root := SeqNode(true_value),
-        condition_map={
-            logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(5)]),
-            logic_cond("x2", context): Condition(OperationType.less, [Variable("b"), Constant(5)]),
-            logic_cond("x3", context): Condition(OperationType.less, [Variable("c"), Constant(5)]),
-            logic_cond("x4", context): Condition(OperationType.less, [Variable("d"), Constant(5)]),
-        },
-    )
-
-    init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
-
-    outer_while = ast.factory.create_while_loop_node(logic_cond("x1", context))
-    outer_while_body = ast.factory.create_seq_node()
-    outer_while_init = ast._add_code_node([Assignment(Variable("b"), Constant(0)), Assignment(Variable("c"), Constant(0))
-    , Assignment(Variable("d"), Constant(0))])
-    outer_while_exit = ast._add_code_node([Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))])
-
-    inner_while = ast.factory.create_while_loop_node(logic_cond("x2", context) & logic_cond("x3", context) & logic_cond("x4", context))
-    inner_while_body = ast._add_code_node([Assignment(Variable("b"), BinaryOperation(OperationType.plus, [Variable("b"), Constant(1)])),
-    Assignment(Variable("c"), BinaryOperation(OperationType.plus, [Variable("c"), Constant(1)])), 
-    Assignment(Variable("d"), BinaryOperation(OperationType.plus, [Variable("d"), Constant(1)]))])
-
-    ast._add_nodes_from((outer_while, outer_while_body, inner_while))
-    ast._add_edges_from(
-        [
-            (root, init_code_node),
-            (root, outer_while),
-            (outer_while, outer_while_body),
-            (outer_while_body, outer_while_init),
-            (outer_while_body, inner_while),
-            (outer_while_body, outer_while_exit),
-            (inner_while, inner_while_body),
-        ]
-    )
-    return ast
-
-
-
 @pytest.fixture
 def ast_guarded_do_while_if() -> AbstractSyntaxTree:
     """
