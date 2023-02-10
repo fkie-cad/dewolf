@@ -1,7 +1,7 @@
 """File in charge of managing config and commandline options for decompilation."""
 import json
 import logging
-from argparse import ArgumentParser, Namespace, BooleanOptionalAction
+from argparse import ArgumentParser, BooleanOptionalAction, Namespace
 from copy import deepcopy
 from os.path import dirname, isfile, join
 from typing import Dict, Iterator, List, Optional, Tuple, Union
