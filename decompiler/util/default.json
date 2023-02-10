@@ -453,11 +453,11 @@
     "style_plugin": {
       "default": "native",
       "title": "Style plugin",
-      "type": "array",
+      "type": "string",
       "elementType": "string",
       "enum": ["native", "pygments"],
       "enumDescriptions": ["native", "Pygments"],
-      "description": "Which style plugin to use (does not apply to widget)",
+      "description": "Which style plugin to use",
       "is_hidden_from_gui": true,
       "is_hidden_from_cli": false,
       "is_expert_option": true
@@ -465,7 +465,7 @@
     "style_cmd": {
       "default": "paraiso-dark",
       "title": "Linting theme",
-      "type": "array",
+      "type": "string",
       "elementType": "string",
       "enum": [
         "default",
@@ -547,7 +547,7 @@
         "inkpot",
         "zenburn"
       ],
-      "description": "Linting theme (does not apply to widget)",
+      "description": "Linting theme",
       "is_hidden_from_gui": true,
       "is_hidden_from_cli": false,
       "is_expert_option": true
@@ -612,7 +612,7 @@
       "enumDescriptions": ["DEBUG", "INFO", "WARNING", "ERROR"],
       "description": "Log level",
       "is_hidden_from_gui": false,
-      "is_hidden_from_cli": false,
+      "is_hidden_from_cli": true,
       "is_expert_option": true
     },
     "stage_output": {
