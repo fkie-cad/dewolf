@@ -7,6 +7,7 @@ RUN apt -y update && apt -y upgrade && apt install -y --no-install-recommends \
     cmake \
     gcc-multilib \
     git \
+    python3-dev \
   # Binary Ninja deps https://docs.binary.ninja/guide/troubleshooting/index.html#headless-ubuntu
     libgl1-mesa-glx \
 	libfontconfig1 \
