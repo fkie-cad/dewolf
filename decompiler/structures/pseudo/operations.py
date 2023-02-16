@@ -234,7 +234,7 @@ class Operation(Expression, ABC):
     @property
     def type(self) -> Type:
         """Return the result type of the given expression."""
-        if self._type != UnknownType():
+        if type(self._type) is not UnknownType:
             return self._type
         if operand_types := [operand.type for operand in self.operands]:
             return max(operand_types, key=lambda type: type.size)

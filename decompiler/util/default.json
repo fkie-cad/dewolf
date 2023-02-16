@@ -252,6 +252,7 @@
     "forbidden_condition_types_in_simple_for_loops": {
       "default": ["not_equal", "equal"],
       "type": "array",
+      "elementType": "string",
       "title": "Not allowed condition type for simple for-loops",
       "description": "A simple (one condition) possible for-loop will only be converted if the condition type is not in this list",
       "is_hidden_from_gui": false
