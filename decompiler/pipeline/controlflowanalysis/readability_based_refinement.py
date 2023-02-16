@@ -252,9 +252,9 @@ class AstInstruction:
 class WhileLoopReplacer:
     """Convert WhileLoopNodes to ForLoopNodes depending on the configuration.
         -> keep_empty_for_loops will keep empty for-loops in the code
-        -> force_for_loops will transform every while-loop into a for-loop, worst case with empty declaration/modification
-        -> condition_types_for_loops_simple_loop_condition will transform trivial for-loop candidates (with only one condition) into for-loops
-            if the operator matches one of the allowed operator list
+        -> force_for_loops will transform every while-loop into a for-loop, worst case with empty declaration/modification statement
+        -> forbidden_condition_types_in_simple_for_loops will not transform trivial for-loop candidates (with only one condition) into for-loops
+            if the operator matches one of the forbidden operator list
         -> max_condition_complexity_for_loop_recovery will transform for-loop candidates only into for-loops if the condition complexity is 
             less/equal then the threshold
         -> max_modification_complexity_for_loop_recovery will transform for-loop candidates only into for-loops if the modification complexity is 
@@ -266,9 +266,9 @@ class WhileLoopReplacer:
         self._keep_empty_for_loops = options.getboolean("readability-based-refinement.keep_empty_for_loops", fallback=False)
         self._hide_non_init_decl = options.getboolean("readability-based-refinement.hide_non_initializing_declaration", fallback=False)
         self._force_for_loops = options.getboolean("readability-based-refinement.force_for_loops", fallback=False)
-        self._condition_type = options.getlist("readability-based-refinement.condition_types_for_loops_simple_loop_conditions", fallback=[])
-        self._condition_max_complexity = options.getint("readability-based-refinement.max_condition_complexity_for_loop_recovery", fallback=2)
-        self._modification_max_complexity = options.getint("readability-based-refinement.max_modification_complexity_for_loop_recovery", fallback=3)
+        self._forbidden_condition_types = options.getlist("readability-based-refinement.forbidden_condition_types_in_simple_for_loops", fallback=[])
+        self._condition_max_complexity = options.getint("readability-based-refinement.max_condition_complexity_for_loop_recovery", fallback=100)
+        self._modification_max_complexity = options.getint("readability-based-refinement.max_modification_complexity_for_loop_recovery", fallback=100)
 
     def run(self):
         """For each WhileLoop in AST check the following conditions:
@@ -284,7 +284,7 @@ class WhileLoopReplacer:
 
         for loop_node in list(self._ast.get_while_loop_nodes_topological_order()):
             if loop_node.is_endless_loop or (not self._keep_empty_for_loops and _is_single_instruction_loop_node(loop_node)) \
-            or not self._valid_for_loop_condition_type(loop_node.condition):
+            or self._invalid_simple_for_loop_condition_type(loop_node.condition):
                 continue
 
             if not self._force_for_loops and loop_node.condition.get_complexity(self._ast.condition_map) > self._condition_max_complexity:
@@ -345,17 +345,17 @@ class WhileLoopReplacer:
         continuation.node.instructions.remove(continuation.instruction)
         self._ast.clean_up()
        
-    def _valid_for_loop_condition_type(self, logic_condition) -> bool:
-        """ Checks if a logic condition is only a symbol, if true checks condition type of symbol for allowed ones"""
-        if not logic_condition.is_symbol or not self._condition_type:
-            return True
+    def _invalid_simple_for_loop_condition_type(self, logic_condition) -> bool:
+        """ Checks if a logic condition is only a symbol, if true checks condition type of symbol for forbidden ones"""
+        if not logic_condition.is_symbol or not self._forbidden_condition_types:
+            return False
 
         if logic_condition.is_negation:
             logic_condition = ~logic_condition
 
         condition = self._ast.condition_map[logic_condition]
-        for allowedCondition in self._condition_type:
-            if condition.operation.name == allowedCondition:
+        for forbidden_condition in self._forbidden_condition_types:
+            if condition.operation.name == forbidden_condition:
                 return True
 
         return False
