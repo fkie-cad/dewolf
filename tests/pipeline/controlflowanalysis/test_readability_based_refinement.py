@@ -1,3 +1,5 @@
+from typing import List
+
 import pytest
 from decompiler.pipeline.controlflowanalysis.readability_based_refinement import (
     ForLoopVariableRenamer,
@@ -32,7 +34,7 @@ def logic_cond(name: str, context) -> LogicCondition:
 
 
 def _generate_options(empty_loops: bool = False, hide_decl: bool = False, rename_for: bool = True, rename_while: bool = True, \
-    max_condition: int = 100, max_modification: int = 100, force_for_loops: bool = False, blacklist : list[str] = []) -> Options:
+    max_condition: int = 100, max_modification: int = 100, force_for_loops: bool = False, blacklist : List[str] = []) -> Options:
     options = Options()
     options.set("readability-based-refinement.keep_empty_for_loops", empty_loops)
     options.set("readability-based-refinement.hide_non_initializing_declaration", hide_decl)

@@ -393,6 +393,17 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
             self._condition, {symbol._condition: condition for symbol, condition in condition_map.items()}
         )
 
+    def get_complexity(self, condition_map: Dict[LOGICCLASS, Condition]) -> int:
+        """ Returns the complexity of a logic condition"""
+        complexity_sum = 0
+        for literal in self.get_literals():
+            if literal.is_negation: 
+                complexity_sum += condition_map[~literal].complexity
+            else:
+                complexity_sum += condition_map[literal].complexity
+
+        return complexity_sum
+
     # some world-implementation helpers:
 
     def _is_symbol(self, condition: WorldObject) -> bool:
