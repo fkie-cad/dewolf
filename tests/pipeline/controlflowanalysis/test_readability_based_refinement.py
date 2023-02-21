@@ -22,7 +22,7 @@ from decompiler.structures.pseudo import (
     OperationType,
     Variable,
 )
-from decompiler.structures.pseudo.operations import ArrayInfo, UnaryOperation
+from decompiler.structures.pseudo.operations import ArrayInfo, OperationType, UnaryOperation
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
@@ -32,17 +32,18 @@ def logic_cond(name: str, context) -> LogicCondition:
 
 
 def _generate_options(empty_loops: bool = False, hide_decl: bool = False, rename_for: bool = True, rename_while: bool = True, \
-    max_condition: int = 3, max_modification: int = 3, force_for_loops: bool = False) -> Options:
+    max_condition: int = 100, max_modification: int = 100, force_for_loops: bool = False, blacklist : list[str] = []) -> Options:
     options = Options()
     options.set("readability-based-refinement.keep_empty_for_loops", empty_loops)
     options.set("readability-based-refinement.hide_non_initializing_declaration", hide_decl)
     if rename_for:
         names = ["i", "j", "k", "l", "m", "n"]
-        options.set("readability-based-refinement.rename_for_loop_variables", names)
+        options.set("readability-based-refinement.for_loop_variable_names", names)
     options.set("readability-based-refinement.rename_while_loop_variables", rename_while)
     options.set("readability-based-refinement.max_condition_complexity_for_loop_recovery", max_condition)
     options.set("readability-based-refinement.max_modification_complexity_for_loop_recovery", max_modification)
     options.set("readability-based-refinement.force_for_loops", force_for_loops)
+    options.set("readability-based-refinement.forbidden_condition_types_in_simple_for_loops", blacklist)
     return options
 
 
@@ -934,6 +935,47 @@ def ast_innerWhile_simple_condition_complexity() -> AbstractSyntaxTree:
     return ast
 
 
+def generate_ast_with_modification_complexity(complexity : int) -> AbstractSyntaxTree:
+    """
+    a = 0;
+    while (a < 10) {
+        a = (a + (...)) + 1; // i times (+1)
+    }
+    """
+    true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(
+        root := SeqNode(true_value), condition_map={logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(10)])}
+    )
+    init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
+    while_loop = ast.factory.create_while_loop_node(logic_cond("x1", context))
+    increment = BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)])
+    for _ in range(complexity):
+        increment = BinaryOperation(OperationType.plus, [increment, Constant(1)])
+    while_loop_body = ast._add_code_node([Assignment(Variable("a"), increment)])
+    ast._add_node(while_loop)
+    ast._add_edges_from([(root, init_code_node), (root, while_loop), (while_loop, while_loop_body)])
+    return ast
+
+
+def generate_ast_with_condition_type(op : OperationType) -> AbstractSyntaxTree:
+    """
+    a = 0;
+    while (a <op> 10) {
+        a = a + 1;
+    }
+    """
+    true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(
+        root := SeqNode(true_value), condition_map={logic_cond("x1", context): Condition(op, [Variable("a"), Constant(10)])}
+    )
+    init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
+    while_loop = ast.factory.create_while_loop_node(logic_cond("x1", context))
+    while_loop_body = ast._add_code_node([Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))])
+    ast._add_node(while_loop)
+    ast._add_edges_from([(root, init_code_node), (root, while_loop), (while_loop, while_loop_body)])
+    return ast
+
+
 @pytest.fixture
 def ast_guarded_do_while_if() -> AbstractSyntaxTree:
     """
@@ -1386,6 +1428,7 @@ class TestReadabilityBasedRefinement:
         else:
             assert isinstance(ast_single_instruction_while.root.children[1], WhileLoopNode)
 
+
 class TestForLoopRecovery:
     """ Test options for for-loop recovery """
     @staticmethod
@@ -1401,21 +1444,35 @@ class TestForLoopRecovery:
             else:
                 assert isinstance(loop_node, WhileLoopNode)
 
-    @pytest.mark.parametrize("func", [
-        "ast_while_true", "ast_single_instruction_while", "ast_replaceable_while",
-        "ast_replaceable_while_usage", "ast_replaceable_while_reinit_usage", "ast_replaceable_while_compound_usage",
-        "ast_endless_while_init_outside", "ast_nested_while","ast_call_init",
-        "ast_redundant_init", "ast_reinit_in_condition_true", "ast_usage_in_condition",
-        "ast_sequenced_while_loops", "ast_switch_as_loop_body", "ast_switch_as_loop_body_increment",
-        "ast_switch_as_loop_body_increment", "ast_while_in_else", "ast_continuation_is_not_first_var",
-        "ast_initialization_in_condition", "ast_initialization_in_condition_sequence", "ast_innerWhile_simple_condition_complexity"])
-    def test_condition_modification_complexity(self, func, request):
-        ast = request.getfixturevalue(func)
-        self.run_rbr(ast, _generate_options(max_condition=2, max_modification=3))
 
-        for loop_node in list(ast.get_for_loop_nodes_topological_order()):
-            assert loop_node.modification.complexity <= 3 
-            assert loop_node.condition.get_complexity(ast.condition_map) <= 2
+    @pytest.mark.parametrize("modification_nesting", [1, 2])
+    def test_max_modification_complexity(self, modification_nesting):
+        ast = generate_ast_with_modification_complexity(modification_nesting)
+        max_modi_complexity = 4
+        self.run_rbr(ast, _generate_options(empty_loops=True, max_modification=max_modi_complexity))
+
+        for loop_node in list(ast.get_loop_nodes_post_order()):
+            if isinstance(loop_node, ForLoopNode):
+                assert loop_node.modification.complexity <= max_modi_complexity
+            else:
+                assert isinstance(loop_node, WhileLoopNode)
+                for condition_variable in loop_node.get_required_variables(ast.condition_map):
+                    instruction = _find_continuation_instruction(ast, loop_node, condition_variable)
+                    assert instruction is not None 
+                    assert instruction.instruction.complexity > max_modi_complexity
+    
+
+    @pytest.mark.parametrize("operation", [OperationType.equal, OperationType.not_equal ,OperationType.less_or_equal, OperationType.less])
+    def test_for_loop_recovery_blacklist(self, operation):
+        ast = generate_ast_with_condition_type(operation)
+        forbidden_conditon_types = ["not_equal", "equal"]
+        self.run_rbr(ast, _generate_options(empty_loops=True, blacklist=forbidden_conditon_types))
+
+        for loop_node in list(ast.get_loop_nodes_post_order()):
+                if ast.condition_map[loop_node.condition].operation.name in forbidden_conditon_types:
+                    assert isinstance(loop_node, WhileLoopNode)
+                else:
+                    assert isinstance(loop_node, ForLoopNode)
 
 
 class TestReadabilityUtils:
