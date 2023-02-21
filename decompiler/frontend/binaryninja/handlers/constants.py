@@ -57,29 +57,23 @@ class ConstantHandler(Handler):
         if function := view.get_function_at(pointer.constant):
             return self._lifter.lift(function.symbol)
 
-        string = (view.get_string_at(variable.value, True) or view.get_ascii_string_at(variable.value, min_length=2)) if variable and variable.value else None
-        ref_value = view.get_data_var_at(variable.value) if variable and variable.value else None
+        var_ref_string = (view.get_string_at(variable.value, True) or view.get_ascii_string_at(variable.value, min_length=2)) if variable and variable.value else None
+        var_ref_value = view.get_data_var_at(variable.value) if variable and variable.value else None
 
-        if ref_value and pointer.constant == ref_value.address: # Recursive ptr to itself (0x4040 := 0x4040), lift symbol if there, else just make a data_addr symbol
+        if var_ref_value and pointer.constant == var_ref_value.address: # Recursive ptr to itself (0x4040 := 0x4040), lift symbol if there, else just make a data_addr symbol
             data_symbol =  view.get_symbol_at(variable.value)
-            ref_value = data_symbol if data_symbol else Symbol("data_" + f"{pointer.constant:x}", pointer.constant, vartype=Integer.uint32_t())    
+            var_ref_value = data_symbol if data_symbol else Symbol("data_" + f"{pointer.constant:x}", pointer.constant, vartype=Integer.uint32_t())    
 
         g_var = GlobalVariable(
             name=symbol.name[:-2] + "_" + view.get_sections_at(variable.address)[0].name[1:] if symbol and symbol.name.find(".0") != -1 \
                 else symbol.name if symbol else "data_" + f"{pointer.constant:x}",
-            vartype=self._lifter.lift(Type.pointer(view.arch, Type.char())) if string else self._lifter.lift(Type.pointer(view.arch, Type.void())),
+            vartype=self._lifter.lift(Type.pointer(view.arch, Type.char())) if var_ref_string else self._lifter.lift(Type.pointer(view.arch, Type.void())),
             ssa_label=pointer.ssa_memory_version if pointer else 0,
-            initial_value=self._lifter.lift(ref_value, view=view, parent=pointer) if ref_value else Constant(string.value) \
-            if string else self._get_raw_bytes(view, pointer.constant)
+            initial_value=self._lifter.lift(var_ref_value, view=view, parent=pointer) if var_ref_value else Constant(var_ref_string.value) \
+            if var_ref_string else self._get_raw_bytes(view, pointer.constant)
         ) 
-        
-        if variable is not None and isinstance(variable.type, PointerType):  
-            return UnaryOperation(
-                OperationType.address,
-                [g_var]
-            )
-        else:
-            return g_var
+
+        return UnaryOperation(OperationType.address,[g_var]) if variable is not None and isinstance(variable.type, PointerType) else g_var
 
 
     def _get_raw_bytes(self, view: BinaryView, addr: int) -> bytes:
