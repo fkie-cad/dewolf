@@ -40,12 +40,12 @@ class NamingConvention(str, Enum):
 class VariableNameGeneration(PipelineStage):
     """Pipelinestage in charge of renaming variables to a configured format."""
 
-    name = "variable-name-generation"
-    for_loop_names = ["i", "j", "k", "l", "m", "n"]
+    name : str = "variable-name-generation"
     type_prefix = {
         Float: {16: "h", 32: "f", 64: "d", 80: "ld", 128: "q", 256: "o"},
         Integer: {8: "ch", 16: "s", 32: "i", 64: "l", 128: "i128"},
     }
+
 
     def __init__(self):
         self._ast: Optional[AbstractSyntaxTree] = None
@@ -56,6 +56,10 @@ class VariableNameGeneration(PipelineStage):
         self._counter_separator: str = ""
         self._variables: List[Variable] = []
 
+        self._loop_variable_names : List[str] = []
+        self._function_params : List[str] = []
+
+
     def run(self, task: DecompilerTask):
         self._ast = task.syntax_tree
         self._notation = task.options.getstring(f"{self.name}.notation", fallback="default")
@@ -63,12 +67,16 @@ class VariableNameGeneration(PipelineStage):
         self._pointer_base = task.options.getboolean(f"{self.name}.pointer_base", fallback=True)
         self._type_separator = task.options.getstring(f"{self.name}.type_separator", fallback="")
         self._counter_separator = task.options.getstring(f"{self.name}.counter_separator", fallback="")
+        self._loop_variable_names = task.options.getlist()
+        for param in task.function_parameters:
+            self._function_params.append(param.name)
 
         if self._notation != NamingConvention.default:
             self._collect()
             self._rename()
 
-    def _collect(self): # get all vars from nodes
+
+    def _collect(self):
         for node in self._ast.topological_order():
             if isinstance(node, CodeNode):
                 for stmt in node.instructions:
@@ -76,20 +84,22 @@ class VariableNameGeneration(PipelineStage):
             elif isinstance(node, (ConditionNode, ForLoopNode)):
                 for expr in [self._ast.condition_map[symbol] for symbol in node.condition.get_symbols()]:
                     self._variables.extend(_get_containing_variables(expr))
-                pass
             elif isinstance(node, (SwitchNode, CaseNode)):
                 self._variables.extend(_get_containing_variables(node.expression))
 
     def _rename(self):
-        if self._notation == NamingConvention.system_hungarian:
-            for var in self._variables:
-                if var.name not in self.for_loop_names:
-                    counter = _get_var_counter(var.name)
-                    var._name = self._hungarian_notation(var, counter)
+        if self._notation != NamingConvention.system_hungarian:
+            return 
+        for var in self._variables:
+            if var.name in self._loop_variable_names or var.name in self._function_params:
+                continue
+            counter = _get_var_counter(var.name)
+            var._name = self._hungarian_notation(var, counter if counter else "")
+            pass
+            
 
     def _hungarian_notation(self, var: Variable, counter: int) -> str:
-        prefix = self._hungarian_prefix(var.type)
-        return f"{prefix}{self._type_separator}{self._var_name}{self._counter_separator}{counter}"
+        return f"{self._hungarian_prefix(var.type)}{self._type_separator}{self._var_name}{self._counter_separator}{counter}"
 
     def _hungarian_prefix(self, var_type: Type) -> str:
         if isinstance(var_type, Pointer):
