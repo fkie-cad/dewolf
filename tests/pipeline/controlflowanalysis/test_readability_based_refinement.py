@@ -1,3 +1,5 @@
+from typing import List
+
 import pytest
 from decompiler.pipeline.controlflowanalysis.readability_based_refinement import (
     ForLoopVariableRenamer,
@@ -22,7 +24,7 @@ from decompiler.structures.pseudo import (
     OperationType,
     Variable,
 )
-from decompiler.structures.pseudo.operations import ArrayInfo, UnaryOperation
+from decompiler.structures.pseudo.operations import ArrayInfo, OperationType, UnaryOperation
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
@@ -31,12 +33,19 @@ def logic_cond(name: str, context) -> LogicCondition:
     return LogicCondition.initialize_symbol(name, context)
 
 
-def _generate_options(empty_loops: bool = False, hide_decl: bool = False, rename_for: bool = True, rename_while: bool = True) -> Options:
+def _generate_options(empty_loops: bool = False, hide_decl: bool = False, rename_for: bool = True, rename_while: bool = True, \
+    max_condition: int = 100, max_modification: int = 100, force_for_loops: bool = False, blacklist : List[str] = []) -> Options:
     options = Options()
     options.set("readability-based-refinement.keep_empty_for_loops", empty_loops)
     options.set("readability-based-refinement.hide_non_initializing_declaration", hide_decl)
-    options.set("readability-based-refinement.rename_for_loop_variables", rename_for)
+    if rename_for:
+        names = ["i", "j", "k", "l", "m", "n"]
+        options.set("readability-based-refinement.for_loop_variable_names", names)
     options.set("readability-based-refinement.rename_while_loop_variables", rename_while)
+    options.set("readability-based-refinement.max_condition_complexity_for_loop_recovery", max_condition)
+    options.set("readability-based-refinement.max_modification_complexity_for_loop_recovery", max_modification)
+    options.set("readability-based-refinement.force_for_loops", force_for_loops)
+    options.set("readability-based-refinement.forbidden_condition_types_in_simple_for_loops", blacklist)
     return options
 
 
@@ -593,7 +602,7 @@ def ast_switch_as_loop_body() -> AbstractSyntaxTree:
 def ast_switch_as_loop_body_increment() -> AbstractSyntaxTree:
     """
     This loop should be replaced with a for-loop because b has no usages after last definition, is in condition and is initialized
-    before loop without any usages inbetween.
+    before loop without any usages in between.
 
     Code of AST:
     a = 5;
@@ -870,6 +879,102 @@ def ast_initialization_in_condition_sequence() -> AbstractSyntaxTree:
     )
     true_branch_b._sorted_children = (if_condition_c, code_node)
     root._sorted_children = (if_condition_b, while_loop)
+    return ast
+
+
+@pytest.fixture
+def ast_innerWhile_simple_condition_complexity() -> AbstractSyntaxTree:
+    """
+    a = 0;
+    while (a < 1) {
+        b = 0;
+        c = 0;
+        d = 0;
+        while (b < 1 && c < 1 && d < 1){
+            b = b + 1;
+            c = c + 1;
+            d = d + 1;
+        }
+        a = a + 1;
+    }
+    """
+    true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(
+        root := SeqNode(true_value),
+        condition_map={
+            logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(5)]),
+            logic_cond("x2", context): Condition(OperationType.less, [Variable("b"), Constant(5)]),
+            logic_cond("x3", context): Condition(OperationType.less, [Variable("c"), Constant(5)]),
+            logic_cond("x4", context): Condition(OperationType.less, [Variable("d"), Constant(5)]),
+        },
+    )
+
+    init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
+
+    outer_while = ast.factory.create_while_loop_node(logic_cond("x1", context))
+    outer_while_body = ast.factory.create_seq_node()
+    outer_while_init = ast._add_code_node([Assignment(Variable("b"), Constant(0)), Assignment(Variable("c"), Constant(0))
+    , Assignment(Variable("d"), Constant(0))])
+    outer_while_exit = ast._add_code_node([Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))])
+
+    inner_while = ast.factory.create_while_loop_node(logic_cond("x2", context) & logic_cond("x3", context) & logic_cond("x4", context))
+    inner_while_body = ast._add_code_node([Assignment(Variable("b"), BinaryOperation(OperationType.plus, [Variable("b"), Constant(1)])),
+    Assignment(Variable("c"), BinaryOperation(OperationType.plus, [Variable("c"), Constant(1)])), 
+    Assignment(Variable("d"), BinaryOperation(OperationType.plus, [Variable("d"), Constant(1)]))])
+
+    ast._add_nodes_from((outer_while, outer_while_body, inner_while))
+    ast._add_edges_from(
+        [
+            (root, init_code_node),
+            (root, outer_while),
+            (outer_while, outer_while_body),
+            (outer_while_body, outer_while_init),
+            (outer_while_body, inner_while),
+            (outer_while_body, outer_while_exit),
+            (inner_while, inner_while_body),
+        ]
+    )
+    return ast
+
+
+def generate_ast_with_modification_complexity(complexity : int) -> AbstractSyntaxTree:
+    """
+    a = 0;
+    while (a < 10) {
+        a = (a + (...)) + 1; // i times (+1)
+    }
+    """
+    true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(
+        root := SeqNode(true_value), condition_map={logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(10)])}
+    )
+    init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
+    while_loop = ast.factory.create_while_loop_node(logic_cond("x1", context))
+    increment = BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)])
+    for _ in range(complexity):
+        increment = BinaryOperation(OperationType.plus, [increment, Constant(1)])
+    while_loop_body = ast._add_code_node([Assignment(Variable("a"), increment)])
+    ast._add_node(while_loop)
+    ast._add_edges_from([(root, init_code_node), (root, while_loop), (while_loop, while_loop_body)])
+    return ast
+
+
+def generate_ast_with_condition_type(op : OperationType) -> AbstractSyntaxTree:
+    """
+    a = 0;
+    while (a <op> 10) {
+        a = a + 1;
+    }
+    """
+    true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(
+        root := SeqNode(true_value), condition_map={logic_cond("x1", context): Condition(op, [Variable("a"), Constant(10)])}
+    )
+    init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
+    while_loop = ast.factory.create_while_loop_node(logic_cond("x1", context))
+    while_loop_body = ast._add_code_node([Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))])
+    ast._add_node(while_loop)
+    ast._add_edges_from([(root, init_code_node), (root, while_loop), (while_loop, while_loop_body)])
     return ast
 
 
@@ -1324,6 +1429,52 @@ class TestReadabilityBasedRefinement:
             assert isinstance(ast_single_instruction_while.root, ForLoopNode)
         else:
             assert isinstance(ast_single_instruction_while.root.children[1], WhileLoopNode)
+
+
+class TestForLoopRecovery:
+    """ Test options for for-loop recovery """
+    @staticmethod
+    def run_rbr(ast: AbstractSyntaxTree, options: Options = _generate_options()):
+        ReadabilityBasedRefinement().run(DecompilerTask("func", cfg=None, ast=ast, options=options))
+
+    def test_max_condition_complexity(self, ast_innerWhile_simple_condition_complexity):
+        self.run_rbr(ast_innerWhile_simple_condition_complexity, _generate_options(max_condition=2))
+
+        for loop_node in list(ast_innerWhile_simple_condition_complexity.get_loop_nodes_post_order()):
+            if loop_node.condition.get_complexity(ast_innerWhile_simple_condition_complexity.condition_map) <= 2:
+                assert isinstance(loop_node, ForLoopNode)
+            else:
+                assert isinstance(loop_node, WhileLoopNode)
+
+
+    @pytest.mark.parametrize("modification_nesting", [1, 2])
+    def test_max_modification_complexity(self, modification_nesting):
+        ast = generate_ast_with_modification_complexity(modification_nesting)
+        max_modi_complexity = 4
+        self.run_rbr(ast, _generate_options(empty_loops=True, max_modification=max_modi_complexity))
+
+        for loop_node in list(ast.get_loop_nodes_post_order()):
+            if isinstance(loop_node, ForLoopNode):
+                assert loop_node.modification.complexity <= max_modi_complexity
+            else:
+                assert isinstance(loop_node, WhileLoopNode)
+                for condition_variable in loop_node.get_required_variables(ast.condition_map):
+                    instruction = _find_continuation_instruction(ast, loop_node, condition_variable)
+                    assert instruction is not None 
+                    assert instruction.instruction.complexity > max_modi_complexity
+    
+
+    @pytest.mark.parametrize("operation", [OperationType.equal, OperationType.not_equal ,OperationType.less_or_equal, OperationType.less])
+    def test_for_loop_recovery_blacklist(self, operation):
+        ast = generate_ast_with_condition_type(operation)
+        forbidden_conditon_types = ["not_equal", "equal"]
+        self.run_rbr(ast, _generate_options(empty_loops=True, blacklist=forbidden_conditon_types))
+
+        for loop_node in list(ast.get_loop_nodes_post_order()):
+                if ast.condition_map[loop_node.condition].operation.name in forbidden_conditon_types:
+                    assert isinstance(loop_node, WhileLoopNode)
+                else:
+                    assert isinstance(loop_node, ForLoopNode)
 
 
 class TestReadabilityUtils:
@@ -1822,7 +1973,8 @@ class TestReadabilityUtils:
 
     def test_for_loop_variable_generation(self):
         renamer = ForLoopVariableRenamer(
-            AbstractSyntaxTree(SeqNode(LogicCondition.initialize_true(LogicCondition.generate_new_context())), {})
+            AbstractSyntaxTree(SeqNode(LogicCondition.initialize_true(LogicCondition.generate_new_context())), {}),
+            ["i", "j", "k", "l", "m", "n"]
         )
         assert [renamer._get_variable_name() for _ in range(14)] == [
             "i",
@@ -1846,3 +1998,4 @@ class TestReadabilityUtils:
             AbstractSyntaxTree(SeqNode(LogicCondition.initialize_true(LogicCondition.generate_new_context())), {})
         )
         assert [renamer._get_variable_name() for _ in range(5)] == ["counter", "counter1", "counter2", "counter3", "counter4"]
+
