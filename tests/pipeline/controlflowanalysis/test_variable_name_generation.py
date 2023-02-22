@@ -1,13 +1,15 @@
 from typing import List
 
 import pytest
-from dewolf.backend.codegenerator import CodeGenerator
-from dewolf.pipeline.controlflowanalysis import VariableNameGeneration
-from dewolf.structures.pseudo import Assignment, Constant, CustomType, Float, Integer, Pointer, Variable
-from dewolf.structures.syntaxtree import AbstractSyntaxTree, CodeNode
-from dewolf.task import DecompilerTask
-from dewolf.util.decoration import DecoratedCode
-from dewolf.util.options import Options
+from decompiler.backend.codegenerator import CodeGenerator
+from decompiler.pipeline.controlflowanalysis import VariableNameGeneration
+from decompiler.structures.ast.ast_nodes import CodeNode
+from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
+from decompiler.structures.logic.logic_condition import LogicCondition
+from decompiler.structures.pseudo import Assignment, Constant, CustomType, Float, Integer, Pointer, Variable
+from decompiler.task import DecompilerTask
+from decompiler.util.decoration import DecoratedCode
+from decompiler.util.options import Options
 
 PIPELINE_NAME = VariableNameGeneration.name
 
@@ -57,20 +59,22 @@ def _generate_options(notation: str = "system_hungarian", pointer_base: bool = T
 def _run_vng(ast: AbstractSyntaxTree, options: Options = _generate_options()):
     task = DecompilerTask("variable_name_generation", None, ast, options, VOID)
     VariableNameGeneration().run(task)
-    DecoratedCode.print_code(CodeGenerator().from_task(task))
+    DecoratedCode.print_code(CodeGenerator().generate([task]))
 
 
 def test_default_notation_1():
-    ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", I32), Constant(0))), {})
+    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", I32), Constant(0)), true_value), {})
     _run_vng(ast, _generate_options(notation="default"))
     assert var.name == "var_0"
 
 
 class TestHungarianNotation:
     def test_hungarian_notation_all_types(self):
-        ast = AbstractSyntaxTree(cn := CodeNode(_generate_all_type_assignments()), {})
+        true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
+        ast = AbstractSyntaxTree(cn := CodeNode(_generate_all_type_assignments(), true_value), {})
         _run_vng(ast)
-        assert [str(_) for _ in cn.stmts] == [
+        assert [str(_) for _ in cn.instructions] == [
             "chVar0 = 0x0",
             "chpVar0 = 0x0",
             "sVar1 = 0x0",
@@ -111,6 +115,7 @@ class TestHungarianNotation:
 
     @pytest.mark.parametrize("type_sep, counter_sep", [("", ""), ("_", "_")])
     def test_hungarian_notation_separators(self, type_sep: str, counter_sep: str):
-        ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", I32), Constant(0))), {})
+        true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
+        ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", I32), Constant(0)), true_value), {})
         _run_vng(ast, _generate_options(type_sep=type_sep, counter_sep=counter_sep))
         assert var.name == f"i{type_sep}Var{counter_sep}0"

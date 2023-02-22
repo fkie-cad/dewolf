@@ -3,7 +3,7 @@ from enum import Enum
 from typing import List, Optional
 
 from decompiler.pipeline.stage import PipelineStage
-from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, ForLoopNode, SwitchNode
+from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, LoopNode, SwitchNode
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.pseudo import CustomType, DataflowObject, Float, Integer, Pointer, Type, Variable
 from decompiler.task import DecompilerTask
@@ -17,18 +17,12 @@ def _get_var_counter(var_name: str) -> Optional[str]:
 
 def _get_containing_variables(dfo: DataflowObject) -> List[Variable]:
     """Returns a list of variables contained in this dataflow object"""
-    if isinstance(dfo, Variable):
-        return [dfo]
-
     variables: List[Variable] = []
-    remaining_subexpressions = list(dfo)
 
-    while remaining_subexpressions:
-        head = remaining_subexpressions.pop(0)
-        if isinstance(head, Variable):
-            variables.append(head)
-        else:
-            remaining_subexpressions = list(head) + remaining_subexpressions
+    for sub_exp in dfo.subexpressions():
+        if isinstance(sub_exp, Variable):
+            variables.append(sub_exp)
+
     return variables
 
 
@@ -55,9 +49,7 @@ class VariableNameGeneration(PipelineStage):
         self._type_separator: str = ""
         self._counter_separator: str = ""
         self._variables: List[Variable] = []
-
-        self._loop_variable_names : List[str] = []
-        self._function_params : List[str] = []
+        self._variable_blacklist : List[str] = []
 
 
     def run(self, task: DecompilerTask):
@@ -67,9 +59,7 @@ class VariableNameGeneration(PipelineStage):
         self._pointer_base = task.options.getboolean(f"{self.name}.pointer_base", fallback=True)
         self._type_separator = task.options.getstring(f"{self.name}.type_separator", fallback="")
         self._counter_separator = task.options.getstring(f"{self.name}.counter_separator", fallback="")
-        self._loop_variable_names = task.options.getlist()
-        for param in task.function_parameters:
-            self._function_params.append(param.name)
+        self._variable_blacklist = [param.name for param in task.function_parameters]
 
         if self._notation != NamingConvention.default:
             self._collect()
@@ -81,17 +71,18 @@ class VariableNameGeneration(PipelineStage):
             if isinstance(node, CodeNode):
                 for stmt in node.instructions:
                     self._variables.extend(_get_containing_variables(stmt))
-            elif isinstance(node, (ConditionNode, ForLoopNode)):
+            elif isinstance(node, (ConditionNode, LoopNode)):
                 for expr in [self._ast.condition_map[symbol] for symbol in node.condition.get_symbols()]:
                     self._variables.extend(_get_containing_variables(expr))
             elif isinstance(node, (SwitchNode, CaseNode)):
                 self._variables.extend(_get_containing_variables(node.expression))
 
+
     def _rename(self):
         if self._notation != NamingConvention.system_hungarian:
             return 
         for var in self._variables:
-            if var.name in self._loop_variable_names or var.name in self._function_params:
+            if var.name in self._variable_blacklist:
                 continue
             counter = _get_var_counter(var.name)
             var._name = self._hungarian_notation(var, counter if counter else "")
@@ -100,6 +91,7 @@ class VariableNameGeneration(PipelineStage):
 
     def _hungarian_notation(self, var: Variable, counter: int) -> str:
         return f"{self._hungarian_prefix(var.type)}{self._type_separator}{self._var_name}{self._counter_separator}{counter}"
+
 
     def _hungarian_prefix(self, var_type: Type) -> str:
         if isinstance(var_type, Pointer):
