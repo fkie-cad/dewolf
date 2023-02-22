@@ -1,10 +1,12 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt -y update && apt -y upgrade && apt install -y --no-install-recommends \
     build-essential \
+    cmake \
     gcc-multilib \
     git \
+    python3-dev \
   # Binary Ninja deps https://docs.binary.ninja/guide/troubleshooting/index.html#headless-ubuntu
     libgl1-mesa-glx \
 	libfontconfig1 \

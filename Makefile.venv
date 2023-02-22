@@ -1,4 +1,4 @@
-PYTHON_VERSION := 3.8
+PYTHON_VERSION := 3.10
 BINARY_NINJA_PATH := /opt/binaryninja
 PREFIX := .
 DEWOLF_IDIOMS_PATH := $(shell find $(PREFIX)/.. $(PREFIX)/. $(BINARY_NINJA_PATH)/plugins -maxdepth 2 -name "dewolf-idioms" -print 2>/dev/null | head -n 1)
