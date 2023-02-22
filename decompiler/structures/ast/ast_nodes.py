@@ -791,7 +791,7 @@ class ForLoopNode(LoopNode):
         self,
         declaration: Optional[Union[Expression, Assignment]],
         condition: LogicCondition,
-        modification: Assignment,
+        modification: Optional[Assignment],
         reaching_condition: LogicCondition,
         ast: Optional[AbstractSyntaxInterface] = None,
     ):
@@ -827,8 +827,10 @@ class ForLoopNode(LoopNode):
     def replace_variable(self, replacee: Variable, replacement: Variable) -> None:
         """Replace the variable replacee by replacement in the loop-condition, declaration and modification."""
         super().replace_variable(replacee, replacement)
-        self.declaration.substitute(replacee, replacement)
-        self.modification.substitute(replacee, replacement)
+        if self.declaration is not None:
+            self.declaration.substitute(replacee, replacement)
+        if self.modification is not None:
+            self.modification.substitute(replacee, replacement)
 
     def get_required_variables(self, condition_map: Optional[Dict[LogicCondition, Condition]] = None) -> Iterable[Variable]:
         yield from self.declaration.requirements
