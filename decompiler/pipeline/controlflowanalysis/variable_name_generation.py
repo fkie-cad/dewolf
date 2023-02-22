@@ -3,9 +3,9 @@ from enum import Enum
 from typing import List, Optional
 
 from decompiler.pipeline.stage import PipelineStage
-from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, LoopNode, SwitchNode
+from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, LoopNode, SwitchNode, ForLoopNode, WhileLoopNode
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
-from decompiler.structures.pseudo import CustomType, DataflowObject, Float, Integer, Pointer, Type, Variable
+from decompiler.structures.pseudo import CustomType, DataflowObject, Float, Integer, Pointer, Type, Variable, GlobalVariable
 from decompiler.task import DecompilerTask
 
 
@@ -63,6 +63,7 @@ class VariableNameGeneration(PipelineStage):
 
         if self._notation != NamingConvention.default:
             self._collect()
+            self._purge()
             self._rename()
 
 
@@ -75,22 +76,28 @@ class VariableNameGeneration(PipelineStage):
                 for expr in [self._ast.condition_map[symbol] for symbol in node.condition.get_symbols()]:
                     self._variables.extend(_get_containing_variables(expr))
             elif isinstance(node, (SwitchNode, CaseNode)):
-                self._variables.extend(_get_containing_variables(node.expression))
+                self._variables.extend(_get_containing_variables(node.expression))         
 
 
-    def _rename(self):
-        if self._notation != NamingConvention.system_hungarian:
-            return 
+    def _purge(self):
+        for node in self._ast.topological_order():
+            if isinstance(node, (LoopNode)):
+                for expr in [self._ast.condition_map[symbol] for symbol in node.condition.get_symbols()]:
+                    y = _get_containing_variables(expr)
+                self._variables = [x for x in self._variables if x not in y]
         for var in self._variables:
             if var.name in self._variable_blacklist:
-                continue
+                self._variables.remove(var)
+        
+
+    def _rename(self):
+        for var in self._variables:
             counter = _get_var_counter(var.name)
             var._name = self._hungarian_notation(var, counter if counter else "")
-            pass
             
 
     def _hungarian_notation(self, var: Variable, counter: int) -> str:
-        return f"{self._hungarian_prefix(var.type)}{self._type_separator}{self._var_name}{self._counter_separator}{counter}"
+        return ("g_" if isinstance(var, GlobalVariable) else "") + f"{self._hungarian_prefix(var.type)}{self._type_separator}{self._var_name}{self._counter_separator}{counter}"
 
 
     def _hungarian_prefix(self, var_type: Type) -> str:
