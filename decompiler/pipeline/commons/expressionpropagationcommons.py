@@ -44,11 +44,11 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         iteration = 0
         # execute until there are no more changes
 
-        while self.perform(task.graph):
+        while self.perform(task.graph, iteration):
             iteration += 1
         logging.info(f"{self.name} took {iteration} iterations")
 
-    def perform(self, graph) -> bool:
+    def perform(self, graph, iteration) -> bool:
         """expression propagation forward pass:
         initialize defmap and use map
         iterate through all the blocks and all the instructions in the blocks
