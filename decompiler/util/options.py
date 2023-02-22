@@ -165,7 +165,7 @@ class Options:
     def add_cmdline_options(self, extra_options: Optional[Dict]):
         """Add command line options to the options dictionary"""
         for category, settings in extra_options.items() if extra_options else {}.items():
-            for name, value in settings:
+            for name, value in settings.items():
                 self._settings_key_values[f"{category}.{name}"] = value
 
     @classmethod

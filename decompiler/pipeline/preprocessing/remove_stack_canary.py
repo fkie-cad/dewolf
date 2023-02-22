@@ -46,7 +46,18 @@ class RemoveStackCanary(PipelineStage):
         Patch Branches to stack fail node.
         """
         for pred in self._cfg.get_predecessors(node):
-            self._patch_branch_condition(pred)
+            self._remove_empty_block_between(pred)
+        self._cfg.remove_node(node)
+
+    def _remove_empty_block_between(self, node: BasicBlock) -> None:
+        """
+        Removes empty nodes between stack fail and branch recursively.
+        """
+        if not node.is_empty():
+            self._patch_branch_condition(node)
+            return
+        for pred in self._cfg.get_predecessors(node):
+            self._remove_empty_block_between(pred)
         self._cfg.remove_node(node)
 
     def _patch_branch_condition(self, node: BasicBlock) -> None:

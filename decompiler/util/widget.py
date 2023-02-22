@@ -124,7 +124,6 @@ class CodeDisplay(QPlainTextEdit):
         return code_display
 
 
-
 class DewolfNotifications(UIContextNotification):
     """Class handling notifications to the dewolf widget."""
 
@@ -142,6 +141,7 @@ class DewolfNotifications(UIContextNotification):
 
     def OnAddressChange(self, context, frame, view, location):
         self.widget.updateState()
+
 
 class DewolfWidget(QWidget, UIContextNotification):
     """Class for docking widget, displaying decompiled code"""
@@ -255,6 +255,11 @@ class DewolfWidget(QWidget, UIContextNotification):
         elif symbol.startswith("sub_"):
             if function := self.data.get_function_at(int(symbol.replace("sub_", "0x"), 16)):
                 self._current_view.navigateToFunction(function, function.start)
+        elif symbol.startswith("0x"):
+            try:
+                self._current_view.navigate(int(symbol, 16))
+            except ValueError:
+                pass
 
     @Decorators.requires_view
     def get_function_from_address(self, address: int) -> Optional[Function]:
@@ -273,12 +278,12 @@ class DewolfWidget(QWidget, UIContextNotification):
         if self._current_function.name in self._cache.keys():
             self.update_code_view()
             return
+        self._cache[self._current_function.name] = "Add to queue..."  # prevent multiple started workers for same function
         self.start_worker(self._current_view, self._current_function)
 
     @Decorators.requires_function
     def update_code_view(self):
         """Reload CodeDisplay content from cache"""
-        self.editor.set_font()  # responsive gui settings
         self.editor.setPlainText(self._cache.get(self._current_function.name, ""))
         self.highlighter.rehighlight()
 
@@ -297,7 +302,7 @@ class DewolfWidget(QWidget, UIContextNotification):
     def callback_worker_task_started(self, task_name: str):
         """Callback for decompilation task started"""
         logging.info(f"Started decompilation of {task_name}")
-        self._cache[task_name] = "In Queue"
+        self._cache[task_name] = "In queue"
         self.update_code_view()
 
     def callback_decompilation_finished(self):
@@ -315,7 +320,7 @@ class DewolfWidget(QWidget, UIContextNotification):
         self.threadpool.start(worker)
 
     def updateState(self):
-        """ Update the current UI state (frame, view, data, function) """
+        """Update the current UI state (frame, view, data, function)"""
 
         self._current_frame = UIContext.currentViewFrameForWidget(self)
 
@@ -329,7 +334,7 @@ class DewolfWidget(QWidget, UIContextNotification):
 
     @staticmethod
     def createPane(context):
-        """ Create a WidgetPane """
+        """Create a WidgetPane"""
         if context.context and context.binaryView:
             widget = DewolfWidget(context.binaryView)
             pane = WidgetPane(widget, "dewolf decompiler")
@@ -337,9 +342,8 @@ class DewolfWidget(QWidget, UIContextNotification):
 
     @staticmethod
     def canCreatePane(context):
-        """ Determine if we can create a WidgetPane """
+        """Determine if we can create a WidgetPane"""
         return context.context and context.binaryView
-
 
 
 class Highlighter(QSyntaxHighlighter):
@@ -447,7 +451,5 @@ class Highlighter(QSyntaxHighlighter):
 def add_dewolf_widget():
     """Add widget to GUI"""
     UIAction.registerAction("dewolf decompiler")
-    UIActionHandler.globalActions().bindAction(
-            "dewolf decompiler", UIAction(DewolfWidget.createPane, DewolfWidget.canCreatePane)
-            )
+    UIActionHandler.globalActions().bindAction("dewolf decompiler", UIAction(DewolfWidget.createPane, DewolfWidget.canCreatePane))
     Menu.mainMenu("Tools").addAction("dewolf decompiler", "dewolf decompiler")

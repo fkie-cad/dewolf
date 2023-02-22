@@ -234,7 +234,7 @@ class Operation(Expression, ABC):
     @property
     def type(self) -> Type:
         """Return the result type of the given expression."""
-        if self._type != UnknownType():
+        if type(self._type) is not UnknownType:
             return self._type
         if operand_types := [operand.type for operand in self.operands]:
             return max(operand_types, key=lambda type: type.size)
@@ -288,6 +288,13 @@ class ArrayInfo:
     base: Variable = None
     index: Union[int, Variable] = -1
     confidence: bool = False
+
+    def substitute(self, replacee: Variable, replacement: Variable):
+        """Replace Variable used in array access"""
+        if self.base == replacee:
+            self.base = replacement
+        if self.index == replacee:
+            self.index = replacement
 
 
 class UnaryOperation(Operation):
@@ -349,6 +356,8 @@ class UnaryOperation(Operation):
 
     def substitute(self, replacee: Expression, replacement: Expression) -> None:
         """Substitutes operand directly if possible, then recursively substitutes replacee in operands"""
+        if self.array_info is not None and isinstance(replacee, Variable) and isinstance(replacement, Variable):
+            self.array_info.substitute(replacee, replacement)
         super().substitute(replacee, replacement)
 
     def copy(self) -> UnaryOperation:

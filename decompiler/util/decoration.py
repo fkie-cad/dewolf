@@ -8,7 +8,7 @@ from re import compile
 from subprocess import CompletedProcess, run
 from sys import stdout
 from tempfile import NamedTemporaryFile
-from typing import Dict, TextIO
+from typing import Dict, Optional, TextIO
 
 import z3
 from binaryninja import BranchType, EdgePenStyle, EdgeStyle, FlowGraph, FlowGraphNode, HighlightStandardColor, ThemeColor, show_graph_report
@@ -16,21 +16,22 @@ from decompiler.structures.ast.ast_nodes import (
     AbstractSyntaxTreeNode,
     CaseNode,
     ConditionNode,
+    DoWhileLoopNode,
     FalseNode,
     ForLoopNode,
     LoopNode,
     SeqNode,
     SwitchNode,
     TrueNode,
+    WhileLoopNode,
 )
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.ast.syntaxgraph import AbstractSyntaxInterface
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.graphs.cfg import BasicBlock, BasicBlockEdge, BasicBlockEdgeCondition, ControlFlowGraph
-from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo.operations import Condition
+from decompiler.util.to_dot_converter import ToDotConverter
 from networkx import DiGraph
-from networkx.drawing.nx_pydot import write_dot
 from pygments import format, lex
 from pygments.formatters.html import HtmlFormatter
 from pygments.lexers.c_like import CLexer
@@ -58,11 +59,11 @@ class DecoratedGraph:
         """Return the graph being decorated."""
         return self._graph
 
-    def _write_dot(self, handle=None):
+    def _write_dot(self, handle: Optional[TextIO] = None):
         """Write the graph to the given handle or NamedTemporaryFile."""
         if not handle:
             handle = NamedTemporaryFile(mode="w+")
-        write_dot(self._graph, handle)
+        ToDotConverter.write(self._graph, handle)
         handle.flush()
         handle.seek(0)
         return handle
@@ -177,7 +178,8 @@ class DecoratedAST(DecoratedGraph):
         ConditionNode: {"fillcolor": "#e6f5c9", "highlight": HighlightStandardColor.RedHighlightColor},
         SwitchNode: {"fillcolor": "#fdcdac", "highlight": HighlightStandardColor.YellowHighlightColor},
         CaseNode: {"fillcolor": "#e6f5c9", "highlight": HighlightStandardColor.OrangeHighlightColor},
-        LoopNode: {"fillcolor": "#b3e2cd", "highlight": HighlightStandardColor.BlueHighlightColor},
+        WhileLoopNode: {"fillcolor": "#b3e2cd", "highlight": HighlightStandardColor.BlueHighlightColor},
+        DoWhileLoopNode: {"fillcolor": "#b3e2cd", "highlight": HighlightStandardColor.BlueHighlightColor},
         ForLoopNode: {"fillcolor": "#b3e2cd", "highlight": HighlightStandardColor.BlueHighlightColor},
     }
 
@@ -240,8 +242,7 @@ class DecoratedAST(DecoratedGraph):
                 label += self._format_node_content(f"{node}")
         else:
             label += self._format_node_content(f"{node}")
-        if ":" in label:
-            label = f'"{label}"'
+
         self._graph.add_node(node_id, **attributes, label=label)
         self._node_to_id[node] = node_id
 
@@ -291,9 +292,9 @@ class DecoratedAST(DecoratedGraph):
     @staticmethod
     def _format_node_content(label: str, max_width: int = 60):
         """Keep content of decorated nodes <= max_width for readability purposes."""
-        splitted_lines = r"\n"
+        splitted_lines = "\n"
         for label in label.splitlines():
-            splitted_lines += r"\n" + textwrap.fill(label, max_width)
+            splitted_lines += "\n" + textwrap.fill(label, max_width)
         return splitted_lines
 
 

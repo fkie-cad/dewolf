@@ -6,7 +6,7 @@ from typing import DefaultDict, Dict, List, Optional, Set, Tuple, Union
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.pointers import Pointers
-from decompiler.structures.pseudo.expressions import Variable
+from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Instruction, Phi, Relation
 from decompiler.structures.pseudo.operations import Call, ListOperation
 from decompiler.task import DecompilerTask
@@ -48,22 +48,22 @@ class _VariableCopyPool:
         for variable in variables:
             var_name = self._get_variable_name(variable)
             self._sorted_copies_of[var_name] = sorted(self._copies_of_variable[var_name], key=lambda var: var.ssa_label)
-            self._insert_label_zero_for_aliased_if_missing(var_name)
+            self._insert_label_zero_for_aliased_if_missing(var_name, variable)
 
-    def _insert_label_zero_for_aliased_if_missing(self, var_name: str):
+    def _insert_label_zero_for_aliased_if_missing(self, var_name: str, variable: Variable):
         """
         If the copy with the smallest SSA-label is an aliased variable whose label is not zero, then we insert a copy with label zero
         at the first position of the sorted list.
         """
         first_copy = self.get_smallest_label_copy(var_name)
         if first_copy.ssa_label > 0 and first_copy.is_aliased:
-            first_copy = Variable(var_name, first_copy.type, 0, is_aliased=True)
+            first_copy = variable.copy(vartype=first_copy.type.copy(), is_aliased=True, ssa_label=0)
             self._sorted_copies_of[var_name].insert(0, first_copy)
 
     def get_smallest_label_copy(self, variable: Union[str, Variable]):
         """Returns the copy with the smallest SSA-label, i.e. the first one."""
         variable = self._get_variable_name(variable)
-        if variable in self._sorted_copies_of[variable]:
+        if variable in self._sorted_copies_of:
             return self._sorted_copies_of[variable][0]
         return min(self._copies_of_variable[variable], key=lambda var: var.ssa_label)
 
@@ -141,11 +141,11 @@ class InsertMissingDefinitions(PipelineStage):
         """
         undefined_variables = self._use_map.used_variables - self._def_map.defined_variables
         all_variables = self._use_map.used_variables | self._def_map.defined_variables
-        aliased_names = {(variable.name, variable.type) for variable in all_variables if variable.is_aliased}
+        aliased_variables = {variable for variable in all_variables if variable.is_aliased}
 
         for memory_version in self._node_of_memory_version.keys():
-            for var_name, var_type in aliased_names:
-                aliased_variable = Variable(var_name, var_type, memory_version, is_aliased=True)
+            for variable in aliased_variables:
+                aliased_variable = variable.copy(ssa_label=memory_version)
                 if aliased_variable not in all_variables:
                     undefined_variables.add(aliased_variable)
         return undefined_variables
@@ -171,11 +171,11 @@ class InsertMissingDefinitions(PipelineStage):
         :param prev_ssa_labels: The labels of the ssa-variables of this aliased-variable that are already defined.
         """
         self._check_definition_is_insertable(variable)
-
         basicblock_for_definition, memory_instruction = self._node_of_memory_version[variable.ssa_label]
+
         position_insert_definition = self._find_position_to_insert_aliased_definition(basicblock_for_definition, memory_instruction)
         ssa_label_rhs_variable = self._get_ssa_label_of_rhs_variable(basicblock_for_definition, prev_ssa_labels)
-        rhs_variable = Variable(variable.name, variable.type, ssa_label_rhs_variable, True)
+        rhs_variable = variable.copy(ssa_label=ssa_label_rhs_variable, is_aliased=True)
 
         if self._memory_instruction_changes_variable(memory_instruction, rhs_variable):
             definition = Relation(variable, rhs_variable)
@@ -241,7 +241,6 @@ class InsertMissingDefinitions(PipelineStage):
                     f"No definition of a previous copy dominates the basic block {basicblock_for_definition} where we want to insert the "
                     f"definition"
                 )
-
         return last_known_memory_versions_in[current_basicblock]
 
     def _compute_last_known_memory_version_in_each_basicblock(self, prev_ssa_labels: Set[int]) -> Dict[BasicBlock, int]:

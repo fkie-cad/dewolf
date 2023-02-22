@@ -3,7 +3,7 @@ from typing import List, Union
 
 from binaryninja import BinaryView, DataVariable, Endianness, SymbolType, TypeClass
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import Constant, GlobalVariable, Integer, OperationType, Pointer, Symbol, Type, UnaryOperation
+from decompiler.structures.pseudo import Constant, CustomType, GlobalVariable, Integer, OperationType, Pointer, Symbol, Type, UnaryOperation
 
 
 class GlobalHandler(Handler):
@@ -16,7 +16,7 @@ class GlobalHandler(Handler):
         """Register the handler at its parent lifter."""
         self._lifter.HANDLERS.update({DataVariable: self.lift_global_variable})
 
-    def lift_global_variable(self, variable: DataVariable, **kwargs) -> UnaryOperation:
+    def lift_global_variable(self, variable: DataVariable, **kwargs) -> Union[UnaryOperation, GlobalVariable]:
         """Lift a global variable.
         kwargs should contain 2 keys:
         parent_addr: an address in int if this is a recursive pointer, None otherwise.
@@ -38,14 +38,10 @@ class GlobalHandler(Handler):
         initial_value = self._get_initial_value(bv, variable, addr, type_tokens)
 
         # Create the global variable.
-        # Convert all void and void* to char* for the C compiler.
+        vartype = self._lifter.lift(variable.type)
         if "void" in type_tokens:
             vartype = self._lifter.lift(bv.parse_type_string("char*")[0])
-        return UnaryOperation(
-            OperationType.address,
-            [GlobalVariable(variable_name, vartype=vartype, ssa_label=0, initial_value=initial_value)],
-            vartype=Pointer(vartype),
-        )
+        return GlobalVariable(variable_name, vartype=vartype, ssa_label=0, initial_value=initial_value)
 
     def _lift_jump_table(self, bv: BinaryView, variable_name: str, vartype: Type, addr: int) -> UnaryOperation:
         """Lift a jump table."""
@@ -64,7 +60,9 @@ class GlobalHandler(Handler):
         vartype = Integer.uint64_t() if bv.address_size == 8 else Integer.uint32_t()
         return GlobalVariable(variable_name, vartype=vartype, ssa_label=0, initial_value=addr)
 
-    def _get_initial_value(self, bv: BinaryView, variable: DataVariable, addr: int, type_tokens: List[str]) -> Union[str, int, bytes]:
+    def _get_initial_value(
+        self, bv: BinaryView, variable: DataVariable, addr: int, type_tokens: List[str]
+    ) -> Union[str, int, bytes, UnaryOperation]:
         """Retrieve the initial value of the global variable if there is any."""
         if variable.type == variable.type.void():
             # If there is no type, just retrieve all the bytes from the current to the next address where a data variable is present.
@@ -76,7 +74,7 @@ class GlobalHandler(Handler):
             if "*" in type_tokens:
                 indirect_ptr_addr = self._get_value(bv, addr, bv.arch.address_size)
                 if (var2 := bv.get_data_var_at(indirect_ptr_addr)) is not None:
-                    return self.lift_global_variable(var2, bv=bv, parent_addr=addr)
+                    return UnaryOperation(OperationType.address, [self.lift_global_variable(var2, bv=bv, parent_addr=addr)])
                 else:
                     return self._lift_no_data_var(bv, indirect_ptr_addr)
             else:

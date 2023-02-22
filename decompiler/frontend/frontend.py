@@ -32,7 +32,7 @@ class Frontend(ABC):
         """
 
     @abstractmethod
-    def create_task(self, function: str, options: Options) -> DecompilerTask:
+    def create_task(self, function_identifier: str, options: Options) -> DecompilerTask:
         """Create a task from the given function identifier."""
 
     @abstractmethod

@@ -193,9 +193,6 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
                             return self.visit(eliminated_val)
                     except ValueError:
                         pass
-                else:
-                    if op.type.is_signed == op.operand.type.is_signed and op.type.size >= op.operand.type.size:
-                        return operand
             return f"({op.type}){operand}"
         return f"{self.C_SYNTAX[op.operation]}{operand}"
 
