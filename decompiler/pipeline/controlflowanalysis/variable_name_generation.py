@@ -3,10 +3,10 @@ from enum import Enum
 from typing import List, Optional
 
 from decompiler.pipeline.stage import PipelineStage
+from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, ForLoopNode, SwitchNode
+from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.pseudo import CustomType, DataflowObject, Float, Integer, Pointer, Type, Variable
-from decompiler.structures.syntaxtree import AbstractSyntaxTree, CaseNode, CodeNode, ConditionNode, ForLoopNode, SwitchNode
 from decompiler.task import DecompilerTask
-from decompiler.util.z3_helper import get_symbols
 
 
 def _get_var_counter(var_name: str) -> Optional[str]:
@@ -68,14 +68,15 @@ class VariableNameGeneration(PipelineStage):
             self._collect()
             self._rename()
 
-    def _collect(self):
+    def _collect(self): # get all vars from nodes
         for node in self._ast.topological_order():
             if isinstance(node, CodeNode):
-                for stmt in node.stmts:
+                for stmt in node.instructions:
                     self._variables.extend(_get_containing_variables(stmt))
             elif isinstance(node, (ConditionNode, ForLoopNode)):
-                for expr in [self._ast.condition_map[symbol] for symbol in get_symbols(node.condition)]:
+                for expr in [self._ast.condition_map[symbol] for symbol in node.condition.get_symbols()]:
                     self._variables.extend(_get_containing_variables(expr))
+                pass
             elif isinstance(node, (SwitchNode, CaseNode)):
                 self._variables.extend(_get_containing_variables(node.expression))
 

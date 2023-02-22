@@ -1,6 +1,11 @@
 """Module defining the available pipelines."""
 
-from decompiler.pipeline.controlflowanalysis import ExpressionSimplification, InstructionLengthHandler, ReadabilityBasedRefinement, VariableNameGeneration
+from decompiler.pipeline.controlflowanalysis import (
+    ExpressionSimplification,
+    InstructionLengthHandler,
+    ReadabilityBasedRefinement,
+    VariableNameGeneration,
+)
 from decompiler.pipeline.dataflowanalysis import (
     ArrayAccessDetection,
     CommonSubexpressionElimination,
