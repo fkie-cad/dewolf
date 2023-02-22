@@ -48,7 +48,8 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
     def visit_loop_node(self, node: ast_nodes.LoopNode) -> str:
         """Generate code for loops."""
         loop_after = ""
-        if node.is_endless_loop:
+
+        if node.is_endless_loop and isinstance(node, ast_nodes.DoWhileLoopNode):
             loop_type = "while (true)"
         elif isinstance(node, ast_nodes.DoWhileLoopNode):
             loop_type = "do"
@@ -56,7 +57,7 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
             loop_after = f"while ({loop_condition});"
         elif isinstance(node, ast_nodes.ForLoopNode):
             for_declaration = self.visit(node.declaration) if node.declaration else " "
-            for_modification = self.visit(node.modification)
+            for_modification = self.visit(node.modification) if node.modification else ""
             loop_type = f"{node.loop_type.value} ({for_declaration}; {self._condition_string(node.condition)}; {for_modification})"
         else:
             assert isinstance(node, ast_nodes.WhileLoopNode)
