@@ -37,5 +37,5 @@ class SymbolHandler(Handler):
         """Lift the given symbol from binaryninja MLIL."""
         if not (symbol_type := self.SYMBOL_MAP.get(symbol.type, None)):
             warning(f"[Lifter] Can not handle symbols of type {symbol.type}, falling back to constant lifting.")
-            return Constant(symbol.address, vartype=Integer.uint32_t())
-        return symbol_type(symbol.name, symbol.address, vartype=Integer.uint32_t())
+            return Constant(symbol.address)
+        return symbol_type(symbol.name, symbol.address)

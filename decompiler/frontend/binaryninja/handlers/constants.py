@@ -46,7 +46,7 @@ class ConstantHandler(Handler):
         view = pointer.function.view
 
         if pointer.constant == 0:
-            return Constant(pointer.constant, vartype=Integer.uint64_t() if view.address_size == 8 else Integer.uint32_t())
+             return Constant(pointer.constant, vartype=Integer(view.address_size*8, False))
 
         if (variable := view.get_data_var_at(pointer.constant)) and not (isinstance(variable.type, PointerType) and isinstance(variable.type.target, VoidType)):
             return self._lifter.lift(variable, view=view, parent=pointer)
