@@ -3,19 +3,20 @@ from typing import List, Tuple
 import pytest
 from decompiler.structures.ast.condition_symbol import ConditionHandler, ConditionSymbol
 from decompiler.structures.logic.custom_logic import CustomLogicCondition, PseudoCustomLogicCondition
+from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import BinaryOperation, Condition, Constant, Integer, OperationType, Variable
 from simplifier.world.nodes import TmpVariable, WorldObject
 from simplifier.world.world import World
 
 
 class MockConditionHandler(ConditionHandler):
-    def add_condition(self, condition: Condition) -> ConditionSymbol:
+    def add_condition(self, condition: Condition) -> LogicCondition:
         """Adds a condition to the condition map."""
         symbol = self._get_next_symbol()
         z3_condition = PseudoCustomLogicCondition.initialize_from_condition(condition, self._logic_context)
         condition_symbol = ConditionSymbol(condition, symbol, z3_condition)
         self._condition_map[symbol] = condition_symbol
-        return condition_symbol
+        return symbol
 
     def _get_next_symbol(self) -> CustomLogicCondition:
         """Get the next unused symbol name."""

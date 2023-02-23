@@ -71,7 +71,7 @@ def test_switch_node():
     graph = ControlFlowGraph()
     graph.add_nodes_from(
         vertices := [
-            BasicBlock(0, [IndirectBranch(var := Variable("x", ssa_label=0))]),
+            BasicBlock(0, [IndirectBranch(var := Variable("x", Integer.int32_t(), ssa_label=0))]),
             BasicBlock(1, []),
             BasicBlock(2, []),
             BasicBlock(3, []),

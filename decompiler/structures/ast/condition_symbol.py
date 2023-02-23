@@ -79,22 +79,24 @@ class ConditionHandler:
         """Return the z3-condition map that maps symbols to z3-conditions."""
         return dict((symbol, condition_symbol.z3_condition) for symbol, condition_symbol in self._condition_map.items())
 
-    def add_condition(self, condition: Condition) -> ConditionSymbol:
+    def add_condition(self, condition: Condition) -> LogicCondition:
         """Adds a new condition to the condition map and returns the corresponding condition_symbol"""
-        ssa_names_of_variables = {v.ssa_name for v in condition.requirements}
-        for value in self._condition_map.values():
-            if ssa_names_of_variables != {v.ssa_name for v in value.condition.requirements}:
-                continue
-            if value.condition == condition:
-                return value
-            elif value.condition.negate() == condition:
-                return ConditionSymbol(condition, ~value.symbol, ~value.z3_condition)
+        z3_condition = PseudoLogicCondition.initialize_from_condition(condition, self._logic_context)
+        if symbol := self._condition_already_exists(z3_condition):
+            return symbol
 
         symbol = self._get_next_symbol()
-        z3_condition = PseudoLogicCondition.initialize_from_condition(condition, self._logic_context)
         condition_symbol = ConditionSymbol(condition, symbol, z3_condition)
         self._condition_map[symbol] = condition_symbol
-        return condition_symbol
+        return symbol
+
+    def _condition_already_exists(self, z3_condition: PseudoLogicCondition) -> Optional[ConditionSymbol]:
+        """Check whether the given condition already exists and returns the corresponding Condition Symbol."""
+        for value in self._condition_map.values():
+            if value.z3_condition.is_equal_to(z3_condition):
+                return value.symbol
+            elif value.z3_condition.is_equal_to(~z3_condition):
+                return ~value.symbol
 
     def _get_next_symbol(self) -> LogicCondition:
         """Get the next unused symbol name."""
