@@ -220,18 +220,41 @@
       "description": "Transform while-loops to for-loops although the resulting for-loop would be empty.",
       "is_hidden_from_gui": false
     },
-    "rename_for_loop_variables": {
-      "default": true,
-      "type": "boolean",
-      "title": "Rename for-loop variables",
-      "description": "Rename for-loop variables to i, j, k, ...",
+    "for_loop_variable_names" : {
+      "default": ["i", "j", "k", "l", "m", "n"],
+      "type": "array",
+      "elementType": "string",
+      "title": "Rename for-loop variables into desired names",
+      "description": "Rename for-loop variables to values from list",
       "is_hidden_from_gui": false
     },
-    "condition_types_for_loops_simple_loop_conditions": {
-      "default": ["less", "greater", "less_or_equal", "greater_or_equal"],
+    "max_condition_complexity_for_loop_recovery": {
+      "default": 100,
+      "type": "number",
+      "title": "Maximum condition complexity for-loop recovery",
+      "description": "If the condition of a possible for-loop is greater then value, the loop will not be transformed into a for-loop.",
+      "is_hidden_from_gui": false
+    },
+    "max_modification_complexity_for_loop_recovery": {
+      "default": 100,
+      "type": "number",
+      "title": "Maximum modification complexity for-loop recovery",
+      "description": "If the modification of a possible for-loop is greater then value, the loop will not be transformed into a for-loop.",
+      "is_hidden_from_gui": false
+    },
+    "force_for_loops": {
+      "default": false,
+      "type": "boolean",
+      "title": "Force for-loops",
+      "description": "Forces every while loop into a for-loop",
+      "is_hidden_from_gui": false
+    },
+    "forbidden_condition_types_in_simple_for_loops": {
+      "default": ["not_equal", "equal"],
       "type": "array",
-      "title": "Allowed condition type for simple for-loops conditions",
-      "description": "Only transforms a given simple while loop to a for loop is the condition type is correct",
+      "elementType": "string",
+      "title": "Not allowed condition type for simple for-loops",
+      "description": "A simple (one condition) possible for-loop will only be converted if the condition type is not in this list",
       "is_hidden_from_gui": false
     },
     "rename_while_loop_variables": {
