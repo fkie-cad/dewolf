@@ -81,7 +81,10 @@ class ConditionHandler:
 
     def add_condition(self, condition: Condition) -> ConditionSymbol:
         """Adds a new condition to the condition map and returns the corresponding condition_symbol"""
+        ssa_names_of_variables = {v.ssa_name for v in condition.requirements}
         for value in self._condition_map.values():
+            if ssa_names_of_variables != {v.ssa_name for v in value.condition.requirements}:
+                continue
             if value.condition == condition:
                 return value
             elif value.condition.negate() == condition:

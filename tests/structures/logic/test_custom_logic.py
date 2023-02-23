@@ -483,7 +483,7 @@ class TestCustomLogicCondition:
     def test_is_symbol(self, world, term, result):
         """Check whether the object is a symbol."""
         cond = CustomLogicCondition(term)
-        return cond.is_symbol == result
+        assert cond.is_symbol == result
 
     @pytest.mark.parametrize(
         "term1, term2, result",
@@ -500,7 +500,12 @@ class TestCustomLogicCondition:
             (
                 (world := World()).bitwise_and(b_x(1, world), world.bitwise_and(b_x(2, world), b_x(3, world))),
                 (world := World()).bitwise_and(world.bitwise_and(b_x(1, world), b_x(2, world)), b_x(3, world)),
-                True,
+                False,
+            ),
+            (
+                    (world := World()).bitwise_and(b_x(1, world), b_x(2, world), b_x(3, world)),
+                    (world := World()).bitwise_and(b_x(1, world), b_x(3, world), b_x(2, world)),
+                    True,
             ),
             (
                 (world := World()).bitwise_and(b_x(1, world), b_x(2, world), b_x(2, world)),
@@ -527,7 +532,7 @@ class TestCustomLogicCondition:
     def test_is_equal_to(self, term1, term2, result):
         cond1 = CustomLogicCondition(term1)
         cond2 = CustomLogicCondition(term2)
-        return cond1.is_equal_to(cond2) == result
+        assert cond1.is_equal_to(cond2) == result
 
     @pytest.mark.parametrize(
         "term1, term2, result",
