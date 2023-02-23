@@ -3,9 +3,9 @@ from enum import Enum
 from typing import List, Optional
 
 from decompiler.pipeline.stage import PipelineStage
-from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, LoopNode, SwitchNode, ForLoopNode, WhileLoopNode
+from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, LoopNode, SwitchNode
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
-from decompiler.structures.pseudo import CustomType, DataflowObject, Float, Integer, Pointer, Type, Variable, GlobalVariable
+from decompiler.structures.pseudo import CustomType, DataflowObject, Float, GlobalVariable, Integer, Pointer, Type, Variable
 from decompiler.task import DecompilerTask
 
 
@@ -18,11 +18,9 @@ def _get_var_counter(var_name: str) -> Optional[str]:
 def _get_containing_variables(dfo: DataflowObject) -> List[Variable]:
     """Returns a list of variables contained in this dataflow object"""
     variables: List[Variable] = []
-
     for sub_exp in dfo.subexpressions():
         if isinstance(sub_exp, Variable):
             variables.append(sub_exp)
-
     return variables
 
 
@@ -32,7 +30,10 @@ class NamingConvention(str, Enum):
 
 
 class VariableNameGeneration(PipelineStage):
-    """Pipelinestage in charge of renaming variables to a configured format."""
+    """ 
+    Pipelinestage in charge of renaming variables to a configured format.
+    Currently only the 'default' or 'hungarian' system are supported.
+    """
 
     name : str = "variable-name-generation"
     type_prefix = {
@@ -49,7 +50,7 @@ class VariableNameGeneration(PipelineStage):
         self._type_separator: str = ""
         self._counter_separator: str = ""
         self._variables: List[Variable] = []
-        self._variable_blacklist : List[str] = []
+        self._params : List[Variable] = []
 
 
     def run(self, task: DecompilerTask):
@@ -59,7 +60,7 @@ class VariableNameGeneration(PipelineStage):
         self._pointer_base = task.options.getboolean(f"{self.name}.pointer_base", fallback=True)
         self._type_separator = task.options.getstring(f"{self.name}.type_separator", fallback="")
         self._counter_separator = task.options.getstring(f"{self.name}.counter_separator", fallback="")
-        self._variable_blacklist = [param.name for param in task.function_parameters]
+        self._params = task.function_parameters
 
         if self._notation != NamingConvention.default:
             self._collect()
@@ -68,6 +69,7 @@ class VariableNameGeneration(PipelineStage):
 
 
     def _collect(self):
+        """Collects all variables by iterating over every node in the AST."""
         for node in self._ast.topological_order():
             if isinstance(node, CodeNode):
                 for stmt in node.instructions:
@@ -80,15 +82,20 @@ class VariableNameGeneration(PipelineStage):
 
 
     def _purge(self):
-        for node in self._ast.topological_order():
-            if isinstance(node, (LoopNode)):
-                for expr in [self._ast.condition_map[symbol] for symbol in node.condition.get_symbols()]:
-                    y = _get_containing_variables(expr)
-                self._variables = [x for x in self._variables if x not in y]
-        for var in self._variables:
-            if var.name in self._variable_blacklist:
-                self._variables.remove(var)
-        
+        """Remove variables for renaming if they are:
+            - function params 
+            - loop variables which have been renamed by For/WhileLoopRenamer
+            - global vars with a symbol as a name
+        """
+        loop_vars : List[Variable] = []
+        for node in self._ast.get_loop_nodes_post_order():
+            for expr in [self._ast.condition_map[symbol] for symbol in node.condition.get_symbols()]:
+                loop_vars.extend(_get_containing_variables(expr))
+            
+        loop_vars = [var for var in loop_vars if var.name.find("var_") == -1]
+        self._variables = [var for var in self._variables if var not in self._params]
+        self._variables = [var for var in self._variables if var not in loop_vars]
+        self._variables = [var for var in self._variables if not isinstance(var, GlobalVariable)]
 
     def _rename(self):
         for var in self._variables:
@@ -97,7 +104,7 @@ class VariableNameGeneration(PipelineStage):
             
 
     def _hungarian_notation(self, var: Variable, counter: int) -> str:
-        return ("g_" if isinstance(var, GlobalVariable) else "") + f"{self._hungarian_prefix(var.type)}{self._type_separator}{self._var_name}{self._counter_separator}{counter}"
+        return f"{self._hungarian_prefix(var.type)}{self._type_separator}{self._var_name}{self._counter_separator}{counter}"
 
 
     def _hungarian_prefix(self, var_type: Type) -> str:
