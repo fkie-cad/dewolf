@@ -1,5 +1,7 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
-from binaryninja import BinaryView, PointerType, SymbolType, Type, VoidType, mediumlevelil
+from typing import Optional
+
+from binaryninja import BinaryView, DataVariable, PointerType, SymbolType, Type, VoidType, mediumlevelil
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import Constant, GlobalVariable, Integer, OperationType, Symbol, UnaryOperation
 
@@ -38,10 +40,7 @@ class ConstantHandler(Handler):
                     - lift as symbol
                 4. Address has a function there 
                     - lift the function symbol as symbol
-                5. Address has a datasymbol or void/void* datavariable or None there 
-                    - lift as char* if there is a string, otherwise as void* with raw bytes (if the datavariable was a ptr, lift as &ptr*, otherwise as ptr*)
-
-                    - there were symbols which call them self recursively, therefore a small check before the end
+                5. Lift as raw address
         """
         view = pointer.function.view
 
@@ -56,6 +55,17 @@ class ConstantHandler(Handler):
 
         if function := view.get_function_at(pointer.constant):
             return self._lifter.lift(function.symbol)
+
+        return self._lift_const_addr(view, pointer)
+
+  
+    def _lift_const_addr(self, view: BinaryView, pointer : mediumlevelil.MediumLevelILConstPtr):
+        """Lift a raw address:
+            - lift as char* if there is a string, otherwise as void* with raw bytes (if the datavariable was a ptr, lift as &ptr*, otherwise as ptr*)
+            - there were symbols which call them self recursively, therefore a small check before the end
+        """
+        variable = view.get_data_var_at(pointer.constant)
+        symbol = view.get_symbol_at(pointer.constant)
 
         var_ref_string = (view.get_string_at(variable.value, True) or view.get_ascii_string_at(variable.value, min_length=2)) if variable and variable.value else None
         var_ref_value = view.get_data_var_at(variable.value) if variable and variable.value else None
