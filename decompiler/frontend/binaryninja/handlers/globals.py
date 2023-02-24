@@ -20,7 +20,7 @@ class GlobalHandler(Handler):
         parent: Optional[MediumLevelILInstruction] = None, **kwargs
     ) -> Union[ImportedFunctionSymbol, Constant, UnaryOperation]:
         """Lift global variables with basic types (pointer are possible)"""
-        if not variable.name and isinstance(variable.value, bytes): # will only catch const char[x] stuff; may be better checking variable.type for ArrayType
+        if not variable.name and isinstance(variable.value, bytes):
             return Constant(
                 value=variable.value.decode("utf-8") if isinstance(variable.value, bytes) else variable.value, 
                 vartype=self._lifter.lift(variable.type)

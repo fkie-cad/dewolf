@@ -65,8 +65,7 @@ class ConstantHandler(Handler):
             var_ref_value = data_symbol if data_symbol else Symbol("data_" + f"{pointer.constant:x}", pointer.constant, vartype=Integer.uint32_t())    
 
         g_var = GlobalVariable(
-            name=symbol.name[:-2] + "_" + view.get_sections_at(variable.address)[0].name[1:] if symbol and symbol.name.find(".0") != -1 \
-                else symbol.name if symbol else "data_" + f"{pointer.constant:x}",
+            name=symbol.name[:-2] if symbol and symbol.name.find(".0") != -1 else symbol.name if symbol else "data_" + f"{pointer.constant:x}",
             vartype=self._lifter.lift(Type.pointer(view.arch, Type.char())) if var_ref_string else self._lifter.lift(Type.pointer(view.arch, Type.void())),
             ssa_label=pointer.ssa_memory_version if pointer else 0,
             initial_value=self._lifter.lift(var_ref_value, view=view, parent=pointer) if var_ref_value else Constant(var_ref_string.value) \
