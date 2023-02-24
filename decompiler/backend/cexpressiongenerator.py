@@ -4,7 +4,7 @@ from itertools import chain, repeat
 from typing import Union
 
 from decompiler.structures import pseudo as expressions
-from decompiler.structures.pseudo import Float, Integer, OperationType, Pointer, Symbol
+from decompiler.structures.pseudo import Float, Integer, OperationType, Pointer
 from decompiler.structures.pseudo import instructions as instructions
 from decompiler.structures.pseudo import operations as operations
 from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInterface
