@@ -15,6 +15,7 @@ from decompiler.util.options import Options
 from ..frontend import Frontend
 from .lifter import BinaryninjaLifter
 from .parser import BinaryninjaParser
+from .tagging import CompilerIdiomsTagging
 
 
 class FunctionObject:
@@ -111,6 +112,8 @@ class BinaryninjaFrontend(Frontend):
         """Create a frontend object by invoking binaryninja on the given sample."""
         file_options = {"analysis.limits.maxFunctionSize": options.getint("binaryninja.max_function_size")}
         if (bv := BinaryViewType.get_view_of_file_with_options(path, options=file_options)) is not None:
+            tagging = CompilerIdiomsTagging(bv, path)
+            tagging.run()
             return cls(bv)
         raise RuntimeError("Failed to create binary view")
 
