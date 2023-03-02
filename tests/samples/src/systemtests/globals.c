@@ -20,16 +20,6 @@ int global_table(unsigned x) {
 	return table[x >> 26];
 }
 
-
-
-char * hello_string = "Hello World";
-
-void global_string() {
-	printf("%s\n", hello_string);
-}
-
-
-
 volatile int32_t g_3 = -2L;
 volatile int32_t * volatile g_2 = &g_3;
 
@@ -73,9 +63,102 @@ int32_t global_ias(uint8_t l_2)
 }
 
 
+int _add(int* a, int* b){
+    *a = *b;
+    return *a + *a;
+}
+
+
+int a;
+int b;
+
+int global_addr_add(){
+    return _add(&a, &b);
+}
+
+
+int* c;
+int* d;
+
+int global_ptr_add(){
+    return _add(c, d);
+}
+
+
+int e = 0x17;
+int f = 0x42;
+int* g = &e;
+int* h;
+
+int global_addr_ptr_add(){
+    h = &f;
+    return _add(g, h);
+}
+
+
+struct cool_data_structure{
+    int x;
+    char y;
+    int z;
+};
+
+
+int _add_struct(struct cool_data_structure* s){
+    return s->x + (int) s->y + s->z;
+}
+
+
+struct cool_data_structure i;
+
+int global_add_struct(){
+    return _add_struct(&i);
+}
+
+
+char* j = "Hello Decompiler!";
+void* k = (void*) "Hello Void*!";
+
+int global_strings(){
+    puts("Hello World!");
+    puts(j);
+    puts(k);
+    return 0;
+}
+
+
+int (*l)(int*, int*);
+
+int global_fkt_ptr(){
+    l = &_add;
+    return l(&a,&b);
+}
+
+
+int p = -0x42;
+int* o = &p;
+int** n = &o;
+int*** m = &n;
+
+int global_indirect_ptrs2(){
+    return _add(**m, &p);
+}
+
+int* q	= (int*) &q;
+
+
+int global_recursive_ptr(){
+    return _add(q, q);
+}
 
 int main(int argc, char *argv[]) {
 	global_table(argc);
-	global_string();
+	global_addr_add();
+	global_ptr_add();
+	global_addr_ptr_add();
+	global_add_struct();
+	global_strings();
+	global_fkt_ptr();
+	global_indirect_ptrs2();
+	global_recursive_ptr();
 	return 0;
 }
