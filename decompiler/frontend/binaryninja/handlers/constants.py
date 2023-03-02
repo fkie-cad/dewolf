@@ -42,7 +42,7 @@ class ConstantHandler(Handler):
         """
         view = pointer.function.view
 
-        if not self._is_addr_in_a_section(view, pointer.constant):
+        if not self._addr_in_section(view, pointer.constant):
             return Constant(pointer.constant, vartype=Integer(view.address_size*8, False))
 
         if (variable := view.get_data_var_at(pointer.constant)) and not (isinstance(variable.type, PointerType) and isinstance(variable.type.target, VoidType)):
@@ -90,7 +90,8 @@ class ConstantHandler(Handler):
         else:
             return view.read(addr, view.get_sections_at(addr)[0].end)
 
-    def _is_addr_in_a_section(self, view : BinaryView, addr: int) -> bool:
+
+    def _addr_in_section(self, view : BinaryView, addr: int) -> bool:
         """ Returns True if address is contained in a section, False otherwise"""
         for _, section in view.sections.items():
             if addr >= section.start and addr <= section.end:
