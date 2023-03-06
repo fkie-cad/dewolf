@@ -6,9 +6,9 @@ from compiler_idioms.matcher import Matcher
 class CompilerIdiomsTagging:
     TAG_SYMBOL = "⚙"
 
-    def __init__(self, bv: binaryninja.BinaryView, path: str):
-        self._bv = bv
-        self._path = path
+    def __init__(self, binary_view: binaryninja.BinaryView):
+        self._bv = binary_view if type(binary_view) == binaryninja.BinaryView else binary_view.getCurrentFunction().view
+        self._path = self._bv.file.filename
 
     def run(self):
         matches = Matcher().find_idioms_in_file(self._path)

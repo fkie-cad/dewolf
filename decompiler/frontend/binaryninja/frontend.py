@@ -106,14 +106,15 @@ class BinaryninjaFrontend(Frontend):
     def __init__(self, bv: BinaryView):
         """Create a new binaryninja view with the given path."""
         self._bv = bv
+        tagging = CompilerIdiomsTagging(self._bv)
+        tagging.run()
+
 
     @classmethod
     def from_path(cls, path: str, options: Options):
         """Create a frontend object by invoking binaryninja on the given sample."""
         file_options = {"analysis.limits.maxFunctionSize": options.getint("binaryninja.max_function_size")}
         if (bv := BinaryViewType.get_view_of_file_with_options(path, options=file_options)) is not None:
-            tagging = CompilerIdiomsTagging(bv, path)
-            tagging.run()
             return cls(bv)
         raise RuntimeError("Failed to create binary view")
 
