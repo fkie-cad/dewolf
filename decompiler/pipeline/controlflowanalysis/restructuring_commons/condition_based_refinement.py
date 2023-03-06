@@ -74,7 +74,8 @@ class ConditionBasedRefinement:
                 sibling_reachability.merge_siblings_to(condition_node, [ast_node_i, ast_node_j])
                 processed_to_branch.update([ast_node_i, ast_node_j])
 
-        sequence_node._sorted_children = sibling_reachability.sorted_nodes()
+        if (sorted_nodes := sibling_reachability.sorted_nodes()) is not None:
+            sequence_node._sorted_children = sorted_nodes
 
     @staticmethod
     def _get_possible_complementary_nodes(sequence_node: SeqNode):
