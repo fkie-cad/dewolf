@@ -45,7 +45,7 @@ def parse_commandline():
     parser.add_argument("--output", "-o", dest="outfile", help="The file in which to place decompilation output", default=None)
     parser.add_argument("--all", "-a", dest="all", action="store_true", help="Decompile all functions in this binary", default=False)
     parser.add_argument("--print-config", dest="print", action="store_true", help="Print current config and exit.", default=False)
-    Options.register_args(parser)  # register expert arguments
+    Options.register_defaults_in_argument_parser(parser)  # register expert arguments
     return parser.parse_args()
 
 

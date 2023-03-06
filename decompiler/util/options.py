@@ -50,7 +50,7 @@ class Options:
     BN_PROPERTY_KEYS = {"default", "title", "type", "description", "elementType", "enum", "enumDescriptions"}
 
     def __init__(
-        self, defaults: Optional[Dict[str, dict]] = None, settings_key_values: Optional[Dict[str, Union[str, int, bool, list]]] = None
+        self, defaults: Optional[List[Dict]] = None, settings_key_values: Optional[Dict[str, Union[str, int, bool, list]]] = None
     ) -> None:
         logging.debug("initialize Options")
         self._defaults = defaults if defaults is not None else {}
@@ -82,22 +82,22 @@ class Options:
                 except json.JSONDecodeError:
                     logging.warning(f"could not load user config at {self.USER_CONFIG}")
 
-    def _get_binary_ninja_settings_properties_json(self, properties_dict: dict) -> str:
+    def _get_binaryninja_option_json(self, option: dict) -> str:
         """Extract binaryninja setting properties from default.json"""
-        return json.dumps({k: properties_dict[k] for k in self.BN_PROPERTY_KEYS & properties_dict.keys()})
+        return json.dumps({k: option[k] for k in self.BN_PROPERTY_KEYS & option.keys()})
 
     def _register_gui_settings(self) -> None:
         """Register default settings in binaryninja gui"""
-        logging.debug("registering default settings in BN")
+        logging.debug("registering default settings in binaryninja")
         self._bn_settings = Settings()
         self._bn_settings.register_group(self.BN_OPTION_GROUP, self.BN_GROUP_DESCRIPTION)
-        for section, section_settings in self._defaults.items():
-            for setting, properties_dict in section_settings.items():
-                if properties_dict.get("is_hidden_from_gui", False):
+        for option_group in self._defaults:
+            for option in option_group["options"]:
+                if option.get("is_hidden_from_gui", False):
                     continue
-                key = f"{self.BN_OPTION_GROUP}.{section}.{setting}"
+                key = f"{self.BN_OPTION_GROUP}.{option['dest']}"
                 if not self._bn_settings.contains(key):
-                    properties = self._get_binary_ninja_settings_properties_json(properties_dict)
+                    properties = self._get_binaryninja_option_json(option)
                     self._bn_settings.register_setting(key, properties)
 
     @deprecated_option_setter
@@ -164,11 +164,12 @@ class Options:
                     return value
         raise KeyError(f"Invalid setting for {key}")
 
-    def add_cmdline_options(self, extra_options: Optional[Dict]):
-        """Add command line options to the options dictionary"""
-        for category, settings in extra_options.items() if extra_options else {}.items():
-            for name, value in settings.items():
-                self._settings_key_values[f"{category}.{name}"] = value
+    @classmethod
+    def load_default_options(cls):
+        """Parse default options for the decompiler."""
+        defaults = cls._read_json_file(cls.DEFAULT_CONFIG)
+        settings_key_values = {key: value for key, value in cls._get_key_value_pairs_from_defaults(defaults)}
+        return cls(defaults=defaults, settings_key_values=settings_key_values)
 
     @classmethod
     def from_gui(cls):
@@ -198,92 +199,85 @@ class Options:
         return cls(settings_key_values=deepcopy(options_dict))
 
     @classmethod
-    def register_args(cls, parser: ArgumentParser):
+    def register_defaults_in_argument_parser(cls, parser: ArgumentParser):
         """Register default options in ArgumentParser"""
-        decompiler_options = parser.add_argument_group(title="decompiler options", description="Expert options ... TODO")
-        for args, kwargs in cls._iterate_argparse_kwargs_for_defaults():
-            decompiler_options.add_argument(*args, **kwargs)
+        option_groups = cls._read_json_file(cls.DEFAULT_CONFIG)
+        for group in option_groups:
+            argument_group = parser.add_argument_group(title=group["title"], description=group["description"])
+            for args, kwargs in cls._iter_argparse_kwargs_for_default_options(group["options"]):
+                argument_group.add_argument(*args, **kwargs)
 
     @staticmethod
-    def _bn_to_argparse(section: str, setting: str, properties: Dict) -> Tuple[List, Dict]:
+    def _get_argparse_kwargs_from_dict(option: Dict) -> Tuple[List, Dict]:
         """Create keyword arguments for ArgumentParser.add_argument() from dicts found in default.json"""
-        args = [f"--{section}.{setting}"]
+        args = [option["argument_name"]]
         kwargs = {
-            "dest": f"{section}.{setting}",
-            "help": properties["description"],
+            "dest": option["dest"],
+            "help": option["description"],
         }
-        if "enum" in properties:
-            kwargs["choices"] = properties["enum"]
-        default = properties["default"]
+        if "enum" in option:
+            kwargs["choices"] = option["enum"]
+        default = option["default"]
         if default and isinstance(default, list):
             default = " ".join(default)
         kwargs["help"] += f" (default: {default})"
         return args, kwargs
 
     @classmethod
-    def _arg_bool(cls, section: str, setting: str, properties: Dict):
+    def _arg_bool(cls, option: Dict):
         """Create additional kwargs for boolean option (flag), and its negation"""
-        args, kwargs = cls._bn_to_argparse(section, setting, properties)
+        args, kwargs = cls._get_argparse_kwargs_from_dict(option)
         kwargs["action"] = BooleanOptionalAction
         return args, kwargs
 
     @classmethod
-    def _arg_array(cls, section: str, setting: str, properties: Dict):
+    def _arg_array(cls, option: Dict):
         """Create additional kwargs for array option"""
-        args, kwargs = cls._bn_to_argparse(section, setting, properties)
+        args, kwargs = cls._get_argparse_kwargs_from_dict(option)
         kwargs["nargs"] = "*"
         return args, kwargs
 
     @classmethod
-    def _arg_number(cls, section: str, setting: str, properties: Dict):
+    def _arg_number(cls, option: Dict):
         """Create additional kwargs for number option"""
-        args, kwargs = cls._bn_to_argparse(section, setting, properties)
+        args, kwargs = cls._get_argparse_kwargs_from_dict(option)
         kwargs["type"] = int
         if not "choices" in kwargs:
             kwargs["metavar"] = "INTEGER"
         return args, kwargs
 
     @classmethod
-    def _arg_string(cls, section: str, setting: str, properties: Dict):
+    def _arg_string(cls, option: Dict):
         """Create additional kwargs for string option"""
-        args, kwargs = cls._bn_to_argparse(section, setting, properties)
+        args, kwargs = cls._get_argparse_kwargs_from_dict(option)
         kwargs["type"] = str
         if not "choices" in kwargs:
             kwargs["metavar"] = "STRING"
         return args, kwargs
 
     @classmethod
-    def _iterate_argparse_kwargs_for_defaults(cls):
+    def _iter_argparse_kwargs_for_default_options(cls, options: List[Dict]):
         """Iterate default options and yield args + kwargs for registering in argparse"""
-        default_options = cls.load_default_options()
 
         ARG_TYPE_HANDLER = {"boolean": cls._arg_bool, "array": cls._arg_array, "number": cls._arg_number, "string": cls._arg_string}
 
-        for section, section_settings in default_options._defaults.items():
-            for setting, properties in section_settings.items():
-                if properties["is_hidden_from_cli"]:
-                    continue
-                yield ARG_TYPE_HANDLER[properties["type"]](section, setting, properties)
-
-    @classmethod
-    def load_default_options(cls):
-        """Parse default options for the decompiler."""
-        defaults = cls._read_json_file(cls.DEFAULT_CONFIG)
-        settings_key_values = {key: value for key, value in cls._get_default_key_value_pairs(defaults)}
-        return cls(defaults=defaults, settings_key_values=settings_key_values)
+        for option in options:
+            if option["is_hidden_from_cli"]:
+                continue
+            yield ARG_TYPE_HANDLER[option["type"]](option)
 
     @staticmethod
-    def _read_json_file(filepath: str) -> Dict[str, dict]:
-        """Parse default.json into dict for further processing"""
+    def _read_json_file(filepath: str):
+        """Return parsed JSON file"""
         with open(filepath, "r") as f:
             return json.load(f)
 
     @staticmethod
-    def _get_default_key_value_pairs(defaults: Dict[str, dict]) -> Iterator[Tuple[str, Union[str, int, list, bool]]]:
+    def _get_key_value_pairs_from_defaults(defaults: List[Dict]) -> Iterator[Tuple[str, Union[str, int, list, bool]]]:
         """Extract key value pairs from defaults"""
-        for section, section_settings in defaults.items():
-            for setting, properties in section_settings.items():
-                yield f"{section}.{setting}", properties["default"]
+        for option_group in defaults:
+            for option in option_group["options"]:
+                yield option["dest"], option["default"]
 
     def __getitem__(self, item: str) -> dict:
         """Some scripts still use options["a"]["b"]"""
