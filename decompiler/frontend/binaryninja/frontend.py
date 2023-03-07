@@ -105,10 +105,7 @@ class BinaryninjaFrontend(Frontend):
 
     def __init__(self, bv: BinaryView):
         """Create a new binaryninja view with the given path."""
-        self._bv = bv
-        tagging = CompilerIdiomsTagging(self._bv)
-        tagging.run()
-
+        self._bv = bv if type(bv) == BinaryView else bv.getCurrentFunction().view
 
     @classmethod
     def from_path(cls, path: str, options: Options):
@@ -126,14 +123,18 @@ class BinaryninjaFrontend(Frontend):
     def create_task(self, function_identifier: Union[str, Function], options: Options) -> DecompilerTask:
         """Create a task from the given function identifier."""
         function = FunctionObject.get(self._bv, function_identifier)
+        tagging = CompilerIdiomsTagging(self._bv, function.function.start)
+        tagging.run()
         try:
             cfg = self._extract_cfg(function.function, options)
             task = DecompilerTask(
-                function.name, cfg, function_return_type=function.return_type, function_parameters=function.params, options=options
+                function.name, cfg, function_return_type=function.return_type, function_parameters=function.params,
+                options=options
             )
         except Exception as e:
             task = DecompilerTask(
-                function.name, None, function_return_type=function.return_type, function_parameters=function.params, options=options
+                function.name, None, function_return_type=function.return_type, function_parameters=function.params,
+                options=options
             )
             task.fail(origin="CFG creation")
             logging.error(f"Failed to decompile {task.name}, error during CFG creation: {e}")

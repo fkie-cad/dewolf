@@ -6,12 +6,13 @@ from compiler_idioms.matcher import Matcher
 class CompilerIdiomsTagging:
     TAG_SYMBOL = "⚙"
 
-    def __init__(self, binary_view: binaryninja.BinaryView):
-        self._bv = binary_view if type(binary_view) == binaryninja.BinaryView else binary_view.getCurrentFunction().view
+    def __init__(self, binary_view: binaryninja.BinaryView, start: int):
+        self._bv = binary_view
         self._path = self._bv.file.filename
+        self._function_start = start
 
     def run(self):
-        matches = Matcher().find_idioms_in_file(self._path)
+        matches = Matcher().find_idioms_in_function(self._path, self._function_start)
         for match in matches:
             for address in match.addresses:
                 self._set_tag(self._bv, tag_name=f"compiler_idiom: {match.operation}", address=address,
@@ -19,6 +20,8 @@ class CompilerIdiomsTagging:
 
     @staticmethod
     def _set_tag(binary_view: binaryninja.BinaryView, tag_name: str, address: int, text: str):
+        if binary_view.get_user_data_tags_at(address):
+            return
         tag_type = CompilerIdiomsTagging._get_tag_type(binary_view, tag_name)
         binary_view.create_user_data_tag(address, tag_type, text, unique=True)
 
