@@ -1,14 +1,14 @@
 [
     {
         "title": "Expression Propagation",
-        "description": "",
+        "description": "Settings for the expression propagation pipeline stages:",
         "options": [
             {
                 "dest": "expression-propagation.maximum_instruction_complexity",
                 "default": 100,
                 "title": "EP maximum instruction complexity",
                 "type": "number",
-                "description": "TODO",
+                "description": "Maximum complexity for an instruction to be propagated",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
                 "argument_name": "--ep-max-instruction-complexity",
@@ -19,7 +19,7 @@
                 "default": 100,
                 "title": "EP maximum branch complexity",
                 "type": "number",
-                "description": "TODO",
+                "description": "Maximum complexity for a branch to be propagated",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
                 "argument_name": "--ep-max-branch-complexity",
@@ -30,7 +30,7 @@
                 "default": 100,
                 "title": "EP maximum call complexity",
                 "type": "number",
-                "description": "TODO",
+                "description": "Maximum complexity for a call to be propagated",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
                 "argument_name": "--ep-max-call-complexity",
@@ -41,7 +41,7 @@
                 "default": 100,
                 "title": "EP maximum assignment complexity",
                 "type": "number",
-                "description": "description assignment",
+                "description": "Maximum complexity for an assignment to be propagated",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
                 "argument_name": "--ep-max-assignment-complexity",
@@ -52,7 +52,7 @@
                 "default": 100,
                 "title": "EPM maximum instruction complexity",
                 "type": "number",
-                "description": "description instruction",
+                "description": "Maximum complexity for an instruction to be propagated (consider memory access)",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
                 "argument_name": "--epm-max-instruction-complexity",
@@ -63,7 +63,7 @@
                 "default": 100,
                 "title": "EPM maximum branch complexity",
                 "type": "number",
-                "description": "description branch",
+                "description": "Maximum complexity for a branch to be propagated (consider memory access)",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
                 "argument_name": "--epm-max-branch-complexity",
@@ -74,7 +74,7 @@
                 "default": 100,
                 "title": "EPM maximum call complexity",
                 "type": "number",
-                "description": "description call",
+                "description": "Maximum complexity for a call to be propagated (consider memory access)",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
                 "argument_name": "--epm-max-call-complexity",
@@ -85,7 +85,7 @@
                 "default": 100,
                 "title": "EPM maximum assignment complexity",
                 "type": "number",
-                "description": "description assignment",
+                "description": "Maximum complexity for an assignment to be propagated (consider memory access)",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
                 "argument_name": "--epm-max-assignment-complexity",
@@ -94,9 +94,9 @@
             {
                 "dest": "expression-propagation-function-call.maximum_instruction_complexity",
                 "default": 100,
-                "title": "EPFC maximum TODO complexity",
+                "title": "EPFC maximum instruction complexity",
                 "type": "number",
-                "description": "description TODO",
+                "description": "Maximum complexity for an instruction to be propagated (consider function calls)",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
                 "argument_name": "--epfc-max-instruction-complexity",
@@ -105,9 +105,9 @@
             {
                 "dest": "expression-propagation-function-call.maximum_branch_complexity",
                 "default": 100,
-                "title": "EPFC maximum TODO complexity",
+                "title": "EPFC maximum branch complexity",
                 "type": "number",
-                "description": "description TODO",
+                "description": "Maximum complexity for a branch to be propagated (consider function calls)",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
                 "argument_name": "--epfc-max-branch-complexity",
@@ -116,9 +116,9 @@
             {
                 "dest": "expression-propagation-function-call.maximum_call_complexity",
                 "default": 100,
-                "title": "EPFC maximum TODO complexity",
+                "title": "EPFC maximum call complexity",
                 "type": "number",
-                "description": "description TODO",
+                "description": "Maximum complexity for a call to be propagated (consider function calls)",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
                 "argument_name": "--epfc-max-call-complexity",
@@ -127,9 +127,9 @@
             {
                 "dest": "expression-propagation-function-call.maximum_assignment_complexity",
                 "default": 100,
-                "title": "EPFC maximum TODO complexity",
+                "title": "EPFC maximum assignment complexity",
                 "type": "number",
-                "description": "description TODO",
+                "description": "Maximum complexity for an assignment to be propagated (consider function calls)",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
                 "argument_name": "--epfc-max-assignment-complexity",
@@ -139,7 +139,7 @@
     },
     {
         "title": "Code Elimination",
-        "description": "Dead code elimination settings (dead paths, dead loops).",
+        "description": "Dead code, and common subexpression elimination settings:",
         "options": [
             {
                 "dest": "dead-path-elimination.timeout_satisfiable",
@@ -179,7 +179,7 @@
                 "default": true,
                 "title": "intra expression",
                 "type": "boolean",
-                "description": "Enable CSE on subexpressions of the same parent expression.",
+                "description": "Enable common subexpression elimination (CSE) on subexpressions of the same parent expression.",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
                 "argument_name": "--cse-intra",
@@ -211,7 +211,7 @@
     },
     {
         "title": "SSA Translation",
-        "description": "",
+        "description": "Settings for the out-of-SSA-translation pipeline stage:",
         "options": [
             {
                 "dest": "out-of-ssa-translation.mode",
@@ -242,7 +242,7 @@
     },
     {
         "title": "Readability",
-        "description": "",
+        "description": "Settings for readability of decompiled code:",
         "options": [
             {
                 "dest": "remove-stack-canary.remove_canary",
@@ -376,7 +376,7 @@
                 "default": true,
                 "title": "Enable integer incrementation suffixes",
                 "type": "boolean",
-                "description": "Enables shorthands for integer incrementation (e.g. i++). ",
+                "description": "Enable shorthand for integer incrementation (e.g. i++).",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
                 "argument_name": "--use-increment-int",
@@ -387,7 +387,7 @@
                 "default": true,
                 "title": "Enable float incrementation suffixes",
                 "type": "boolean",
-                "description": "Enables shorthands for float incrementation (e.g. f++)",
+                "description": "Enable shorthand for float incrementation (e.g. f++)",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
                 "argument_name": "--use-increment-float",
@@ -440,12 +440,12 @@
             {
                 "dest": "code-generator.int_representation_scope",
                 "default": 256,
-                "title": "int_representation_scope TODO",
+                "title": "Integer as hex threshold",
                 "type": "number",
-                "description": "TODO",
+                "description": "Represent integer as hex above this threshold",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--int-representation",
+                "argument_name": "--int-as-hex-threshold",
                 "is_expert_option": true
             },
             {
@@ -485,7 +485,7 @@
     },
     {
         "title": "Pipeline",
-        "description": "TODO",
+        "description": "Set usage and order of pipeline stages:",
         "options": [
             {
                 "dest": "pipeline.cfg_stages",
@@ -508,7 +508,7 @@
                 "title": "CFG pipeline stages",
                 "type": "array",
                 "elementType": "string",
-                "description": "Order of stage execution",
+                "description": "Order of CFG stage execution",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
                 "argument_name": "--cfg-stages",
@@ -524,7 +524,7 @@
                 "title": "AST pipeline stages",
                 "type": "array",
                 "elementType": "string",
-                "description": "Order of stage execution",
+                "description": "Order of AST stage execution",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
                 "argument_name": "--ast-stages",
