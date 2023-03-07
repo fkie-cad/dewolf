@@ -1,5 +1,5 @@
 """Command line interface for the decompiler."""
-from argparse import SUPPRESS, ArgumentParser
+from argparse import SUPPRESS, ArgumentParser, HelpFormatter
 from enum import Enum
 from os import isatty
 from os.path import isfile
@@ -34,17 +34,19 @@ def parse_commandline():
         else:
             return path
 
+    parser = ArgumentParser(description=__doc__, epilog="", argument_default=SUPPRESS, add_help=False)
     # register CLI-specific arguments
-    parser = ArgumentParser(prog="Decompiler", description="", epilog="", argument_default=SUPPRESS)
     parser.add_argument("binary", type=_is_valid_decompile_target, help="Binaryninja input binary file")
     parser.add_argument("function", nargs="*", help="The name or address of a function to decompiled", default=None)
+    parser.add_argument("--help", "-h", action="help", help="Show this help message and exit")
     parser.add_argument(
         "--verbose", "-v", dest="verbose", action="count", help="Set logging verbosity, e.g., -vvv for DEBUG logging", default=0
     )
     parser.add_argument("--color", type=Colorize, choices=list(Colorize), default=Colorize.AUTO)
     parser.add_argument("--output", "-o", dest="outfile", help="The file in which to place decompilation output", default=None)
     parser.add_argument("--all", "-a", dest="all", action="store_true", help="Decompile all functions in this binary", default=False)
-    parser.add_argument("--print-config", dest="print", action="store_true", help="Print current config and exit.", default=False)
+    parser.add_argument("--print-config", dest="print", action="store_true", help="Print current config and exit", default=False)
+    parser.usage = parser.format_usage().lstrip("usage: ")  # Don't add expert args to usage
     Options.register_defaults_in_argument_parser(parser)  # register expert arguments
     return parser.parse_args()
 
@@ -54,11 +56,11 @@ def main(interface: "Decompiler"):
     args = parse_commandline()
     configure_logging(level=VERBOSITY_TO_LOG_LEVEL[min(3, args.verbose)])
 
-    # options = interface.create_options(switch_to_dict(reminder))
     options = Options.from_cli(args)
     if args.print:
         print(options)
         return
+
     decompiler = interface.from_path(args.binary, options)
     if args.outfile is None:
         output_stream = None
