@@ -235,6 +235,8 @@ class Options:
         """Create additional kwargs for array option"""
         args, kwargs = cls._get_argparse_kwargs_from_dict(option)
         kwargs["nargs"] = "*"
+        n_examples = min(3, len(option["default"]))
+        kwargs["metavar"] = " ".join(option["default"][:n_examples])
         return args, kwargs
 
     @classmethod
