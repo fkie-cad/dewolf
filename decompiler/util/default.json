@@ -11,8 +11,7 @@
                 "description": "Maximum complexity for an instruction to be propagated",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--ep-max-instruction-complexity",
-                "is_expert_option": true
+                "argument_name": "--ep-max-instruction-complexity"
             },
             {
                 "dest": "expression-propagation.maximum_branch_complexity",
@@ -22,8 +21,7 @@
                 "description": "Maximum complexity for a branch to be propagated",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--ep-max-branch-complexity",
-                "is_expert_option": true
+                "argument_name": "--ep-max-branch-complexity"
             },
             {
                 "dest": "expression-propagation.maximum_call_complexity",
@@ -33,8 +31,7 @@
                 "description": "Maximum complexity for a call to be propagated",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--ep-max-call-complexity",
-                "is_expert_option": true
+                "argument_name": "--ep-max-call-complexity"
             },
             {
                 "dest": "expression-propagation.maximum_assignment_complexity",
@@ -44,8 +41,7 @@
                 "description": "Maximum complexity for an assignment to be propagated",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--ep-max-assignment-complexity",
-                "is_expert_option": true
+                "argument_name": "--ep-max-assignment-complexity"
             },
             {
                 "dest": "expression-propagation-memory.maximum_instruction_complexity",
@@ -55,8 +51,7 @@
                 "description": "Maximum complexity for an instruction to be propagated (consider memory access)",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--epm-max-instruction-complexity",
-                "is_expert_option": true
+                "argument_name": "--epm-max-instruction-complexity"
             },
             {
                 "dest": "expression-propagation-memory.maximum_branch_complexity",
@@ -66,8 +61,7 @@
                 "description": "Maximum complexity for a branch to be propagated (consider memory access)",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--epm-max-branch-complexity",
-                "is_expert_option": true
+                "argument_name": "--epm-max-branch-complexity"
             },
             {
                 "dest": "expression-propagation-memory.maximum_call_complexity",
@@ -77,8 +71,7 @@
                 "description": "Maximum complexity for a call to be propagated (consider memory access)",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--epm-max-call-complexity",
-                "is_expert_option": true
+                "argument_name": "--epm-max-call-complexity"
             },
             {
                 "dest": "expression-propagation-memory.maximum_assignment_complexity",
@@ -88,8 +81,7 @@
                 "description": "Maximum complexity for an assignment to be propagated (consider memory access)",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--epm-max-assignment-complexity",
-                "is_expert_option": true
+                "argument_name": "--epm-max-assignment-complexity"
             },
             {
                 "dest": "expression-propagation-function-call.maximum_instruction_complexity",
@@ -99,8 +91,7 @@
                 "description": "Maximum complexity for an instruction to be propagated (consider function calls)",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--epfc-max-instruction-complexity",
-                "is_expert_option": true
+                "argument_name": "--epfc-max-instruction-complexity"
             },
             {
                 "dest": "expression-propagation-function-call.maximum_branch_complexity",
@@ -110,8 +101,7 @@
                 "description": "Maximum complexity for a branch to be propagated (consider function calls)",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--epfc-max-branch-complexity",
-                "is_expert_option": true
+                "argument_name": "--epfc-max-branch-complexity"
             },
             {
                 "dest": "expression-propagation-function-call.maximum_call_complexity",
@@ -121,8 +111,7 @@
                 "description": "Maximum complexity for a call to be propagated (consider function calls)",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--epfc-max-call-complexity",
-                "is_expert_option": true
+                "argument_name": "--epfc-max-call-complexity"
             },
             {
                 "dest": "expression-propagation-function-call.maximum_assignment_complexity",
@@ -132,8 +121,7 @@
                 "description": "Maximum complexity for an assignment to be propagated (consider function calls)",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--epfc-max-assignment-complexity",
-                "is_expert_option": true
+                "argument_name": "--epfc-max-assignment-complexity"
             }
         ]
     },
@@ -149,8 +137,7 @@
                 "description": "Timeout (ms) for the logic engine verifying whether a path is dead.",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--dead-path-timeout",
-                "is_expert_option": true
+                "argument_name": "--dead-path-timeout"
             },
             {
                 "dest": "dead-loop-elimination.timeout_satisfiable",
@@ -160,8 +147,7 @@
                 "description": "Timeout (ms) for the logic engine verifying whether a loop is dead.",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--dead-loop-timeout",
-                "is_expert_option": true
+                "argument_name": "--dead-loop-timeout"
             },
             {
                 "dest": "common-subexpression-elimination.threshold",
@@ -171,8 +157,7 @@
                 "description": "The amount of occurrences an expression needs to have to be considered for CSE.",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--cse-threshold",
-                "is_expert_option": true
+                "argument_name": "--cse-threshold"
             },
             {
                 "dest": "common-subexpression-elimination.intra",
@@ -182,8 +167,7 @@
                 "description": "Enable common subexpression elimination (CSE) on subexpressions of the same parent expression.",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--cse-intra",
-                "is_expert_option": true
+                "argument_name": "--cse-intra"
             },
             {
                 "dest": "common-subexpression-elimination.string_threshold",
@@ -193,8 +177,7 @@
                 "description": "The amount of occurrences a string expression must have to be eliminated",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--cse-string-threshold",
-                "is_expert_option": true
+                "argument_name": "--cse-string-threshold"
             },
             {
                 "dest": "common-subexpression-elimination.min_string_length",
@@ -204,8 +187,7 @@
                 "description": "The minimum amount of characters a string expression must have to be considered for elimination.",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--cse-string-length-threshold",
-                "is_expert_option": true
+                "argument_name": "--cse-string-length-threshold"
             }
         ]
     },
@@ -235,8 +217,7 @@
                 "description": "Optimization options for variable renaming in out of SSA",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--ssa-translation-mode",
-                "is_expert_option": true
+                "argument_name": "--ssa-translation-mode"
             }
         ]
     },
@@ -252,8 +233,7 @@
                 "description": "remove function calls to __stack_chk_fail()",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--remove-stack-canary",
-                "is_expert_option": true
+                "argument_name": "--remove-stack-canary"
             },
             {
                 "dest": "array-access-detection.enabled",
@@ -263,8 +243,7 @@
                 "description": "write array access as base[offset], instead of (*(base+offset))",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--array-access-detection",
-                "is_expert_option": true
+                "argument_name": "--array-access-detection"
             },
             {
                 "dest": "instruction-length-handler.max_assignment_complexity",
@@ -274,8 +253,7 @@
                 "description": "Assignments with a complexity above this threshold will be simplified.",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--instruction-complexity-threshold",
-                "is_expert_option": true
+                "argument_name": "--instruction-complexity-threshold"
             },
             {
                 "dest": "instruction-length-handler.max_call_complexity",
@@ -285,8 +263,7 @@
                 "description": "Calls with a complexity above this threshold will be simplified.",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--call-complexity-threshold",
-                "is_expert_option": true
+                "argument_name": "--call-complexity-threshold"
             },
             {
                 "dest": "instruction-length-handler.max_return_complexity",
@@ -296,8 +273,7 @@
                 "description": "Return statements with a complexity above this threshold will be simplified.",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--return-complexity-threshold",
-                "is_expert_option": true
+                "argument_name": "--return-complexity-threshold"
             },
             {
                 "dest": "readability-based-refinement.keep_empty_for_loops",
@@ -307,36 +283,69 @@
                 "description": "Transform while-loops to for-loops although the resulting for-loop would be empty.",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--empty-for-loops",
-                "is_expert_option": true
+                "argument_name": "--empty-for-loops"
             },
             {
-                "dest": "readability-based-refinement.rename_for_loop_variables",
-                "default": true,
-                "type": "boolean",
-                "title": "Rename for-loop variables",
-                "description": "Rename for-loop variables to i, j, k, ...",
-                "is_hidden_from_gui": false,
-                "is_hidden_from_cli": false,
-                "argument_name": "--rename-for-loop-variables",
-                "is_expert_option": true
-            },
-            {
-                "dest": "readability-based-refinement.condition_types_for_loops_simple_loop_conditions",
+                "dest": "readability-based-refinement.for_loop_variable_names",
                 "default": [
-                    "less",
-                    "greater",
-                    "less_or_equal",
-                    "greater_or_equal"
+                    "i",
+                    "j",
+                    "k",
+                    "l",
+                    "m",
+                    "n"
                 ],
                 "type": "array",
                 "elementType": "string",
-                "title": "Allowed condition type for simple for-loops conditions",
-                "description": "Only transforms a given simple while loop to a for loop is the condition type is correct",
+                "title": "Rename for-loop variables into desired names",
+                "description": "Rename for-loop variables to values from list",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--for-loop-conditions",
-                "is_expert_option": true
+                "argument_name": "--for-loop-variable-names"
+            },
+            {
+                "dest": "readability-based-refinement.max_condition_complexity_for_loop_recovery",
+                "default": 100,
+                "type": "number",
+                "title": "Maximum condition complexity for-loop recovery",
+                "description": "If the condition complexity of a possible for-loop is greater than value, the loop will not be transformed into a for-loop.",
+                "is_hidden_from_gui": true,
+                "is_hidden_from_cli": false,
+                "argument_name": "--for-loop-max-condition-complexity"
+            },
+            {
+                "dest": "readability-based-refinement.max_modification_complexity_for_loop_recovery",
+                "default": 100,
+                "type": "number",
+                "title": "Maximum modification complexity for-loop recovery",
+                "description": "If the modification of a possible for-loop is greater than value, the loop will not be transformed into a for-loop.",
+                "is_hidden_from_gui": true,
+                "is_hidden_from_cli": false,
+                "argument_name": "--for-loop-max-modification-complexity"
+            },
+            {
+                "dest": "readability-based-refinement.force_for_loops",
+                "default": false,
+                "type": "boolean",
+                "title": "Force for-loops",
+                "description": "Forces every while loop into a for-loop",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--force-for-loops"
+            },
+            {
+                "dest": "readability-based-refinement.forbidden_condition_types_in_simple_for_loops",
+                "default": [
+                    "not_equal",
+                    "equal"
+                ],
+                "type": "array",
+                "elementType": "string",
+                "title": "Forbidden condition types in simple for-loop conditions",
+                "description": "A simple (one condition) possible for-loop will only be converted if the condition type is not in this list (not_equal, equal, less, greater, less_or_equal, greater_or_equal)",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--for-loop-exclude-conditions"
             },
             {
                 "dest": "readability-based-refinement.rename_while_loop_variables",
@@ -346,8 +355,7 @@
                 "description": "Rename while-loop counter variables to counter, counter1, ...",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--rename-while-loop-variables",
-                "is_expert_option": true
+                "argument_name": "--rename-while-loop-variables"
             },
             {
                 "dest": "code-generator.max_complexity",
@@ -357,8 +365,7 @@
                 "description": "The maximum amount of elements in a condition to be considered for the logic simplifier.",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--logic-simplifier-max-complexity",
-                "is_expert_option": true
+                "argument_name": "--logic-simplifier-max-complexity"
             },
             {
                 "dest": "code-generator.use_compound_assignment",
@@ -368,8 +375,7 @@
                 "description": "Enable compound assignments (e.g. +=).",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--use-compound-assignment",
-                "is_expert_option": true
+                "argument_name": "--use-compound-assignment"
             },
             {
                 "dest": "code-generator.use_increment_int",
@@ -379,8 +385,7 @@
                 "description": "Enable shorthand for integer incrementation (e.g. i++).",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--use-increment-int",
-                "is_expert_option": true
+                "argument_name": "--use-increment-int"
             },
             {
                 "dest": "code-generator.use_increment_float",
@@ -390,8 +395,7 @@
                 "description": "Enable shorthand for float incrementation (e.g. f++)",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--use-increment-float",
-                "is_expert_option": true
+                "argument_name": "--use-increment-float"
             },
             {
                 "dest": "code-generator.byte_format",
@@ -411,8 +415,7 @@
                 "description": "Defines the representation of a byte-size constant (character, hexadecimal or decimal)",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--byte-format",
-                "is_expert_option": true
+                "argument_name": "--byte-format"
             },
             {
                 "dest": "code-generator.byte_format_hint",
@@ -434,8 +437,7 @@
                 "description": "Defines the representation of byte-size constant hint (c-style comment). Use none for no comments displayed.",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--byte-format-hint",
-                "is_expert_option": true
+                "argument_name": "--byte-format-hint"
             },
             {
                 "dest": "code-generator.int_representation_scope",
@@ -445,8 +447,7 @@
                 "description": "Represent integer as hex above this threshold",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--int-as-hex-threshold",
-                "is_expert_option": true
+                "argument_name": "--int-as-hex-threshold"
             },
             {
                 "dest": "code-generator.negative_hex_as_twos_complement",
@@ -456,8 +457,7 @@
                 "description": "Converts a decimal -1 into 0xff instead of -0x1",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--twos-complement-negative-hex",
-                "is_expert_option": true
+                "argument_name": "--twos-complement-negative-hex"
             },
             {
                 "dest": "code-generator.aggressive_array_detection",
@@ -467,8 +467,7 @@
                 "description": "aggressive: *(a+i*4) is printed as a[i] even if the type of a is void/unknown",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--aggressive-array-detection",
-                "is_expert_option": true
+                "argument_name": "--aggressive-array-detection"
             },
             {
                 "dest": "code-generator.variable_declarations_per_line",
@@ -478,8 +477,7 @@
                 "description": "How many variables with common type are declared on one line",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--variable-declarations-per-line",
-                "is_expert_option": true
+                "argument_name": "--variable-declarations-per-line"
             }
         ]
     },
@@ -511,8 +509,7 @@
                 "description": "Order of CFG stage execution",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--cfg-stages",
-                "is_expert_option": true
+                "argument_name": "--cfg-stages"
             },
             {
                 "dest": "pipeline.ast_stages",
@@ -527,8 +524,7 @@
                 "description": "Order of AST stage execution",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--ast-stages",
-                "is_expert_option": true
+                "argument_name": "--ast-stages"
             },
             {
                 "dest": "pipeline.debug",
@@ -538,8 +534,7 @@
                 "description": "Crash on error",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--debug",
-                "is_expert_option": true
+                "argument_name": "--debug"
             }
         ]
     },
@@ -555,8 +550,7 @@
                 "description": "Maximum number of bytes in functions to decompile",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--max-function-size",
-                "is_expert_option": true
+                "argument_name": "--max-function-size"
             },
             {
                 "dest": "lifter.report_threshold",
@@ -566,8 +560,7 @@
                 "description": "The maximum amount of instructions which could not be lifted to be reported individually.",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--lifter-report-threshold",
-                "is_expert_option": true
+                "argument_name": "--lifter-report-threshold"
             },
             {
                 "dest": "lifter.no_bit_masks",
@@ -577,8 +570,7 @@
                 "description": "Avoid using bit masks for representing 8-, 16, (32-)bit registers: e.g. on x86 ax = 8 becomes (word) eax = 8 instead of eax = (eax & 0xffff0000) | 8). Results in more understandable but potentially less accurate code.",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--avoid-bit-masks",
-                "is_expert_option": true
+                "argument_name": "--avoid-bit-masks"
             },
             {
                 "dest": "logic-engine.engine",
@@ -588,8 +580,7 @@
                 "description": "Pick between delogic or z3 for simplifying conditions.",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--logic-engine",
-                "is_expert_option": true
+                "argument_name": "--logic-engine"
             },
             {
                 "dest":"compiler-idioms-tagging.enabled",
@@ -622,8 +613,7 @@
                 "description": "Log level",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": true,
-                "argument_name": "--log-level",
-                "is_expert_option": true
+                "argument_name": "--log-level"
             },
             {
                 "dest": "logging.stage_output",
@@ -645,8 +635,7 @@
                 "description": "Select how stage output should be displayed.",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--stage-output",
-                "is_expert_option": true
+                "argument_name": "--stage-output"
             },
             {
                 "dest": "logging.show_starting_point",
@@ -656,8 +645,7 @@
                 "description": "Display initial lifting before any transformations are done.",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--show-starting-point",
-                "is_expert_option": true
+                "argument_name": "--show-starting-point"
             },
             {
                 "dest": "logging.show_all_stages",
@@ -667,8 +655,7 @@
                 "description": "Display all stages",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--show-all-stages",
-                "is_expert_option": true
+                "argument_name": "--show-all-stages"
             },
             {
                 "dest": "logging.show_selected",
@@ -679,8 +666,7 @@
                 "description": "Comma separated stage names to show output from.",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
-                "argument_name": "--show-stages",
-                "is_expert_option": true
+                "argument_name": "--show-stages"
             },
             {
                 "dest": "gui.font",
@@ -690,8 +676,7 @@
                 "description": "Font for decompiler output",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": true,
-                "argument_name": "--font",
-                "is_expert_option": true
+                "argument_name": "--font"
             },
             {
                 "dest": "gui.font_size",
@@ -701,8 +686,7 @@
                 "description": "Font size for decompiler output",
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": true,
-                "argument_name": "--font-size",
-                "is_expert_option": true
+                "argument_name": "--font-size"
             },
             {
                 "dest": "gui.font_italic",
@@ -712,8 +696,7 @@
                 "description": "Set italic font for decompiler output",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": true,
-                "argument_name": "--font-italic",
-                "is_expert_option": true
+                "argument_name": "--font-italic"
             },
             {
                 "dest": "gui.font_bold",
@@ -723,8 +706,7 @@
                 "description": "Set bold font for decompiler output",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": true,
-                "argument_name": "--font-bold",
-                "is_expert_option": true
+                "argument_name": "--font-bold"
             },
             {
                 "dest": "code-generator.style_plugin",
@@ -743,8 +725,7 @@
                 "description": "Which style plugin to use",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--style-plugin",
-                "is_expert_option": true
+                "argument_name": "--style-plugin"
             },
             {
                 "dest": "code-generator.style_cmd",
@@ -835,8 +816,7 @@
                 "description": "Linting theme",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--theme",
-                "is_expert_option": true
+                "argument_name": "--theme"
             }
         ]
     }
