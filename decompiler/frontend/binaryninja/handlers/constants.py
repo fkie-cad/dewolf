@@ -30,8 +30,8 @@ class ConstantHandler(Handler):
     def lift_constant_pointer(self, pointer: mediumlevelil.MediumLevelILConstPtr, **kwargs) -> Constant:
         """Lift the given constant pointer, e.g. &0x80000.
             For clarity all cases:
-                1. NULL (&0x0)
-                    - is the definition of NULL in C, therefore a separate case (otherwise elf/dos header lifting)
+                1. Address is not in a section
+                    - bninja type error, bninja wants the constant value instead of the address (and NULL case: &0x00)
                 2. Address has datavariable with a basic type (everything except void/void*)
                     - lift as datavariable
                 3. Address has a symbol, which is not a datasymbol
@@ -42,8 +42,8 @@ class ConstantHandler(Handler):
         """
         view = pointer.function.view
 
-        if pointer.constant == 0:
-             return Constant(pointer.constant, vartype=Integer(view.address_size*8, False))
+        if not self._addr_in_section(view, pointer.constant):
+            return Constant(pointer.constant, vartype=Integer(view.address_size*8, False))
 
         if (variable := view.get_data_var_at(pointer.constant)) and not (isinstance(variable.type, PointerType) and isinstance(variable.type.target, VoidType)):
             return self._lifter.lift(variable, view=view, parent=pointer)
@@ -89,3 +89,11 @@ class ConstantHandler(Handler):
             return view.read(addr, next_data_var.address - addr)
         else:
             return view.read(addr, view.get_sections_at(addr)[0].end)
+
+
+    def _addr_in_section(self, view : BinaryView, addr: int) -> bool:
+        """ Returns True if address is contained in a section, False otherwise"""
+        for _, section in view.sections.items():
+            if addr >= section.start and addr <= section.end:
+                return True
+        return False
