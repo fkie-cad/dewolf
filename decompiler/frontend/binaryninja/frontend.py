@@ -123,7 +123,7 @@ class BinaryninjaFrontend(Frontend):
     def create_task(self, function_identifier: Union[str, Function], options: Options) -> DecompilerTask:
         """Create a task from the given function identifier."""
         function = FunctionObject.get(self._bv, function_identifier)
-        tagging = CompilerIdiomsTagging(self._bv, function.function.start)
+        tagging = CompilerIdiomsTagging(self._bv, function.function.start, options)
         tagging.run()
         try:
             cfg = self._extract_cfg(function.function, options)
