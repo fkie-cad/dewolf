@@ -8,6 +8,15 @@
       "is_hidden_from_gui": true
     }
   },
+  "compiler-idioms-tagging": {
+    "enabled": {
+      "default": true,
+      "title": "Compiler idioms tagging enabled",
+      "type": "boolean",
+      "description": "Match and tag compiler idioms in binary so that they could be later replaced with more readable expressions",
+      "is_hidden_from_gui": false
+    }
+  },
   "lifter": {
     "report_threshold": {
       "default": 5,
