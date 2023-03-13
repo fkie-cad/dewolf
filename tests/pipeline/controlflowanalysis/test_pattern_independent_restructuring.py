@@ -4851,7 +4851,7 @@ def test_head_is_no_loop_predecessor(task):
     assert isinstance(inner_break_cond := inner_body.children[7], ConditionNode)
 
     # block 8 cond:
-    assert block_8_cond.condition and str(task._ast.condition_map[block_8_cond.condition]) == "var_2 != 0x0"
+    assert block_8_cond.condition and str(task._ast.condition_map[~block_8_cond.condition]) == "var_2 == 0x0"
     assert isinstance(block_8_cond.true_branch_child, CodeNode) and block_8_cond.false_branch is None
     assert block_8_cond.true_branch_child.instructions == vertices[3].instructions
 
@@ -4871,7 +4871,7 @@ def test_head_is_no_loop_predecessor(task):
     # inner break cond:
     assert (
         inner_break_cond.condition
-        and str(task._ast.condition_map[inner_break_cond.condition]) == "((unsigned int) var_5) == 0x0"
+        and str(task._ast.condition_map[~inner_break_cond.condition]) == "((unsigned int) var_5) != 0x0"
     )
     assert isinstance(inner_break_cond.true_branch_child, CodeNode) and inner_break_cond.false_branch is None
     assert inner_break_cond.true_branch_child.instructions == [

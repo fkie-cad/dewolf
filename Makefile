@@ -73,8 +73,8 @@ else
 systemtests: venv system-tests-samples
 	. $(VENV_PATH)/bin/activate
 endif
-	PYTHONPATH=. pytest tests/test_plugin.py
-	py.test --systemtests tests/test_sample_binaries.py
+	PYTHONPATH=. pytest --import-mode=importlib tests/test_plugin.py
+	py.test --systemtests --import-mode=importlib tests/test_sample_binaries.py
 
 .ONESHELL: extendedtests
 .PHONY: extendedtests
@@ -84,7 +84,7 @@ else
 extendedtests: venv extended-test-samples system-tests-samples
 	. $(VENV_PATH)/bin/activate
 endif
-	py.test --fulltests tests/test_sample_binaries.py; \
+	py.test --fulltests --import-mode=importlib tests/test_sample_binaries.py; \
 
 .ONESHELL: unittests
 .PHONY: unittests
@@ -94,7 +94,7 @@ else
 unittests: venv
 	. $(VENV_PATH)/bin/activate
 endif
-	PYTHONPATH=. pytest --ignore-glob="*test-lifting.py" --ignore-glob="tests/test_sample_binaries.py" --ignore-glob="tests/test_plugin.py" tests
+	PYTHONPATH=. pytest --import-mode=importlib --ignore-glob="*test-lifting.py" --ignore-glob="tests/test_sample_binaries.py" --ignore-glob="tests/test_plugin.py" tests
 
 
 .PHONY: pytest

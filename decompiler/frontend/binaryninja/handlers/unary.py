@@ -52,14 +52,14 @@ class UnaryOperationHandler(Handler):
         self, operation: Union[mediumlevelil.MediumLevelILLoad, mediumlevelil.MediumLevelILLoadSsa], **kwargs
     ) -> Union[GlobalVariable, UnaryOperation]:
         """Lift load operation which is used both to model dereference operation and global variable read."""
-        load_operand = self._lifter.lift(operation.src, parent=operation)
+        load_operand : UnaryOperation = self._lifter.lift(operation.src, parent=operation)
         if load_operand and isinstance(global_variable := load_operand, GlobalVariable):
             global_variable.ssa_label = operation.ssa_memory_version
             return global_variable
         return UnaryOperation(
             OperationType.dereference,
             [load_operand],
-            vartype=self._lifter.lift(operation.expr_type, parent=operation),
+            vartype=load_operand.type,
         )
 
     def lift_cast(self, cast: mediumlevelil.MediumLevelILUnaryBase, **kwargs) -> UnaryOperation:

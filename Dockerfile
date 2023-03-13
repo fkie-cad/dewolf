@@ -1,10 +1,12 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt -y update && apt -y upgrade && apt install -y --no-install-recommends \
     build-essential \
+    cmake \
     gcc-multilib \
     git \
+    python3-dev \
   # Binary Ninja deps https://docs.binary.ninja/guide/troubleshooting/index.html#headless-ubuntu
     libgl1-mesa-glx \
 	libfontconfig1 \
@@ -37,5 +39,5 @@ RUN mkdir -p /opt/dewolf && test -f /opt/dewolf/install_api.py || ln -s /opt/bin
 COPY . /opt/dewolf
 RUN cd /opt/dewolf & make -f /opt/dewolf/Makefile.venv venv VENV_PATH=/opt/dewolf/.venv PREFIX=/opt/dewolf
 
-RUN mkdir -p /root/.binaryninja/plugins/ && cp -r /opt/dewolf/dewolf-idioms/ /root/.binaryninja/plugins/
+RUN mkdir -p /root/.binaryninja/plugins/
 WORKDIR /opt/dewolf
