@@ -45,7 +45,16 @@ class Z3Converter(BaseConverter):
         self._context = Context()
         self.OPERATIONS_INVALID_BOOLREF_OP = {
             OperationType.minus: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.sub),
-            OperationType.plus: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.add)
+            OperationType.plus: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.add),
+            OperationType.multiply: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.mul),
+            OperationType.divide: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.truediv),
+            OperationType.left_shift: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.lshift),
+            OperationType.right_shift: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.rshift),
+            OperationType.less: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.lt),
+            OperationType.less_or_equal: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.le),
+            OperationType.greater: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.gt),
+            OperationType.greater_or_equal: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.ge),
+            OperationType.modulo: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.mod),
         }
 
     @property
