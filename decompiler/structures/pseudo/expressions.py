@@ -277,6 +277,15 @@ class Symbol(Constant):
         return Symbol(self.name, self.value, self._type.copy(), self.tags)
 
 
+class StringSymbol(Symbol):
+    """Represents a global string constant (const char[size])"""
+    def __repr__(self):
+        return f"string {self.name} at {self.value}"
+
+    def copy(self) -> StringSymbol:
+        return StringSymbol(self.name, self.value, self._type.copy(), self.tags)
+
+
 class FunctionSymbol(Symbol):
     """Represents a function name"""
 

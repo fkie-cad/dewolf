@@ -10,7 +10,7 @@ from decompiler.structures.pseudo import (
     Integer,
     OperationType,
     Pointer,
-    Symbol,
+    StringSymbol,
     UnaryOperation,
 )
 
@@ -27,10 +27,10 @@ class GlobalHandler(Handler):
 
     def lift_global_variable(self, variable: DataVariable, view: BinaryView, 
         parent: Optional[MediumLevelILInstruction] = None, **kwargs
-    ) -> Union[ImportedFunctionSymbol, Symbol, UnaryOperation]:
+    ) -> Union[ImportedFunctionSymbol, StringSymbol, UnaryOperation]:
         """Lift global variables with basic types (pointer are possible)"""
         if not variable.name and isinstance(variable.value, bytes):
-            return Symbol('"' + variable.value.decode("utf-8") + '"', variable.address)
+            return StringSymbol('"' + variable.value.decode("utf-8") + '"', variable.address, vartype=Pointer(Integer.char()))
         if isinstance(variable.type, PointerType) and isinstance(variable.type.target, FunctionType):
             return ImportedFunctionSymbol(variable.name, variable.address, vartype=Pointer(Integer.char())) 
 
