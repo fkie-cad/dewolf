@@ -3,19 +3,20 @@ from typing import List, Tuple
 import pytest
 from decompiler.structures.ast.condition_symbol import ConditionHandler, ConditionSymbol
 from decompiler.structures.logic.custom_logic import CustomLogicCondition, PseudoCustomLogicCondition
+from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import BinaryOperation, Condition, Constant, Integer, OperationType, Variable
 from simplifier.world.nodes import TmpVariable, WorldObject
 from simplifier.world.world import World
 
 
 class MockConditionHandler(ConditionHandler):
-    def add_condition(self, condition: Condition) -> ConditionSymbol:
+    def add_condition(self, condition: Condition) -> LogicCondition:
         """Adds a condition to the condition map."""
         symbol = self._get_next_symbol()
         z3_condition = PseudoCustomLogicCondition.initialize_from_condition(condition, self._logic_context)
         condition_symbol = ConditionSymbol(condition, symbol, z3_condition)
         self._condition_map[symbol] = condition_symbol
-        return condition_symbol
+        return symbol
 
     def _get_next_symbol(self) -> CustomLogicCondition:
         """Get the next unused symbol name."""
@@ -483,7 +484,7 @@ class TestCustomLogicCondition:
     def test_is_symbol(self, world, term, result):
         """Check whether the object is a symbol."""
         cond = CustomLogicCondition(term)
-        return cond.is_symbol == result
+        assert cond.is_symbol == result
 
     @pytest.mark.parametrize(
         "term1, term2, result",
@@ -500,7 +501,12 @@ class TestCustomLogicCondition:
             (
                 (world := World()).bitwise_and(b_x(1, world), world.bitwise_and(b_x(2, world), b_x(3, world))),
                 (world := World()).bitwise_and(world.bitwise_and(b_x(1, world), b_x(2, world)), b_x(3, world)),
-                True,
+                False,
+            ),
+            (
+                    (world := World()).bitwise_and(b_x(1, world), b_x(2, world), b_x(3, world)),
+                    (world := World()).bitwise_and(b_x(1, world), b_x(3, world), b_x(2, world)),
+                    True,
             ),
             (
                 (world := World()).bitwise_and(b_x(1, world), b_x(2, world), b_x(2, world)),
@@ -527,7 +533,7 @@ class TestCustomLogicCondition:
     def test_is_equal_to(self, term1, term2, result):
         cond1 = CustomLogicCondition(term1)
         cond2 = CustomLogicCondition(term2)
-        return cond1.is_equal_to(cond2) == result
+        assert cond1.is_equal_to(cond2) == result
 
     @pytest.mark.parametrize(
         "term1, term2, result",
