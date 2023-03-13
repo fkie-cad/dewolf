@@ -279,6 +279,9 @@ class Symbol(Constant):
 
 class StringSymbol(Symbol):
     """Represents a global string constant (const char[size])"""
+    def __str__(self):
+        return f'"{self._name}"'
+
     def __repr__(self):
         return f"string {self.name} at {self.value}"
 

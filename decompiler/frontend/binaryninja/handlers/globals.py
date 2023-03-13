@@ -30,9 +30,9 @@ class GlobalHandler(Handler):
     ) -> Union[ImportedFunctionSymbol, StringSymbol, UnaryOperation]:
         """Lift global variables with basic types (pointer are possible)"""
         if not variable.name and isinstance(variable.value, bytes):
-            return StringSymbol('"' + variable.value.decode("utf-8") + '"', variable.address, vartype=Pointer(Integer.char()))
+            return StringSymbol(variable.value.decode("utf-8"), variable.address, vartype=Pointer(Integer.char(), view.address_size * 8))
         if isinstance(variable.type, PointerType) and isinstance(variable.type.target, FunctionType):
-            return ImportedFunctionSymbol(variable.name, variable.address, vartype=Pointer(Integer.char())) 
+            return ImportedFunctionSymbol(variable.name, variable.address, vartype=Pointer(Integer.char(),  view.address_size * 8)) 
 
         return UnaryOperation(
             OperationType.address,
