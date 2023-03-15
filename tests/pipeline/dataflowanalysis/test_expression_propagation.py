@@ -1,6 +1,6 @@
 from typing import List
 
-from decompiler.pipeline.dataflowanalysis import ExpressionPropagation, ExpressionPropagationMemory
+from decompiler.pipeline.dataflowanalysis import ExpressionPropagation
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
 from decompiler.structures.pseudo.expressions import (
     Constant,
