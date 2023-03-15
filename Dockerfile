@@ -39,5 +39,5 @@ RUN mkdir -p /opt/dewolf && test -f /opt/dewolf/install_api.py || ln -s /opt/bin
 COPY . /opt/dewolf
 RUN cd /opt/dewolf & make -f /opt/dewolf/Makefile.venv venv VENV_PATH=/opt/dewolf/.venv PREFIX=/opt/dewolf
 
-RUN mkdir -p /root/.binaryninja/plugins/ && cp -r /opt/dewolf/dewolf-idioms/ /root/.binaryninja/plugins/
+RUN mkdir -p /root/.binaryninja/plugins/
 WORKDIR /opt/dewolf
