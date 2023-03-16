@@ -132,7 +132,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                         continue
                     defined_contraction, value = definition.destination, definition.value
                     if subexpr == defined_contraction:
-                        instruction.substitute(subexpr, value)
+                        instruction.substitute(subexpr, value.copy())
 
     def _is_invalid_propagation_into_address_operation(self, target: Instruction, definition: Assignment) -> bool:
         """
