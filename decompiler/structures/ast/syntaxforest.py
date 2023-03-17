@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from itertools import product
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Union, Iterable
 
 from decompiler.structures.ast.ast_nodes import (
     AbstractSyntaxTreeNode,
@@ -19,7 +19,7 @@ from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.structures.ast.syntaxgraph import AbstractSyntaxInterface
 from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock
 from decompiler.structures.logic.logic_condition import LogicCondition
-from decompiler.structures.pseudo import Break, Constant, Expression, Instruction, Variable
+from decompiler.structures.pseudo import Break, Constant, Expression, Instruction, Variable, Condition, OperationType
 
 
 class AbstractSyntaxForest(AbstractSyntaxInterface):
@@ -439,3 +439,37 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         """UnMark a connected component as the current component by setting the current root to None."""
         assert self.current_root is not None, "There is no temporary root that can be removed!"
         self._remove_edge(self._current_root, self.current_root)
+
+    def replace_switch_by_conditions(self, switch_node: SwitchNode):
+        """Replace the switch node by nested if-else."""
+        assert isinstance(switch_node, SwitchNode), "The given node must be a switch node"
+        reaching_condition_of_case_node: Dict[CaseNode, LogicCondition] = dict(self.__get_conditions_for_reaching_case_nodes(switch_node))
+        top_condition_nodes = list()
+        default_case = switch_node.default
+        if default_case:
+            last_condition_node = default_case.child
+            self._remove_node(default_case)
+        else:
+            last_condition_node = None
+        for case_node, condition in reversed(reaching_condition_of_case_node.items()):
+            true_branch = case_node.child
+            self._remove_node(case_node)
+            if case_node.break_case:
+                last_condition_node = self._add_condition_node_with(condition, true_branch, last_condition_node)
+            else:
+                top_condition_nodes.append(last_condition_node)
+                last_condition_node = self._add_condition_node_with(condition, true_branch)
+        seq_node = self._add_sequence_node_before(last_condition_node)
+        for condition_node in top_condition_nodes[::-1]:
+            self._add_edge(seq_node, condition_node)
+        seq_node.sort_children()
+        self._substitute_node(switch_node, seq_node)
+
+    def __get_conditions_for_reaching_case_nodes(self, switch_node) -> Iterable[Tuple[CaseNode, LogicCondition]]:
+        current_condition = self.condition_handler.get_false_value()
+        for case_node in switch_node.cases:
+            symbol = self.condition_handler.add_condition(Condition(OperationType.equal, [switch_node.expression, case_node.constant]))
+            current_condition |= symbol
+            yield case_node, current_condition
+            if case_node.break_case:
+                current_condition = self.condition_handler.get_false_value()

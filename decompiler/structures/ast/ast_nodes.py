@@ -934,7 +934,7 @@ class SwitchNode(AbstractSyntaxTreeNode):
         1. Pick Case nodes, where a linear order starts, and whose constant is minimum among the not picked case nodes with this property.
         2. Append break break to last node of this order, if it does not end with a return or continue statement.
         """
-        case_dependency_graph = CaseDependencyGraph(self._ast.get_sibling_reachability_for(self.cases))
+        case_dependency_graph = CaseDependencyGraph(self._ast.get_sibling_reachability_for(super().children))
         linear_ordering_starting_at: Dict[CaseNode, List[CaseNode]] = dict(case_dependency_graph.find_partial_order_of_cases())
         sorted_cases = list()
         for case_node in sorted(linear_ordering_starting_at.keys(), key=lambda node: node.constant.value):
