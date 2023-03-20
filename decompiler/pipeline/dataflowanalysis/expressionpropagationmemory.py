@@ -29,7 +29,6 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
         self._propagate_postponed_aliased_definitions()
         return is_changed
 
-
     def _definition_can_be_propagated_into_target(self, definition: Assignment, target: Instruction):
         """Tests if propagation is allowed based on set of rules, namely
         definition can be propagated into target if:
@@ -47,22 +46,21 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
         :param target: instruction in which definition could be propagated
         :return: true if propagation is allowed false otherwise
         """
-        return isinstance(definition, Assignment) and not any(
-            [
-                self._is_phi(definition),
-                self._is_call_assignment(definition),
-                self._is_address_into_dereference(definition, target),
-                self._defines_unknown_expression(definition),
-                self._contains_global_variable(definition),
-                self._operation_is_propagated_in_phi(target, definition),
-                self._is_invalid_propagation_into_address_operation(target, definition),
-                self._resulting_instruction_is_too_long(target, definition),
-                self._is_aliased_postponed_for_propagation(target, definition),
-                self._definition_value_could_be_modified_via_memory_access_between_definition_and_target(definition, target),
-                self._pointer_value_used_in_definition_could_be_modified_via_memory_access_between_definition_and_target(
+        return isinstance(definition, Assignment) and not (
+                self._is_phi(definition)
+                or self._is_call_assignment(definition)
+                or self._is_address_into_dereference(definition, target)
+                or self._defines_unknown_expression(definition)
+                or self._contains_global_variable(definition)
+                or self._operation_is_propagated_in_phi(target, definition)
+                or self._is_invalid_propagation_into_address_operation(target, definition)
+                or self._resulting_instruction_is_too_long(target, definition)
+                or self._is_aliased_postponed_for_propagation(target, definition)
+                or self._definition_value_could_be_modified_via_memory_access_between_definition_and_target(definition,
+                                                                                                         target)
+                or self._pointer_value_used_in_definition_could_be_modified_via_memory_access_between_definition_and_target(
                     definition, target
-                ),
-            ]
+                )
         )
 
     def _initialize_pointers(self, cfg: ControlFlowGraph):
@@ -100,20 +98,6 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
             definition = self._def_map.get(var)
             if len(uses) == 1:
                 instruction = uses.pop()
-                if self._is_aliased_postponed_for_propagation(instruction, definition) and self._definition_can_be_propagated(definition):
+                if self._is_aliased_postponed_for_propagation(instruction, definition):
                     instruction.substitute(var, definition.value.copy())
                     self._update_use_map(var, instruction)
-
-    def _definition_can_be_propagated(self, definition: Instruction):
-        """
-        Never propagate these definitions either because they violate our assumptions or SSA form, or they are handled by later stages.
-        """
-        return isinstance(definition, Assignment) and not any(
-            [
-                self._is_phi(definition),
-                self._is_call_assignment(definition),
-                self._defines_unknown_expression(definition),
-                self._contains_global_variable(definition),
-            ]
-        )
-

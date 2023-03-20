@@ -36,7 +36,7 @@ def test_address_propagation_does_not_break_relations_between_aliased_versions()
         |  func(ptr_y#1)   |
         |    y#2 -> y#1    |
         |    x#2 = x#1     |
-        |    x#3 = x#2     | <--- can propagate, cause x#2 is not used anywhere else
+        |    x#3 = x#2     | <--- can propagate (aliased) definition x#2=x#1 here, as x#2 is not used anywhere else
         |    y#3 = y#2     |
         | return x#3 + y#3 |
         +------------------+

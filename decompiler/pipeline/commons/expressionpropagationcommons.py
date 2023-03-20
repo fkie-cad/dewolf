@@ -37,6 +37,8 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         self._pointers_info: Optional[Pointers] = None
         self._blocks_map: Optional[DefaultDict[str, Set]] = None
         self._cfg: Optional[ControlFlowGraph] = None
+        # to collect aliased variables that should be propagated in a separate round after everything else
+        # is propagated. For more details, see _is_aliased_postponed_for_propagation method.
         self._postponed_aliased: Set[Variable] = set()
 
     def run(self, task: DecompilerTask):
@@ -121,7 +123,6 @@ class ExpressionPropagationBase(PipelineStage, ABC):
     def _propagate_postponed_aliased_definitions(self):
         """Do nothing if EP, EPM: one round of propagating postponed aliased definitions."""
         pass
-
 
     def _try_to_propagate_contractions(self, instruction: Instruction):
         """
