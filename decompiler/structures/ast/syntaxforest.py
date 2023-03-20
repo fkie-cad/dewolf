@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from itertools import product
-from typing import Dict, List, Optional, Set, Tuple, Union, Iterable
+from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
 
 from decompiler.structures.ast.ast_nodes import (
     AbstractSyntaxTreeNode,
@@ -19,7 +19,7 @@ from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.structures.ast.syntaxgraph import AbstractSyntaxInterface
 from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock
 from decompiler.structures.logic.logic_condition import LogicCondition
-from decompiler.structures.pseudo import Break, Constant, Expression, Instruction, Variable, Condition, OperationType
+from decompiler.structures.pseudo import Break, Condition, Constant, Expression, Instruction, OperationType, Variable
 
 
 class AbstractSyntaxForest(AbstractSyntaxInterface):

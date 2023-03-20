@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from typing import Dict, Optional, Set
 
-from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.ast_processor import AcyclicProcessor
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement import ConditionAwareRefinement
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_based_refinement import ConditionBasedRefinement
@@ -14,6 +13,7 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder
     AcyclicRegionFinderFactory,
     Strategy,
 )
+from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, SeqNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock, TransitionCFG

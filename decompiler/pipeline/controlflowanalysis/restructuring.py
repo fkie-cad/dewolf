@@ -11,7 +11,7 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.cyclic_restru
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.empty_basic_block_remover import EmptyBasicBlockRemover
 from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
 from decompiler.pipeline.stage import PipelineStage
-from decompiler.structures.ast.ast_nodes import SwitchNode, CaseNode
+from decompiler.structures.ast.ast_nodes import CaseNode, SwitchNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.graphs.classifiedgraph import EdgeProperty
