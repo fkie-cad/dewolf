@@ -1,5 +1,5 @@
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.loop_structurer import LoopStructurer
-from decompiler.pipeline.controlflowanalysis.restructuring_commons.loop_structuring_rules import SequenceRule
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.loop_structuring_rules import NestedDoWhileLoopRule, SequenceRule
 from decompiler.structures.ast.ast_comparator import ASTComparator
 from decompiler.structures.ast.condition_symbol import ConditionHandler, ConditionSymbol
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
@@ -253,6 +253,239 @@ def test_nested_dowhile_loop_rule_1():
             (nested_loop_body_children[1], children[1]),
         )
     )
+    nested_loop_body.sort_children()
+    body.sort_children()
+
+    assert ASTComparator.compare(ast, transformed_ast)
+
+
+def test_nested_dowhile_loop_rule_interruption():
+    """
+    Nested-DoWhile Restructuring (NestedDoWhileLoopRule) should not transform!
+
+    while(true){
+        c = c + 5
+        c = c + 10
+        if(b){
+            continue
+        }
+        if(a){
+            c = 0
+        }
+    }
+    """
+    ast = AbstractSyntaxForest(condition_handler=condition_handler2(LogicCondition.generate_new_context()))
+    root = ast.factory.create_endless_loop_node()
+    body = ast.factory.create_seq_node()
+    children = [
+        ast.factory.create_code_node([assignment_c_plus_5.copy()]),
+        ast.factory.create_code_node([assignment_c_plus_10.copy()]),
+        ast.factory.create_condition_node(condition=logic_cond("b", ast.factory.logic_context)),
+        ast.factory.create_condition_node(condition=logic_cond("a", ast.factory.logic_context)),
+    ]
+    true_branch_x = ast.factory.create_true_node()
+    true_branch_child_x = ast.factory.create_code_node(stmts=[Continue()])
+    true_branch_a = ast.factory.create_true_node()
+    true_branch_child_a = ast.factory.create_code_node(stmts=[assignment_c_equal_0.copy()])
+    ast._add_nodes_from(
+        [
+            root,
+            body,
+            children[0],
+            children[1],
+            children[2],
+            children[3],
+            true_branch_x,
+            true_branch_child_x,
+            true_branch_a,
+            true_branch_child_a,
+        ]
+    )
+    ast._add_edges_from(
+        [
+            (root, body),
+            (body, children[0]),
+            (body, children[1]),
+            (body, children[2]),
+            (body, children[3]),
+            (children[2], true_branch_x),
+            (true_branch_x, true_branch_child_x),
+            (children[3], true_branch_a),
+            (true_branch_a, true_branch_child_a),
+        ]
+    )
+    ast._code_node_reachability_graph.add_reachability_from(
+        (
+            (children[0], children[1]),
+            (children[0], true_branch_child_x),
+            (children[1], true_branch_child_x),
+            (true_branch_child_x, true_branch_child_a),
+            (children[0], true_branch_child_a),
+            (children[1], true_branch_child_a),
+        )
+    )
+    body.sort_children()
+
+    assert NestedDoWhileLoopRule.can_be_applied(root) is False
+
+
+def test_nested_dowhile_loop_rule_interruption_in_loop():
+    """
+    Nested-DoWhile Restructuring (NestedDoWhileLoopRule) should not transform!
+
+    while(true){        while(true){
+        c = c + 5           dowhile(!a){
+        c = c + 10              c = c + 5
+        while(b){               c = c + 10
+            c = c + 3           while(b){
+            if(a){                  c = c + 3
+                break               if(a){
+            }                           break
+        }                           }
+        if(a){                  }
+            c = 0           }
+        }                   c = 0
+    }                   }
+    """
+    ast = AbstractSyntaxForest(condition_handler=condition_handler2(LogicCondition.generate_new_context()))
+    root = ast.factory.create_endless_loop_node()
+    body = ast.factory.create_seq_node()
+    children = [
+        ast.factory.create_code_node([assignment_c_plus_5.copy()]),
+        ast.factory.create_code_node([assignment_c_plus_10.copy()]),
+        ast.factory.create_while_loop_node(condition=logic_cond("b", ast.factory.logic_context)),
+        ast.factory.create_condition_node(condition=logic_cond("a", ast.factory.logic_context)),
+    ]
+    loop_body = ast.factory.create_seq_node()
+    loop_children = [
+        ast.factory.create_code_node([assignment_c_plus_3.copy()]),
+        ast.factory.create_condition_node(condition=logic_cond("a", ast.factory.logic_context)),
+    ]
+    true_branch_x = ast.factory.create_true_node()
+    true_branch_child_x = ast.factory.create_code_node(stmts=[Break()])
+    true_branch_a = ast.factory.create_true_node()
+    true_branch_child_a = ast.factory.create_code_node(stmts=[assignment_c_equal_0.copy()])
+    ast._add_nodes_from(
+        [
+            root,
+            body,
+            children[0],
+            children[1],
+            children[2],
+            children[3],
+            loop_body,
+            loop_children[0],
+            loop_children[1],
+            true_branch_x,
+            true_branch_child_x,
+            true_branch_a,
+            true_branch_child_a,
+        ]
+    )
+    ast._add_edges_from(
+        [
+            (root, body),
+            (body, children[0]),
+            (body, children[1]),
+            (body, children[2]),
+            (body, children[3]),
+            (children[2], loop_body),
+            (loop_body, loop_children[0]),
+            (loop_body, loop_children[1]),
+            (loop_children[1], true_branch_x),
+            (true_branch_x, true_branch_child_x),
+            (children[3], true_branch_a),
+            (true_branch_a, true_branch_child_a),
+        ]
+    )
+    ast._code_node_reachability_graph.add_reachability_from(
+        (
+            (children[0], children[1]),
+            (children[0], loop_children[0]),
+            (children[0], true_branch_child_x),
+            (children[0], true_branch_child_a),
+            (children[1], loop_children[0]),
+            (children[1], true_branch_child_x),
+            (children[1], true_branch_child_a),
+            (loop_children[0], true_branch_child_x),
+            (loop_children[0], true_branch_child_a),
+            (true_branch_child_x, true_branch_child_a),
+        )
+    )
+    body.sort_children()
+    loop_body.sort_children()
+
+    LoopStructurer.refine_loop(ast, root)
+
+    transformed_ast = AbstractSyntaxForest(condition_handler=condition_handler1(LogicCondition.generate_new_context()))
+    root = transformed_ast.factory.create_endless_loop_node()
+    body = transformed_ast.factory.create_seq_node()
+    children = [
+        transformed_ast.factory.create_do_while_loop_node(~logic_cond("a", transformed_ast.factory.logic_context)),
+        transformed_ast.factory.create_code_node(stmts=[assignment_c_equal_0.copy()]),
+    ]
+    nested_loop_body = transformed_ast.factory.create_seq_node()
+    nested_loop_body_children = [
+        transformed_ast.factory.create_code_node([assignment_c_plus_5.copy()]),
+        transformed_ast.factory.create_code_node([assignment_c_plus_10.copy()]),
+        transformed_ast.factory.create_while_loop_node(logic_cond("b", transformed_ast.factory.logic_context)),
+    ]
+    loop_body = transformed_ast.factory.create_seq_node()
+    loop_children = [
+        transformed_ast.factory.create_code_node([assignment_c_plus_3.copy()]),
+        transformed_ast.factory.create_condition_node(condition=logic_cond("a", transformed_ast.factory.logic_context)),
+    ]
+    true_branch_x = transformed_ast.factory.create_true_node()
+    true_branch_child_x = transformed_ast.factory.create_code_node(stmts=[Break()])
+
+    transformed_ast._add_nodes_from(
+        [
+            root,
+            body,
+            children[0],
+            children[1],
+            nested_loop_body,
+            nested_loop_body_children[0],
+            nested_loop_body_children[1],
+            nested_loop_body_children[2],
+            loop_body,
+            loop_children[0],
+            loop_children[1],
+            true_branch_x,
+            true_branch_child_x,
+        ]
+    )
+    transformed_ast._add_edges_from(
+        [
+            (root, body),
+            (body, children[0]),
+            (body, children[1]),
+            (children[0], nested_loop_body),
+            (nested_loop_body, nested_loop_body_children[0]),
+            (nested_loop_body, nested_loop_body_children[1]),
+            (nested_loop_body, nested_loop_body_children[2]),
+            (nested_loop_body_children[2], loop_body),
+            (loop_body, loop_children[0]),
+            (loop_body, loop_children[1]),
+            (loop_children[1], true_branch_x),
+            (true_branch_x, true_branch_child_x),
+        ]
+    )
+    transformed_ast._code_node_reachability_graph.add_reachability_from(
+        (
+            (nested_loop_body_children[0], nested_loop_body_children[1]),
+            (nested_loop_body_children[0], loop_children[0]),
+            (nested_loop_body_children[0], true_branch_child_x),
+            (nested_loop_body_children[0], children[1]),
+            (nested_loop_body_children[1], loop_children[0]),
+            (nested_loop_body_children[1], true_branch_child_x),
+            (nested_loop_body_children[1], children[1]),
+            (loop_children[0], true_branch_child_x),
+            (loop_children[0], children[1]),
+            (true_branch_child_x, children[1]),
+        )
+    )
+    loop_body.sort_children()
     nested_loop_body.sort_children()
     body.sort_children()
 
