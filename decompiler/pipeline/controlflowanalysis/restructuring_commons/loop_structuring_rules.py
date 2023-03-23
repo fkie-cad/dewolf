@@ -5,7 +5,16 @@ from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CodeNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 
 
-def _has_only_loop_interruptions_in(end_nodes: Set[CodeNode], body: SeqNode) -> True:
+def _has_loop_break_interruptions_in(body: AbstractSyntaxTreeNode) -> bool:
+    """Check that there is no break-statement in the given Sequence node."""
+
+    for code_node in _get_code_nodes_interrupting_loop(body):
+        if code_node.does_end_with_break:
+            return False
+    return True
+
+
+def _has_only_loop_interruptions_in(end_nodes: Set[CodeNode], body: SeqNode) -> bool:
     """
     Check that there is no continue-statement in the loop-body and no break statement except the last child that could
     interrupt the loop node.
@@ -136,7 +145,7 @@ class NestedDoWhileLoopRule(LoopStructuringRule):
             and isinstance(body := loop_node.body, SeqNode)
             and isinstance(condition_node := body.children[-1], ConditionNode)
             and len(condition_node.children) == 1
-            and all(_has_only_loop_interruptions_in(set(), child) for child in body.children[:-1])
+            and all(_has_loop_break_interruptions_in(child) for child in body.children[:-1])
         )
 
     def restructure(self):
