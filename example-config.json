@@ -1,0 +1,8 @@
+{
+    "pipeline.debug": true,
+    "logging.log_level": "DEBUG",
+    "logging.stage_output": "none",
+    "logging.show_starting_point": true,
+    "logging.show_all_stages": false,
+    "logging.show_selected": []
+}
