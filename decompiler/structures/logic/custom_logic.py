@@ -341,7 +341,7 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
                         assert isinstance(op, Constant), f"The operand must be a Constant"
                         new_operands.append(pseudo.Constant(op.signed, pseudo.Integer(op.size, signed=True)))
                 condition_symbol = condition_handler.add_condition(Condition(self.OPERAND_MAPPING[operand.SYMBOL], new_operands))
-                self.context.replace(operand, condition_symbol.symbol._condition)
+                self.context.replace(operand, condition_symbol._condition)
 
     def _replace_symbols_by_real_conditions(
         self, condition_handler: ConditionHandler

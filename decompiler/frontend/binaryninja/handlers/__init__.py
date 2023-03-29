@@ -7,6 +7,7 @@ from .constants import ConstantHandler
 from .controlflow import FlowHandler
 from .globals import GlobalHandler
 from .phi import PhiHandler
+from .symbols import SymbolHandler
 from .types import TypeHandler
 from .unary import UnaryOperationHandler
 from .variables import VariableHandler
@@ -22,6 +23,7 @@ HANDLERS = [
     FlowHandler,
     AssignmentHandler,
     PhiHandler,
+    SymbolHandler,
     CallHandler,
     GlobalHandler,
 ]

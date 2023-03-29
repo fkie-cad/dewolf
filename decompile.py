@@ -24,13 +24,9 @@ class Decompiler:
         self._backend = CodeGenerator()
 
     @classmethod
-    def create_options(cls, extra_options: Optional[Dict] = None):
-        """Create a dictionary holding user defined settings/options from both command line and default config files"""
-        # First retrieve default options
-        all_options = Options.load_default_options()
-        # Now retrieve the extra options passed via commandline
-        all_options.add_cmdline_options(extra_options)
-        return all_options
+    def create_options(cls) -> Options:
+        """Create Options from defaults"""
+        return Options.load_default_options()
 
     @classmethod
     def from_path(cls, path: str, options: Optional[Options] = None, frontend: Frontend = BinaryninjaFrontend) -> Decompiler:

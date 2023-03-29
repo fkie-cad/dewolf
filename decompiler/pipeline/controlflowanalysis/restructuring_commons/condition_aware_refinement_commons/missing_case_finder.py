@@ -122,8 +122,8 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
             if len(combinable_switch_nodes) < 2 or self._repeating_cases(combinable_switch_nodes):
                 continue
             if self._can_combine_switch_nodes(combinable_switch_nodes):
-                switch_node = self.asforest.combine_switch_nodes(combinable_switch_nodes)
-                switch_node_of_expression[switch_expression] = [switch_node]
+                if (switch_node := self.asforest.combine_switch_nodes(combinable_switch_nodes)) is not None:
+                    switch_node_of_expression[switch_expression] = [switch_node]
 
         self._switch_node_of_expression = {
             expression: switch_nodes[0] for expression, switch_nodes in switch_node_of_expression.items() if len(switch_nodes) == 1

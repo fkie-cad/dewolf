@@ -272,7 +272,7 @@ class SeqNode(AbstractSyntaxTreeNode):
         if not (children := super().children):
             return children
         if set(self._sorted_children) != set(children):
-            logging.warning("The sorted tuple of children differs from the actual list of children, so we have to sort them!")
+            logging.debug("The sorted tuple of children differs from the actual list of children, so we have to sort them!")
             self.sort_children()
         return self._sorted_children
 
@@ -791,7 +791,7 @@ class ForLoopNode(LoopNode):
         self,
         declaration: Optional[Union[Expression, Assignment]],
         condition: LogicCondition,
-        modification: Assignment,
+        modification: Optional[Assignment],
         reaching_condition: LogicCondition,
         ast: Optional[AbstractSyntaxInterface] = None,
     ):
@@ -827,8 +827,10 @@ class ForLoopNode(LoopNode):
     def replace_variable(self, replacee: Variable, replacement: Variable) -> None:
         """Replace the variable replacee by replacement in the loop-condition, declaration and modification."""
         super().replace_variable(replacee, replacement)
-        self.declaration.substitute(replacee, replacement)
-        self.modification.substitute(replacee, replacement)
+        if self.declaration is not None:
+            self.declaration.substitute(replacee, replacement)
+        if self.modification is not None:
+            self.modification.substitute(replacee, replacement)
 
     def get_required_variables(self, condition_map: Optional[Dict[LogicCondition, Condition]] = None) -> Iterable[Variable]:
         yield from self.declaration.requirements
@@ -888,7 +890,7 @@ class SwitchNode(AbstractSyntaxTreeNode):
         if self._sorted_cases is None:
             return children
         if set(children) != set(self._sorted_cases):
-            logging.warning("The sorted cases are not the same as the children!")
+            logging.debug("The sorted cases are not the same as the children!")
             self.sort_cases()
         return self._sorted_cases
 

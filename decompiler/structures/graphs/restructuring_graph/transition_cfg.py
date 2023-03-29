@@ -258,9 +258,9 @@ class TransitionCFG(ClassifiedGraph):
         for edge in cfg.get_out_edges(node):
             tag = None
             if len(edge.cases) == 1:
-                tag = labels[edge.cases[0]].symbol
+                tag = labels[edge.cases[0]]
             elif len(edge.cases) > 1:
-                tag = LogicCondition.disjunction_of([labels[v].symbol for v in edge.cases])
+                tag = LogicCondition.disjunction_of([labels[v] for v in edge.cases])
             self.add_edge(TransitionEdge(node_transition[edge.source], node_transition[edge.sink], tag))
 
     def _process_direct_node(self, node: BasicBlock, cfg: ControlFlowGraph, node_transition: Dict[BasicBlock, TransitionBlock]) -> None:
@@ -274,8 +274,8 @@ class TransitionCFG(ClassifiedGraph):
         """Process the given conditional node by attributing its condition to its outgoing edges."""
         comparision = node.instructions[-1]
         assert isinstance(comparision, Branch), f"The instruction {comparision} must be a Branch."
-        label = self.condition_handler.add_condition(comparision.condition)
-        edge_tags = {BasicBlockEdgeCondition.true: label.symbol, BasicBlockEdgeCondition.false: ~label.symbol}
+        symbol = self.condition_handler.add_condition(comparision.condition)
+        edge_tags = {BasicBlockEdgeCondition.true: symbol, BasicBlockEdgeCondition.false: ~symbol}
         for edge_data in cfg.get_out_edges(node):
             tag = edge_tags[edge_data.condition_type]
             self.add_edge(TransitionEdge(node_transition[edge_data.source], node_transition[edge_data.sink], tag))

@@ -407,13 +407,13 @@ class TestLogicConditionZ3:
             LogicCondition = generate_logic_condition_class(Z3LogicCondition)
             PseudoLogicCondition = generate_logic_condition_class(Z3LogicCondition)
 
-            def add_condition(self, condition: Condition) -> ConditionSymbol:
+            def add_condition(self, condition: Condition) -> LogicCondition:
                 """Adds a condition to the condition map."""
                 symbol = self._get_next_symbol()
                 z3_condition = PseudoLogicCondition.initialize_from_condition(condition, self._logic_context)
                 condition_symbol = ConditionSymbol(condition, symbol, z3_condition)
                 self._condition_map[symbol] = condition_symbol
-                return condition_symbol
+                return symbol
 
             def _get_next_symbol(self) -> Z3LogicCondition:
                 """Get the next unused symbol name."""
