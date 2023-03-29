@@ -224,6 +224,16 @@ def test_global_import_address_symbol():
     assert re.search(r'unsigned int\s*g_38\s*=\s*130747369', output) or re.search(r'unsigned int\s*g_38\s*=\s*0x7cb0be9', output)
 
 
+def test_string_with_pointer_compare():
+    """Test that if(ptr == "String") works with logic engine"""
+    base_args = ["python", "decompile.py", "tests/samples/bin/systemtests/64/0/globals"]
+    args1 = base_args + ["global_string_compare"]
+    output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
+    print(output)
+
+    assert output.count("Hello Decompiler") == 1 # it's enough to test if the output has the string. Would crash if not possible in if
+
+
 def test_tailcall_display():
     """Test that we display tailcalls correctly."""
     args = ["python", "decompile.py", "tests/coreutils/binaries/sha224sum", "rpl_fseeko"]
