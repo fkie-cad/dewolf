@@ -108,7 +108,7 @@ class Z3Converter(BaseConverter):
         operands = self._ensure_same_sort([self.convert(operand) for operand in operation.operands])
         if isinstance(operands[0], BoolRef) and operation.operation in self.OPERATIONS_BOOLREF:
             converter = self.OPERATIONS_BOOLREF.get(operation.operation, None)
-        elif all(is_bool(op) for op in operands) and operation.operation in self.OPERATIONS_INVALID_BOOLREF_OP:
+        elif isinstance(operands[0], BoolRef) and operation.operation in self.OPERATIONS_INVALID_BOOLREF_OP:
             converter = self.OPERATIONS_INVALID_BOOLREF_OP.get(operation.operation, None)
         else:
             converter = self.OPERATIONS.get(operation.operation, None)

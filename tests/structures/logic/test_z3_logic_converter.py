@@ -48,8 +48,5 @@ def test_instruction_conv(instr):
     # Assert typing
     assert isinstance(condition, BoolRef)
     # Assert z3 compatible
-    try:
-        logic_converter.check(condition)
-    except Exception:
-        assert False
+    logic_converter.check(condition)
     # How to assert condition itself?
