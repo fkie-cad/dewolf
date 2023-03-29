@@ -3,7 +3,38 @@ from typing import Iterable, List, Set
 
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CodeNode, ConditionNode, LoopNode, SeqNode, WhileLoopNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
-from decompiler.structures.logic.logic_condition import LogicCondition
+
+
+def _has_loop_break_interruptions_in(body: AbstractSyntaxTreeNode) -> bool:
+    """Check that there is no break-statement in the given Sequence node."""
+
+    for code_node in _get_code_nodes_interrupting_loop(body):
+        if code_node.does_end_with_break:
+            return False
+    return True
+
+
+def _has_only_loop_interruptions_in(end_nodes: Set[CodeNode], body: SeqNode) -> bool:
+    """
+    Check that there is no continue-statement in the loop-body and no break statement except the last child that could
+    interrupt the loop node.
+    """
+    for code_node in _get_code_nodes_interrupting_loop(body):
+        if code_node not in end_nodes and (code_node.does_end_with_continue or code_node.does_end_with_break):
+            return False
+    return True
+
+
+def _get_code_nodes_interrupting_loop(node: AbstractSyntaxTreeNode) -> Iterable[CodeNode]:
+    """
+    Return all code nodes that can contain a break or continue statement that would interrupt the closest ancestor loop to the
+    given node.
+    """
+    if isinstance(node, CodeNode):
+        yield node
+    if not isinstance(node, LoopNode):
+        for child in node.children:
+            yield from _get_code_nodes_interrupting_loop(child)
 
 
 class LoopStructuringRule(ABC):
@@ -114,6 +145,7 @@ class NestedDoWhileLoopRule(LoopStructuringRule):
             and isinstance(body := loop_node.body, SeqNode)
             and isinstance(condition_node := body.children[-1], ConditionNode)
             and len(condition_node.children) == 1
+            and all(_has_loop_break_interruptions_in(child) for child in body.children[:-1])
         )
 
     def restructure(self):
@@ -160,7 +192,7 @@ class SequenceRule(LoopStructuringRule):
                 return False
             end_nodes.add(end_node)
 
-        return SequenceRule._has_only_loop_interruptions_in(end_nodes, body)
+        return _has_only_loop_interruptions_in(end_nodes, body)
 
     def restructure(self):
         """
@@ -182,29 +214,6 @@ class SequenceRule(LoopStructuringRule):
             if code_node.does_end_with_break:
                 code_node.instructions = code_node.instructions[:-1]
         self._asforest.clean_up(ast_node)
-
-    @staticmethod
-    def _has_only_loop_interruptions_in(end_nodes: Set[CodeNode], body: SeqNode) -> True:
-        """
-        Check that there is no continue-statement in the loop-body and no break statement except the last child that could
-        interrupt the loop node.
-        """
-        for code_node in SequenceRule._get_code_nodes_interrupting_loop(body):
-            if code_node not in end_nodes and (code_node.does_end_with_continue or code_node.does_end_with_break):
-                return False
-        return True
-
-    @staticmethod
-    def _get_code_nodes_interrupting_loop(node: AbstractSyntaxTreeNode) -> Iterable[CodeNode]:
-        """
-        Return all code nodes that can contain a break or continue statement that would interrupt the closest ancestor loop to the
-        given node.
-        """
-        if isinstance(node, CodeNode):
-            yield node
-        if not isinstance(node, LoopNode):
-            for child in node.children:
-                yield from SequenceRule._get_code_nodes_interrupting_loop(child)
 
 
 class ConditionToSequenceRule(LoopStructuringRule):
