@@ -33,14 +33,10 @@ BOOL = CustomType.bool()
 VOID = CustomType.void()
 
 ALL_TYPES = [I8, I16, I32, I64, I128, UI8, UI16, UI32, UI64, UI128, HALF, FLOAT, DOUBLE, LONG_DOUBLE, QUADRUPLE, OCTUPLE, BOOL, VOID]
-
-
-def _generate_all_type_assignments() -> List[Assignment]:
-    assignments: List[Assignment] = []
-    for index, var_type in enumerate(ALL_TYPES):
-        assignments.append(Assignment(Variable(f"var_{index}", var_type), Constant(0)))
-        assignments.append(Assignment(Variable(f"var_p_{index}", Pointer(var_type)), Constant(0)))
-    return assignments
+EXPECTED_BASE_NAMES = ["chVar0", "sVar1", "iVar2", "lVar3", "i128Var4", "uchVar5", "usVar6", "uiVar7", "ulVar8", "ui128Var9", "hVar10",
+                    "fVar11", "dVar12", "ldVar13", "qVar14", "oVar15", "bVar16", "vVar17"]
+EXPECTED_POINTER_NAMES = ["chpVar0", "spVar1", "ipVar2", "lpVar3", "i128pVar4", "uchpVar5", "uspVar6", "uipVar7", "ulpVar8", "ui128pVar9",
+                            "hpVar10", "fpVar11", "dpVar12", "ldpVar13", "qpVar14", "opVar15", "bpVar16", "vpVar17"]
 
 
 def _generate_options(notation: str = "system_hungarian", pointer_base: bool = True, type_sep: str = "", counter_sep: str = "") -> Options:
@@ -69,53 +65,26 @@ def test_default_notation_1():
     assert var.name == "var_0"
 
 
-class TestHungarianNotation:
-    def test_hungarian_notation_all_types(self):
-        true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
-        ast = AbstractSyntaxTree(cn := CodeNode(_generate_all_type_assignments(), true_value), {})
-        _run_vng(ast)
-        assert [str(_) for _ in cn.instructions] == [
-            "chVar0 = 0x0",
-            "chpVar0 = 0x0",
-            "sVar1 = 0x0",
-            "spVar1 = 0x0",
-            "iVar2 = 0x0",
-            "ipVar2 = 0x0",
-            "lVar3 = 0x0",
-            "lpVar3 = 0x0",
-            "i128Var4 = 0x0",
-            "i128pVar4 = 0x0",
-            "uchVar5 = 0x0",
-            "uchpVar5 = 0x0",
-            "usVar6 = 0x0",
-            "uspVar6 = 0x0",
-            "uiVar7 = 0x0",
-            "uipVar7 = 0x0",
-            "ulVar8 = 0x0",
-            "ulpVar8 = 0x0",
-            "ui128Var9 = 0x0",
-            "ui128pVar9 = 0x0",
-            "hVar10 = 0x0",
-            "hpVar10 = 0x0",
-            "fVar11 = 0x0",
-            "fpVar11 = 0x0",
-            "dVar12 = 0x0",
-            "dpVar12 = 0x0",
-            "ldVar13 = 0x0",
-            "ldpVar13 = 0x0",
-            "qVar14 = 0x0",
-            "qpVar14 = 0x0",
-            "oVar15 = 0x0",
-            "opVar15 = 0x0",
-            "bVar16 = 0x0",
-            "bpVar16 = 0x0",
-            "vVar17 = 0x0",
-            "vpVar17 = 0x0",
-        ]
+@pytest.mark.parametrize(
+    "variable, name",
+    [
+        (Variable("var_" + str(i), typ), EXPECTED_BASE_NAMES[i]) for i, typ in enumerate(ALL_TYPES)
+    ] +
+    [
+        (Variable("var_" + str(i), Pointer(typ)), EXPECTED_POINTER_NAMES[i]) for i, typ in enumerate(ALL_TYPES)
+    ]
+    ,
+)
+def test_hungarian_notation(variable, name):
+    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(CodeNode([Assignment(variable, Constant(42))], true_value), {})
+    _run_vng(ast)
+    assert variable.name == name
 
-    @pytest.mark.parametrize("type_sep, counter_sep", [("", ""), ("_", "_")])
-    def test_hungarian_notation_separators(self, type_sep: str, counter_sep: str):
-        true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
-        ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", I32), Constant(0)), true_value), {})
-        _run_vng(ast, _generate_options(type_sep=type_sep, counter_sep=counter_sep))
-        assert var.name == f"i{type_sep}Var{counter_sep}0"
+
+@pytest.mark.parametrize("type_sep, counter_sep", [("", ""), ("_", "_")])
+def test_hungarian_notation_separators(type_sep: str, counter_sep: str):
+    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", I32), Constant(0)), true_value), {})
+    _run_vng(ast, _generate_options(type_sep=type_sep, counter_sep=counter_sep))
+    assert var.name == f"i{type_sep}Var{counter_sep}0"
