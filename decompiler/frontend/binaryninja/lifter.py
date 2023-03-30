@@ -37,7 +37,7 @@ class BinaryninjaLifter(ObserverLifter):
     def lift_tags(self, instruction: MediumLevelILInstruction) -> Tuple[Tag, ...]:
         """Lift the Tags of the given Binaryninja instruction"""
         if function := instruction.function:
-            binja_tags = function.source_function.view.get_data_tags_at(instruction.address)
+            binja_tags = function.source_function.view.get_tags_at(instruction.address)
             return tuple(Tag(tag.type.name, tag.data) for tag in binja_tags)
         else:
             warning(f"Cannot lift tags for instruction because binary view cannot be accessed.")

@@ -56,12 +56,12 @@ class FunctionObject:
     @property
     def return_type(self) -> Type:
         """Lifted return type of function"""
-        return self._lifter.lift(self._function.function_type.return_value)
+        return self._lifter.lift(self._function.type.return_value)
 
     @property
     def params(self) -> List[Variable]:
         """Lifted function parameters"""
-        return [self._lifter.lift(param) for param in self._function.function_type.parameters]
+        return [self._lifter.lift(param) for param in self._function.type.parameters]
 
     @staticmethod
     def _resolve_by_identifier_name(bv: BinaryView, function_name: str) -> Optional[Function]:
