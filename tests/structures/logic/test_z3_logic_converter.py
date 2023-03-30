@@ -32,10 +32,6 @@ def _generate_instr_bool_as_numbers(op: OperationType) -> Branch:
         _generate_instr_bool_as_numbers(OperationType.divide),
         _generate_instr_bool_as_numbers(OperationType.left_shift),
         _generate_instr_bool_as_numbers(OperationType.right_shift),
-        _generate_instr_bool_as_numbers(OperationType.less),
-        _generate_instr_bool_as_numbers(OperationType.less_or_equal),
-        _generate_instr_bool_as_numbers(OperationType.greater),
-        _generate_instr_bool_as_numbers(OperationType.greater_or_equal),
         _generate_instr_bool_as_numbers(OperationType.modulo),
     ],
 )
@@ -49,4 +45,3 @@ def test_instruction_conv(instr):
     assert isinstance(condition, BoolRef)
     # Assert z3 compatible
     logic_converter.check(condition)
-    # How to assert condition itself?

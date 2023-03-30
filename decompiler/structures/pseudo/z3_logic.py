@@ -38,24 +38,18 @@ from .logic import BaseConverter
 from .operations import Condition, Operation, OperationType
 
 
+def _convert_invalid_boolref_op(a: BoolRef, b: BoolRef, op: Operation) -> BitVecRef:
+    return op(
+        If(a, BitVecVal(1, 1, ctx=a.ctx), BitVecVal(0, 1, ctx=a.ctx), ctx=a.ctx),
+        If(b, BitVecVal(1, 1, ctx=b.ctx), BitVecVal(0, 1, ctx=b.ctx), ctx=b.ctx),
+    )
+
+
 class Z3Converter(BaseConverter):
     """Class in charge of converting pseudo expressions into z3 logic statements."""
 
     def __init__(self):
         self._context = Context()
-        self.OPERATIONS_INVALID_BOOLREF_OP = {
-            OperationType.minus: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.sub),
-            OperationType.plus: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.add),
-            OperationType.multiply: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.mul),
-            OperationType.divide: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.truediv),
-            OperationType.left_shift: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.lshift),
-            OperationType.right_shift: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.rshift),
-            OperationType.less: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.lt),
-            OperationType.less_or_equal: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.le),
-            OperationType.greater: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.gt),
-            OperationType.greater_or_equal: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.ge),
-            OperationType.modulo: lambda a, b: self._convert_invalid_boolref_op(a, b, operator.mod),
-        }
 
     @property
     def context(self) -> Context:
@@ -109,7 +103,9 @@ class Z3Converter(BaseConverter):
         if isinstance(operands[0], BoolRef) and operation.operation in self.OPERATIONS_BOOLREF:
             converter = self.OPERATIONS_BOOLREF.get(operation.operation, None)
         elif isinstance(operands[0], BoolRef) and operation.operation in self.OPERATIONS_INVALID_BOOLREF_OP:
-            converter = self.OPERATIONS_INVALID_BOOLREF_OP.get(operation.operation, None)
+            converter = lambda a, b: _convert_invalid_boolref_op(
+                a, b, self.OPERATIONS_INVALID_BOOLREF_OP.get(operation.operation, None)
+            )
         else:
             converter = self.OPERATIONS.get(operation.operation, None)
         if not converter:
@@ -173,11 +169,6 @@ class Z3Converter(BaseConverter):
         return BaseConverter.SAT
 
 
-    def _convert_invalid_boolref_op(self, a : BoolRef, b : BoolRef, op : Operation) -> BitVecRef:
-        return op(If(a, BitVecVal(1, 1, ctx=self._context), BitVecVal(0, 1, ctx=self._context), ctx=self._context)
-                , If(b, BitVecVal(1, 1, ctx=self._context), BitVecVal(0, 1, ctx=self._context), ctx=self._context))
-
-
     LOGIC_OPERATIONS = {
         OperationType.bitwise_or,
         OperationType.bitwise_and,
@@ -214,10 +205,22 @@ class Z3Converter(BaseConverter):
         OperationType.less_or_equal_us: ULE,
     }
 
+
     OPERATIONS_BOOLREF = {
         OperationType.bitwise_and: And,
         OperationType.bitwise_xor: Xor,
         OperationType.bitwise_or: Or,
         OperationType.logical_not: Not,
         OperationType.negate: Not,
+    }
+
+
+    OPERATIONS_INVALID_BOOLREF_OP = {
+        OperationType.minus: operator.sub,
+        OperationType.plus: operator.add,
+        OperationType.multiply: operator.mul,
+        OperationType.divide: operator.truediv,
+        OperationType.left_shift: operator.lshift,
+        OperationType.right_shift: operator.rshift,
+        OperationType.modulo: operator.mod,
     }
