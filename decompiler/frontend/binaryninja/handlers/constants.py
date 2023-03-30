@@ -1,7 +1,19 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
-from binaryninja import BinaryView, PointerType, SymbolType, Type, VoidType, mediumlevelil
+from typing import Optional, Union
+
+from binaryninja import BinaryView, DataVariable, FunctionType, PointerType, SectionSemantics, SymbolType, Type, VoidType, mediumlevelil
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import Constant, GlobalVariable, Integer, OperationType, Symbol, UnaryOperation
+from decompiler.structures.pseudo import (
+    Constant,
+    GlobalVariable,
+    ImportedFunctionSymbol,
+    Integer,
+    OperationType,
+    Pointer,
+    StringSymbol,
+    Symbol,
+    UnaryOperation,
+)
 
 
 class ConstantHandler(Handler):
@@ -27,25 +39,35 @@ class ConstantHandler(Handler):
         """Lift the given literal, which is most likely an artefact from shift operations and the like."""
         return Constant(value, vartype=Integer.int32_t())
 
-    def lift_constant_pointer(self, pointer: mediumlevelil.MediumLevelILConstPtr, **kwargs) -> Constant:
+    def lift_constant_pointer(self, pointer: mediumlevelil.MediumLevelILConstPtr, **kwargs) -> Union[Constant, StringSymbol, UnaryOperation, GlobalVariable]:
         """Lift the given constant pointer, e.g. &0x80000.
             For clarity all cases:
                 1. Address is not in a section
                     - bninja type error, bninja wants the constant value instead of the address (and NULL case: &0x00)
-                2. Address has datavariable with a basic type (everything except void/void*)
+                2. Address is a constant read only string
+                    - lift as StringSymbol right into code (without pointer; purge NULL byte)
+                3. Address is a external function pointer
+                    - lift as ImportedFunctionSymbol right into code
+                4. Address has datavariable with a basic type (everything except void/void*)
                     - lift as datavariable
-                3. Address has a symbol, which is not a datasymbol
+                5. Address has a symbol, which is not a datasymbol
                     - lift as symbol
-                4. Address has a function there 
+                6. Address has a function there 
                     - lift the function symbol as symbol
-                5. Lift as raw address
+                7. Lift as raw address
         """
         view = pointer.function.view
 
         if not self._addr_in_section(view, pointer.constant):
             return Constant(pointer.constant, vartype=Integer(view.address_size*8, False))
 
-        if (variable := view.get_data_var_at(pointer.constant)) and not (isinstance(variable.type, PointerType) and isinstance(variable.type.target, VoidType)):
+        if string_variable := self._get_read_only_string_data_var(view, pointer.constant):
+            return StringSymbol(str(string_variable.value)[2:-1].rstrip("\\x00"), string_variable.address, vartype=Pointer(Integer.char(), view.address_size * 8))
+
+        if (variable := view.get_data_var_at(pointer.constant)) and isinstance(variable.type, PointerType) and isinstance(variable.type.target, FunctionType):
+            return ImportedFunctionSymbol(variable.name, variable.address, vartype=Pointer(Integer.char(),  view.address_size * 8))
+
+        if variable and not (isinstance(variable.type, PointerType) and isinstance(variable.type.target, VoidType)):
             return self._lifter.lift(variable, view=view, parent=pointer)
 
         if (symbol := view.get_symbol_at(pointer.constant)) and symbol.type != SymbolType.DataSymbol:
@@ -54,10 +76,10 @@ class ConstantHandler(Handler):
         if function := view.get_function_at(pointer.constant):
             return self._lifter.lift(function.symbol)
 
-        return self._lift_const_addr(view, pointer)
+        return self.lift_const_addr(view, pointer)
 
   
-    def _lift_const_addr(self, view: BinaryView, pointer : mediumlevelil.MediumLevelILConstPtr):
+    def lift_const_addr(self, view: BinaryView, pointer : mediumlevelil.MediumLevelILConstPtr):
         """Lift a raw address:
             - lift as char* if there is a string, otherwise as void* with raw bytes (if the datavariable was a ptr, lift as &ptr*, otherwise as ptr*)
             - there were symbols which call them self recursively, therefore a small check before the end
@@ -91,9 +113,29 @@ class ConstantHandler(Handler):
             return view.read(addr, view.get_sections_at(addr)[0].end)
 
 
-    def _addr_in_section(self, view : BinaryView, addr: int) -> bool:
-        """ Returns True if address is contained in a section, False otherwise"""
+    def _addr_in_section(self, view: BinaryView, addr: int) -> bool:
+        """Returns True if address is contained in a section, False otherwise"""
         for _, section in view.sections.items():
             if addr >= section.start and addr <= section.end:
                 return True
         return False
+
+
+    def _in_read_only_section(self, view: BinaryView, addr: int) -> bool:
+        """Returns True if address is contained in a read only section, False otherwise"""
+        for _, section in view.sections.items():
+            if addr >= section.start and addr <= section.end and section.semantics == SectionSemantics.ReadOnlyDataSectionSemantics:
+                return True
+        return False
+
+    def _get_read_only_string_data_var(self, view: BinaryView, addr: int) -> Optional[DataVariable]:
+        """Return a read only string datavariable which should be propagated into the code."""
+        if not self._in_read_only_section(view, addr):
+            return None
+        data_var = DataVariable(view, addr, Type.array(Type.char(), len(self._get_raw_bytes(view, addr))), False)
+        try:
+            data_var.value.decode("utf-8")
+        except UnicodeDecodeError:
+            return None
+
+        return data_var

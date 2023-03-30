@@ -1,7 +1,7 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
-from typing import Optional, Union
+from typing import Optional
 
-from binaryninja import BinaryView, DataVariable, Endianness, FunctionType, MediumLevelILInstruction, PointerType
+from binaryninja import BinaryView, DataVariable, Endianness, MediumLevelILInstruction, PointerType
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import (
     Constant,
@@ -27,13 +27,8 @@ class GlobalHandler(Handler):
 
     def lift_global_variable(self, variable: DataVariable, view: BinaryView, 
         parent: Optional[MediumLevelILInstruction] = None, **kwargs
-    ) -> Union[ImportedFunctionSymbol, StringSymbol, UnaryOperation]:
+    ) -> UnaryOperation:
         """Lift global variables with basic types (pointer are possible)"""
-        if not variable.name and isinstance(variable.value, bytes):
-            return StringSymbol(str(variable.value)[2:-1], variable.address, vartype=Pointer(Integer.char(), view.address_size * 8))
-        if isinstance(variable.type, PointerType) and isinstance(variable.type.target, FunctionType):
-            return ImportedFunctionSymbol(variable.name, variable.address, vartype=Pointer(Integer.char(),  view.address_size * 8)) 
-
         return UnaryOperation(
             OperationType.address,
                 [
