@@ -31,19 +31,21 @@ class ExpressionPropagationBase(PipelineStage, ABC):
 
     def __init__(self):
         self._limit: Optional[int] = None
-        self._limits: Dict[TypingType[Instruction], int]
+        self._limits: Dict[Instruction, int]
         self._use_map: UseMap
         self._def_map: DefMap
         self._pointers_info: Optional[Pointers] = None
         self._blocks_map: Optional[DefaultDict[str, Set]] = None
         self._cfg: Optional[ControlFlowGraph] = None
+        # to collect aliased variables that should be propagated in a separate round after everything else
+        # is propagated. For more details, see _is_aliased_postponed_for_propagation method.
+        self._postponed_aliased: Set[Variable] = set()
 
     def run(self, task: DecompilerTask):
         """Execute the expression propagation on the current ControlFlowGraph."""
         self._parse_options(task)
         iteration = 0
         # execute until there are no more changes
-
         while self.perform(task.graph, iteration):
             iteration += 1
         logging.info(f"{self.name} took {iteration} iterations")
@@ -56,6 +58,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                  iterate through uses of all vars and substitute the vars with their definitions
         # cfg and defmap are updated automatically when substituting variables in instructions
         # block map is updated after substitution in EPM, in EP does nothing
+        # use map is updated after substitution in EPM, in EP does nothing
         """
         is_changed = False
         self._cfg = graph
@@ -69,6 +72,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                         if self._definition_can_be_propagated_into_target(var_definition, instruction):
                             instruction.substitute(var, var_definition.value.copy())
                             self._update_block_map(old, str(instruction), basic_block, index)
+                            self._update_use_map(var, instruction)
                             if not is_changed:
                                 is_changed = old != str(instruction)
         return is_changed
@@ -112,6 +116,14 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         """Do nothing if EP, EPM re-implements this method to update the map when instructions change"""
         pass
 
+    def _update_use_map(self, variable: Variable, instruction: Instruction):
+        """Do nothing if EP, EPM re-implements this method to update the map when instructions change"""
+        pass
+
+    def _propagate_postponed_aliased_definitions(self):
+        """Do nothing if EP, EPM: one round of propagating postponed aliased definitions."""
+        pass
+
     def _try_to_propagate_contractions(self, instruction: Instruction):
         """
         In case we have contraction in the instruction, we try to directly replace it in uses if contraction definition is same
@@ -133,6 +145,38 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                     defined_contraction, value = definition.destination, definition.value
                     if subexpr == defined_contraction:
                         instruction.substitute(subexpr, value.copy())
+
+    def _is_aliased_postponed_for_propagation(self, target: Instruction, definition: Assignment) -> bool:
+        """
+        We are not allowed to always propagate aliased definitions that we insert during missing definition stage
+        Consider the following:
+        0: a#1 = 0
+        1: b#1 = 0
+        2: func(&b#1)
+        3: b#2 <- b#1 (relation, b - aliased, inserted by us)
+        4: a#2 = a#1 (assignment, a - aliased, inserted by us)
+        5: func(&a#1) (after 1st propagation round)
+        6: a#3 <- a#2
+        7: ...
+        8: ret a#3
+
+        Propagating a#1 = 0 (line 0) into a#2 = a#1 (line 4) leads to wrong decompiled code, since connection between aliased versions of variable a is removed:
+        0: a = 0
+        1: b = 0
+        2: func(&b)
+        3: a1 = 0 // a#2 = 0, since we propagated a#1 = 0 into a#2 = a#1
+        4: func(&a)
+        5: ...
+        6: ret a1
+
+        We can propagate this in case the variable is used once (in the example used twice). This way we revert insertion of redundant missing definition.
+        If possible, such propagation is done after everything else is propagated.
+        """
+        if self._is_aliased_variable(aliased:=definition.destination):
+            if self._is_aliased_redefinition(aliased, target):
+                self._postponed_aliased.add(aliased)
+                return True
+        return False
 
     def _is_invalid_propagation_into_address_operation(self, target: Instruction, definition: Assignment) -> bool:
         """
@@ -315,7 +359,6 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                 if self._is_address(subexpr):
                     dangerous_uses.add(use)
                     break
-
         return dangerous_uses
 
     def _get_dangerous_uses_of_pointer_to_variable(self, var: Variable) -> Set[Instruction]:
@@ -335,9 +378,11 @@ class ExpressionPropagationBase(PipelineStage, ABC):
 
     def _get_dangerous_uses_of_pointer(self, pointer: Variable) -> Set[Instruction]:
         """
-        :param pointer variable
-        :return: set of instructions that may potentially change the value pointed by given pointer. To such instructions belong
-        func(ptr) and *ptr = ... (OR *(ptr+....)=... when talking about arrays)
+        :param pointer to a variable
+        :return: set of instructions that may potentially change the value pointed by the given pointer. To such instructions belong:
+        - ret_val = func(ptr) - function call may modify value pointed by the ptr
+        - *ptr = new_val - pointer dereference assignment may change the value pointed by the ptr
+        - *(ptr + offset) = new_val - potential change of structure member or array element
         """
         dangerous_uses = set()
         for use in self._use_map.get(pointer):
@@ -447,4 +492,19 @@ class ExpressionPropagationBase(PipelineStage, ABC):
             and expression.operation == OperationType.cast
             and expression.contraction
             and expression.operand.complexity == 1
+        )
+
+
+    def _is_aliased_redefinition(self, aliased_variable: Variable, instruction: Instruction):
+        """
+        Given aliased variable check if the instruction is re-definition:
+        e.g. variable: a#10,  instruction: a#11 = a#10 redefines aliased variable a#10
+        :param aliased_variable: variable to be tested
+        :param instruction: instruction to be tested
+        """
+        return (
+            isinstance(instruction, Assignment)
+            and self._is_aliased_variable(instruction.destination)
+            and self._is_aliased_variable(instruction.value)
+            and instruction.destination.name == aliased_variable.name == instruction.value.name
         )

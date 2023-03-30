@@ -25,17 +25,15 @@ class ExpressionPropagation(ExpressionPropagationBase):
         :param target: instruction in which definition could be propagated
         :return: true if propagation is allowed false otherwise
         """
-        return isinstance(definition, Assignment) and not any(
-            [
-                self._is_phi(definition),
-                self._is_call_assignment(definition),
-                self._defines_unknown_expression(definition),
-                self._contains_aliased_variables(definition),
-                self._is_address_assignment(definition),
-                self._contains_global_variable(definition),
-                self._operation_is_propagated_in_phi(target, definition),
-                self._resulting_instruction_is_too_long(target, definition),
-                self._is_invalid_propagation_into_address_operation(target, definition),
-                self._is_dereference_assignment(definition),
-            ]
+        return isinstance(definition, Assignment) and not (
+                self._is_phi(definition)
+                or self._is_call_assignment(definition)
+                or self._defines_unknown_expression(definition)
+                or self._contains_aliased_variables(definition)
+                or self._is_address_assignment(definition)
+                or self._contains_global_variable(definition)
+                or self._operation_is_propagated_in_phi(target, definition)
+                or self._resulting_instruction_is_too_long(target, definition)
+                or self._is_invalid_propagation_into_address_operation(target, definition)
+                or self._is_dereference_assignment(definition)
         )
