@@ -130,8 +130,11 @@ class ConstantHandler(Handler):
 
     def _get_read_only_string_data_var(self, view: BinaryView, addr: int) -> Optional[DataVariable]:
         """Return a read only string datavariable which should be propagated into the code."""
-        if not self._in_read_only_section(view, addr):
+        data_var = view.get_data_var_at(addr)
+        if data_var and not isinstance(data_var.value, bytes):
             return None
+        if not self._in_read_only_section(view, addr):
+            return None    
         data_var = DataVariable(view, addr, Type.array(Type.char(), len(self._get_raw_bytes(view, addr))), False)
         try:
             data_var.value.decode("utf-8")
