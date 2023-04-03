@@ -1,6 +1,6 @@
 """ Tests for the PatternIndependentRestructuring pipeline stage condition aware refinement."""
 from itertools import combinations
-from typing import List, Union, Dict, Tuple
+from typing import Dict, List, Tuple, Union
 
 import pytest
 from decompiler.pipeline.controlflowanalysis.restructuring import PatternIndependentRestructuring
