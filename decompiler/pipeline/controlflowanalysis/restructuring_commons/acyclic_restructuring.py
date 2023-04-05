@@ -13,6 +13,7 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder
     AcyclicRegionFinderFactory,
     Strategy,
 )
+from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, SeqNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock, TransitionCFG
@@ -22,7 +23,7 @@ from decompiler.structures.logic.logic_condition import LogicCondition
 class AcyclicRegionRestructurer:
     """Class in charge of restructuring acyclic regions."""
 
-    def __init__(self, t_cfg: TransitionCFG, asforest: AbstractSyntaxForest):
+    def __init__(self, t_cfg: TransitionCFG, asforest: AbstractSyntaxForest, options: RestructuringOptions):
         """
         self.t_cfg: The TransitionCFG in which we want to structure an acyclic regions
         self.asforest: The corresponding Abstract Syntax Forest
@@ -34,6 +35,7 @@ class AcyclicRegionRestructurer:
         self.asforest: AbstractSyntaxForest = asforest
         self.head: Optional[TransitionBlock] = None
         self.current_region: Optional[TransitionCFG] = None
+        self.options: RestructuringOptions = options
 
     def restructure(self):
         """Restructure the acyclic transition graph."""
@@ -91,7 +93,8 @@ class AcyclicRegionRestructurer:
         acyclic_processor.preprocess_condition_refinement()
         ConditionBasedRefinement.refine(self.asforest)
         acyclic_processor.preprocess_condition_aware_refinement()
-        ConditionAwareRefinement.refine(self.asforest)
+        if self.options.reconstruct_switch:
+            ConditionAwareRefinement.refine(self.asforest)
         acyclic_processor.postprocess_condition_refinement()
         root = self.asforest.current_root
         self.asforest.remove_current_root()
