@@ -4,11 +4,11 @@ from typing import List, Optional, Union
 
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.acyclic_restructuring import AcyclicRegionRestructurer
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.loop_structurer import LoopStructurer
-from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder import CyclicRegionFinder
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder.cyclic_region_finder import (
     CyclicRegionFinderFactory,
     Strategy,
 )
+from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.graphs.classifiedgraph import EdgeProperty
@@ -19,7 +19,7 @@ from decompiler.structures.pseudo import Break, Continue
 class CyclicRegionStructurer:
     """Class that restructures cyclic region."""
 
-    def __init__(self, t_cfg: TransitionCFG, asforest: AbstractSyntaxForest):
+    def __init__(self, t_cfg: TransitionCFG, asforest: AbstractSyntaxForest, options: RestructuringOptions):
         """
         self.t_cfg: The TransitionCFG in which we want to structure cyclic regions
         self.asforest: The corresponding Abstract Syntax Forest
@@ -31,6 +31,7 @@ class CyclicRegionStructurer:
         self.asforest: AbstractSyntaxForest = asforest
         self.current_region: Optional[TransitionCFG] = None
         self.cyclic_region_finder = CyclicRegionFinderFactory.create(Strategy.dream)(t_cfg, asforest)
+        self.options: RestructuringOptions = options
 
     def restructure(self, head: TransitionBlock) -> bool:
         """
@@ -49,7 +50,7 @@ class CyclicRegionStructurer:
 
         original_loop_nodes = self.current_region.nodes
         self._prepare_current_region_for_acyclic_restructuring(loop_successors)
-        AcyclicRegionRestructurer(self.current_region, self.asforest).restructure()
+        AcyclicRegionRestructurer(self.current_region, self.asforest, self.options).restructure()
         restructured_loop_node = self._construct_refined_loop_ast()
         self.t_cfg.collapse_region(original_loop_nodes, restructured_loop_node)
 

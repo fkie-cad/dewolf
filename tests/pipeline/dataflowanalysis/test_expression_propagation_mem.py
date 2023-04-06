@@ -22,6 +22,95 @@ from decompiler.util.options import Options
 int32 = Integer.int32_t()
 int64 = Integer.int64_t()
 
+def test_address_propagation_does_not_break_relations_between_aliased_versions():
+    """
+        +------------------+
+        |        0.        |
+        |    x#0 = 0x0     |
+        |    y#0 = 0x0     | <--- DO NOT propagate
+        | ptr_x#1 = &(x#0) | <--- can propagate
+        | ptr_y#1 = &(y#0) | <--- can propagate
+        |  func(ptr_x#1)   |
+        |    y#1 = y#0     | <--- propagation will cause connection loss between lhs and rhs variable
+        |    x#1 -> x#0    |
+        |  func(ptr_y#1)   |
+        |    y#2 -> y#1    |
+        |    x#2 = x#1     |
+        |    x#3 = x#2     | <--- can propagate (aliased) definition x#2=x#1 here, as x#2 is not used anywhere else
+        |    y#3 = y#2     |
+        | return x#3 + y#3 |
+        +------------------+
+
+        After:
+        +------------------+
+        |        0.        |
+        |    x#0 = 0x0     |
+        |    y#0 = 0x0     |
+        | ptr_x#1 = &(x#0) |
+        | ptr_y#1 = &(y#0) |
+        |   func(&(x#0))   |
+        |    y#1 = y#0     |
+        |    x#1 -> x#0    |
+        |   func(&(y#0))   |
+        |    y#2 -> y#1    |
+        |    x#2 = x#1     |
+        |    x#3 = x#1     |
+        |    y#3 = y#2     |
+        | return x#1 + y#2 |
+        +------------------+
+    """
+    input_cfg, output_cfg = graphs_with_address_propagation_does_not_break_relations_between_aliased_versions()
+    _run_expression_propagation(input_cfg)
+    assert _graphs_equal(input_cfg, output_cfg)
+
+
+def graphs_with_address_propagation_does_not_break_relations_between_aliased_versions():
+    x = vars("x", 5, aliased=True)
+    y = vars("y", 5, aliased=True)
+    ptr_x = vars("ptr_x", 2, type=Pointer(int32))
+    ptr_y = vars("ptr_y", 2, type=Pointer(int32))
+    c = const(5)
+
+    in_n0 = BasicBlock(
+        0,
+        [_assign(x[0], c[0]),
+         _assign(y[0], c[0]),
+         _assign(ptr_x[1], _addr(x[0])),
+         _assign(ptr_y[1], _addr(y[0])),
+         _call("func", [], [ptr_x[1]]),
+         _assign(y[1], y[0]),
+         Relation(x[1], x[0]),
+         _call("func", [], [ptr_y[1]]),
+         Relation(y[2], y[1]),
+         _assign(x[2], x[1]),
+         _assign(x[3], x[2]),
+         _assign(y[3], y[2]),
+         _ret(_add(x[3], y[3])),
+         ]
+    )
+    in_cfg = ControlFlowGraph()
+    in_cfg.add_node(in_n0)
+    out_cfg = ControlFlowGraph()
+    out_cfg.add_node(
+        BasicBlock(
+            0,
+            [_assign(x[0], c[0]),
+             _assign(y[0], c[0]),
+             _assign(ptr_x[1], _addr(x[0])),
+             _assign(ptr_y[1], _addr(y[0])),
+             _call("func", [], [_addr(x[0])]),
+             _assign(y[1], y[0]),
+             Relation(x[1], x[0]),
+             _call("func", [], [_addr(y[0])]),
+             Relation(y[2], y[1]),
+             _assign(x[2], x[1]),
+             _assign(x[3], x[1]),
+             _assign(y[3], y[2]),
+             _ret(_add(x[1], y[2])),
+             ],
+        )
+    )
+    return in_cfg, out_cfg
 
 def test_assignments_with_dereference_subexpressions_on_rhs_are_propagated_when_no_modification_between_def_and_use():
     """
@@ -747,7 +836,7 @@ def test_dangerous_pointer_use_in_single_block_graph():
     | y#0 = x#0 + 0x5 |
     | ptr#0 = &(y#0)  |
     | x#1 = x#0 + 0x5 |
-    |  scanf(ptr#0)   |
+    |  scanf(&(y#0))  |
     |    y#1 = y#0    |
     |   return y#0    |
     +-----------------+
@@ -785,7 +874,7 @@ def _graphs_with_dangerous_pointer_use() -> Tuple[ControlFlowGraph, ControlFlowG
             _assign(y[0], _add(x[0], c[5])),
             _assign(ptr[0], _addr(y[0])),
             _assign(x[1], _add(x[0], c[5])),
-            _call("scanf", [], [ptr[0]]),
+            _call("scanf", [], [_addr(y[0])]),
             _assign(y[1], y[0]),
             _ret(y[0]),
         ],
@@ -1002,7 +1091,7 @@ def test_calls_not_propagated():
     ]
 
 
-def test_address_assignments_not_propagated():
+def test_address_assignments_propagated():
     """
     +--------------+
     |      0.      |
@@ -1012,14 +1101,14 @@ def test_address_assignments_not_propagated():
     |  z#1 = z#0   |
     |  return z#1  |
     +--------------+
-    +--------------+
-    |      0.      |
-    | x#0 = &(z#0) |
-    |  x#1 = x#0   |
-    |  scanf(x#0)  |
-    |  z#1 = z#0   |
-    |  return z#0  |
-    +--------------+
+    +-----------------+
+    |      0.         |
+    |  x#0 = &(z#0)   |
+    |  x#1 = &(z#0)   |
+    |  scanf(&(z#0))  |
+    |  z#1 = z#0      |
+    |  return z#0     |
+    +-----------------+
 
     """
     x = vars("x", 6)
@@ -1031,8 +1120,8 @@ def test_address_assignments_not_propagated():
     _run_expression_propagation(cfg)
     assert [i for i in cfg.instructions] == [
         _assign(x[0], _addr(z[0])),
-        _assign(x[1], x[0]),
-        _call("scanf", [], [x[0]]),
+        _assign(x[1], _addr(z[0])),
+        _call("scanf", [], [_addr(z[0])]),
         _assign(z[1], z[0]),
         _ret(z[0]),
     ]
@@ -1312,6 +1401,21 @@ def test_correct_propagation_relation():
     | __isoc99_scanf(0x804b01f, var_28#1) |
     |        var_14#5 -> var_14#4         |
     +-------------------------------------+
+
+    +------------------------------------------+
+    |                    0.                    |
+    |           var_14#1 = var_14#0            |
+    |          var_28#0 = &(var_14#1)          |
+    | "__isoc99_scanf"(0x804b01f, &(var_14#1)) |
+    |           var_14#2 -> var_14#1           |
+    |             eax#1 = var_14#2             |
+    |      "printf"(0x804b024, var_14#2)       |
+    |           var_14#3 = var_14#2            |
+    |        var_14#4 = var_14#2 + 0x2         |
+    |          var_28#1 = &(var_14#4)          |
+    | "__isoc99_scanf"(0x804b01f, &(var_14#4)) |
+    |           var_14#5 -> var_14#4           |
+    +------------------------------------------+
     """
     var_14 = vars("var_14", 6, Integer(32, True), True)
     var_28 = vars("var_28", 2, Pointer(Integer(32, True), 32), False)
@@ -1357,12 +1461,22 @@ def test_correct_propagation_relation():
     cfg = ControlFlowGraph()
     cfg.add_node(BasicBlock(0, [i.copy() for i in instructions]))
     _run_expression_propagation(cfg)
-    print([str(i) for i in cfg.instructions])
     assert list(cfg.instructions) == [
         instructions[0],
         # _assign(var_28[0], UnaryOperation(OperationType.address, [var_14[0]], Pointer(Integer(32, True), 32), None, False)),
         instructions[1],
-        instructions[2],
+        _assign(
+            ListOperation([]),
+            Call(
+                Constant("__isoc99_scanf", UnknownType()),
+                [
+                    Constant(134524959, Integer(32, True)),
+                    UnaryOperation(OperationType.address, [var_14[1]], Pointer(Integer(32, True), 32), None, False),
+                ],
+                Pointer(CustomType("void", 0), 32),
+                2,
+            ),
+        ),
         # Relation(var_14[2], var_14[0]),
         instructions[3],
         instructions[4],
@@ -1378,29 +1492,20 @@ def test_correct_propagation_relation():
         instructions[6],
         _assign(var_14[4], _add(var_14[2], Constant(2))),
         instructions[8],
-        instructions[9],
+        _assign(
+            ListOperation([]),
+            Call(
+                Constant("__isoc99_scanf", UnknownType()),
+                [
+                    Constant(134524959, Integer(32, True)),
+                    UnaryOperation(OperationType.address, [var_14[4]], Pointer(Integer(32, True), 32), None, False),
+                ],
+                Pointer(CustomType("void", 0), 32),
+                5,
+            ),
+        ),
         instructions[10],
     ]
-
-
-def test_no_propagation_of_contraction_address_assignment():
-    """
-    When taking care of contractions, avoid propagating those assignments, that have address on the right side.
-    +--------------------+
-    |         0.         |
-    | (4: ) x#1 = &(x#0) | <--- contraction definition
-    |  x#2 = (4: ) x#1   | <--- contraction use, do not propagate because we cannot handle &-propagtions for the moment
-    +--------------------+
-
-    +--------------------+
-    |         0.         |
-    | (4: ) x#1 = &(x#0) |
-    |  x#2 = (4: ) x#1   |
-    +--------------------+
-    """
-    input_cfg, output_cfg = graphs_with_no_propagation_of_contraction_address_assignment()
-    _run_expression_propagation(input_cfg)
-    assert _graphs_equal(input_cfg, output_cfg)
 
 
 def graphs_with_no_propagation_of_contraction_address_assignment():
@@ -1422,7 +1527,7 @@ def graphs_with_no_propagation_of_contraction_address_assignment():
             0,
             [
                 _assign(UnaryOperation(OperationType.cast, [x[1]], contraction=True), _addr(x[0])),
-                _assign(x[2], UnaryOperation(OperationType.cast, [x[1]], contraction=True)),
+                _assign(x[2], UnaryOperation(OperationType.cast, [_addr(x[0])], contraction=True)),
             ],
         )
     )

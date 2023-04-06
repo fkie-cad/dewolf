@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from itertools import product
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
 
 from decompiler.structures.ast.ast_nodes import (
     AbstractSyntaxTreeNode,
@@ -19,7 +20,7 @@ from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.structures.ast.syntaxgraph import AbstractSyntaxInterface
 from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock
 from decompiler.structures.logic.logic_condition import LogicCondition
-from decompiler.structures.pseudo import Break, Constant, Expression, Instruction, Variable
+from decompiler.structures.pseudo import Break, Condition, Constant, Expression, Instruction, OperationType, Variable
 
 
 class AbstractSyntaxForest(AbstractSyntaxInterface):
@@ -439,3 +440,72 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         """UnMark a connected component as the current component by setting the current root to None."""
         assert self.current_root is not None, "There is no temporary root that can be removed!"
         self._remove_edge(self._current_root, self.current_root)
+
+    def replace_switch_by_conditions(self, switch_node: SwitchNode):
+        """Replace the switch node by nested if-else."""
+        assert isinstance(switch_node, SwitchNode), "The given node must be a switch node"
+        last_condition_node = self.__get_final_else(switch_node)
+        for current_case, condition, break_case in self.__reverse_iterate_case_conditions(switch_node):
+            if break_case:
+                last_condition_node = self.__add_condition_before_nodes(condition, current_case, last_condition_node)
+            else:
+                self.__handle_fall_through_case(current_case, condition, last_condition_node)
+        self._replace_subtree(switch_node, last_condition_node)
+
+    def __get_final_else(self, switch_node: SwitchNode) -> Optional[TransitionBlock]:
+        """
+        Return the default node child, if it exists.
+
+        -> The default node is the final else of the nested if-else constructed from the switch.
+        """
+        final_else_case = None
+        if default_case := switch_node.default:
+            final_else_case = default_case.child
+            self._remove_node(default_case)
+        return final_else_case
+
+    def __reverse_iterate_case_conditions(self, switch_node: SwitchNode) -> Iterable[Tuple[AbstractSyntaxTreeNode, LogicCondition, bool]]:
+        """Iterate over all case nodes in reverse order and yield, child, condition and whether it is a break case."""
+        for case_node in reversed(switch_node.cases):
+            child = case_node.child
+            condition = self.condition_handler.add_condition(Condition(OperationType.equal, [case_node.expression, case_node.constant]))
+            self._remove_edge(case_node, child)
+            yield child, condition, case_node.break_case
+
+    def __add_condition_before_nodes(
+            self, condition: LogicCondition, true_branch: AbstractSyntaxTreeNode, false_branch: Optional[AbstractSyntaxTreeNode] = None
+    ) -> ConditionNode:
+        """
+        Add the given condition before the true_branch and its negation before the false branch.
+
+        -> If the false_branch exists (not None) or the true_branch is not a Condition, then we introduce a condition node with the given branches
+        -> Otherwise, we only have a true-branch that is also a condition node. In this case we can add the given condition to the condition node.
+        """
+        if false_branch is not None or not isinstance(true_branch, ConditionNode):
+            return self._add_condition_node_with(condition, true_branch, false_branch)
+        true_branch.condition &= condition
+        return true_branch
+
+    def __handle_fall_through_case(self, case_node, case_condition, condition_node) -> None:
+        """
+        Add the new node to the true-branch of the condition node and update the conditions of the fall through cases in this branch.
+
+        -> We visit the case nodes in reverse order
+        -> add case_condition to the given condition node and all condition-nodes belonging to fall through cases
+        -> Insert a sequence node, if the true-branch is not already a sequence node.
+        """
+        condition_node.condition |= case_condition
+        if case_node.is_empty:
+            self.remove_subtree(case_node)
+            return
+        if not isinstance(true_branch := condition_node.true_branch_child, SeqNode):
+            true_branch = self._add_sequence_node_before(true_branch)
+        else:
+            for child in true_branch.children[:-1]:
+                assert isinstance(child, ConditionNode), "All children except the last one must be condition nodes."
+                child.condition |= case_condition
+        assert isinstance(true_branch, SeqNode), "The true-branch must be a sequence node."
+        new_condition_node = self.__add_condition_before_nodes(case_condition, case_node)
+        self._add_edge(true_branch, new_condition_node)
+        true_branch._sorted_children = (new_condition_node,) + true_branch._sorted_children
+

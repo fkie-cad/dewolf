@@ -478,6 +478,36 @@
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
                 "argument_name": "--variable-declarations-per-line"
+            },
+            {
+                "dest": "pattern-independent-restructuring.switch_reconstruction",
+                "default": true,
+                "title": "Reconstruct switch statements",
+                "type": "boolean",
+                "description": "Reconstruct switch-statements if possible.",
+                "is_hidden_from_gui": true,
+                "is_hidden_from_cli": false,
+                "argument_name": "--switch-reconstruction"
+                },
+            {
+                "dest": "pattern-independent-restructuring.nested_switch_nodes",
+                "default": true,
+                "title": "Reconstruct nested switch statements",
+                "type": "boolean",
+                "description": "Reconstruct nested switch-statements if possible.",
+                "is_hidden_from_gui": true,
+                "is_hidden_from_cli": false,
+                "argument_name": "--nested-switch-nodes"
+            },
+            {
+                "dest": "pattern-independent-restructuring.min_switch_case_number",
+                "default": 2,
+                "type": "number",
+                "title": "The minimum number of cases to use switch",
+                "description": "Only reconstruct switch statements with at least the given number of cases.",
+                "is_hidden_from_gui": true,
+                "is_hidden_from_cli": false,
+                "argument_name": "--min_switch_case_number"
             }
         ]
     },
