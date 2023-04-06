@@ -168,6 +168,8 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
                     new_start_node = self._add_constants_for_linear_order_starting_at(
                         starting_case, linear_ordering_starting_at, linear_order_dependency_graph, considered_conditions
                     )
+                    if starting_case in cross_nodes and starting_case != new_start_node:
+                        cross_nodes = [new_start_node if id(n) == id(starting_case) else n for n in cross_nodes]
                     conditions_considered_at[new_start_node] = considered_conditions
                 self._get_linear_order_for(cross_nodes, linear_ordering_starting_at, linear_order_dependency_graph)
             else:
