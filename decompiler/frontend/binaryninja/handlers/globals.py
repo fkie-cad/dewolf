@@ -42,7 +42,7 @@ class GlobalHandler(Handler):
                     self._lifter.lift(variable.type),
                     ssa_label=parent.ssa_memory_version if parent else 0,
                     initial_value=self._lifter.lift(view.get_data_var_at(variable.value), view=view) if isinstance(variable.type, PointerType) \
-                    and variable.value != 0 else Constant(variable.value) # pointer can point to NULL as well
+                    and variable.value != 0 and variable.address != variable.value else Constant(variable.value) # pointer can point to NULL/itself 
                 )
             ],
         )
