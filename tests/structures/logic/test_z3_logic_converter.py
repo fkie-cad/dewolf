@@ -37,10 +37,7 @@ def _generate_instr_bool_as_numbers(op: OperationType) -> Branch:
 )
 def test_instruction_conv(instr):
     logic_converter: BaseConverter = Z3Converter()
-    try:
-        condition = logic_converter.convert(instr, define_expr=True)
-    except Exception:
-        assert False
+    condition = logic_converter.convert(instr, define_expr=True)
     # Assert typing
     assert isinstance(condition, BoolRef)
     # Assert z3 compatible
