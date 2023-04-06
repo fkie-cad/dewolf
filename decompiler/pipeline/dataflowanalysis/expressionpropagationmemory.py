@@ -27,6 +27,7 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
         """
         is_changed = super().perform(graph, iteration)
         self._propagate_postponed_aliased_definitions()
+        # self._initialize_pointers(graph)
         return is_changed
 
     def _definition_can_be_propagated_into_target(self, definition: Assignment, target: Instruction):
@@ -61,6 +62,7 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
                 or self._pointer_value_used_in_definition_could_be_modified_via_memory_access_between_definition_and_target(
                     definition, target
                 )
+                # or self._propagates_into_aliased_redefinition(target)
         )
 
     def _initialize_pointers(self, cfg: ControlFlowGraph):
@@ -96,6 +98,8 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
         for var in self._postponed_aliased:
             uses = self._use_map.get(var)
             definition = self._def_map.get(var)
+            if isinstance(definition.value, Variable) and definition.value.is_aliased and definition.value.name != var.name:
+                continue
             if len(uses) == 1:
                 instruction = uses.pop()
                 if self._is_aliased_postponed_for_propagation(instruction, definition):
