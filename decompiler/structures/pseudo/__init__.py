@@ -10,6 +10,7 @@ from .expressions import (
     ImportedFunctionSymbol,
     IntrinsicSymbol,
     RegisterPair,
+    StringSymbol,
     Symbol,
     Tag,
     UnknownExpression,

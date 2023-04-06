@@ -3,7 +3,16 @@ from typing import Optional, Union
 
 from binaryninja import BinaryView, DataVariable, Endianness, FunctionType, MediumLevelILInstruction, PointerType
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import Constant, GlobalVariable, ImportedFunctionSymbol, Integer, OperationType, Pointer, UnaryOperation
+from decompiler.structures.pseudo import (
+    Constant,
+    GlobalVariable,
+    ImportedFunctionSymbol,
+    Integer,
+    OperationType,
+    Pointer,
+    StringSymbol,
+    UnaryOperation,
+)
 
 
 class GlobalHandler(Handler):
@@ -18,15 +27,12 @@ class GlobalHandler(Handler):
 
     def lift_global_variable(self, variable: DataVariable, view: BinaryView, 
         parent: Optional[MediumLevelILInstruction] = None, **kwargs
-    ) -> Union[ImportedFunctionSymbol, Constant, UnaryOperation]:
+    ) -> Union[ImportedFunctionSymbol, StringSymbol, UnaryOperation]:
         """Lift global variables with basic types (pointer are possible)"""
         if not variable.name and isinstance(variable.value, bytes):
-            return Constant(
-                value=variable.value.decode("utf-8") if isinstance(variable.value, bytes) else variable.value, 
-                vartype=self._lifter.lift(variable.type)
-            )
+            return StringSymbol(variable.value.decode("utf-8"), variable.address, vartype=Pointer(Integer.char(), view.address_size * 8))
         if isinstance(variable.type, PointerType) and isinstance(variable.type.target, FunctionType):
-            return ImportedFunctionSymbol(variable.name, variable.address, vartype=Pointer(Integer.char())) 
+            return ImportedFunctionSymbol(variable.name, variable.address, vartype=Pointer(Integer.char(),  view.address_size * 8)) 
 
         return UnaryOperation(
             OperationType.address,

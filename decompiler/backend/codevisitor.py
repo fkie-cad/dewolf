@@ -71,6 +71,8 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
         if node.false_branch is None:
             return f"if ({self._condition_string(node.condition)}) {{{true_str}}}"
         false_str = self.visit(node.false_branch_child)
+        if isinstance(node.false_branch_child, ast_nodes.ConditionNode):
+            return f"if ({self._condition_string(node.condition)}){{{true_str}}} else {false_str}"
         return f"if ({self._condition_string(node.condition)}){{{true_str}}} else{{{false_str}}}"
 
     def visit_true_node(self, node: ast_nodes.TrueNode) -> str:

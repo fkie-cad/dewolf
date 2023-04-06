@@ -223,7 +223,7 @@ class Z3Implementation:
         the SSA-variable names that occur in the expression.
         """
         if condition.left.type.size != condition.right.type.size:
-            logging.warning(
+            logging.info(
                 f"The operands of {condition} have different sizes: {condition.left.type.size} & {condition.right.type.size}. Increase the size of the smaller one."
             )
         bit_vec_size = max(condition.left.type.size, condition.right.type.size, 1)
