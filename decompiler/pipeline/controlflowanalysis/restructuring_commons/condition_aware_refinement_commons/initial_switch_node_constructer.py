@@ -2,8 +2,6 @@ from dataclasses import dataclass
 from itertools import chain
 from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple
 
-from z3 import *
-
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.base_class_car import (
     BaseClassConditionAwareRefinement,
     CaseNodeCandidate,
@@ -14,6 +12,7 @@ from decompiler.structures.ast.reachability_graph import CaseDependencyGraph, Li
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import Break, Condition, Constant, Expression, OperationType, Z3Converter
+from z3 import *
 
 
 @dataclass
@@ -33,9 +32,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
     """Class that constructs switch nodes."""
 
     def __init__(self, asforest: AbstractSyntaxForest):
-        """
-        self.asforest: The asforst where we try to construct switch nodes
-        """
+        """self.asforest: The asforst where we try to construct switch nodes."""
         self.asforest = asforest
         super().__init__(asforest.condition_handler)
 
@@ -43,14 +40,44 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
     def construct(cls, asforest: AbstractSyntaxForest):
         """Constructs initial switch nodes if possible."""
         initial_switch_constructor = cls(asforest)
-        for node in asforest.post_order(asforest.current_root):
-            initial_switch_constructor._try_to_rearrange_conditions_like(node)
+        # python decompile.py ../test-samples/coreutils/shred main --debug
+        # on: 11:32:814 vs of: 1:15:512
+        # for node in asforest.post_order(asforest.current_root):
+        #     initial_switch_constructor._try_to_rearrange_conditions_like(node)
         for cond_node in asforest.get_condition_nodes_post_order(asforest.current_root):
             initial_switch_constructor._try_to_construct_initial_switch_node_from_condition(cond_node)
+        # python decompile.py ../test-samples/coreutils/shred main --debug
+        # Combining Should be part of a pre- or post-processing.
         for seq_node in asforest.get_sequence_nodes_post_order(asforest.current_root):
             initial_switch_constructor._try_to_extract_breaks_from(seq_node)
         for seq_node in asforest.get_sequence_nodes_post_order(asforest.current_root):
             initial_switch_constructor._try_to_construct_initial_switch_node_for(seq_node)
+
+    def _try_to_rearrange_conditions_like(self, node: AbstractSyntaxTreeNode):
+        """
+        In the method _try_to_construct_initial_switch_node_for we search for multiple conditions
+        that compare the same expression with different constants, e.g. a-b=0 and a-b=1. However,
+        the compiler often optimizes conditions (usually the condition with constant 0) and
+        rearranges those equations. In the example from above we get a=b and a-b=1. This method
+        tries to solve this problem in the following way:
+
+        1. We look for reaching conditions or condition nodes that consist of expressions compared with a constant
+        (e.g. a-b=1).
+        2. We extract the expression from this condition (e.g. a-b).
+        3. We build a new condition that compares this expression with 0 (e.g. a-b=0).
+        4. We look for a condition that is equivalent to this new condition and replace it
+        (e.g. a=b will be replaced by a-b=0).
+        """
+        if isinstance(node, ConditionNode):
+            condition = node.condition
+        else:
+            condition = node.reaching_condition
+        if expression := self._get_expression_compared_with_constant(condition):
+            for other_cond_node in self.asforest.get_condition_nodes_post_order(self.asforest.current_root):
+                if node != other_cond_node:
+                    if equivalent_condition := self._try_to_rearrange_other_condition_like_condition(expression, other_cond_node.condition):
+                        # raise ValueError("Found sample where we transform a condition to reconstruct switch")
+                        other_cond_node.condition = equivalent_condition
 
     def _try_to_extract_breaks_from(self, seq_node: SeqNode) -> None:
         """
@@ -87,7 +114,13 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
 
         if switch_expression:
             for child in seq_node.children:
-                if isinstance(child, CodeNode) and child.does_end_with_break and child != break_node and self._get_expression_compared_with_constant(child.reaching_condition) == switch_expression and self._can_move_break_instruction(seq_node, child, break_node):
+                if (
+                    isinstance(child, CodeNode)
+                    and child.does_end_with_break
+                    and child != break_node
+                    and self._get_expression_compared_with_constant(child.reaching_condition) == switch_expression
+                    and self._can_move_break_instruction(seq_node, child, break_node)
+                ):
                     break_node.reaching_condition = break_node.reaching_condition | child.reaching_condition
                     child.instructions.pop()
                     for reachable_sibling in self.asforest.reachable_code_nodes(child):
@@ -97,6 +130,8 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
 
         if break_node.reaching_condition == self.condition_handler.get_false_value():
             self.asforest.remove_subtree(break_node)
+        # else:
+        #     raise ValueError("Found sample where we extract breaks for switch reconstruction!")
 
     def _can_move_break_instruction(self, parent: SeqNode, code_node: CodeNode, break_node: CodeNode):
         """
@@ -109,34 +144,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         copy_sibling_reachability._add_first_node_reaches_second(code_node, break_node)
         return copy_sibling_reachability.sorted_nodes() is not None
 
-    def _try_to_rearrange_conditions_like(self, node: AbstractSyntaxTreeNode):
-        """
-        In the method _try_to_construct_initial_switch_node_for we search for multiple conditions
-        that compare the same expression with different constants, e.g. a-b=0 and a-b=1. However,
-        the compiler often optimizes conditions (usually the condition with constant 0) and
-        rearranges those equations. In the example from above we get a=b and a-b=1. This method
-        tries to solve this problem in the following way:
-
-        1. We look for reaching conditions or condition nodes that consist of expressions compared with a constant
-        (e.g. a-b=1).
-        2. We extract the expression from this condition (e.g. a-b).
-        3. We build a new condition that compares this expression with 0 (e.g. a-b=0).
-        4. We look for a condition that is equivalent to this new condition and replace it
-        (e.g. a=b will be replaced by a-b=0).
-        """
-        if isinstance(node, ConditionNode):
-            condition = node.condition
-        else:
-            condition = node.reaching_condition
-        if expression := self._get_expression_compared_with_constant(condition):
-            for other_cond_node in self.asforest.get_condition_nodes_post_order(self.asforest.current_root):
-                if node != other_cond_node:
-                    if equivalent_condition := self._try_to_rearrange_other_condition_like_condition(
-                            expression, other_cond_node.condition):
-                        other_cond_node.condition = equivalent_condition
-
-    def _try_to_rearrange_other_condition_like_condition(self, expression: Expression,
-                                                         other_condition: LogicCondition) -> LogicCondition:
+    def _try_to_rearrange_other_condition_like_condition(self, expression: Expression, other_condition: LogicCondition) -> LogicCondition:
         """
         This method builds a new condition that compares the expression with 0. Then it checks if the new condition
         is equivalent to the other condition.
@@ -149,7 +157,8 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
             """
             condition_map_size = len(self.condition_handler.get_condition_map())
             potentially_equivalent_condition = self.condition_handler.add_condition(
-                Condition(OperationType.equal, [expression, Constant(0, expression.type)])).symbol
+                Condition(OperationType.equal, [expression, Constant(0, expression.type)])
+            )
             if self._are_equivalent(other_condition, potentially_equivalent_condition):
                 return potentially_equivalent_condition
             elif len(self.condition_handler.get_condition_map()) > condition_map_size:
@@ -205,7 +214,6 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
                 if found_second_candidate:
                     self._extract_condition_node(cond_node)
 
-
     def _find_second_case_inside_of_condition_node(self, case_candidate: CaseNodeCandidate, inner_node: AbstractSyntaxTreeNode) -> Bool:
         """
         We check if there is a possible case candidate hidden inside of a condition node. If yes, we extract the
@@ -235,7 +243,9 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
                 branch.reaching_condition = branch.reaching_condition & ~cond_node.condition
             self.asforest.extract_branch_from_condition_node(cond_node, cond_node.false_branch, False)
         if cond_node.true_branch is not None:
-            cond_node.true_branch_child.reaching_condition = cond_node.true_branch_child.reaching_condition & cond_node.reaching_condition & cond_node.condition
+            cond_node.true_branch_child.reaching_condition = (
+                cond_node.true_branch_child.reaching_condition & cond_node.reaching_condition & cond_node.condition
+            )
             self.asforest.extract_branch_from_condition_node(cond_node, cond_node.true_branch, False)
 
         seq_node = cond_node.parent
@@ -256,22 +266,19 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         """
         "Checking the true branch."
         possible_case_condition = cond_node.reaching_condition & cond_node.condition
-        possible_expressions = list(
-            self._get_constant_equality_check_expressions_and_conditions(possible_case_condition))
+        possible_expressions = list(self._get_constant_equality_check_expressions_and_conditions(possible_case_condition))
 
         "Checking the false branch."
         if not possible_expressions:
             cond_node.switch_branches()
             possible_case_condition = cond_node.reaching_condition & cond_node.condition
-            possible_expressions = list(
-                self._get_constant_equality_check_expressions_and_conditions(possible_case_condition))
+            possible_expressions = list(self._get_constant_equality_check_expressions_and_conditions(possible_case_condition))
 
         "Returning a CaseNodeCandidate if the search was successful."
         if len(possible_expressions) == 1:
             expression, condition = possible_expressions[0]
             used_variables = tuple(var.ssa_name for var in expression.requirements)
-            return CaseNodeCandidate(cond_node.true_branch_child, ExpressionUsages(expression, used_variables),
-                                     possible_expressions[0][1])
+            return CaseNodeCandidate(cond_node.true_branch_child, ExpressionUsages(expression, used_variables), possible_expressions[0][1])
 
         return None
 
@@ -399,8 +406,8 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
                     new_start_node = self._add_constants_for_linear_order_starting_at(
                         starting_case, linear_ordering_starting_at, linear_order_dependency_graph, considered_conditions
                     )
-                    if starting_case in cross_nodes and starting_case != new_start_node:                                                                                                                │ 172│                        cross_nodes = [
-                            new_start_node if id(n) == id(starting_case) else n for n in cross_nodes]
+                    if starting_case in cross_nodes and starting_case != new_start_node:
+                        cross_nodes = [new_start_node if id(n) == id(starting_case) else n for n in cross_nodes]
                     conditions_considered_at[new_start_node] = considered_conditions
                 self._get_linear_order_for(cross_nodes, linear_ordering_starting_at, linear_order_dependency_graph)
             else:

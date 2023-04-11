@@ -3,7 +3,6 @@ from itertools import combinations
 from typing import List, Tuple, Union
 
 import pytest
-
 from decompiler.pipeline.controlflowanalysis.restructuring import PatternIndependentRestructuring
 from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, SeqNode, SwitchNode, WhileLoopNode
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
@@ -1853,90 +1852,89 @@ def test_switch_in_switch_complicated(task):
 
 def test_switch_only_if_else(task):
     """
-    test_condition test6
-                            +------------------+     +----------------------------------------------------------------+
-                            |                  |     |                               0.                               |
-                            |                  |     |                    __x86.get_pc_thunk.bx()                     |
-                            |        2.        |     |              printf("Enter week number (1-7): ")               |
-                            | printf("Monday") |     |                        var_1 = &(var_0)                        |
-                            |                  |     |                  __isoc99_scanf("%d", var_1)                   |
-                            |                  | <-- |                        if(var_0 != 0x1)                        |
-                            +------------------+     +----------------------------------------------------------------+
-                              |                        |
-                              |                        |
-                              |                        v
-                              |                      +----------------------------------------------------------------+     +--------------------+
-                              |                      |                               1.                               |     |         4.         |
-                              |                      |                        if(var_0 != 0x2)                        | --> | printf("Tuesday")  |
-                              |                      +----------------------------------------------------------------+     +--------------------+
-                              |                        |                                                                      |
-                              |                        |                                                                      |
-                              |                        v                                                                      |
-+---------------------+       |                      +----------------------------------------------------------------+       |
-|         7.          |       |                      |                               3.                               |       |
-| printf("Wednesday") | <-----+--------------------- |                        if(var_0 != 0x3)                        |       |
-+---------------------+       |                      +----------------------------------------------------------------+       |
-  |                           |                        |                                                                      |
-  |                           |                        |                                                                      |
-  |                           |                        v                                                                      |
-  |                           |                      +----------------------------------------------------------------+       |                        +--------------------+
-  |                           |                      |                               6.                               |       |                        |         9.         |
-  |                           |                      |                        if(var_0 != 0x4)                        | ------+----------------------> | printf("Thursday") |
-  |                           |                      +----------------------------------------------------------------+       |                        +--------------------+
-  |                           |                        |                                                                      |                          |
-  |                           |                        |                                                                      |                          |
-  |                           |                        v                                                                      |                          |
-  |                           |                      +----------------------------------------------------------------+       |                          |
-  |                           |                      |                               8.                               |       |                          |
-  |                           |                   +- |                        if(var_0 != 0x5)                        |       |                          |
-  |                           |                   |  +----------------------------------------------------------------+       |                          |
-  |                           |                   |    |                                                                      |                          |
-  |                           |                   |    |                                                                      |                          |
-  |                           |                   |    v                                                                      |                          |
-  |                           |                   |  +----------------------------------------------------------------+       |                          |
-  |                           |                   |  |                              10.                               |       |                          |
-  |                           |                   |  |                        if(var_0 != 0x6)                        | -+    |                          |
-  |                           |                   |  +----------------------------------------------------------------+  |    |                          |
-  |                           |                   |    |                                                                 |    |                          |
-  |                           |                   |    |                                                                 |    |                          |
-  |                           |                   |    v                                                                 |    |                          |
-  |                           |                   |  +----------------------------------------------------------------+  |    |                          |
-  |                           |                   |  |                              12.                               |  |    |                          |
-  |                           |                   |  |                        if(var_0 != 0x7)                        | -+----+--------------------------+--------------------------+
-  |                           |                   |  +----------------------------------------------------------------+  |    |                          |                          |
-  |                           |                   |    |                                                                 |    |                          |                          |
-  |                           |                   |    |                                                                 |    |                          |                          |
-  |                           |                   |    v                                                                 |    |                          |                          |
-  |                           |                   |  +----------------------------------------------------------------+  |    |                          |                          |
-  |                           |                   |  |                              14.                               |  |    |                          |                          |
-  |                           |                   |  | printf("Invalid Input! Please enter week number between 1-7.") |  +----+--------------------------+---------------------+    |
-  |                           |                   |  +----------------------------------------------------------------+       |                          |                     |    |
-  |                           |                   |    |                                                                      |                          |                     |    |
-  |                      +----+-------------------+    |                                                                      |                          |                     |    |
-  |                      |    |                        v                                                                      v                          v                     |    |
-  |                      |    |                      +----------------------------------------------------------------------------------------------------------------------+  |    |
-  |                      |    +--------------------> |                                                                                                                      |  |    |
-  |                      |                           |                                                          5.                                                          |  |    |
-  |                      |                           |                                                      return 0x0                                                      |  |    |
-  +----------------------+-------------------------> |                                                                                                                      |  |    |
-                         |                           +----------------------------------------------------------------------------------------------------------------------+  |    |
-                         |                             ^                                                                      ^                          ^                     |    |
-                         |                             |                                                                      |                          |                     |    |
-                         |                             |                                                                      |                          |                     |    |
-                         |                           +----------------------------------------------------------------+     +--------------------+       |                     |    |
-                         |                           |                              11.                               |     |        13.         |       |                     |    |
-                         +-------------------------> |                        printf("Friday")                        |     | printf("Saturday") | <-----+---------------------+    |
-                                                     +----------------------------------------------------------------+     +--------------------+       |                          |
-                                                     +----------------------------------------------------------------+                                  |                          |
-                                                     |                              15.                               |                                  |                          |
-                                                     |                        printf("Sunday")                        | ---------------------------------+                          |
-                                                     +----------------------------------------------------------------+                                                             |
-                                                       ^                                                                                                                            |
-                                                       +----------------------------------------------------------------------------------------------------------------------------+
+        test_condition test6
+                                +------------------+     +----------------------------------------------------------------+
+                                |                  |     |                               0.                               |
+                                |                  |     |                    __x86.get_pc_thunk.bx()                     |
+                                |        2.        |     |              printf("Enter week number (1-7): ")               |
+                                | printf("Monday") |     |                        var_1 = &(var_0)                        |
+                                |                  |     |                  __isoc99_scanf("%d", var_1)                   |
+                                |                  | <-- |                        if(var_0 != 0x1)                        |
+                                +------------------+     +----------------------------------------------------------------+
+                                  |                        |
+                                  |                        |
+                                  |                        v
+                                  |                      +----------------------------------------------------------------+     +--------------------+
+                                  |                      |                               1.                               |     |         4.         |
+                                  |                      |                        if(var_0 != 0x2)                        | --> | printf("Tuesday")  |
+                                  |                      +----------------------------------------------------------------+     +--------------------+
+                                  |                        |                                                                      |
+                                  |                        |                                                                      |
+                                  |                        v                                                                      |
+    +---------------------+       |                      +----------------------------------------------------------------+       |
+    |         7.          |       |                      |                               3.                               |       |
+    | printf("Wednesday") | <-----+--------------------- |                        if(var_0 != 0x3)                        |       |
+    +---------------------+       |                      +----------------------------------------------------------------+       |
+      |                           |                        |                                                                      |
+      |                           |                        |                                                                      |
+      |                           |                        v                                                                      |
+      |                           |                      +----------------------------------------------------------------+       |                        +--------------------+
+      |                           |                      |                               6.                               |       |                        |         9.         |
+      |                           |                      |                        if(var_0 != 0x4)                        | ------+----------------------> | printf("Thursday") |
+      |                           |                      +----------------------------------------------------------------+       |                        +--------------------+
+      |                           |                        |                                                                      |                          |
+      |                           |                        |                                                                      |                          |
+      |                           |                        v                                                                      |                          |
+      |                           |                      +----------------------------------------------------------------+       |                          |
+      |                           |                      |                               8.                               |       |                          |
+      |                           |                   +- |                        if(var_0 != 0x5)                        |       |                          |
+      |                           |                   |  +----------------------------------------------------------------+       |                          |
+      |                           |                   |    |                                                                      |                          |
+      |                           |                   |    |                                                                      |                          |
+      |                           |                   |    v                                                                      |                          |
+      |                           |                   |  +----------------------------------------------------------------+       |                          |
+      |                           |                   |  |                              10.                               |       |                          |
+      |                           |                   |  |                        if(var_0 != 0x6)                        | -+    |                          |
+      |                           |                   |  +----------------------------------------------------------------+  |    |                          |
+      |                           |                   |    |                                                                 |    |                          |
+      |                           |                   |    |                                                                 |    |                          |
+      |                           |                   |    v                                                                 |    |                          |
+      |                           |                   |  +----------------------------------------------------------------+  |    |                          |
+      |                           |                   |  |                              12.                               |  |    |                          |
+      |                           |                   |  |                        if(var_0 != 0x7)                        | -+----+--------------------------+--------------------------+
+      |                           |                   |  +----------------------------------------------------------------+  |    |                          |                          |
+      |                           |                   |    |                                                                 |    |                          |                          |
+      |                           |                   |    |                                                                 |    |                          |                          |
+      |                           |                   |    v                                                                 |    |                          |                          |
+      |                           |                   |  +----------------------------------------------------------------+  |    |                          |                          |
+      |                           |                   |  |                              14.                               |  |    |                          |                          |
+      |                           |                   |  | printf("Invalid Input! Please enter week number between 1-7.") |  +----+--------------------------+---------------------+    |
+      |                           |                   |  +----------------------------------------------------------------+       |                          |                     |    |
+      |                           |                   |    |                                                                      |                          |                     |    |
+      |                      +----+-------------------+    |                                                                      |                          |                     |    |
+      |                      |    |                        v                                                                      v                          v                     |    |
+      |                      |    |                      +----------------------------------------------------------------------------------------------------------------------+  |    |
+      |                      |    +--------------------> |                                                                                                                      |  |    |
+      |                      |                           |                                                          5.                                                          |  |    |
+      |                      |                           |                                                      return 0x0                                                      |  |    |
+      +----------------------+-------------------------> |                                                                                                                      |  |    |
+                             |                           +----------------------------------------------------------------------------------------------------------------------+  |    |
+                             |                             ^                                                                      ^                          ^                     |    |
+                             |                             |                                                                      |                          |                     |    |
+                             |                             |                                                                      |                          |                     |    |
+                             |                           +----------------------------------------------------------------+     +--------------------+       |                     |    |
+                             |                           |                              11.                               |     |        13.         |       |                     |    |
+                             +-------------------------> |                        printf("Friday")                        |     | printf("Saturday") | <-----+---------------------+    |
+                                                         +----------------------------------------------------------------+     +--------------------+       |                          |
+                                                         +----------------------------------------------------------------+                                  |                          |
+                                                         |                              15.                               |                                  |                          |
+                                                         |                        printf("Sunday")                        | ---------------------------------+                          |
+                                                         +----------------------------------------------------------------+                                                             |
+                                                           ^                                                                                                                            |
+                                                           +----------------------------------------------------------------------------------------------------------------------------+
     """
     var_1 = Variable(
-        "var_1", Pointer(Integer(32, True), 32), None, False,
-        Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
+        "var_1", Pointer(Integer(32, True), 32), None, False, Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
     )
     var_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
     task.graph.add_nodes_from(
@@ -1944,27 +1942,22 @@ def test_switch_only_if_else(task):
             BasicBlock(
                 0,
                 [
-                    Assignment(ListOperation([]), Call(imp_function_symbol("__x86.get_pc_thunk.bx"), [], Pointer(CustomType("void", 0), 32), 1)),
+                    Assignment(
+                        ListOperation([]), Call(imp_function_symbol("__x86.get_pc_thunk.bx"), [], Pointer(CustomType("void", 0), 32), 1)
+                    ),
                     Assignment(ListOperation([]), print_call("Enter week number(1-7): ", 1)),
                     Assignment(var_1, UnaryOperation(OperationType.address, [var_0], Pointer(Integer(32, True), 32), None, False)),
                     Assignment(ListOperation([]), scanf_call(var_1, 134524965, 2)),
                     Branch(Condition(OperationType.not_equal, [var_1, Constant(1, Integer(32, True))], CustomType("bool", 1))),
                 ],
             ),
-            BasicBlock(1, [Branch(
-                Condition(OperationType.not_equal, [var_1, Constant(2, Integer(32, True))], CustomType("bool", 1)))]),
-            BasicBlock(2, [Branch(
-                Condition(OperationType.not_equal, [var_1, Constant(3, Integer(32, True))], CustomType("bool", 1)))]),
-            BasicBlock(3, [Branch(
-                Condition(OperationType.not_equal, [var_1, Constant(4, Integer(32, True))], CustomType("bool", 1)))]),
-            BasicBlock(4, [Branch(
-                Condition(OperationType.not_equal, [var_1, Constant(5, Integer(32, True))], CustomType("bool", 1)))]),
-            BasicBlock(5, [Branch(
-                Condition(OperationType.not_equal, [var_1, Constant(6, Integer(32, True))], CustomType("bool", 1)))]),
-            BasicBlock(6, [Branch(
-                Condition(OperationType.not_equal, [var_1, Constant(7, Integer(32, True))], CustomType("bool", 1)))]),
-            BasicBlock(7, [
-                Assignment(ListOperation([]), print_call("Invalid input! Please enter week number between 1-7.", 14))]),
+            BasicBlock(1, [Branch(Condition(OperationType.not_equal, [var_1, Constant(2, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(2, [Branch(Condition(OperationType.not_equal, [var_1, Constant(3, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(3, [Branch(Condition(OperationType.not_equal, [var_1, Constant(4, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(4, [Branch(Condition(OperationType.not_equal, [var_1, Constant(5, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(5, [Branch(Condition(OperationType.not_equal, [var_1, Constant(6, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(6, [Branch(Condition(OperationType.not_equal, [var_1, Constant(7, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(7, [Assignment(ListOperation([]), print_call("Invalid input! Please enter week number between 1-7.", 14))]),
             BasicBlock(8, [Assignment(ListOperation([]), print_call("Monday", 3))]),
             BasicBlock(9, [Assignment(ListOperation([]), print_call("Tuesday", 5))]),
             BasicBlock(10, [Assignment(ListOperation([]), print_call("Wednesday", 6))]),
