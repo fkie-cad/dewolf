@@ -23,11 +23,12 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
 
     def perform(self, graph, iteration) -> bool:
         """
-        After performing normal propagation round, check if postponed aliased can be propagated
+        After performing normal propagation round, check if postponed aliased can be propagated.
+        Reinitialise pointers info in case EPM takes more than one iteration.
         """
         is_changed = super().perform(graph, iteration)
         self._propagate_postponed_aliased_definitions()
-        # self._initialize_pointers(graph)
+        self._initialize_pointers(graph)
         return is_changed
 
     def _definition_can_be_propagated_into_target(self, definition: Assignment, target: Instruction):
@@ -48,21 +49,18 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
         :return: true if propagation is allowed false otherwise
         """
         return isinstance(definition, Assignment) and not (
-                self._is_phi(definition)
-                or self._is_call_assignment(definition)
-                or self._is_address_into_dereference(definition, target)
-                or self._defines_unknown_expression(definition)
-                or self._contains_global_variable(definition)
-                or self._operation_is_propagated_in_phi(target, definition)
-                or self._is_invalid_propagation_into_address_operation(target, definition)
-                or self._resulting_instruction_is_too_long(target, definition)
-                or self._is_aliased_postponed_for_propagation(target, definition)
-                or self._definition_value_could_be_modified_via_memory_access_between_definition_and_target(definition,
-                                                                                                         target)
-                or self._pointer_value_used_in_definition_could_be_modified_via_memory_access_between_definition_and_target(
-                    definition, target
-                )
-                # or self._propagates_into_aliased_redefinition(target)
+            self._is_phi(definition)
+            or self._is_call_assignment(definition)
+            or self._is_address_into_dereference(definition, target)
+            or self._defines_unknown_expression(definition)
+            or self._contains_global_variable(definition)
+            or self._operation_is_propagated_in_phi(target, definition)
+            or self._is_invalid_propagation_into_address_operation(target, definition)
+            or self._resulting_instruction_is_too_long(target, definition)
+            or self._is_aliased_postponed_for_propagation(target, definition)
+            or self._definition_value_could_be_modified_via_memory_access_between_definition_and_target(definition, target)
+            or self._pointer_value_used_in_definition_could_be_modified_via_memory_access_between_definition_and_target(definition, target)
+            # or self._propagates_into_aliased_redefinition(target)
         )
 
     def _initialize_pointers(self, cfg: ControlFlowGraph):
@@ -92,16 +90,21 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
     def _propagate_postponed_aliased_definitions(self):
         """
         Propagate definitions of aliased variables, postponed for propagation, after everything else is propagated.
+        Check before propagation, if there are no changes via aliases between definition and use.
         See _is_aliased_postponed_for_propagation method definition for an example why we do not propagate such definitions immediately.
         """
         self._initialize_maps(self._cfg)
         for var in self._postponed_aliased:
             uses = self._use_map.get(var)
             definition = self._def_map.get(var)
-            if isinstance(definition.value, Variable) and definition.value.is_aliased and definition.value.name != var.name:
-                continue
             if len(uses) == 1:
                 instruction = uses.pop()
                 if self._is_aliased_postponed_for_propagation(instruction, definition):
+                    if self._definition_value_could_be_modified_via_memory_access_between_definition_and_target(
+                        definition, instruction
+                    ) or self._pointer_value_used_in_definition_could_be_modified_via_memory_access_between_definition_and_target(
+                        definition, instruction
+                    ):
+                        continue
                     instruction.substitute(var, definition.value.copy())
                     self._update_use_map(var, instruction)
