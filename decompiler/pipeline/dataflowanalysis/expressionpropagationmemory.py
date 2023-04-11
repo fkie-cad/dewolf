@@ -24,10 +24,11 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
     def perform(self, graph, iteration) -> bool:
         """
         After performing normal propagation round, check if postponed aliased can be propagated.
-        Reinitialise pointers info in case EPM takes more than one iteration.
+        Reinitialise pointers info and maps in case EPM takes more than one iteration.
         """
         is_changed = super().perform(graph, iteration)
         self._propagate_postponed_aliased_definitions()
+        self._initialize_maps(graph)
         self._initialize_pointers(graph)
         return is_changed
 
