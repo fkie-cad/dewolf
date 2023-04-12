@@ -1,18 +1,13 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
-from typing import Optional
+from typing import Optional, Union
 
 from binaryninja import BinaryView, DataVariable, Endianness, MediumLevelILInstruction, PointerType
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import (
     Constant,
     GlobalVariable,
-    ImportedFunctionSymbol,
-    Integer,
     OperationType,
-    Pointer,
-    StringSymbol,
     UnaryOperation,
-    Variable,
 )
 
 
@@ -43,9 +38,9 @@ class GlobalHandler(Handler):
         )
 
     
-    def _get_initial_value(self, variable: DataVariable, view: BinaryView):
+    def _get_initial_value(self, variable: DataVariable, view: BinaryView) -> Union[UnaryOperation, Constant]:
         """Return initial value of data variable"""
         if isinstance(variable.type, PointerType) and variable.value != 0 and variable.address != variable.value:
-            return self._lifter.lift(view.get_data_var_at(variable.value))
+            return self._lifter.lift(view.get_data_var_at(variable.value), view=view)
         else:
             return Constant(variable.value)
