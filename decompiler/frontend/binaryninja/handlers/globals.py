@@ -3,12 +3,7 @@ from typing import Optional, Union
 
 from binaryninja import BinaryView, DataVariable, Endianness, MediumLevelILInstruction, PointerType
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import (
-    Constant,
-    GlobalVariable,
-    OperationType,
-    UnaryOperation,
-)
+from decompiler.structures.pseudo import Constant, GlobalVariable, OperationType, UnaryOperation
 
 
 class GlobalHandler(Handler):
