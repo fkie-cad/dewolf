@@ -556,6 +556,7 @@ class ConditionNode(AbstractSyntaxTreeNode):
         self.clean()
         if self.false_branch is None and not self._has_descendant_code_node_breaking_ancestor_loop():
             return self.reaching_condition & self.condition
+        # TODO: Why not super().get_possibel_case_candiate_condition() as default??
         return None
 
     def simplify_reaching_condition(self, condition_handler: ConditionHandler):

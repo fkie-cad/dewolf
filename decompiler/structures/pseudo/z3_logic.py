@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import logging
 import operator
-from typing import Iterator, List, Union
+from typing import Iterator, List, Type, TypeVar, Union
 
 from z3 import (
-    UGE,
+    LShR, UGE,
     UGT,
     ULE,
     ULT,
@@ -37,8 +37,10 @@ from .instructions import Branch
 from .logic import BaseConverter
 from .operations import Condition, Operation, OperationType
 
+OP = TypeVar("OP", operator.sub, operator.add, operator.mul, operator.truediv, operator.lshift, operator.rshift, operator.mod)
 
-def _convert_invalid_boolref_op(a: BoolRef, b: BoolRef, op: Operation) -> BitVecRef:
+
+def _convert_invalid_boolref_op(a: BoolRef, b: BoolRef, op: Type[OP]) -> BitVecRef:
     return op(
         If(a, BitVecVal(1, 1, ctx=a.ctx), BitVecVal(0, 1, ctx=a.ctx), ctx=a.ctx),
         If(b, BitVecVal(1, 1, ctx=b.ctx), BitVecVal(0, 1, ctx=b.ctx), ctx=b.ctx),
@@ -60,15 +62,15 @@ class Z3Converter(BaseConverter):
         """Negate a given expression."""
         return Not(expr)
 
-    def _convert_variable(self, variable: Variable) -> BitVecRef:
+    def _convert_variable(self, variable: Variable, **kwargs) -> BitVecRef:
         """Represent the given Variable as a BitVector in z3."""
         return BitVec(variable.name, variable.type.size if variable.type.size else 32, ctx=self._context)
 
-    def _convert_constant(self, constant: Constant) -> BitVecRef:
+    def _convert_constant(self, constant: Constant, **kwargs) -> BitVecRef:
         """Represent the given variable as a BitVector (no types)."""
         return BitVecVal(constant.value, constant.type.size if constant.type.size else 32, ctx=self._context)
 
-    def _convert_branch(self, branch: Branch) -> BoolRef:
+    def _convert_branch(self, branch: Branch, **kwargs) -> BoolRef:
         """
         Convert the given branch into z3 logic.
 
@@ -79,7 +81,7 @@ class Z3Converter(BaseConverter):
             return self._convert_condition(branch.condition)
         return self._convert_condition(Condition(OperationType.not_equal, [branch.condition, Constant(0, branch.condition.type)]))
 
-    def _convert_condition(self, condition: Condition) -> BoolRef:
+    def _convert_condition(self, condition: Condition, **kwargs) -> BoolRef:
         """
         Convert the given condition into z3 logic.
 
@@ -88,7 +90,7 @@ class Z3Converter(BaseConverter):
         _operation = self._get_operation(condition)
         return self._ensure_bool_sort(_operation)
 
-    def _convert_operation(self, operation: Operation) -> BitVecRef:
+    def _convert_operation(self, operation: Operation, **kwargs) -> BitVecRef:
         """
         Convert the given operation into a z3 logic.
 
@@ -103,9 +105,7 @@ class Z3Converter(BaseConverter):
         if isinstance(operands[0], BoolRef) and operation.operation in self.OPERATIONS_BOOLREF:
             converter = self.OPERATIONS_BOOLREF.get(operation.operation, None)
         elif isinstance(operands[0], BoolRef) and operation.operation in self.OPERATIONS_INVALID_BOOLREF_OP:
-            converter = lambda a, b: _convert_invalid_boolref_op(
-                a, b, self.OPERATIONS_INVALID_BOOLREF_OP.get(operation.operation, None)
-            )
+            converter = lambda a, b: _convert_invalid_boolref_op(a, b, self.OPERATIONS_INVALID_BOOLREF_OP.get(operation.operation, None))
         else:
             converter = self.OPERATIONS.get(operation.operation, None)
         if not converter:
@@ -168,7 +168,6 @@ class Z3Converter(BaseConverter):
             return BaseConverter.UNSAT
         return BaseConverter.SAT
 
-
     LOGIC_OPERATIONS = {
         OperationType.bitwise_or,
         OperationType.bitwise_and,
@@ -183,8 +182,11 @@ class Z3Converter(BaseConverter):
         OperationType.bitwise_xor: lambda a, b: a ^ b,
         OperationType.bitwise_or: lambda a, b: a | b,
         OperationType.bitwise_and: lambda a, b: a & b,
+        OperationType.logical_or: lambda a, b: Or(a != 0, b !=0),
+        OperationType.logical_and: lambda a, b: And(a != 0, b !=0),
         OperationType.left_shift: lambda a, b: a << b,
         OperationType.right_shift: lambda a, b: a >> b,
+        OperationType.right_shift_us: LShR,
         OperationType.left_rotate: RotateLeft,
         OperationType.right_rotate: RotateRight,
         OperationType.equal: lambda a, b: a == b,
@@ -205,7 +207,6 @@ class Z3Converter(BaseConverter):
         OperationType.less_or_equal_us: ULE,
     }
 
-
     OPERATIONS_BOOLREF = {
         OperationType.bitwise_and: And,
         OperationType.bitwise_xor: Xor,
@@ -213,7 +214,6 @@ class Z3Converter(BaseConverter):
         OperationType.logical_not: Not,
         OperationType.negate: Not,
     }
-
 
     OPERATIONS_INVALID_BOOLREF_OP = {
         OperationType.minus: operator.sub,

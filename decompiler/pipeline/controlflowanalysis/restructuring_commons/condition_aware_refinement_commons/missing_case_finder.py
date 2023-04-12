@@ -5,8 +5,8 @@ from typing import DefaultDict, Dict, Iterable, List, Optional, Set, Tuple, Unio
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.base_class_car import (
     BaseClassConditionAwareRefinement,
     CaseNodeCandidate,
-    ExpressionUsages,
 )
+from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, ConditionNode, FalseNode, SeqNode, SwitchNode, TrueNode
 from decompiler.structures.ast.reachability_graph import SiblingReachabilityGraph
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest

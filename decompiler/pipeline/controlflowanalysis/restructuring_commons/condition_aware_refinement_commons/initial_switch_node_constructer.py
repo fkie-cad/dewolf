@@ -5,8 +5,8 @@ from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.base_class_car import (
     BaseClassConditionAwareRefinement,
     CaseNodeCandidate,
-    ExpressionUsages,
 )
+from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, CodeNode, ConditionNode, SeqNode, SwitchNode
 from decompiler.structures.ast.reachability_graph import CaseDependencyGraph, LinearOrderDependency, SiblingReachability
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
@@ -40,7 +40,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
     def construct(cls, asforest: AbstractSyntaxForest):
         """Constructs initial switch nodes if possible."""
         initial_switch_constructor = cls(asforest)
-        # python decompile.py ../test-samples/coreutils/shred main --debug
+        # python decompile.py ../test-samples/coreutils/users main --debug
         # on: 11:32:814 vs of: 1:15:512
         # for node in asforest.post_order(asforest.current_root):
         #     initial_switch_constructor._try_to_rearrange_conditions_like(node)
@@ -53,31 +53,31 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         for seq_node in asforest.get_sequence_nodes_post_order(asforest.current_root):
             initial_switch_constructor._try_to_construct_initial_switch_node_for(seq_node)
 
-    def _try_to_rearrange_conditions_like(self, node: AbstractSyntaxTreeNode):
-        """
-        In the method _try_to_construct_initial_switch_node_for we search for multiple conditions
-        that compare the same expression with different constants, e.g. a-b=0 and a-b=1. However,
-        the compiler often optimizes conditions (usually the condition with constant 0) and
-        rearranges those equations. In the example from above we get a=b and a-b=1. This method
-        tries to solve this problem in the following way:
-
-        1. We look for reaching conditions or condition nodes that consist of expressions compared with a constant
-        (e.g. a-b=1).
-        2. We extract the expression from this condition (e.g. a-b).
-        3. We build a new condition that compares this expression with 0 (e.g. a-b=0).
-        4. We look for a condition that is equivalent to this new condition and replace it
-        (e.g. a=b will be replaced by a-b=0).
-        """
-        if isinstance(node, ConditionNode):
-            condition = node.condition
-        else:
-            condition = node.reaching_condition
-        if expression := self._get_expression_compared_with_constant(condition):
-            for other_cond_node in self.asforest.get_condition_nodes_post_order(self.asforest.current_root):
-                if node != other_cond_node:
-                    if equivalent_condition := self._try_to_rearrange_other_condition_like_condition(expression, other_cond_node.condition):
-                        # raise ValueError("Found sample where we transform a condition to reconstruct switch")
-                        other_cond_node.condition = equivalent_condition
+    # def _try_to_rearrange_conditions_like(self, node: AbstractSyntaxTreeNode):
+    #     """
+    #     In the method _try_to_construct_initial_switch_node_for we search for multiple conditions
+    #     that compare the same expression with different constants, e.g. a-b=0 and a-b=1. However,
+    #     the compiler often optimizes conditions (usually the condition with constant 0) and
+    #     rearranges those equations. In the example from above we get a=b and a-b=1. This method
+    #     tries to solve this problem in the following way:
+    #
+    #     1. We look for reaching conditions or condition nodes that consist of expressions compared with a constant
+    #     (e.g. a-b=1).
+    #     2. We extract the expression from this condition (e.g. a-b).
+    #     3. We build a new condition that compares this expression with 0 (e.g. a-b=0).
+    #     4. We look for a condition that is equivalent to this new condition and replace it
+    #     (e.g. a=b will be replaced by a-b=0).
+    #     """
+    #     if isinstance(node, ConditionNode):
+    #         condition = node.condition
+    #     else:
+    #         condition = node.reaching_condition
+    #     if expression := self._get_expression_compared_with_constant(condition):
+    #         for other_cond_node in self.asforest.get_condition_nodes_post_order(self.asforest.current_root):
+    #             if node != other_cond_node:
+    #                 if equivalent_condition := self._try_to_rearrange_other_condition_like_condition(expression, other_cond_node.condition):
+    #                     # raise ValueError("Found sample where we transform a condition to reconstruct switch")
+    #                     other_cond_node.condition = equivalent_condition
 
     def _try_to_extract_breaks_from(self, seq_node: SeqNode) -> None:
         """
@@ -144,32 +144,32 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         copy_sibling_reachability._add_first_node_reaches_second(code_node, break_node)
         return copy_sibling_reachability.sorted_nodes() is not None
 
-    def _try_to_rearrange_other_condition_like_condition(self, expression: Expression, other_condition: LogicCondition) -> LogicCondition:
-        """
-        This method builds a new condition that compares the expression with 0. Then it checks if the new condition
-        is equivalent to the other condition.
-        """
-        if other_condition.is_literal:
-            """
-            If a new condition needs to be created for potentially_equivalent_condition which isn't used, we want to
-            delete it later on. Therefore, we save the size of the condition_map to determine whether a new condition
-            was added or not.
-            """
-            condition_map_size = len(self.condition_handler.get_condition_map())
-            potentially_equivalent_condition = self.condition_handler.add_condition(
-                Condition(OperationType.equal, [expression, Constant(0, expression.type)])
-            )
-            if self._are_equivalent(other_condition, potentially_equivalent_condition):
-                return potentially_equivalent_condition
-            elif len(self.condition_handler.get_condition_map()) > condition_map_size:
-                del self.condition_handler._condition_map[potentially_equivalent_condition]
+    # def _try_to_rearrange_other_condition_like_condition(self, expression: Expression, other_condition: LogicCondition) -> LogicCondition:
+    #     """
+    #     This method builds a new condition that compares the expression with 0. Then it checks if the new condition
+    #     is equivalent to the other condition.
+    #     """
+    #     if other_condition.is_literal:
+    #         """
+    #         If a new condition needs to be created for potentially_equivalent_condition which isn't used, we want to
+    #         delete it later on. Therefore, we save the size of the condition_map to determine whether a new condition
+    #         was added or not.
+    #         """
+    #         condition_map_size = len(self.condition_handler.get_condition_map())
+    #         potentially_equivalent_condition = self.condition_handler.add_condition(
+    #             Condition(OperationType.equal, [expression, Constant(0, expression.type)])
+    #         )
+    #         if self._are_equivalent(other_condition, potentially_equivalent_condition):
+    #             return potentially_equivalent_condition
+    #         elif len(self.condition_handler.get_condition_map()) > condition_map_size:
+    #             del self.condition_handler._condition_map[potentially_equivalent_condition]
 
-    def _are_equivalent(self, cond1: LogicCondition, cond2: LogicCondition) -> bool:
-        """
-        We check both implications A => B and A <= B.
-        """
-        return self._does_imply(cond1, cond2) and self._does_imply(cond2, cond1)
-
+    # def _are_equivalent(self, cond1: LogicCondition, cond2: LogicCondition) -> bool:
+    #     """
+    #     We check both implications A => B and A <= B.
+    #     """
+    #     return self._does_imply(cond1, cond2) and self._does_imply(cond2, cond1)
+    #
     def _does_imply(self, cond1: LogicCondition, cond2: LogicCondition) -> bool:
         """
         A => B is equivalent to ~(A & ~B).

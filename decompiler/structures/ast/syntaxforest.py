@@ -17,6 +17,7 @@ from decompiler.structures.ast.ast_nodes import (
     VirtualRootNode,
 )
 from decompiler.structures.ast.condition_symbol import ConditionHandler
+from decompiler.structures.ast.switch_node_handler import SwitchNodeHandler
 from decompiler.structures.ast.syntaxgraph import AbstractSyntaxInterface
 from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock
 from decompiler.structures.logic.logic_condition import LogicCondition
@@ -37,6 +38,7 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         self.condition_handler: ConditionHandler = condition_handler
         self._current_root: VirtualRootNode = self.factory.create_virtual_node()
         self._add_node(self._current_root)
+        self._switch_node_handler: SwitchNodeHandler = SwitchNodeHandler(condition_handler)
 
     @property
     def current_root(self) -> Optional[AbstractSyntaxTreeNode]:

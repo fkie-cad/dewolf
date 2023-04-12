@@ -3,16 +3,9 @@ from typing import Iterator, Optional, Tuple
 
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, SwitchNode
 from decompiler.structures.ast.condition_symbol import ConditionHandler
+from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.logic.logic_condition import LogicCondition, PseudoLogicCondition
-from decompiler.structures.pseudo import Condition, Constant, Expression, OperationType, Variable
-
-
-@dataclass(frozen=True)
-class ExpressionUsages:
-    """Dataclass that maintain for a condition the used SSA-variables."""
-
-    expression: Expression
-    ssa_usages: Tuple[Optional[Variable]]
+from decompiler.structures.pseudo import Condition, Constant, Expression, OperationType
 
 
 @dataclass

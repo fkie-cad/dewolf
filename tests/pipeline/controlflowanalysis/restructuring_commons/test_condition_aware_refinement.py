@@ -4086,6 +4086,74 @@ def test_only_one_occurrence_of_each_case(task):
     assert isinstance(seq_node.children[2], ConditionNode)
 
 
+def test_case_0_different_condition(task):
+    """Consideration of conditions as "a == b" as case 0 conditions for switch-statements with expressions a-b and b-a"""
+    argc = Variable("argc", Integer(32, True), None, False, Variable("argc", Integer(32, True), 0, False, None))
+    var_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
+    var_4 = Variable("arg1", Integer(32, True), None, True, Variable("eax", Integer(32, True), 1, True, None))
+    task.graph.add_nodes_from(
+        vertices := [
+            BasicBlock(
+                0,
+                [
+                    Assignment(ListOperation([]), print_call("Enter any number: ", 1)),
+                    Assignment(
+                        ListOperation([]),
+                        scanf_call(
+                            UnaryOperation(OperationType.address, [var_4], Pointer(Integer(32, True), 32), None, False), 134524965, 2
+                        ),
+                    ),
+                    Branch(Condition(OperationType.equal, [argc, var_4], CustomType("bool", 1))),
+                ],
+            ),
+            BasicBlock(1, [Assignment(var_4, BinaryOperation(OperationType.plus, [var_4, Constant(1, Integer(32, True))]))]),
+            BasicBlock(
+                2,
+                [
+                    Assignment(var_0, BinaryOperation(OperationType.left_shift, [var_4, Constant(3, Integer(32, True))])),
+                    Branch(
+                        Condition(
+                            OperationType.not_equal,
+                            [BinaryOperation(OperationType.minus, [argc, var_4]), Constant(1, Integer(32, True))],
+                            CustomType("bool", 1),
+                        )
+                    ),
+                ],
+            ),
+            BasicBlock(
+                3,
+                [Return(ListOperation([var_4]))],
+            ),
+            BasicBlock(
+                4,
+                [
+                    Assignment(ListOperation([]), print_call("var_0", 3)),
+                    Assignment(
+                        ListOperation([]), Call(FunctionSymbol("usage", 10832), [Constant(1, Integer(32, True))], Integer(32, True), 11)
+                    ),
+                ],
+            ),
+            BasicBlock(5, [Assignment(var_4, BinaryOperation(OperationType.minus, [var_4, var_0]))]),
+        ]
+    )
+    task.graph.add_edges_from(
+        [
+            TrueCase(vertices[0], vertices[1]),
+            FalseCase(vertices[0], vertices[2]),
+            UnconditionalEdge(vertices[1], vertices[3]),
+            TrueCase(vertices[2], vertices[4]),
+            FalseCase(vertices[2], vertices[5]),
+            UnconditionalEdge(vertices[5], vertices[3]),
+        ]
+    )
+
+    PatternIndependentRestructuring().run(task)
+
+    switch_nodes = list(task.syntax_tree.get_switch_nodes_post_order())
+    assert len(switch_nodes) == 1
+    assert len(switch_nodes[0].cases) == 2 and switch_nodes[0].default is not None
+
+
 @pytest.mark.parametrize(
     "graph", [_basic_switch_cfg, _switch_empty_fallthrough, _switch_no_empty_fallthrough, _switch_in_switch, _switch_test_19]
 )
