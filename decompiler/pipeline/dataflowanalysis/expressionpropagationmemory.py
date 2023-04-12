@@ -24,12 +24,9 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
     def perform(self, graph, iteration) -> bool:
         """
         After performing normal propagation round, check if postponed aliased can be propagated.
-        Reinitialise pointers info and maps in case EPM takes more than one iteration.
         """
         is_changed = super().perform(graph, iteration)
         self._propagate_postponed_aliased_definitions()
-        self._initialize_maps(graph)
-        self._initialize_pointers(graph)
         return is_changed
 
     def _definition_can_be_propagated_into_target(self, definition: Assignment, target: Instruction):
@@ -97,6 +94,7 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
         for var in self._postponed_aliased:
             uses = self._use_map.get(var)
             definition = self._def_map.get(var)
+
             if len(uses) == 1:
                 instruction = uses.pop()
                 if self._is_aliased_postponed_for_propagation(instruction, definition):
@@ -106,5 +104,8 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
                         definition, instruction
                     ):
                         continue
+                    old_instr = str(instruction)
+                    block, index = self._blocks_map.get(old_instr).pop()
                     instruction.substitute(var, definition.value.copy())
                     self._update_use_map(var, instruction)
+                    self._update_block_map(old_instr, str(instruction), block, index)
