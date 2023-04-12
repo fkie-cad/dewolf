@@ -12,6 +12,7 @@ from decompiler.structures.pseudo import (
     Pointer,
     StringSymbol,
     UnaryOperation,
+    Variable,
 )
 
 
@@ -41,9 +42,15 @@ class GlobalHandler(Handler):
                     variable.name if variable.name else "data_" + f"{variable.address:x}",
                     self._lifter.lift(variable.type),
                     ssa_label=parent.ssa_memory_version if parent else 0,
-                    initial_value=self._lifter.lift(view.get_data_var_at(variable.value), view=view) if isinstance(variable.type, PointerType) \
-                    and variable.value != 0 and variable.address != variable.value else Constant(variable.value) # pointer can point to NULL/itself 
+                    initial_value=self._get_initial_value(variable, view)
                 )
             ],
         )
-        
+
+    
+    def _get_initial_value(self, variable: DataVariable, view: BinaryView):
+        """Return initial value of data variable"""
+        if isinstance(variable.type, PointerType) and variable.value != 0 and variable.address != variable.value:
+            return self._lifter.lift(view.get_data_var_at(variable.value))
+        else:
+            return Constant(variable.value)
