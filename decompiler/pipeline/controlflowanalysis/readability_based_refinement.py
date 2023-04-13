@@ -19,7 +19,7 @@ from decompiler.structures.ast.ast_nodes import (
 )
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.logic.logic_condition import LogicCondition
-from decompiler.structures.pseudo import Assignment, Condition, Variable, ListOperation
+from decompiler.structures.pseudo import Assignment, Condition, ListOperation, Variable
 from decompiler.structures.visitors.assignment_visitor import AssignmentVisitor
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
