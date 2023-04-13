@@ -19,7 +19,7 @@ from decompiler.structures.ast.ast_nodes import (
 )
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.logic.logic_condition import LogicCondition
-from decompiler.structures.pseudo import Assignment, Condition, Variable
+from decompiler.structures.pseudo import Assignment, Condition, Variable, ListOperation
 from decompiler.structures.visitors.assignment_visitor import AssignmentVisitor
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
@@ -142,7 +142,7 @@ def _get_variable_initialisation(ast: AbstractSyntaxTree, variable: Variable) ->
     """
     for code_node in ast.get_code_nodes_topological_order():
         for position, instruction in enumerate(code_node.instructions):
-            if variable in instruction.definitions:
+            if variable in instruction.definitions and not (isinstance(instruction, Assignment) and isinstance(instruction.destination, ListOperation)):
                 return AstInstruction(instruction, position, code_node)
 
 
