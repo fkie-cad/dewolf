@@ -4,6 +4,7 @@ from typing import Iterator, Optional, Tuple
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, SwitchNode
 from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.structures.ast.switch_node_handler import ExpressionUsages
+from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition, PseudoLogicCondition
 from decompiler.structures.pseudo import Condition, Constant, Expression, OperationType
 
@@ -41,12 +42,13 @@ class CaseNodeCandidate:
 class BaseClassConditionAwareRefinement:
     """Base Class in charge of logic and condition related things we need during the condition aware refinement."""
 
-    def __init__(self, condition_handler: ConditionHandler):
-        self.condition_handler: ConditionHandler = condition_handler
+    def __init__(self, asforest: AbstractSyntaxForest):
+        self.asforest: AbstractSyntaxForest = asforest
+        self.condition_handler: ConditionHandler = asforest.condition_handler
 
     def _get_constant_equality_check_expressions_and_conditions(
         self, condition: LogicCondition
-    ) -> Iterator[Tuple[Expression, LogicCondition]]:
+    ) -> Iterator[Tuple[ExpressionUsages, LogicCondition]]:
         """
         Check whether the given condition is a simple comparison of an expression with one or more constants + perhaps a conjunction
         with another condition.
@@ -62,7 +64,7 @@ class BaseClassConditionAwareRefinement:
         elif expression := self._get_const_eq_check_expression_of_disjunction(condition):
             yield (expression, condition)
 
-    def _get_const_eq_check_expression_of_disjunction(self, condition: LogicCondition) -> Optional[Expression]:
+    def _get_const_eq_check_expression_of_disjunction(self, condition: LogicCondition) -> Optional[ExpressionUsages]:
         """
         Check whether the given condition is a composition of comparisons of the same expression with constants.
 
@@ -82,23 +84,23 @@ class BaseClassConditionAwareRefinement:
         compared_expressions = [self._get_expression_compared_with_constant(literal) for literal in operands]
         if len(set(compared_expressions)) != 1 or compared_expressions[0] is None:
             return None
-        used_variables = tuple(var.ssa_name for var in compared_expressions[0].requirements)
-        return (
-            compared_expressions[0]
-            if all(used_variables == tuple(var.ssa_name for var in expression.requirements) for expression in compared_expressions[1:])
-            else None
-        )
+        return compared_expressions[0]
 
-    def _get_expression_compared_with_constant(self, reaching_condition: LogicCondition) -> Optional[Expression]:
+    def _get_expression_compared_with_constant(self, reaching_condition: LogicCondition) -> Optional[ExpressionUsages]:
         """
         Check whether the given reaching condition, which is a literal, i.e., a z3-symbol or its negation is of the form `expr == const`.
         If this is the case, then we return the expression `expr`.
         """
-        condition = self._get_literal_condition(reaching_condition)
-        if condition is not None and condition.operation == OperationType.equal:
-            return self._get_expression_compared_with_constant_in(condition)
-        return None
+        return self.asforest.switch_node_handler.get_potential_switch_expression(reaching_condition)
 
+    def _get_constant_compared_with_expression(self, reaching_condition: LogicCondition) -> Optional[Constant]:
+        """
+        Check whether the given reaching condition, which is a literal, i.e., a z3-symbol or its negation is of the form `expr == const`.
+        If this is the case, then we return the constant `const`.
+        """
+        return self.asforest.switch_node_handler.get_potential_switch_constant(reaching_condition)
+
+    # TODO: remove later -> after refactored remaining part in initial switch constructor
     def _get_literal_condition(self, condition: LogicCondition) -> Optional[Condition]:
         """Check whether the given condition is a literal. If this is the case then it returns the condition that belongs to the literal."""
         if condition.is_symbol:
@@ -106,23 +108,6 @@ class BaseClassConditionAwareRefinement:
         if condition.is_negation and (neg_cond := ~condition).is_symbol:
             return self.condition_handler.get_condition_of(neg_cond).negate()
         return None
-
-    @staticmethod
-    def _get_expression_compared_with_constant_in(condition: Condition) -> Optional[Expression]:
-        """
-        Check whether the given condition, of type Condition, compares a constant with an expression
-
-        - If this is the case, the function returns the expression
-        - Otherwise, it returns None.
-        """
-        non_constants = [operand for operand in condition.operands if not isinstance(operand, Constant)]
-        return non_constants[0] if len(non_constants) == 1 else None
-
-    @staticmethod
-    def _get_constant_compared_in_condition(condition: Condition) -> Optional[Constant]:
-        """Return the constant of a Condition, i.e., for `expr == const` it returns `const`."""
-        constant_operands = [operand for operand in condition.operands if isinstance(operand, Constant)]
-        return constant_operands[0] if len(constant_operands) == 1 else None
 
     def _convert_to_z3_condition(self, condition: LogicCondition) -> PseudoLogicCondition:
         return PseudoLogicCondition.initialize_from_formula(condition, self.condition_handler.get_z3_condition_map())

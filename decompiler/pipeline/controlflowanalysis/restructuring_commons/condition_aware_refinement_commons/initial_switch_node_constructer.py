@@ -31,11 +31,6 @@ class SwitchNodeCandidate:
 class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
     """Class that constructs switch nodes."""
 
-    def __init__(self, asforest: AbstractSyntaxForest):
-        """self.asforest: The asforst where we try to construct switch nodes."""
-        self.asforest = asforest
-        super().__init__(asforest.condition_handler)
-
     @classmethod
     def construct(cls, asforest: AbstractSyntaxForest):
         """Constructs initial switch nodes if possible."""
@@ -52,32 +47,6 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
             initial_switch_constructor._try_to_extract_breaks_from(seq_node)
         for seq_node in asforest.get_sequence_nodes_post_order(asforest.current_root):
             initial_switch_constructor._try_to_construct_initial_switch_node_for(seq_node)
-
-    # def _try_to_rearrange_conditions_like(self, node: AbstractSyntaxTreeNode):
-    #     """
-    #     In the method _try_to_construct_initial_switch_node_for we search for multiple conditions
-    #     that compare the same expression with different constants, e.g. a-b=0 and a-b=1. However,
-    #     the compiler often optimizes conditions (usually the condition with constant 0) and
-    #     rearranges those equations. In the example from above we get a=b and a-b=1. This method
-    #     tries to solve this problem in the following way:
-    #
-    #     1. We look for reaching conditions or condition nodes that consist of expressions compared with a constant
-    #     (e.g. a-b=1).
-    #     2. We extract the expression from this condition (e.g. a-b).
-    #     3. We build a new condition that compares this expression with 0 (e.g. a-b=0).
-    #     4. We look for a condition that is equivalent to this new condition and replace it
-    #     (e.g. a=b will be replaced by a-b=0).
-    #     """
-    #     if isinstance(node, ConditionNode):
-    #         condition = node.condition
-    #     else:
-    #         condition = node.reaching_condition
-    #     if expression := self._get_expression_compared_with_constant(condition):
-    #         for other_cond_node in self.asforest.get_condition_nodes_post_order(self.asforest.current_root):
-    #             if node != other_cond_node:
-    #                 if equivalent_condition := self._try_to_rearrange_other_condition_like_condition(expression, other_cond_node.condition):
-    #                     # raise ValueError("Found sample where we transform a condition to reconstruct switch")
-    #                     other_cond_node.condition = equivalent_condition
 
     def _try_to_extract_breaks_from(self, seq_node: SeqNode) -> None:
         """
@@ -108,7 +77,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
             possible_switch_expressions = []
             for child in seq_node.children:
                 if expression := self._get_expression_compared_with_constant(child.reaching_condition):
-                    possible_switch_expressions.append(expression)
+                    possible_switch_expressions.append(expression.expression)
             if len(set(possible_switch_expressions)) == 1 and len(possible_switch_expressions) > 1:
                 switch_expression = possible_switch_expressions[0]
 
@@ -118,7 +87,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
                     isinstance(child, CodeNode)
                     and child.does_end_with_break
                     and child != break_node
-                    and self._get_expression_compared_with_constant(child.reaching_condition) == switch_expression
+                    and self._get_expression_compared_with_constant(child.reaching_condition).expression == switch_expression
                     and self._can_move_break_instruction(seq_node, child, break_node)
                 ):
                     break_node.reaching_condition = break_node.reaching_condition | child.reaching_condition
@@ -144,32 +113,6 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         copy_sibling_reachability._add_first_node_reaches_second(code_node, break_node)
         return copy_sibling_reachability.sorted_nodes() is not None
 
-    # def _try_to_rearrange_other_condition_like_condition(self, expression: Expression, other_condition: LogicCondition) -> LogicCondition:
-    #     """
-    #     This method builds a new condition that compares the expression with 0. Then it checks if the new condition
-    #     is equivalent to the other condition.
-    #     """
-    #     if other_condition.is_literal:
-    #         """
-    #         If a new condition needs to be created for potentially_equivalent_condition which isn't used, we want to
-    #         delete it later on. Therefore, we save the size of the condition_map to determine whether a new condition
-    #         was added or not.
-    #         """
-    #         condition_map_size = len(self.condition_handler.get_condition_map())
-    #         potentially_equivalent_condition = self.condition_handler.add_condition(
-    #             Condition(OperationType.equal, [expression, Constant(0, expression.type)])
-    #         )
-    #         if self._are_equivalent(other_condition, potentially_equivalent_condition):
-    #             return potentially_equivalent_condition
-    #         elif len(self.condition_handler.get_condition_map()) > condition_map_size:
-    #             del self.condition_handler._condition_map[potentially_equivalent_condition]
-
-    # def _are_equivalent(self, cond1: LogicCondition, cond2: LogicCondition) -> bool:
-    #     """
-    #     We check both implications A => B and A <= B.
-    #     """
-    #     return self._does_imply(cond1, cond2) and self._does_imply(cond2, cond1)
-    #
     def _does_imply(self, cond1: LogicCondition, cond2: LogicCondition) -> bool:
         """
         A => B is equivalent to ~(A & ~B).
@@ -276,9 +219,8 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
 
         "Returning a CaseNodeCandidate if the search was successful."
         if len(possible_expressions) == 1:
-            expression, condition = possible_expressions[0]
-            used_variables = tuple(var.ssa_name for var in expression.requirements)
-            return CaseNodeCandidate(cond_node.true_branch_child, ExpressionUsages(expression, used_variables), possible_expressions[0][1])
+            expression_usage, condition = possible_expressions[0]
+            return CaseNodeCandidate(cond_node.true_branch_child, expression_usage, condition)
 
         return None
 
@@ -334,14 +276,13 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         - Otherwise, the function returns None.
         - Note: Cases can not end with a loop-break statement
         """
-        possible_expressions: List[Tuple[Expression, LogicCondition]] = list()
+        possible_expressions: List[Tuple[ExpressionUsages, LogicCondition]] = list()
         if (possible_case_condition := ast_node.get_possible_case_candidate_condition()) is not None:
             possible_expressions = list(self._get_constant_equality_check_expressions_and_conditions(possible_case_condition))
 
         if len(possible_expressions) == 1:
             expression, condition = possible_expressions[0]
-            used_variables = tuple(var.ssa_name for var in expression.requirements)
-            return CaseNodeCandidate(ast_node, ExpressionUsages(expression, used_variables), possible_expressions[0][1])
+            return CaseNodeCandidate(ast_node, expression, condition)
 
         return None
 
@@ -477,8 +418,9 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
             self._update_reaching_condition_of(case_node, considered_conditions)
 
             if case_node.reaching_condition.is_literal:
-                condition: Condition = self._get_literal_condition(case_node.reaching_condition)
-                case_node.constant = self._get_constant_compared_in_condition(condition)
+                # condition: Condition = self._get_literal_condition(case_node.reaching_condition)
+                # case_node.constant = self._get_constant_compared_in_condition(condition)
+                case_node.constant = self._get_constant_compared_with_expression(case_node.reaching_condition)
                 considered_conditions.add(case_node.reaching_condition)
             elif case_node.reaching_condition.is_false:
                 case_node.constant = Constant("add_to_previous_case")
@@ -560,8 +502,8 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         """
         condition_for_constant: Dict[Constant, LogicCondition] = dict()
         for literal in case.reaching_condition.operands:
-            if condition := self._get_literal_condition(literal):
-                condition_for_constant[self._get_constant_compared_in_condition(condition)] = literal
+            if constant := self._get_constant_compared_with_expression(literal):
+                condition_for_constant[constant] = literal
             else:
                 raise ValueError(
                     f"The case node should have a reaching-condition that is a disjunction of literals, but it has the clause {literal}."

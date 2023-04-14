@@ -28,8 +28,8 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
         self._current_seq_node: The seq_node which we consider to find missing cases.
         self._switch_node_of_expression: a dictionary that maps to each expression the corresponding switch node.
         """
-        self.asforest = asforest
-        super().__init__(asforest.condition_handler)
+        # self.asforest = asforest
+        super().__init__(asforest)
         self._current_seq_node: Optional[SeqNode] = None
         self._switch_node_of_expression: Dict[ExpressionUsages, SwitchNode] = dict()
 
@@ -196,9 +196,7 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
         :param condition: The reaching condition of the AST node of which we want to know whether it can be a case node of a switch node.
         :return: If we find a switch node, the tuple of switch node and case condition and None otherwise.
         """
-        for expression, cond in self._get_constant_equality_check_expressions_and_conditions(condition):
-            used_variables = tuple(var.ssa_name for var in expression.requirements)
-            expression_usage = ExpressionUsages(expression, used_variables)
+        for expression_usage, cond in self._get_constant_equality_check_expressions_and_conditions(condition):
             if expression_usage in self._switch_node_of_expression:
                 return expression_usage, cond
         return None
@@ -233,12 +231,11 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
     def _get_case_constants_for_condition(self, case_condition: LogicCondition) -> Iterable[Constant]:
         """Return all constants for the given condition."""
         assert case_condition.is_disjunction_of_literals, f"The condition {case_condition} can not be the condition of a case node."
-        if condition := self._get_literal_condition(case_condition):
-            yield self._get_constant_compared_in_condition(condition)
+        if constant := self._get_constant_compared_with_expression(case_condition):
+            yield constant
         else:
             for literal in case_condition.operands:
-                condition = self._get_literal_condition(literal)
-                yield self._get_constant_compared_in_condition(condition)
+                yield self._get_constant_compared_with_expression(literal)
 
     def _insert_case_node(self, new_case_node: AbstractSyntaxTreeNode, case_constants: Set[Constant], switch_node: SwitchNode) -> None:
         """Insert new case node into switch node with the given set of constants."""

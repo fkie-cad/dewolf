@@ -15,9 +15,9 @@ class SwitchExtractor(BaseClassConditionAwareRefinement):
         self.asforest: The asforst where we try to construct switch nodes
         self.current_cond_node: The condition node which we consider to extract switch nodes.
         """
-        self.asforest = asforest
+        # self.asforest = asforest
         self._current_cond_node: Optional[ConditionNode] = None
-        super().__init__(asforest.condition_handler)
+        super().__init__(asforest)
 
     @classmethod
     def extract(cls, asforest):

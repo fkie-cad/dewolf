@@ -38,7 +38,7 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         self.condition_handler: ConditionHandler = condition_handler
         self._current_root: VirtualRootNode = self.factory.create_virtual_node()
         self._add_node(self._current_root)
-        self._switch_node_handler: SwitchNodeHandler = SwitchNodeHandler(condition_handler)
+        self.switch_node_handler: SwitchNodeHandler = SwitchNodeHandler(condition_handler)
 
     @property
     def current_root(self) -> Optional[AbstractSyntaxTreeNode]:
