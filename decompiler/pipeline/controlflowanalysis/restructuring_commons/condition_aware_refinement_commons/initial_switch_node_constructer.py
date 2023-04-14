@@ -261,6 +261,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
                 if case_candidate.expression in switch_candidate_for:
                     switch_candidate_for[case_candidate.expression].cases.add(case_candidate)
                 else:
+                    # TODO: Do we want that a SwitchNodeCandidate also has the Expression Usages?
                     switch_candidate_for[case_candidate.expression] = SwitchNodeCandidate(
                         case_candidate.expression.expression, {case_candidate}
                     )

@@ -6,9 +6,9 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
     BaseClassConditionAwareRefinement,
     CaseNodeCandidate,
 )
-from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, ConditionNode, FalseNode, SeqNode, SwitchNode, TrueNode
 from decompiler.structures.ast.reachability_graph import SiblingReachabilityGraph
+from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition, PseudoLogicCondition
 from decompiler.structures.pseudo import Condition, Constant, OperationType
@@ -92,7 +92,12 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
         if not switch_node.reaching_condition.is_true or possible_case_node._has_descendant_code_node_breaking_ancestor_loop():
             return None
 
-        if not self._get_const_eq_check_expression_of_disjunction(case_condition) == switch_node.expression:
+        expression_usage = self._get_const_eq_check_expression_of_disjunction(case_condition)
+        if (
+            expression_usage is None
+            or expression_usage.expression != switch_node.expression
+            or expression_usage.ssa_usages != tuple(var.ssa_name for var in switch_node.expression.requirements)
+        ):
             return None
 
         new_case_constants = set(self._get_case_constants_for_condition(case_condition))

@@ -123,7 +123,7 @@ class BaseClassConditionAwareRefinement:
         """
         1. Check whether the given node is a switch node.
         2. If this is the case then we check whether condition is always fulfilled when one of the switch cases is fulfilled
-           and return the switch node. Otherwise we return None.
+           and return the switch node. Otherwise, we return None.
 
         - If the switch node has a default case, then we can not add any more cases.
         """
