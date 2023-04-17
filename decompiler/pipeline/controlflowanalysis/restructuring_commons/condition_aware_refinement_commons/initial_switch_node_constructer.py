@@ -6,9 +6,9 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
     BaseClassConditionAwareRefinement,
     CaseNodeCandidate,
 )
-from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, CodeNode, ConditionNode, SeqNode, SwitchNode
 from decompiler.structures.ast.reachability_graph import CaseDependencyGraph, LinearOrderDependency, SiblingReachability
+from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import Break, Condition, Constant, Expression, OperationType, Z3Converter

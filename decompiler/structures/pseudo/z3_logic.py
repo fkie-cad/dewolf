@@ -6,7 +6,7 @@ import operator
 from typing import Iterator, List, Type, TypeVar, Union
 
 from z3 import (
-    LShR, UGE,
+    UGE,
     UGT,
     ULE,
     ULT,
@@ -19,6 +19,7 @@ from z3 import (
     ExprRef,
     Extract,
     If,
+    LShR,
     Not,
     Or,
     RotateLeft,

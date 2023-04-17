@@ -1,13 +1,13 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Dict, Iterator, List, Optional, Set, Tuple
-
-from z3 import BoolRef
 
 from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.logic.z3_implementations import Z3Implementation
 from decompiler.structures.pseudo import Condition, Constant, Expression, OperationType, Variable, Z3Converter
+from z3 import BoolRef
 
 
 @dataclass(frozen=True)
