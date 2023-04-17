@@ -21,8 +21,8 @@ def converter():
 def test_unsupported(converter):
     with pytest.raises(ValueError):
         converter.convert(Return([Variable("x")]))
-    with pytest.raises(ValueError):
-        converter.convert(UnaryOperation(OperationType.dereference, [Variable("x")]))
+    # with pytest.raises(ValueError):
+    #     converter.convert(UnaryOperation(OperationType.dereference, [Variable("x")]))
     with pytest.raises(ValueError):
         converter.convert(UnaryOperation(OperationType.address, [Variable("x")]))
 

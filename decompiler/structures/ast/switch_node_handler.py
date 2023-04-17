@@ -114,7 +114,7 @@ class SwitchNodeHandler:
     def __get_ssa_expression(self, expression_usage: ExpressionUsages) -> Expression:
         """Construct SSA-expression of the given expression."""
         ssa_expression = expression_usage.expression.copy()
-        for variable in [var for var in expression_usage.ssa_usages if var.ssa_name is not None]:
+        for variable in [var for var in expression_usage.ssa_usages if var is not None]:
             ssa_expression.substitute(variable, variable.ssa_name)
         return ssa_expression
 
@@ -126,20 +126,19 @@ class SwitchNodeHandler:
     def __get_case_node_property_of_symbol(self, symbol: LogicCondition) -> Optional[CaseNodeProperties]:
         """Return CaseNodeProperty of the given symbol, if it exists."""
         condition = self._condition_handler.get_condition_of(symbol)
-        if case_properties := self._get_case_node_property(condition):
-            return CaseNodeProperties(symbol, case_properties[0], case_properties[1], condition.operation == OperationType.not_equal)
-        return None
-
-    def _get_case_node_property(self, condition: Condition) -> Optional[Tuple[ExpressionUsages, Constant]]:
-        """Get CaseNodeProperty of the given condition, if exist."""
         if condition.operation not in {OperationType.equal, OperationType.not_equal}:
             return None
         constants: List[Constant] = [operand for operand in condition.operands if isinstance(operand, Constant)]
         expressions: List[Expression] = [operand for operand in condition.operands if not isinstance(operand, Constant)]
         if len(constants) == 1 or len(expressions) == 1:
-            return ExpressionUsages(expressions[0], tuple(var.ssa_name for var in expressions[0].requirements)), constants[0]
-        if len(constants) == 0:
-            return self.__check_for_zero_case_condition(condition)
+            expression_usage: ExpressionUsages = ExpressionUsages(expressions[0], tuple(var.ssa_name for var in expressions[0].requirements))
+            const: Constant = constants[0]
+        elif len(constants) == 0 and (zero_case_condition := self.__check_for_zero_case_condition(condition)):
+            expression_usage, const =  zero_case_condition
+            self._condition_handler.update_z3_condition_of(symbol, Condition(condition.operation, [expression_usage.expression, const]))
+        else:
+            return None
+        return CaseNodeProperties(symbol, expression_usage, const, condition.operation == OperationType.not_equal)
 
     def __check_for_zero_case_condition(self, condition: Condition) -> Optional[Tuple[ExpressionUsages, Constant]]:
         """
