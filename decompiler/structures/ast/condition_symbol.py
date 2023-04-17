@@ -82,7 +82,7 @@ class ConditionHandler:
     def update_z3_condition_of(self, symbol: LogicCondition, condition: Condition):
         assert symbol.is_symbol, "Input must be a symbol!"
         z3_condition = PseudoLogicCondition.initialize_from_condition(condition, self._logic_context)
-        self._condition_map[symbol] = ConditionSymbol(symbol, condition, z3_condition)
+        self._condition_map[symbol] = ConditionSymbol(condition, symbol, z3_condition)
 
     def add_condition(self, condition: Condition) -> LogicCondition:
         """Adds a new condition to the condition map and returns the corresponding condition_symbol"""

@@ -71,7 +71,9 @@ class SwitchNodeHandler:
         if condition.is_symbol:
             if condition not in self._case_node_properties_of_symbol:
                 self._case_node_properties_of_symbol[condition] = self.__get_case_node_property_of_symbol(condition)
-            if (case_node_property := self._case_node_properties_of_symbol[condition]) is not None and case_node_property.negation == negation:
+            if (
+                case_node_property := self._case_node_properties_of_symbol[condition]
+            ) is not None and case_node_property.negation == negation:
                 return case_node_property
         return None
 
@@ -130,11 +132,12 @@ class SwitchNodeHandler:
             return None
         constants: List[Constant] = [operand for operand in condition.operands if isinstance(operand, Constant)]
         expressions: List[Expression] = [operand for operand in condition.operands if not isinstance(operand, Constant)]
+
         if len(constants) == 1 or len(expressions) == 1:
-            expression_usage: ExpressionUsages = ExpressionUsages(expressions[0], tuple(var.ssa_name for var in expressions[0].requirements))
+            expression_usage = ExpressionUsages(expressions[0], tuple(var.ssa_name for var in expressions[0].requirements))
             const: Constant = constants[0]
         elif len(constants) == 0 and (zero_case_condition := self.__check_for_zero_case_condition(condition)):
-            expression_usage, const =  zero_case_condition
+            expression_usage, const = zero_case_condition
             self._condition_handler.update_z3_condition_of(symbol, Condition(condition.operation, [expression_usage.expression, const]))
         else:
             return None
