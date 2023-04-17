@@ -35,10 +35,6 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
     def construct(cls, asforest: AbstractSyntaxForest):
         """Constructs initial switch nodes if possible."""
         initial_switch_constructor = cls(asforest)
-        # python decompile.py ../test-samples/coreutils/users main --debug
-        # on: 11:32:814 vs of: 1:15:512
-        # for node in asforest.post_order(asforest.current_root):
-        #     initial_switch_constructor._try_to_rearrange_conditions_like(node)
         for cond_node in asforest.get_condition_nodes_post_order(asforest.current_root):
             initial_switch_constructor._try_to_construct_initial_switch_node_from_condition(cond_node)
         # python decompile.py ../test-samples/coreutils/shred main --debug

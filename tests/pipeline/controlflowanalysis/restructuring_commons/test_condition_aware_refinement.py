@@ -4087,7 +4087,11 @@ def test_only_one_occurrence_of_each_case(task):
 
 
 def test_case_0_different_condition(task):
-    """Consideration of conditions as "a == b" as case 0 conditions for switch-statements with expressions a-b and b-a"""
+    """
+    Consideration of conditions as "a == b" as case 0 conditions for switch-statements with expressions a-b and b-a
+
+    simplified version of test-samples/coreutils/shred main
+    """
     argc = Variable("argc", Integer(32, True), None, False, Variable("argc", Integer(32, True), 0, False, None))
     var_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
     var_4 = Variable("arg1", Integer(32, True), None, True, Variable("eax", Integer(32, True), 1, True, None))

@@ -108,7 +108,10 @@ class SwitchNodeHandler:
     def __add_switch_expression(self, expression_usage: ExpressionUsages) -> None:
         """Construct the zero case condition and add it to the dictionary."""
         ssa_expression = self.__get_ssa_expression(expression_usage)
-        z3_condition = self._z3_converter.convert(Condition(OperationType.equal, [ssa_expression, Constant(0, ssa_expression.type)]))
+        try:
+            z3_condition = self._z3_converter.convert(Condition(OperationType.equal, [ssa_expression, Constant(0, ssa_expression.type)]))
+        except ValueError:
+            return
         self._zero_case_of_switch_expression[expression_usage] = ZeroCaseCondition(
             expression_usage.expression, set(expression_usage.ssa_usages), z3_condition
         )
