@@ -35,9 +35,11 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
     def construct(cls, asforest: AbstractSyntaxForest):
         """Constructs initial switch nodes if possible."""
         initial_switch_constructor = cls(asforest)
+        # python decompile.py ../test-samples/coreutils/basename main --debug
         for cond_node in asforest.get_condition_nodes_post_order(asforest.current_root):
             initial_switch_constructor._try_to_construct_initial_switch_node_from_condition(cond_node)
-        # python decompile.py ../test-samples/coreutils/shred main --debug
+        # python decompile.py ../test-samples/coreutils/kill main --debug
+        # python decompile.py ../test-samples/coreutils/chmod main --debug
         # Combining Should be part of a pre- or post-processing.
         for seq_node in asforest.get_sequence_nodes_post_order(asforest.current_root):
             initial_switch_constructor._try_to_extract_breaks_from(seq_node)
@@ -81,11 +83,13 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
             for child in seq_node.children:
                 if (
                     isinstance(child, CodeNode)
+                    # same here -> should be contained but not in loop
                     and child.does_end_with_break
                     and child != break_node
                     and self._get_expression_compared_with_constant(child.reaching_condition).expression == switch_expression
                     and self._can_move_break_instruction(seq_node, child, break_node)
                 ):
+                    raise ValueError("Found sample where we extract breaks for switch reconstruction!")
                     break_node.reaching_condition = break_node.reaching_condition | child.reaching_condition
                     child.instructions.pop()
                     for reachable_sibling in self.asforest.reachable_code_nodes(child):
@@ -95,8 +99,6 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
 
         if break_node.reaching_condition == self.condition_handler.get_false_value():
             self.asforest.remove_subtree(break_node)
-        # else:
-        #     raise ValueError("Found sample where we extract breaks for switch reconstruction!")
 
     def _can_move_break_instruction(self, parent: SeqNode, code_node: CodeNode, break_node: CodeNode):
         """
