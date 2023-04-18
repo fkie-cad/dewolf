@@ -9,7 +9,7 @@ from decompiler.structures.pseudo import (
     GlobalVariable,
     ImportedFunctionSymbol,
     Integer,
-    NonUseableConstant,
+    NotUseableConstant,
     OperationType,
     Pointer,
     StringSymbol,
@@ -32,10 +32,10 @@ class ConstantHandler(Handler):
             }
         )
 
-    def lift_constant(self, constant: mediumlevelil.MediumLevelILConst, **kwargs) -> Union[NonUseableConstant, Constant]:
+    def lift_constant(self, constant: mediumlevelil.MediumLevelILConst, **kwargs) -> Union[NotUseableConstant, Constant]:
         """Lift the given constant value."""
         if(constant.constant in [math.inf, -math.inf, math.nan]):
-            return NonUseableConstant(str(constant.constant))
+            return NotUseableConstant(str(constant.constant))
         return Constant(constant.constant, vartype=self._lifter.lift(constant.expr_type))
 
     @staticmethod

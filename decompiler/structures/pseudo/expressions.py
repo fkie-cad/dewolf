@@ -250,7 +250,7 @@ class ExternFunctionPointer(Constant):
         return ExternFunctionPointer(self.value, self._type.copy(), self.tags)
 
 
-class NonUseableConstant(Constant):
+class NotUseableConstant(Constant):
     """Represents a non useable constant like 'inf' or 'NaN' as a string"""
     def __init__(self, value: str, tags: Optional[Tuple[Tag, ...]] = None):
         super().__init__(value, UnknownType(), tags=tags)
@@ -259,9 +259,9 @@ class NonUseableConstant(Constant):
         """Return the non usable constant."""
         return f"non useable constant {self.value}"
 
-    def copy(self) -> NonUseableConstant:
+    def copy(self) -> NotUseableConstant:
         """Generate an NonUseableConstant with the same value"""
-        return NonUseableConstant(self.value)
+        return NotUseableConstant(self.value)
 
 
 class Symbol(Constant):
