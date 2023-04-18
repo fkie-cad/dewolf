@@ -24,6 +24,7 @@ class FunctionObject:
     def __init__(self, function: Function):
         self._function = function
         self._lifter = BinaryninjaLifter()
+        self._name = self._lifter.lift(self._function.symbol).name
 
     @classmethod
     def get(cls, bv: BinaryView, identifier: Union[str, Function]) -> FunctionObject:
@@ -51,7 +52,7 @@ class FunctionObject:
     @property
     def name(self) -> str:
         """Name of function object"""
-        return self._function.name
+        return self._name
 
     @property
     def return_type(self) -> Type:
