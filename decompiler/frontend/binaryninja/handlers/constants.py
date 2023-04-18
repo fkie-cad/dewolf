@@ -99,7 +99,7 @@ class ConstantHandler(Handler):
             vartype=self._lifter.lift(Type.pointer(view.arch, Type.char())) if var_ref_string else self._lifter.lift(Type.pointer(view.arch, Type.void())),
             ssa_label=pointer.ssa_memory_version if pointer else 0,
             initial_value=self._lifter.lift(var_ref_value, view=view, parent=pointer) if var_ref_value else Constant(var_ref_string.value) \
-            if var_ref_string else self._get_raw_bytes(view, pointer.constant)
+            if var_ref_string else self._get_raw_bytes(view, pointer.constant)[:128]
         ) 
 
         return UnaryOperation(OperationType.address,[g_var]) if variable is not None and isinstance(variable.type, PointerType) else g_var
