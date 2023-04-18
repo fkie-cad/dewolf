@@ -12,12 +12,10 @@ class SwitchExtractor(BaseClassConditionAwareRefinement):
 
     def __init__(self, asforest: AbstractSyntaxForest):
         """
-        self.asforest: The asforst where we try to construct switch nodes
         self.current_cond_node: The condition node which we consider to extract switch nodes.
         """
-        # self.asforest = asforest
-        self._current_cond_node: Optional[ConditionNode] = None
         super().__init__(asforest)
+        self._current_cond_node: Optional[ConditionNode] = None
 
     @classmethod
     def extract(cls, asforest):
@@ -26,6 +24,8 @@ class SwitchExtractor(BaseClassConditionAwareRefinement):
         the switch node, we extract it from the condition node.
         """
         switch_extractor = cls(asforest)
+        # Also do it for sequence nodes with a reaching condition?
+        # DO it later in the postprocessor after inserting all condition nodes?
         for condition_node in asforest.get_condition_nodes_post_order(asforest.current_root):
             switch_extractor._current_cond_node = condition_node
             switch_extractor._extract_switches_from_condition()

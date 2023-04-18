@@ -60,9 +60,9 @@ class BaseClassConditionAwareRefinement:
         if condition.is_conjunction:
             for disjunction in condition.operands:
                 if expression := self._get_const_eq_check_expression_of_disjunction(disjunction):
-                    yield (expression, disjunction)
+                    yield expression, disjunction
         elif expression := self._get_const_eq_check_expression_of_disjunction(condition):
-            yield (expression, condition)
+            yield expression, condition
 
     def _get_const_eq_check_expression_of_disjunction(self, condition: LogicCondition) -> Optional[ExpressionUsages]:
         """
