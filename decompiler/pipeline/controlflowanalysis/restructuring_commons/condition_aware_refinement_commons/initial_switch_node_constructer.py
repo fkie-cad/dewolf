@@ -6,7 +6,16 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
     BaseClassConditionAwareRefinement,
     CaseNodeCandidate,
 )
-from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, CodeNode, ConditionNode, SeqNode, SwitchNode
+from decompiler.structures.ast.ast_nodes import (
+    AbstractSyntaxTreeNode,
+    CaseNode,
+    CodeNode,
+    ConditionNode,
+    SeqNode,
+    SwitchNode,
+    TrueNode,
+    FalseNode,
+)
 from decompiler.structures.ast.reachability_graph import CaseDependencyGraph, LinearOrderDependency, SiblingReachability
 from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
@@ -37,7 +46,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         initial_switch_constructor = cls(asforest)
         # python decompile.py ../test-samples/coreutils/basename main --debug
         for cond_node in asforest.get_condition_nodes_post_order(asforest.current_root):
-            initial_switch_constructor._try_to_construct_initial_switch_node_from_condition(cond_node)
+            initial_switch_constructor._extract_case_nodes_from_nested_condition(cond_node)
         # python decompile.py ../test-samples/coreutils/chmod main --debug
         # Combining Should be part of a pre- or post-processing.
         for seq_node in asforest.get_sequence_nodes_post_order(asforest.current_root):
@@ -110,116 +119,84 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         copy_sibling_reachability._add_first_node_reaches_second(code_node, break_node)
         return copy_sibling_reachability.sorted_nodes() is not None
 
-    def _does_imply(self, cond1: LogicCondition, cond2: LogicCondition) -> bool:
+    def _extract_case_nodes_from_nested_condition(self, cond_node: ConditionNode) -> None:
         """
-        A => B is equivalent to ~(A & ~B).
-        Hence, the implication A => B is true if the solver cannot find a solution to A & ~B.
+        Extract CaseNodeCandidates from nested if-conditions.
+
+        - Nested if-conditions can belong to a switch, i.e., Condition node whose condition is a '==' or '!=' comparison of a variable v and
+          a constant, i.e.,  v == 2 or v != 2
+        - The branch with the '!=' condition is
+          (i) either a Condition node whose condition is a '==' or '!=' comparison of the same variable v and a different constant, or a
+              Code node whose reaching condition is of this form, i.e., v == 1 or v != 1
+         (ii) a sequence node whose first and last node is a condition node or code node with the properties described in (i)
+        - We extract the conditions into a sequence, such that _try_to_construct_initial_switch_node_for can reconstruct the switch.
         """
-        if not cond1.is_literal or not cond2.is_literal:
-            return False
-        z3_converter = Z3Converter()
-        try:
-            A = z3_converter.convert(self._get_literal_condition(cond1))
-            B = z3_converter.convert(self._get_literal_condition(cond2))
-        except:
-            return False
+        if cond_node.false_branch is None:
+            return
+        if first_case_candidate := self._get_possible_case_candidate_for_condition_node(cond_node):
+            if second_case_candidate := self._second_case_candidate_exists_in_branch(cond_node.false_branch_child, first_case_candidate):
+                self._extract_conditions_to_obtain_switch(cond_node, second_case_candidate)
 
-        s = Solver(ctx=z3_converter.context)
-        s.add(And(A, Not(B)))
-        s.check()
-
-        try:
-            s.model()
-            return False
-        except:
-            return True
-
-    def _try_to_construct_initial_switch_node_from_condition(self, cond_node: ConditionNode) -> None:
+    def _get_possible_case_candidate_for_condition_node(self, cond_node: ConditionNode) -> Optional[CaseNodeCandidate]:
         """
-        We look for condition nodes that are inside of other condition nodes. If their conditions are equality checks
-        with the same expression, it might be possible to construct a switch node out of them. Thus, we extract the
-        branches into one sequence node so that _try_to_construct_initial_switch_node_for can find these cases. The
-        inner condition nodes might also be hidden inside of sequence nodes or in the reaching condition of code nodes.
+        Check whether one branch condition is a possible switch case
+
+        - Make sure, that the possible switch case is always the true-branch
+        - If we find a candidate, return a CaseNodeCandidate containing the branch and the switch expression, else return None.
         """
-        if case_candidate := self._get_possible_case_candidate_for_condition_node(cond_node):
-            if inner_node := cond_node.false_branch_child:
-                found_second_candidate = self._find_second_case_inside_of_condition_node(case_candidate, inner_node)
+        possible_expressions = list(self._get_constant_equality_check_expressions_and_conditions(cond_node.condition))
+        if not possible_expressions:
+            if cond_node.false_branch_child and (
+                possible_expressions := list(self._get_constant_equality_check_expressions_and_conditions(~cond_node.condition))
+            ):
+                cond_node.switch_branches()
 
-                if isinstance(inner_node, SeqNode):
-                    for child in inner_node.children:
-                        if self._find_second_case_inside_of_condition_node(case_candidate, child):
-                            found_second_candidate = True
-                            break
+        if len(possible_expressions) == 1:
+            expression_usage, condition = possible_expressions[0]
+            return CaseNodeCandidate(cond_node.true_branch_child, expression_usage, condition)
 
-                if found_second_candidate:
-                    self._extract_condition_node(cond_node)
-
-    def _find_second_case_inside_of_condition_node(self, case_candidate: CaseNodeCandidate, inner_node: AbstractSyntaxTreeNode) -> Bool:
+    def _second_case_candidate_exists_in_branch(
+        self, ast_node: AbstractSyntaxTreeNode, case_candidate: CaseNodeCandidate
+    ) -> Optional[CaseNodeCandidate]:
         """
+        TODO: Search for properties of second case candidate.
         We check if there is a possible case candidate hidden inside of a condition node. If yes, we extract the
         condition node. If we get a code node instead of a condition node, we look into the reaching condition
         in order to verify whether the code node contains a possible case candidate.
         """
-        if isinstance(inner_node, ConditionNode):
-            if second_case_candidate := self._get_possible_case_candidate_for_condition_node(inner_node):
-                if case_candidate.expression == second_case_candidate.expression:
-                    self._extract_condition_node(inner_node)
-                    return True
+        candidates = [ast_node]
+        if isinstance(ast_node, SeqNode):
+            candidates += [ast_node.children[0], ast_node.children[-1]]
+        all_second_case_candidates = []
+        for node in candidates:
+            if second_case_candidate := self._find_second_case_candidate_in(node):
+                all_second_case_candidates.append(second_case_candidate)
 
-        if isinstance(inner_node, CodeNode):
-            if second_case_candidate := self._get_possible_case_candidate_for(inner_node):
-                return case_candidate.expression == second_case_candidate.expression
+        for second_case_candidate in all_second_case_candidates:
+            if second_case_candidate.expression == case_candidate.expression:
+                return second_case_candidate
 
-    def _extract_condition_node(self, cond_node: ConditionNode) -> SeqNode:
+    def _find_second_case_candidate_in(self, ast_node: AbstractSyntaxTreeNode):
+        """TODO."""
+        if isinstance(ast_node, ConditionNode):
+            return self._get_possible_case_candidate_for_condition_node(ast_node)
+        return self._get_possible_case_candidate_for(ast_node)
+
+    def _extract_conditions_to_obtain_switch(self, cond_node: ConditionNode, second_case_candidate: CaseNodeCandidate) -> SeqNode:
         """
         First of all, we extract both branches of the condition node and handle the reaching conditions.
         If a branch contains a sequence node, we propagate the reaching condition to its children. This ensures that
         the sequence node can be cleaned and the possible case candidates are all children of the same sequence node.
         """
-        if cond_node.false_branch is not None:
-            branch = cond_node.false_branch_child
-            branch.reaching_condition = branch.reaching_condition & cond_node.reaching_condition
-            if not self._does_imply(branch.reaching_condition, ~cond_node.condition):
-                branch.reaching_condition = branch.reaching_condition & ~cond_node.condition
-            self.asforest.extract_branch_from_condition_node(cond_node, cond_node.false_branch, False)
-        if cond_node.true_branch is not None:
-            cond_node.true_branch_child.reaching_condition = (
-                cond_node.true_branch_child.reaching_condition & cond_node.reaching_condition & cond_node.condition
-            )
-            self.asforest.extract_branch_from_condition_node(cond_node, cond_node.true_branch, False)
-
-        seq_node = cond_node.parent
-        self.asforest.remove_subtree(cond_node)
-        for child in seq_node.children:
-            if isinstance(child, SeqNode) and not child.reaching_condition.is_true:
-                for grand_child in child.children:
-                    if not self._does_imply(grand_child.reaching_condition, child.reaching_condition):
-                        grand_child.reaching_condition = child.reaching_condition & grand_child.reaching_condition
-                child.reaching_condition = self.condition_handler.get_true_value()
-        seq_node.clean()
-        return seq_node
-
-    def _get_possible_case_candidate_for_condition_node(self, cond_node: ConditionNode) -> Optional[CaseNodeCandidate]:
-        """
-        Check whether a branch of the given condition node is a possible switch case.
-        If this is the case, return a CaseNodeCandidate containing the branch and the switch expression.
-        """
-        "Checking the true branch."
-        possible_case_condition = cond_node.reaching_condition & cond_node.condition
-        possible_expressions = list(self._get_constant_equality_check_expressions_and_conditions(possible_case_condition))
-
-        "Checking the false branch."
-        if not possible_expressions:
-            cond_node.switch_branches()
-            possible_case_condition = cond_node.reaching_condition & cond_node.condition
-            possible_expressions = list(self._get_constant_equality_check_expressions_and_conditions(possible_case_condition))
-
-        "Returning a CaseNodeCandidate if the search was successful."
-        if len(possible_expressions) == 1:
-            expression_usage, condition = possible_expressions[0]
-            return CaseNodeCandidate(cond_node.true_branch_child, expression_usage, condition)
-
-        return None
+        case_node = cond_node.true_branch_child
+        case_node.reaching_condition &= cond_node.reaching_condition & cond_node.condition
+        self.asforest.extract_branch_from_condition_node(cond_node, cond_node.true_branch, update_reachability=False)
+        new_seq_node = cond_node.parent
+        if isinstance(parent := second_case_candidate.node.parent, (TrueNode, FalseNode)):
+            second_case_candidate.node.reaching_condition &= parent.branch_condition & parent.parent.reaching_condition
+        self.asforest._remove_edge(second_case_candidate.node.parent, second_case_candidate.node)
+        self.asforest._add_edge(new_seq_node, second_case_candidate.node)
+        self.asforest.clean_up(new_seq_node)
 
     def _try_to_construct_initial_switch_node_for(self, seq_node: SeqNode) -> None:
         """
