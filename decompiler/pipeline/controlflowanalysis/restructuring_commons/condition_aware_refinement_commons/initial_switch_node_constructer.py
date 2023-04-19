@@ -6,22 +6,12 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
     BaseClassConditionAwareRefinement,
     CaseNodeCandidate,
 )
-from decompiler.structures.ast.ast_nodes import (
-    AbstractSyntaxTreeNode,
-    CaseNode,
-    CodeNode,
-    ConditionNode,
-    SeqNode,
-    SwitchNode,
-    TrueNode,
-    FalseNode,
-)
+from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, CodeNode, ConditionNode, SeqNode, SwitchNode, TrueNode
 from decompiler.structures.ast.reachability_graph import CaseDependencyGraph, LinearOrderDependency, SiblingReachability
 from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition
-from decompiler.structures.pseudo import Break, Condition, Constant, Expression, OperationType, Z3Converter
-from z3 import *
+from decompiler.structures.pseudo import Break, Constant, Expression
 
 
 @dataclass
@@ -177,12 +167,10 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         """TODO."""
         if isinstance(ast_node, ConditionNode):
             return self._get_possible_case_candidate_for_condition_node(ast_node), ast_node.true_branch_child
-        if case_candidate:= self._get_possible_case_candidate_for(ast_node):
+        if case_candidate := self._get_possible_case_candidate_for(ast_node):
             return case_candidate.expression, ast_node
 
-    def _extract_conditions_to_obtain_switch(
-        self, cond_node: ConditionNode, second_case_node: AbstractSyntaxTreeNode
-    ) -> None:
+    def _extract_conditions_to_obtain_switch(self, cond_node: ConditionNode, second_case_node: AbstractSyntaxTreeNode) -> None:
         """
         First of all, we extract both branches of the condition node and handle the reaching conditions.
         If a branch contains a sequence node, we propagate the reaching condition to its children. This ensures that
@@ -649,5 +637,5 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
             yield self.condition_handler.get_true_value()
             return
         current_node = second_case_node
-        while((current_node:= current_node.parent) != cond_node):
+        while (current_node := current_node.parent) != cond_node:
             yield current_node.reaching_condition
