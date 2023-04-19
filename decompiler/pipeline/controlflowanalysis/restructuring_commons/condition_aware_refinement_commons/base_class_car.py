@@ -100,15 +100,6 @@ class BaseClassConditionAwareRefinement:
         """
         return self.asforest.switch_node_handler.get_potential_switch_constant(reaching_condition)
 
-    # TODO: remove later -> after refactored remaining part in initial switch constructor
-    def _get_literal_condition(self, condition: LogicCondition) -> Optional[Condition]:
-        """Check whether the given condition is a literal. If this is the case then it returns the condition that belongs to the literal."""
-        if condition.is_symbol:
-            return self.condition_handler.get_condition_of(condition)
-        if condition.is_negation and (neg_cond := ~condition).is_symbol:
-            return self.condition_handler.get_condition_of(neg_cond).negate()
-        return None
-
     def _convert_to_z3_condition(self, condition: LogicCondition) -> PseudoLogicCondition:
         return PseudoLogicCondition.initialize_from_formula(condition, self.condition_handler.get_z3_condition_map())
 

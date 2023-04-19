@@ -38,8 +38,6 @@ class ConditionAwareRefinement(BaseClassConditionAwareRefinement):
             asforest.clean_up(asforest.current_root)
             stage(asforest)
             condition_aware_refinement._remove_redundant_reaching_condition_from_switch_nodes()
-            asforest.clean_up(asforest.current_root)
-            asforest.combine_cascading_single_branch_conditions(asforest.current_root)
         asforest.clean_up(asforest.current_root)
 
     def _remove_redundant_reaching_condition_from_switch_nodes(self):

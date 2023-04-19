@@ -133,31 +133,32 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         """
         if cond_node.false_branch is None:
             return
-        if first_case_candidate := self._get_possible_case_candidate_for_condition_node(cond_node):
-            if second_case_candidate := self._second_case_candidate_exists_in_branch(cond_node.false_branch_child, first_case_candidate):
+        if first_case_candidate_expression := self._get_possible_case_candidate_for_condition_node(cond_node):
+            if second_case_candidate := self._second_case_candidate_exists_in_branch(
+                cond_node.false_branch_child, first_case_candidate_expression
+            ):
                 self._extract_conditions_to_obtain_switch(cond_node, second_case_candidate)
 
-    def _get_possible_case_candidate_for_condition_node(self, cond_node: ConditionNode) -> Optional[CaseNodeCandidate]:
+    def _get_possible_case_candidate_for_condition_node(self, cond_node: ConditionNode) -> Optional[ExpressionUsages]:
         """
         Check whether one branch condition is a possible switch case
 
         - Make sure, that the possible switch case is always the true-branch
         - If we find a candidate, return a CaseNodeCandidate containing the branch and the switch expression, else return None.
         """
-        possible_expressions = list(self._get_constant_equality_check_expressions_and_conditions(cond_node.condition))
-        if not possible_expressions:
-            if cond_node.false_branch_child and (
-                possible_expressions := list(self._get_constant_equality_check_expressions_and_conditions(~cond_node.condition))
-            ):
+        possible_expressions: List[Tuple[ExpressionUsages, LogicCondition]] = list(
+            self._get_constant_equality_check_expressions_and_conditions(cond_node.condition)
+        )
+        if not possible_expressions and cond_node.false_branch_child:
+            if possible_expressions := list(self._get_constant_equality_check_expressions_and_conditions(~cond_node.condition)):
                 cond_node.switch_branches()
 
         if len(possible_expressions) == 1:
-            expression_usage, condition = possible_expressions[0]
-            return CaseNodeCandidate(cond_node.true_branch_child, expression_usage, condition)
+            return possible_expressions[0][0]
 
     def _second_case_candidate_exists_in_branch(
-        self, ast_node: AbstractSyntaxTreeNode, case_candidate: CaseNodeCandidate
-    ) -> Optional[CaseNodeCandidate]:
+        self, ast_node: AbstractSyntaxTreeNode, first_case_expression: ExpressionUsages
+    ) -> Optional[AbstractSyntaxTreeNode]:
         """
         TODO: Search for properties of second case candidate.
         We check if there is a possible case candidate hidden inside of a condition node. If yes, we extract the
@@ -167,35 +168,49 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         candidates = [ast_node]
         if isinstance(ast_node, SeqNode):
             candidates += [ast_node.children[0], ast_node.children[-1]]
-        all_second_case_candidates = []
         for node in candidates:
-            if second_case_candidate := self._find_second_case_candidate_in(node):
-                all_second_case_candidates.append(second_case_candidate)
+            second_case_candidate = self._find_second_case_candidate_in(node)
+            if second_case_candidate is not None and second_case_candidate[0] == first_case_expression:
+                return second_case_candidate[1]
 
-        for second_case_candidate in all_second_case_candidates:
-            if second_case_candidate.expression == case_candidate.expression:
-                return second_case_candidate
-
-    def _find_second_case_candidate_in(self, ast_node: AbstractSyntaxTreeNode):
+    def _find_second_case_candidate_in(self, ast_node: AbstractSyntaxTreeNode) -> Optional[Tuple[ExpressionUsages, AbstractSyntaxTreeNode]]:
         """TODO."""
         if isinstance(ast_node, ConditionNode):
-            return self._get_possible_case_candidate_for_condition_node(ast_node)
-        return self._get_possible_case_candidate_for(ast_node)
+            return self._get_possible_case_candidate_for_condition_node(ast_node), ast_node.true_branch_child
+        if case_candidate:= self._get_possible_case_candidate_for(ast_node):
+            return case_candidate.expression, ast_node
 
-    def _extract_conditions_to_obtain_switch(self, cond_node: ConditionNode, second_case_candidate: CaseNodeCandidate) -> SeqNode:
+    def _extract_conditions_to_obtain_switch(
+        self, cond_node: ConditionNode, second_case_node: AbstractSyntaxTreeNode
+    ) -> None:
         """
         First of all, we extract both branches of the condition node and handle the reaching conditions.
         If a branch contains a sequence node, we propagate the reaching condition to its children. This ensures that
         the sequence node can be cleaned and the possible case candidates are all children of the same sequence node.
         """
-        case_node = cond_node.true_branch_child
-        case_node.reaching_condition &= cond_node.reaching_condition & cond_node.condition
+        first_case_node = cond_node.true_branch_child
+        first_case_node.reaching_condition &= cond_node.condition
+
+        common_condition = LogicCondition.disjunction_of(self.__parent_conditions(second_case_node, cond_node))
+        second_case_node.reaching_condition &= common_condition
+
+        default_case_node = None
+
+        if isinstance(second_case_node.parent, TrueNode):
+            inner_condition_node = second_case_node.parent.parent
+            assert isinstance(inner_condition_node, ConditionNode), "parent of True Branch must be a condition node."
+            second_case_node.reaching_condition &= inner_condition_node.condition
+            if default_case_node := inner_condition_node.false_branch_child:
+                default_case_node.reaching_condition &= common_condition & ~inner_condition_node.condition & ~cond_node.condition
+
+        cond_node.reaching_condition = self.condition_handler.get_true_value()
         self.asforest.extract_branch_from_condition_node(cond_node, cond_node.true_branch, update_reachability=False)
         new_seq_node = cond_node.parent
-        if isinstance(parent := second_case_candidate.node.parent, (TrueNode, FalseNode)):
-            second_case_candidate.node.reaching_condition &= parent.branch_condition & parent.parent.reaching_condition
-        self.asforest._remove_edge(second_case_candidate.node.parent, second_case_candidate.node)
-        self.asforest._add_edge(new_seq_node, second_case_candidate.node)
+        if default_case_node:
+            self.asforest._remove_edge(default_case_node.parent, default_case_node)
+            self.asforest._add_edge(new_seq_node, default_case_node)
+        self.asforest._remove_edge(second_case_node.parent, second_case_node)
+        self.asforest._add_edge(new_seq_node, second_case_node)
         self.asforest.clean_up(new_seq_node)
 
     def _try_to_construct_initial_switch_node_for(self, seq_node: SeqNode) -> None:
@@ -251,13 +266,13 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         - Otherwise, the function returns None.
         - Note: Cases can not end with a loop-break statement
         """
-        possible_expressions: List[Tuple[ExpressionUsages, LogicCondition]] = list()
+        possible_conditions: List[Tuple[ExpressionUsages, LogicCondition]] = list()
         if (possible_case_condition := ast_node.get_possible_case_candidate_condition()) is not None:
-            possible_expressions = list(self._get_constant_equality_check_expressions_and_conditions(possible_case_condition))
+            possible_conditions = list(self._get_constant_equality_check_expressions_and_conditions(possible_case_condition))
 
-        if len(possible_expressions) == 1:
-            expression, condition = possible_expressions[0]
-            return CaseNodeCandidate(ast_node, expression, condition)
+        if len(possible_conditions) == 1:
+            expression_usage, condition = possible_conditions[0]
+            return CaseNodeCandidate(ast_node, expression_usage, condition)
 
         return None
 
@@ -628,3 +643,11 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
                 continue
             elif not case_node.reaching_condition.is_true:
                 raise ValueError(f"{case_node} should have a literal as reaching condition, but RC = {case_node.reaching_condition}.")
+
+    def __parent_conditions(self, second_case_node: AbstractSyntaxTreeNode, cond_node: ConditionNode):
+        if second_case_node.parent == cond_node:
+            yield self.condition_handler.get_true_value()
+            return
+        current_node = second_case_node
+        while((current_node:= current_node.parent) != cond_node):
+            yield current_node.reaching_condition
