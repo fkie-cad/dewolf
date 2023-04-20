@@ -1,12 +1,14 @@
 import re
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, LoopNode, SwitchNode
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
-from decompiler.structures.pseudo import CustomType, DataflowObject, Float, GlobalVariable, Integer, Pointer, Type, Variable
+from decompiler.structures.logic.logic_condition import LogicCondition
+from decompiler.structures.pseudo import Condition, CustomType, DataflowObject, Float, GlobalVariable, Integer, Pointer, Type, Variable
+from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask
 
 
@@ -18,12 +20,48 @@ def _get_var_counter(var_name: str) -> Optional[str]:
 
 
 def _get_containing_variables(dfo: DataflowObject) -> List[Variable]:
-    """Returns a list of variables contained inq this dataflow object."""
+    """Returns a list of variables contained in this dataflow object."""
     variables: List[Variable] = []
     for sub_exp in dfo.subexpressions():
         if isinstance(sub_exp, Variable):
             variables.append(sub_exp)
     return variables
+
+
+class VariableCollector(BaseAstDataflowObjectVisitor):
+    """Visit relevant nodes and collect their variables."""
+
+    def __init__(self, cond_map: Dict[LogicCondition, Condition]):
+        self._cond_map: Dict[LogicCondition, Condition] = cond_map
+        self._loop_vars: list[Variable] = []
+        self._variables: list[Variable] = []
+
+    def get_variables(self) -> list[Variable]:
+        """Get collected variables."""
+        return self._variables
+
+    def get_loop_variables(self) -> list[Variable]:
+        """Get collected loop variables."""
+        return self._loop_vars
+
+    def visit_code_node(self, node: CodeNode):
+        for stmt in node.instructions:
+            self._variables.extend(_get_containing_variables(stmt)) 
+
+    def visit_condition_node(self, node: ConditionNode):
+        for expr in [self._cond_map[symbol] for symbol in node.condition.get_symbols()]:
+            self._variables.extend(_get_containing_variables(expr))
+
+    def visit_loop_node(self, node: LoopNode):
+        for expr in [self._cond_map[symbol] for symbol in node.condition.get_symbols()]:
+            self._variables.extend(_get_containing_variables(expr))
+            self._loop_vars.extend(_get_containing_variables(expr))
+
+    def visit_switch_node(self, node: SwitchNode):
+        self._variables.extend(_get_containing_variables(node.expression))     
+
+    def visit_case_node(self, node: CaseNode):
+        self._variables.extend(_get_containing_variables(node.expression))   
 
 
 class NamingConvention(str, Enum):
@@ -36,40 +74,19 @@ class RenamingScheme(ABC):
     """Base class for different Renaming schemes."""
 
     def __init__(self, task: DecompilerTask) -> None:
-        self._ast: AbstractSyntaxTree = task._ast
-        self._variables: List[Variable] = []
-        self._loop_vars : List[Variable] = []
+        """Collets all needed variables for renaming + filters already renamed + function arguments out"""
+        collector = VariableCollector(task._ast.condition_map)
+        collector.visit_ast(task._ast)
+        self._variables: List[Variable] = list(filter(self._filter_variables, collector.get_variables()))  
+        self._loop_vars : List[Variable] = collector.get_loop_variables()  
         self._params: List[Variable] = task._function_parameters
-
+        
 
     def _filter_variables(self, item: Variable) -> bool:
         """Return False if variable is a parameter, renamed loop variable or GlobalVariable, else True"""
         if item in self._params or (item in self._loop_vars and item.name.find("var_") == -1) or isinstance(item, GlobalVariable):
             return False
         return True
-
-
-    def collectVariableNames(self):
-        """Collects all variables and loop variable by iterating over every node in the AST and removing ones which should not be renamed:
-            - fkt parameter
-            - loop variables which have been renamed by For/WhileLoopRenamer
-            - global variables
-        """
-        for node in self._ast.topological_order():
-            if isinstance(node, CodeNode):
-                for stmt in node.instructions:
-                    self._variables.extend(_get_containing_variables(stmt))
-            elif isinstance(node, (ConditionNode, LoopNode)):
-                for expr in [self._ast.condition_map[symbol] for symbol in node.condition.get_symbols()]:
-                    self._variables.extend(_get_containing_variables(expr))
-            elif isinstance(node, (SwitchNode, CaseNode)):
-                self._variables.extend(_get_containing_variables(node.expression))     
-        
-        for node in self._ast.get_loop_nodes_post_order():
-            for expr in [self._ast.condition_map[symbol] for symbol in node.condition.get_symbols()]:
-                self._loop_vars.extend(_get_containing_variables(expr))
-            
-        self._variables = list(filter(self._filter_variables, self._variables))  
 
 
     @abstractmethod
@@ -163,5 +180,4 @@ class VariableNameGeneration(PipelineStage):
             case _:
                 return
 
-        renamer.collectVariableNames()
         renamer.renameVariableNames()
