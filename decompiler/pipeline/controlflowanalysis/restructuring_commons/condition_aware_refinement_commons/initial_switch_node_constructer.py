@@ -150,10 +150,12 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         self, ast_node: AbstractSyntaxTreeNode, first_case_expression: ExpressionUsages
     ) -> Optional[AbstractSyntaxTreeNode]:
         """
-        TODO: Search for properties of second case candidate.
-        We check if there is a possible case candidate hidden inside of a condition node. If yes, we extract the
-        condition node. If we get a code node instead of a condition node, we look into the reaching condition
-        in order to verify whether the code node contains a possible case candidate.
+        Check whether a possible case candidate whose expression is equal to first_case_expression, is contained in the given ast_node.
+
+        - The case candidate can either be:
+            - the ast-node itself if the reaching condition matches a case-condition
+            - the true or false branch if the ast_node is a condition node where the condition or negation matches a case-condition
+            - the first or last child, if the node is a Sequence node and it has one of the above conditions.
         """
         candidates = [ast_node]
         if isinstance(ast_node, SeqNode):
@@ -164,7 +166,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
                 return second_case_candidate[1]
 
     def _find_second_case_candidate_in(self, ast_node: AbstractSyntaxTreeNode) -> Optional[Tuple[ExpressionUsages, AbstractSyntaxTreeNode]]:
-        """TODO."""
+        """Check whether the ast-node fulfills the properties of the second-case node to extract from nested conditions."""
         if isinstance(ast_node, ConditionNode):
             return self._get_possible_case_candidate_for_condition_node(ast_node), ast_node.true_branch_child
         if case_candidate := self._get_possible_case_candidate_for(ast_node):
@@ -179,7 +181,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         first_case_node = cond_node.true_branch_child
         first_case_node.reaching_condition &= cond_node.condition
 
-        common_condition = LogicCondition.disjunction_of(self.__parent_conditions(second_case_node, cond_node))
+        common_condition = LogicCondition.conjunction_of(self.__parent_conditions(second_case_node, cond_node))
         second_case_node.reaching_condition &= common_condition
 
         default_case_node = None
@@ -189,7 +191,9 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
             assert isinstance(inner_condition_node, ConditionNode), "parent of True Branch must be a condition node."
             second_case_node.reaching_condition &= inner_condition_node.condition
             if default_case_node := inner_condition_node.false_branch_child:
-                default_case_node.reaching_condition &= common_condition & ~inner_condition_node.condition & ~cond_node.condition
+                default_case_node.reaching_condition &= LogicCondition.conjunction_of((
+                    common_condition, ~inner_condition_node.condition, ~cond_node.condition)
+                )
 
         cond_node.reaching_condition = self.condition_handler.get_true_value()
         self.asforest.extract_branch_from_condition_node(cond_node, cond_node.true_branch, update_reachability=False)
@@ -633,9 +637,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
                 raise ValueError(f"{case_node} should have a literal as reaching condition, but RC = {case_node.reaching_condition}.")
 
     def __parent_conditions(self, second_case_node: AbstractSyntaxTreeNode, cond_node: ConditionNode):
-        if second_case_node.parent == cond_node:
-            yield self.condition_handler.get_true_value()
-            return
+        yield self.condition_handler.get_true_value()
         current_node = second_case_node
         while (current_node := current_node.parent) != cond_node:
             yield current_node.reaching_condition
