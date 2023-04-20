@@ -1,8 +1,9 @@
 """ Tests for the PatternIndependentRestructuring pipeline stage condition aware refinement."""
 from itertools import combinations
-from typing import Dict, List, Tuple, Union
+from typing import List, Tuple, Union
 
 import pytest
+
 from decompiler.pipeline.controlflowanalysis.restructuring import PatternIndependentRestructuring
 from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, SeqNode, SwitchNode, WhileLoopNode
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
@@ -4054,7 +4055,7 @@ def test_switch_no_empty_fallthough(task):
     assert isinstance(current_cond, CodeNode) and current_cond.instructions == vertices[1].instructions
 
 
-def test_switch_test_no_default(task):
+def test_switch_test_no_default_initial(task):
     """Test with no default value."""
     var_1 = Variable(
         "var_1", Pointer(Integer(32, True), 32), None, False, Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
@@ -4114,3 +4115,388 @@ def test_switch_test_no_default(task):
         )
         current_condition_node = current_condition_node.false_branch_child
     assert current_condition_node is None
+
+
+def test_break_contained_in_switch(task):
+    """
+
+                                    +--------------------------------------------+
+                                    |                                            |
+                                    |       +----------------------------+       |
+                                    |       |             0.             |       |
+                                    |       |        var_0 = arg2        |       |
+                                    |       |         arg2 = 0x0         |       |
+                                    |       +----------------------------+       |
+                                    |         |                                  |
+                                    |         |                                  |
+                                    |         v                                  v
+                                    |       +----------------------------+     +--------------------------------------+
+                                    |       |                            |     |                  6.                  |
+                                    |       |             1.             |     |         printf("final b= %d          |
+                                    |       |      if(arg2 <= 0x9)       |     |              ", var_0)               |
+                                    |    +> |                            | --> |             return var_0             |
+                                    |    |  +----------------------------+     +--------------------------------------+
+                                    |    |    |
+                                    |    |    |                                  +----------------------------------------------------------------------+
+                                    |    |    v                                  |                                                                      v
+                                    |    |  +----------------------------+     +--------------------------------------+     +-------------------+     +-------------------+
+                                    |    |  |             2.             |     |                  7.                  |     |        13.        |     |        14.        |
+                                    |    |  |      if(arg1 u> 0x5)       |     |  puts("Number not between 1 and 5")  |     | arg1 = arg1 + 0x5 |     | arg1 = arg1 - 0x5 |
+                                    |    |  |                            | --> |           if(arg1 <= 0x5)            | --> |                   |     |                   |
+                                    |    |  +----------------------------+     +--------------------------------------+     +-------------------+     +-------------------+
+                                    |    |    |                                  ^                                            |                         |
+                                    |    |    |                                  |                                            |                         |
+                                    |    |    v                                  |                                            |                         |
+    +-----------------------+       |    |  +-------------------------------------------------------------------------+       |                         |
+    |          12.          |       |    |  |                                                                         |       |                         |
+    | puts("Another prime") | <-----+----+- |                                                                         |       |                         |
+    +-----------------------+       |    |  |                                                                         |       |                         |
+      |                             |    |  |                                   5.                                    |       |                         |
+      |                             |    |  |                                jmp arg1                                 |       |                         |
+      |                             |    |  |                                                                         |       |                         |
+      |                             |    |  |                                                                         |       |                         |
+      |                             |    |  |                                                                         | ------+--------------------+    |
+      |                             |    |  +-------------------------------------------------------------------------+       |                    |    |
+      |                             |    |    |                             |    |                                            |                    |    |
+      |                             |    |    |                             |    +---------------------------------------+    |                    |    |
+      |                             |    |    v                             |                                            |    |                    |    |
+      |                             |    |  +----------------------------+  |  +--------------------------------------+  |    |                    |    |
+      |                             |    |  |            11.             |  |  |                  9.                  |  |    |                    |    |
+      |                             +----+- |      if(var_0 == 0x5)      |  |  | puts("You chose the prime number 2") | <+----+--------------------+    |
+      |                                  |  +----------------------------+  |  +--------------------------------------+  |    |                         |
+      |                                  |    |                             |    |                                       |    |                         |
+      |                                  |    |                             |    |                                       |    |                         |
+      |                                  |    v                             |    v                                       |    |                         |
+      |                                  |  +----------------------------+  |  +--------------------------------------+  |    |                         |
+      |                                  |  |            17.             |  |  |                 10.                  |  |    |                         |
+      |                                  |  | puts("both numbers are 5") |  +> |   puts("You chose an even number")   |  |    |                         |
+      |                                  |  +----------------------------+     +--------------------------------------+  |    |                         |
+      |                                  |    |                                  |                                       |    |                         |
+      |                                  |    |                                  |                                       +----+--------------------+    |
+      |                                  |    v                                  v                                            |                    |    |
+      |                                  |  +-------------------------------------------------------------------------+       |                    |    |
+      |                                  +- |                                                                         | <-----+                    |    |
+      |                                     |                                   15.                                   |                            |    |
+      |                                     |                          var_0 = var_0 + arg2                           |                            |    |
+      |                                     |                              printf("b= %d                              | <--------------------------+----+
+      |                                     |                                ", var_0)                                |                            |
+      |                                     |                            arg2 = arg2 + 0x1                            |                            |
+      +-----------------------------------> |                                                                         |                            |
+                                            +-------------------------------------------------------------------------+                            |
+                                              ^                                                                                                    |
+                                              |                                                                                                    |
+                                              |                                                                                                    |
+                                            +----------------------------+                                                                         |
+                                            |             8.             |                                                                         |
+                                            |  puts("You chose the 1")   | <-----------------------------------------------------------------------+
+                                            +----------------------------+
+
+    """
+    arg1_1 = Variable("arg1", Integer(32, True), None, False, Variable("arg1", Integer(32, True), 1, False, None))
+    arg1_2 = Variable("arg1", Integer(32, True), None, False, Variable("arg1", Integer(32, True), 2, False, None))
+    arg1_3 = Variable("arg1", Integer(32, True), None, False, Variable("arg1", Integer(32, True), 2, False, None))
+    arg2 = Variable("arg2", Integer(32, True), None, False, Variable("arg2", Integer(32, True), 0, False, None))
+    arg2_2 = Variable("arg2", Integer(32, True), None, False, Variable("var_10", Integer(32, True), 2, False, None))
+    arg2_3 = Variable("arg2", Integer(32, True), None, False, Variable("var_10", Integer(32, True), 3, False, None))
+    var_0_1 = Variable("var_0", Integer(32, True), None, True, Variable("arg2", Integer(32, True), 1, True, None))
+    var_0_2 = Variable("var_0", Integer(32, True), None, True, Variable("arg2", Integer(32, True), 2, True, None))
+    task.graph.add_nodes_from(
+        vertices := [
+            BasicBlock(0, [Assignment(var_0_1, arg2), Assignment(arg2_2, Constant(0, Integer.int32_t()))]),
+            BasicBlock(
+                1, [Branch(Condition(OperationType.less_or_equal, [arg2_2, Constant(9, Integer.int32_t())], CustomType("bool", 1)))]
+            ),
+            BasicBlock(2, [Branch(Condition(OperationType.greater_us, [arg1_1, Constant(5, Integer.int32_t())], CustomType("bool", 1)))]),
+            BasicBlock(3, [IndirectBranch(arg1_1)]),  # 5
+            BasicBlock(4, [Assignment(ListOperation([]), print_call("return final value", 3)), Return(ListOperation([var_0_1]))]),
+            BasicBlock(
+                5,
+                [
+                    Assignment(ListOperation([]), print_call("Number not between 1 and 5", 10)),
+                    Branch(Condition(OperationType.less_or_equal, [arg1_1, Constant(5, Integer.int32_t())], CustomType("bool", 1))),
+                ],
+            ),
+            BasicBlock(6, [Assignment(ListOperation([]), print_call("You chose the 1", 3))]),
+            BasicBlock(7, [Assignment(ListOperation([]), print_call("You chose the prime number 2", 4))]),
+            BasicBlock(8, [Assignment(ListOperation([]), print_call("You chose an even number", 5))]),
+            BasicBlock(9, [Branch(Condition(OperationType.equal, [var_0_1, Constant(5, Integer.int32_t())], CustomType("bool", 1)))]),
+            BasicBlock(10, [Assignment(ListOperation([]), print_call("Another prime", 7))]),
+            BasicBlock(11, [Assignment(arg1_2, BinaryOperation(OperationType.plus, [arg1_1, Constant(5, Integer.int32_t())]))]),
+            BasicBlock(12, [Assignment(arg1_3, BinaryOperation(OperationType.minus, [arg1_1, Constant(5, Integer.int32_t())]))]),
+            BasicBlock(
+                13,
+                [
+                    Assignment(var_0_2, BinaryOperation(OperationType.plus, [var_0_1, arg2_2])),
+                    Assignment(arg2_3, BinaryOperation(OperationType.plus, [arg2_2, Constant(0, Integer.int32_t())])),
+                ],
+            ),
+        ]
+    )
+    task.graph.add_edges_from(
+        [
+            UnconditionalEdge(vertices[0], vertices[1]),
+            TrueCase(vertices[1], vertices[2]),
+            FalseCase(vertices[1], vertices[4]),
+            FalseCase(vertices[2], vertices[3]),
+            TrueCase(vertices[2], vertices[5]),
+            SwitchCase(vertices[3], vertices[5], [Constant(0, Integer(32, signed=True))]),
+            SwitchCase(vertices[3], vertices[6], [Constant(1, Integer(32, signed=True))]),
+            SwitchCase(vertices[3], vertices[7], [Constant(2, Integer(32, signed=True))]),
+            SwitchCase(vertices[3], vertices[8], [Constant(4, Integer(32, signed=True))]),
+            SwitchCase(vertices[3], vertices[9], [Constant(5, Integer(32, signed=True))]),
+            SwitchCase(vertices[3], vertices[10], [Constant(3, Integer(32, signed=True))]),
+            TrueCase(vertices[5], vertices[11]),
+            FalseCase(vertices[5], vertices[12]),
+            UnconditionalEdge(vertices[6], vertices[13]),
+            UnconditionalEdge(vertices[7], vertices[8]),
+            UnconditionalEdge(vertices[8], vertices[13]),
+            TrueCase(vertices[9], vertices[4]),
+            FalseCase(vertices[9], vertices[10]),
+            UnconditionalEdge(vertices[10], vertices[13]),
+            UnconditionalEdge(vertices[11], vertices[13]),
+            UnconditionalEdge(vertices[12], vertices[13]),
+            UnconditionalEdge(vertices[13], vertices[1]),
+        ]
+    )
+
+    PatternIndependentRestructuring().run(task)
+
+    assert isinstance(seq_node := task.syntax_tree.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions
+    assert isinstance(loop_node := seq_node.children[1], WhileLoopNode)
+    assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[4].instructions
+
+    # Loop:
+    assert isinstance(body := loop_node.body, SeqNode) and len(body.children) == 2
+    assert loop_node.condition.is_disjunction and len(operands := loop_node.condition.operands) == 2
+    for op in operands:
+        if op.is_symbol:
+            assert task.syntax_tree.condition_map[op] in {vertices[1].instructions[0].condition, vertices[1].instructions[0].condition}
+        else:
+            assert task.syntax_tree.condition_map[~op] in {vertices[1].instructions[0].condition, vertices[1].instructions[0].condition}
+    assert isinstance(switch_node := body.children[0], SwitchNode)
+    assert isinstance(body.children[1], CodeNode) and body.children[0].instructions == vertices[13].instructions
+
+    # switch:
+    assert switch_node.expression == arg1_1 and len(switch_node.children) == 6
+    assert isinstance(case1 := switch_node.cases[0], CaseNode) and case1.constant == Constant(1, Integer(32)) and case1.break_case is True
+    assert isinstance(case2 := switch_node.cases[1], CaseNode) and case2.constant == Constant(2, Integer(32)) and case2.break_case is False
+    assert isinstance(case3 := switch_node.cases[2], CaseNode) and case3.constant == Constant(4, Integer(32)) and case3.break_case is True
+    assert isinstance(case4 := switch_node.cases[3], CaseNode) and case4.constant == Constant(3, Integer(32)) and case4.break_case is True
+    assert isinstance(case5 := switch_node.cases[4], CaseNode) and case5.constant == Constant(5, Integer(32)) and case5.break_case is True
+    assert isinstance(default := switch_node.default, CaseNode) and default.constant == "default" and default.break_case is False
+
+    assert isinstance(case1.child, CodeNode) and case1.child.instructions == vertices[6].instructions
+    assert isinstance(case2.child, CodeNode) and case2.child.instructions == vertices[7].instructions
+    assert isinstance(case3.child, CodeNode) and case3.child.instructions == vertices[8].instructions
+    assert isinstance(case4.child, CodeNode) and case4.child.instructions == vertices[10].instructions
+    assert isinstance(case5.child, CodeNode) and case5.child.instructions == vertices[14].instructions
+    assert isinstance(default_case := default.child, SeqNode) and len(default_case.children) == 2
+
+    assert isinstance(df_code := default_case.children[0], CodeNode) and df_code.instructions == vertices[5].instructions[:-1]
+    assert (
+        isinstance(df_cond := default_case.children[1], ConditionNode)
+        and isinstance(df_cond.true_branch_child, CodeNode)
+        and isinstance(df_cond.false_branch_child, CodeNode)
+    )
+    if df_cond.true_branch_child.instructions != vertices[11].instructions:
+        df_cond.switch_branches()
+    if df_cond.condition.is_symbol:
+        assert task.syntax_tree.condition_map[loop_node.condition] == vertices[1].instructions[0].condition
+    else:
+        assert task.syntax_tree.condition_map[~loop_node.condition] == vertices[1].instructions[0].condition.negate()
+    assert df_cond.true_branch_child == vertices[11].instructions and df_cond.false_branch_child == vertices[12].instructions
+
+
+def test_break_contained_in_switch_add_case(task):
+    """
+
+                                    +--------------------------------------------+
+                                    |                                            |
+                                    |       +----------------------------+       |
+                                    |       |             0.             |       |
+                                    |       |        var_0 = arg2        |       |
+                                    |       |         arg2 = 0x0         |       |
+                                    |       +----------------------------+       |
+                                    |         |                                  |
+                                    |         |                                  |
+                                    |         v                                  v
+                                    |       +----------------------------+     +--------------------------------------+
+                                    |       |                            |     |                  6.                  |
+                                    |       |             1.             |     |         printf("final b= %d          |
+                                    |       |      if(arg2 <= 0x9)       |     |              ", var_0)               |
+                                    |    +> |                            | --> |             return var_0             |
+                                    |    |  +----------------------------+     +--------------------------------------+
+                                    |    |    |
+                                    |    |    |                                  +----------------------------------------------------------------------+
+                                    |    |    v                                  |                                                                      v
+                                    |    |  +----------------------------+     +--------------------------------------+     +-------------------+     +-------------------+
+                                    |    |  |             2.             |     |                  7.                  |     |        13.        |     |        14.        |
+                                    |    |  |      if(arg1 u> 0x5)       |     |  puts("Number not between 1 and 5")  |     | arg1 = arg1 + 0x5 |     | arg1 = arg1 - 0x5 |
+                                    |    |  |                            | --> |           if(arg1 <= 0x5)            | --> |                   |     |                   |
+                                    |    |  +----------------------------+     +--------------------------------------+     +-------------------+     +-------------------+
+                                    |    |    |                                  ^                                            |                         |
+                                    |    |    |                                  |                                            |                         |
+                                    |    |    v                                  |                                            |                         |
+    +-----------------------+       |    |  +-------------------------------------------------------------------------+       |                         |
+    |          12.          |       |    |  |                                                                         |       |                         |
+    | puts("Another prime") | <-----+----+- |                                                                         |       |                         |
+    +-----------------------+       |    |  |                                                                         |       |                         |
+      |                             |    |  |                                   5.                                    |       |                         |
+      |                             |    |  |                                jmp arg1                                 |       |                         |
+      |                             |    |  |                                                                         |       |                         |
+      |                             |    |  |                                                                         |       |                         |
+      |                             |    |  |                                                                         | ------+--------------------+    |
+      |                             |    |  +-------------------------------------------------------------------------+       |                    |    |
+      |                             |    |    |                             |    |                                            |                    |    |
+      |                             |    |    |                             |    +---------------------------------------+    |                    |    |
+      |                             |    |    v                             |                                            |    |                    |    |
+      |                             |    |  +----------------------------+  |  +--------------------------------------+  |    |                    |    |
+      |                             |    |  |            11.             |  |  |                  9.                  |  |    |                    |    |
+      |                             +----+- |      if(var_0 == 0x5)      |  |  | puts("You chose the prime number 2") | <+----+--------------------+    |
+      |                                  |  +----------------------------+  |  +--------------------------------------+  |    |                         |
+      |                                  |    |                             |    |                                       |    |                         |
+      |                                  |    |                             |    |                                       |    |                         |
+      |                                  |    v                             |    v                                       |    |                         |
+      |                                  |  +----------------------------+  |  +--------------------------------------+  |    |                         |
+      |                                  |  |            17.             |  |  |                 10.                  |  |    |                         |
+      |                                  |  | puts("both numbers are 5") |  +> |   puts("You chose an even number")   |  |    |                         |
+      |                                  |  +----------------------------+     +--------------------------------------+  |    |                         |
+      |                                  |    |                                  |                                       |    |                         |
+      |                                  |    |                                  |                                       +----+--------------------+    |
+      |                                  |    v                                  v                                            |                    |    |
+      |                                  |  +-------------------------------------------------------------------------+       |                    |    |
+      |                                  +- |                                                                         | <-----+                    |    |
+      |                                     |                                   15.                                   |                            |    |
+      |                                     |                          var_0 = var_0 + arg2                           |                            |    |
+      |                                     |                              printf("b= %d                              | <--------------------------+----+
+      |                                     |                                ", var_0)                                |                            |
+      |                                     |                            arg2 = arg2 + 0x1                            |                            |
+      +-----------------------------------> |                                                                         |                            |
+                                            +-------------------------------------------------------------------------+                            |
+                                              ^                                                                                                    |
+                                              |                                                                                                    |
+                                              |                                                                                                    |
+                                            +----------------------------+                                                                         |
+                                            |             8.             |                                                                         |
+                                            |  puts("You chose the 1")   | <-----------------------------------------------------------------------+
+                                            +----------------------------+
+
+    """
+    arg1_1 = Variable("arg1", Integer(32, True), None, False, Variable("arg1", Integer(32, True), 1, False, None))
+    arg1_2 = Variable("arg1", Integer(32, True), None, False, Variable("arg1", Integer(32, True), 2, False, None))
+    arg1_3 = Variable("arg1", Integer(32, True), None, False, Variable("arg1", Integer(32, True), 2, False, None))
+    arg2 = Variable("arg2", Integer(32, True), None, False, Variable("arg2", Integer(32, True), 0, False, None))
+    arg2_2 = Variable("arg2", Integer(32, True), None, False, Variable("var_10", Integer(32, True), 2, False, None))
+    arg2_3 = Variable("arg2", Integer(32, True), None, False, Variable("var_10", Integer(32, True), 3, False, None))
+    var_0_1 = Variable("var_0", Integer(32, True), None, True, Variable("arg2", Integer(32, True), 1, True, None))
+    var_0_2 = Variable("var_0", Integer(32, True), None, True, Variable("arg2", Integer(32, True), 2, True, None))
+    task.graph.add_nodes_from(
+        vertices := [
+            BasicBlock(0, [Assignment(var_0_1, arg2), Assignment(arg2_2, Constant(0, Integer.int32_t()))]),
+            BasicBlock(
+                1, [Branch(Condition(OperationType.less_or_equal, [arg2_2, Constant(9, Integer.int32_t())], CustomType("bool", 1)))]
+            ),
+            BasicBlock(2, [Branch(Condition(OperationType.greater_us, [arg1_1, Constant(5, Integer.int32_t())], CustomType("bool", 1)))]),
+            BasicBlock(3, [IndirectBranch(arg1_1)]),  # 5
+            BasicBlock(4, [Assignment(ListOperation([]), print_call("return final value", 3)), Return(ListOperation([var_0_1]))]),  # 6
+            BasicBlock(
+                5,
+                [
+                    Assignment(ListOperation([]), print_call("Number not between 1 and 5", 10)),
+                    Branch(Condition(OperationType.less_or_equal, [arg1_1, Constant(5, Integer.int32_t())], CustomType("bool", 1))),
+                ],
+            ),  # 7
+            BasicBlock(6, [Assignment(ListOperation([]), print_call("You chose the 1", 3))]),  # 8
+            BasicBlock(7, [Assignment(ListOperation([]), print_call("You chose the prime number 2", 4))]),  # 9
+            BasicBlock(8, [Assignment(ListOperation([]), print_call("You chose an even number", 5))]),  # 10
+            BasicBlock(9, [Branch(Condition(OperationType.equal, [var_0_1, Constant(5, Integer.int32_t())], CustomType("bool", 1)))]),  # 11
+            BasicBlock(10, [Assignment(ListOperation([]), print_call("Another prime", 7))]),  # 12
+            BasicBlock(11, [Assignment(arg1_2, BinaryOperation(OperationType.plus, [arg1_1, Constant(5, Integer.int32_t())]))]),  # 13
+            BasicBlock(12, [Assignment(arg1_3, BinaryOperation(OperationType.minus, [arg1_1, Constant(5, Integer.int32_t())]))]),  # 14
+            BasicBlock(
+                13,
+                [
+                    Assignment(var_0_2, BinaryOperation(OperationType.plus, [var_0_1, arg2_2])),
+                    Assignment(arg2_3, BinaryOperation(OperationType.plus, [arg2_2, Constant(0, Integer.int32_t())])),
+                ],
+            ),  # 15
+            BasicBlock(14, [Assignment(ListOperation([]), print_call("both numbers are 5", 9))]),  # 17
+        ]
+    )
+    task.graph.add_edges_from(
+        [
+            UnconditionalEdge(vertices[0], vertices[1]),
+            TrueCase(vertices[1], vertices[2]),
+            FalseCase(vertices[1], vertices[4]),
+            FalseCase(vertices[2], vertices[3]),
+            TrueCase(vertices[2], vertices[5]),
+            SwitchCase(vertices[3], vertices[5], [Constant(0, Integer(32, signed=True))]),
+            SwitchCase(vertices[3], vertices[6], [Constant(1, Integer(32, signed=True))]),
+            SwitchCase(vertices[3], vertices[7], [Constant(2, Integer(32, signed=True))]),
+            SwitchCase(vertices[3], vertices[8], [Constant(4, Integer(32, signed=True))]),
+            SwitchCase(vertices[3], vertices[9], [Constant(5, Integer(32, signed=True))]),
+            SwitchCase(vertices[3], vertices[10], [Constant(3, Integer(32, signed=True))]),
+            TrueCase(vertices[5], vertices[11]),
+            FalseCase(vertices[5], vertices[12]),
+            UnconditionalEdge(vertices[6], vertices[13]),
+            UnconditionalEdge(vertices[7], vertices[8]),
+            UnconditionalEdge(vertices[8], vertices[13]),
+            TrueCase(vertices[9], vertices[4]),
+            FalseCase(vertices[9], vertices[14]),
+            UnconditionalEdge(vertices[10], vertices[13]),
+            UnconditionalEdge(vertices[11], vertices[13]),
+            UnconditionalEdge(vertices[12], vertices[13]),
+            UnconditionalEdge(vertices[13], vertices[1]),
+            UnconditionalEdge(vertices[14], vertices[13]),
+        ]
+    )
+
+    PatternIndependentRestructuring().run(task)
+
+    assert isinstance(seq_node := task.syntax_tree.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions
+    assert isinstance(loop_node := seq_node.children[1], WhileLoopNode)
+    assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[4].instructions
+
+    # Loop:
+    assert isinstance(body := loop_node.body, SeqNode) and len(body.children) == 2
+    assert loop_node.condition.is_disjunction and len(operands := loop_node.condition.operands) == 2
+    for op in operands:
+        if op.is_symbol:
+            assert task.syntax_tree.condition_map[op] in {vertices[1].instructions[0].condition, vertices[1].instructions[0].condition}
+        else:
+            assert task.syntax_tree.condition_map[~op] in {vertices[1].instructions[0].condition, vertices[1].instructions[0].condition}
+    assert isinstance(switch_node := body.children[0], SwitchNode)
+    assert isinstance(body.children[1], CodeNode) and body.children[1].instructions == vertices[13].instructions
+
+
+    # switch:
+    assert switch_node.expression == arg1_1 and len(switch_node.children) == 6
+    assert isinstance(case1 := switch_node.cases[0], CaseNode) and case1.constant == Constant(1, Integer(32)) and case1.break_case is True
+    assert isinstance(case2 := switch_node.cases[1], CaseNode) and case2.constant == Constant(2, Integer(32)) and case2.break_case is False
+    assert isinstance(case3 := switch_node.cases[2], CaseNode) and case3.constant == Constant(4, Integer(32)) and case3.break_case is True
+    assert isinstance(case4 := switch_node.cases[3], CaseNode) and case4.constant == Constant(3, Integer(32)) and case4.break_case is True
+    assert isinstance(case5 := switch_node.cases[4], CaseNode) and case5.constant == Constant(5, Integer(32)) and case5.break_case is True
+    assert isinstance(default := switch_node.default, CaseNode) and default.constant == "default" and default.break_case is False
+
+    assert isinstance(case1.child, CodeNode) and case1.child.instructions == vertices[6].instructions
+    assert isinstance(case2.child, CodeNode) and case2.child.instructions == vertices[7].instructions
+    assert isinstance(case3.child, CodeNode) and case3.child.instructions == vertices[8].instructions
+    assert isinstance(case4.child, CodeNode) and case4.child.instructions == vertices[10].instructions
+    assert isinstance(case5.child, CodeNode) and case5.child.instructions == vertices[14].instructions
+    assert isinstance(default_case := default.child, SeqNode) and len(default_case.children) == 2
+
+    assert isinstance(df_code := default_case.children[0], CodeNode) and df_code.instructions == vertices[5].instructions[:-1]
+    assert (
+        isinstance(df_cond := default_case.children[1], ConditionNode)
+        and isinstance(df_cond.true_branch_child, CodeNode)
+        and isinstance(df_cond.false_branch_child, CodeNode)
+    )
+    if df_cond.true_branch_child.instructions != vertices[11].instructions:
+        df_cond.switch_branches()
+    if break_cond.condition.is_symbol:
+        assert task.syntax_tree.condition_map[loop_node.condition] == vertices[1].instructions[0].condition
+    else:
+        assert task.syntax_tree.condition_map[~loop_node.condition] == vertices[1].instructions[0].condition.negate()
+    assert df_cond.true_branch_child == vertices[11].instructions and df_cond.false_branch_child == vertices[12].instructions

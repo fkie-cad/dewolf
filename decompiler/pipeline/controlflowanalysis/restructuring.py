@@ -42,6 +42,8 @@ class PatternIndependentRestructuring(PipelineStage):
         Generate the abstract syntax tree for the given task based on the control flow graph.
         """
         EmptyBasicBlockRemover(task.graph).remove()
+        # from decompiler.util.decoration import DecoratedCFG
+        # DecoratedCFG.from_cfg(task.graph).export_plot("/home/eva/Projects/dewolf/AST/cfg.png")
         self.t_cfg = TransitionCFG.generate(task.graph)
         self.asforest = AbstractSyntaxForest.generate_from_code_nodes([node.ast for node in self.t_cfg], self.t_cfg.condition_handler)
         self.options = RestructuringOptions.generate(task.options)
