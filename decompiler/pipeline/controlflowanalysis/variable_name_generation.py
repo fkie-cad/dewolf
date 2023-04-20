@@ -35,6 +35,7 @@ class VariableCollector(BaseAstDataflowObjectVisitor):
         self._cond_map: Dict[LogicCondition, Condition] = cond_map
         self._loop_vars: list[Variable] = []
         self._variables: list[Variable] = []
+        self._test: list[Variable] = []
 
     def get_variables(self) -> list[Variable]:
         """Get collected variables."""
@@ -44,24 +45,16 @@ class VariableCollector(BaseAstDataflowObjectVisitor):
         """Get collected loop variables."""
         return self._loop_vars
 
-    def visit_code_node(self, node: CodeNode):
-        for stmt in node.instructions:
-            self._variables.extend(_get_containing_variables(stmt)) 
-
     def visit_condition_node(self, node: ConditionNode):
         for expr in [self._cond_map[symbol] for symbol in node.condition.get_symbols()]:
             self._variables.extend(_get_containing_variables(expr))
 
     def visit_loop_node(self, node: LoopNode):
         for expr in [self._cond_map[symbol] for symbol in node.condition.get_symbols()]:
-            self._variables.extend(_get_containing_variables(expr))
             self._loop_vars.extend(_get_containing_variables(expr))
 
-    def visit_switch_node(self, node: SwitchNode):
-        self._variables.extend(_get_containing_variables(node.expression))     
-
-    def visit_case_node(self, node: CaseNode):
-        self._variables.extend(_get_containing_variables(node.expression))   
+    def visit_variable(self, expression: Variable):
+        self._variables.append(expression)
 
 
 class NamingConvention(str, Enum):
