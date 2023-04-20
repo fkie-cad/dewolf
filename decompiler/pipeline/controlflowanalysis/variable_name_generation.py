@@ -77,9 +77,9 @@ class RenamingScheme(ABC):
         """Collets all needed variables for renaming + filters already renamed + function arguments out"""
         collector = VariableCollector(task._ast.condition_map)
         collector.visit_ast(task._ast)
-        self._variables: List[Variable] = list(filter(self._filter_variables, collector.get_variables()))  
-        self._loop_vars : List[Variable] = collector.get_loop_variables()  
         self._params: List[Variable] = task._function_parameters
+        self._loop_vars : List[Variable] = collector.get_loop_variables()  
+        self._variables: List[Variable] = list(filter(self._filter_variables, collector.get_variables()))  
         
 
     def _filter_variables(self, item: Variable) -> bool:
