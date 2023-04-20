@@ -5033,10 +5033,6 @@ def test_hash_eq_problem(task):
     assert arg1_conditions[0] == arg1_conditions[1]
     assert hash(arg1_conditions[0]) != hash(arg1_conditions[1])
 
-
-# logging.info(f"Abstract syntax tree of this region:")
-# for node in task._ast.topological_order():
-#     logging.info(f"Node {node}")
 #     if isinstance(node, CodeNode):
 #         logging.info(f"statements: {[str(inst) for inst in node.stmts]}")
 #     elif isinstance(node, ConditionNode):
