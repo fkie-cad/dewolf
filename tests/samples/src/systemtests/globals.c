@@ -150,6 +150,12 @@ int global_recursive_ptr(){
     return _add(q, q);
 }
 
+int global_string_compare(char* ptr){
+	if(ptr == "Hello Decompiler")
+		return 1;
+	return 0;
+}
+
 int main(int argc, char *argv[]) {
 	global_table(argc);
 	global_addr_add();

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import operator
 from typing import Iterator, List, Union
 
 from z3 import (
@@ -31,10 +32,17 @@ from z3 import (
     is_bv,
 )
 
-from .expressions import Constant, Expression, Variable
+from .expressions import Constant, Variable
 from .instructions import Branch
 from .logic import BaseConverter
 from .operations import Condition, Operation, OperationType
+
+
+def _convert_invalid_boolref_op(a: BoolRef, b: BoolRef, op: Operation) -> BitVecRef:
+    return op(
+        If(a, BitVecVal(1, 1, ctx=a.ctx), BitVecVal(0, 1, ctx=a.ctx), ctx=a.ctx),
+        If(b, BitVecVal(1, 1, ctx=b.ctx), BitVecVal(0, 1, ctx=b.ctx), ctx=b.ctx),
+    )
 
 
 class Z3Converter(BaseConverter):
@@ -48,7 +56,7 @@ class Z3Converter(BaseConverter):
         """Return the current z3 context."""
         return self._context
 
-    def negate(self, expr: BoolRef) -> BitVecRef:
+    def negate(self, expr: BoolRef) -> BoolRef:
         """Negate a given expression."""
         return Not(expr)
 
@@ -60,7 +68,7 @@ class Z3Converter(BaseConverter):
         """Represent the given variable as a BitVector (no types)."""
         return BitVecVal(constant.value, constant.type.size if constant.type.size else 32, ctx=self._context)
 
-    def _convert_branch(self, branch: Branch) -> BitVecRef:
+    def _convert_branch(self, branch: Branch) -> BoolRef:
         """
         Convert the given branch into z3 logic.
 
@@ -71,7 +79,7 @@ class Z3Converter(BaseConverter):
             return self._convert_condition(branch.condition)
         return self._convert_condition(Condition(OperationType.not_equal, [branch.condition, Constant(0, branch.condition.type)]))
 
-    def _convert_condition(self, condition: Condition) -> BitVecRef:
+    def _convert_condition(self, condition: Condition) -> BoolRef:
         """
         Convert the given condition into z3 logic.
 
@@ -94,6 +102,10 @@ class Z3Converter(BaseConverter):
         operands = self._ensure_same_sort([self.convert(operand) for operand in operation.operands])
         if isinstance(operands[0], BoolRef) and operation.operation in self.OPERATIONS_BOOLREF:
             converter = self.OPERATIONS_BOOLREF.get(operation.operation, None)
+        elif isinstance(operands[0], BoolRef) and operation.operation in self.OPERATIONS_INVALID_BOOLREF_OP:
+            converter = lambda a, b: _convert_invalid_boolref_op(
+                a, b, self.OPERATIONS_INVALID_BOOLREF_OP.get(operation.operation, None)
+            )
         else:
             converter = self.OPERATIONS.get(operation.operation, None)
         if not converter:
@@ -121,7 +133,7 @@ class Z3Converter(BaseConverter):
             return If(expression, BitVecVal(1, 1, ctx=self._context), BitVecVal(0, 1, ctx=self._context), ctx=self._context)
         raise ValueError(f"Can not convert {expression}")
 
-    def _ensure_bool_sort(self, expression: ExprRef) -> BitVecRef:
+    def _ensure_bool_sort(self, expression: ExprRef) -> BoolRef:
         """Ensure that the sort of the given expression is BitVec."""
         if is_bool(expression):
             return expression
@@ -155,6 +167,7 @@ class Z3Converter(BaseConverter):
         elif result == "unsat":
             return BaseConverter.UNSAT
         return BaseConverter.SAT
+
 
     LOGIC_OPERATIONS = {
         OperationType.bitwise_or,
@@ -192,10 +205,22 @@ class Z3Converter(BaseConverter):
         OperationType.less_or_equal_us: ULE,
     }
 
+
     OPERATIONS_BOOLREF = {
         OperationType.bitwise_and: And,
         OperationType.bitwise_xor: Xor,
         OperationType.bitwise_or: Or,
         OperationType.logical_not: Not,
         OperationType.negate: Not,
+    }
+
+
+    OPERATIONS_INVALID_BOOLREF_OP = {
+        OperationType.minus: operator.sub,
+        OperationType.plus: operator.add,
+        OperationType.multiply: operator.mul,
+        OperationType.divide: operator.truediv,
+        OperationType.left_shift: operator.lshift,
+        OperationType.right_shift: operator.rshift,
+        OperationType.modulo: operator.mod,
     }

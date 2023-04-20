@@ -84,22 +84,20 @@ class ExpressionPropagationFunctionCall(ExpressionPropagationBase):
         return (
             self._is_call_assignment(definition)
             and self._is_call_value_used_exactly_once(definition)
-            and not any(
-                [
-                    self._is_phi(definition),
-                    self._defines_unknown_expression(definition),
-                    self._contains_aliased_variables(definition),
-                    self._is_address_assignment(definition),
-                    self._contains_global_variable(definition),
-                    self._operation_is_propagated_in_phi(target, definition),
-                    self._resulting_instruction_is_too_long(target, definition),
-                    self._is_invalid_propagation_into_address_operation(target, definition),
-                    self._is_dereference_assignment(definition),
-                    self._definition_value_could_be_modified_via_memory_access_between_definition_and_target(definition, target),
-                    self._pointer_value_used_in_definition_could_be_modified_via_memory_access_between_definition_and_target(
+            and not (
+                    self._is_phi(definition)
+                    or self._defines_unknown_expression(definition)
+                    or self._contains_aliased_variables(definition)
+                    or self._is_address_assignment(definition)
+                    or self._contains_global_variable(definition)
+                    or self._operation_is_propagated_in_phi(target, definition)
+                    or self._resulting_instruction_is_too_long(target, definition)
+                    or self._is_invalid_propagation_into_address_operation(target, definition)
+                    or self._is_dereference_assignment(definition)
+                    or self._definition_value_could_be_modified_via_memory_access_between_definition_and_target(definition, target)
+                    or self._pointer_value_used_in_definition_could_be_modified_via_memory_access_between_definition_and_target(
                         definition, target
-                    ),
-                ]
+                    )
             )
         )
 

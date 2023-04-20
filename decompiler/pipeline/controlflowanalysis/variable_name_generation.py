@@ -18,7 +18,7 @@ def _get_var_counter(var_name: str) -> Optional[str]:
 
 
 def _get_containing_variables(dfo: DataflowObject) -> List[Variable]:
-    """Returns a list of variables contained in this dataflow object."""
+    """Returns a list of variables contained inq this dataflow object."""
     variables: List[Variable] = []
     for sub_exp in dfo.subexpressions():
         if isinstance(sub_exp, Variable):

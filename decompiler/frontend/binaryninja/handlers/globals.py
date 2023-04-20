@@ -1,9 +1,9 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
 from typing import Optional, Union
 
-from binaryninja import BinaryView, DataVariable, Endianness, FunctionType, MediumLevelILInstruction, PointerType
+from binaryninja import BinaryView, DataVariable, Endianness, MediumLevelILInstruction, PointerType
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import Constant, GlobalVariable, ImportedFunctionSymbol, Integer, OperationType, Pointer, UnaryOperation
+from decompiler.structures.pseudo import Constant, GlobalVariable, OperationType, UnaryOperation
 
 
 class GlobalHandler(Handler):
@@ -18,16 +18,8 @@ class GlobalHandler(Handler):
 
     def lift_global_variable(self, variable: DataVariable, view: BinaryView, 
         parent: Optional[MediumLevelILInstruction] = None, **kwargs
-    ) -> Union[ImportedFunctionSymbol, Constant, UnaryOperation]:
+    ) -> UnaryOperation:
         """Lift global variables with basic types (pointer are possible)"""
-        if not variable.name and isinstance(variable.value, bytes):
-            return Constant(
-                value=variable.value.decode("utf-8") if isinstance(variable.value, bytes) else variable.value, 
-                vartype=self._lifter.lift(variable.type)
-            )
-        if isinstance(variable.type, PointerType) and isinstance(variable.type.target, FunctionType):
-            return ImportedFunctionSymbol(variable.name, variable.address, vartype=Pointer(Integer.char())) 
-
         return UnaryOperation(
             OperationType.address,
                 [
@@ -35,9 +27,15 @@ class GlobalHandler(Handler):
                     variable.name if variable.name else "data_" + f"{variable.address:x}",
                     self._lifter.lift(variable.type),
                     ssa_label=parent.ssa_memory_version if parent else 0,
-                    initial_value=self._lifter.lift(view.get_data_var_at(variable.value), view=view) if isinstance(variable.type, PointerType) \
-                    and variable.value != 0 else Constant(variable.value) # pointer can point to NULL as well
+                    initial_value=self._get_initial_value(variable, view)
                 )
             ],
         )
-        
+
+    
+    def _get_initial_value(self, variable: DataVariable, view: BinaryView) -> Union[UnaryOperation, Constant]:
+        """Return initial value of data variable"""
+        if isinstance(variable.type, PointerType) and variable.value != 0 and variable.address != variable.value:
+            return self._lifter.lift(view.get_data_var_at(variable.value), view=view)
+        else:
+            return Constant(variable.value)

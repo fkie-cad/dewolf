@@ -1386,6 +1386,39 @@ int test28(int week){
     return 0;
 }
 
+int test29(int week){
+
+    switch(week)
+    {
+        case 1:
+            printf("Monday");
+            break;
+        case 3:
+            printf("Tuesday");
+            break;
+        case 5:
+            printf("Wednesday");
+            break;
+    }
+    week = week + 2;
+    switch(week){
+        case 2:
+            printf("Thursday");
+            break;
+        case 4:
+            printf("Friday");
+            break;
+        case 6:
+            printf("Saturday");
+            break;
+	case 8:
+	    printf("Sunday");
+    }
+
+    return 0;
+}
+
+
 
 
 int main()

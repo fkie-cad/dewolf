@@ -964,6 +964,37 @@ def test_correct_propagation_relation():
     assert list(cfg.instructions) == instructions
 
 
+def test_contraction_copy():
+    """
+        Original copy error with the following steps:
+            - two different variables have the same contraction as a value
+            ==> will be propagated to both, but both have the same value (same variables in memory)
+
+            - later in exp. prop. mem. a part of the value (a third variable; pointer) for the first variable will be propagated by the value of the pointer 
+            ==> because both have the same value and only a subexpr is being propagated, the value will change in both variables 
+            ==> error on the propagation of the second value, because the definition of that variable is not correct anymore
+            
+        Variables affected in 'tr' 'main' for easy reconstruction:
+            - rdi_16#28, rdi_17#31 have the same value after expr. prop. 
+            - rax_55#44 is the part which will be propagated by expr. prop. mem. in rdi_16#28 first and yields the side effect at rdi_17#31
+            ==> rdi_17#31 will yield the error after trying to get a definition 
+
+        Test will only check if the value (memory) of the propagated variables is not the same.
+        (Variables itself are no contractions, but still works)
+    """
+    variable0 = Variable("var0", Integer(64))
+    variable1 = Variable("var1", Integer(64))
+    variable2 = Variable("var2", Integer(64))
+    instr0 = _assign(UnaryOperation(OperationType.cast, [variable0], Integer(64), contraction=True), _assign(Variable("x"), Constant(42)))
+    instr1 = _assign(variable1, UnaryOperation(OperationType.cast, [variable0], Integer(64), contraction=True))
+    instr2 = _assign(variable2, UnaryOperation(OperationType.cast, [variable0], Integer(64), contraction=True))
+    instructions = [instr0, instr1, instr2]
+    cfg = ControlFlowGraph()
+    cfg.add_node(BasicBlock(0, instructions))
+    _run_expression_propagation(cfg)
+    assert id(instr1.value) != id(instr2.value)
+
+
 def _generate_options(instr: int = 10, branch: int = 10, call: int = 10, assignment: int = 10) -> Options:
     options = Options()
     options.set("expression-propagation.maximum_instruction_complexity", instr)
