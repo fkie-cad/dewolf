@@ -35,14 +35,13 @@ class VariableCollector(BaseAstDataflowObjectVisitor):
         self._cond_map: Dict[LogicCondition, Condition] = cond_map
         self._loop_vars: list[Variable] = []
         self._variables: list[Variable] = []
-        self._test: list[Variable] = []
 
     def get_variables(self) -> list[Variable]:
         """Get collected variables."""
         return self._variables
 
     def get_loop_variables(self) -> list[Variable]:
-        """Get collected loop variables."""
+        """Get collected variables used in loops."""
         return self._loop_vars
 
     def visit_condition_node(self, node: ConditionNode):
