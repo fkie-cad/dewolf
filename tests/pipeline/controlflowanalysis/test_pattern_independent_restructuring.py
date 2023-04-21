@@ -5032,14 +5032,3 @@ def test_hash_eq_problem(task):
     assert len(arg1_conditions) == 2
     assert arg1_conditions[0] == arg1_conditions[1]
     assert hash(arg1_conditions[0]) != hash(arg1_conditions[1])
-
-#     if isinstance(node, CodeNode):
-#         logging.info(f"statements: {[str(inst) for inst in node.stmts]}")
-#     elif isinstance(node, ConditionNode):
-#         logging.info(f"condition {node.condition} and true {node.true_branch}, false {node.false_branch}")
-#     elif isinstance(node, LoopNode):
-#         logging.info(f"condition: {node.condition}, type: {node.type} and body {node.body}")
-#     else:
-#         logging.info(f"children {node.children}")
-
-# print(CodeGenerator().from_task(task))
