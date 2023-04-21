@@ -4495,7 +4495,7 @@ def test_break_contained_in_switch_add_case(task):
     )
     if df_cond.true_branch_child.instructions != vertices[11].instructions:
         df_cond.switch_branches()
-    if break_cond.condition.is_symbol:
+    if df_cond.condition.is_symbol:
         assert task.syntax_tree.condition_map[loop_node.condition] == vertices[1].instructions[0].condition
     else:
         assert task.syntax_tree.condition_map[~loop_node.condition] == vertices[1].instructions[0].condition.negate()

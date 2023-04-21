@@ -540,6 +540,7 @@ class ConditionNode(AbstractSyntaxTreeNode):
     def get_possible_case_candidate_condition(self) -> Optional[LogicCondition]:
         """Returns the reaching condition of a node if it is a possible case node of a switch node."""
         self.clean()
+        # TODO
         if self.false_branch is None and not self.true_branch.does_end_with_break:
             return self.reaching_condition & self.condition
         return None

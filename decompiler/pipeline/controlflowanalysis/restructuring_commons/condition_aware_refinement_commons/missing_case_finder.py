@@ -89,6 +89,7 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
         possible_case_node = condition_node.false_branch_child
         case_condition = condition_node.false_branch.branch_condition
 
+        # TODO: break
         if not switch_node.reaching_condition.is_true or possible_case_node.does_end_with_break:
             return None
 
@@ -153,7 +154,7 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
         for child in self._current_seq_node.children:
             if (
                 not child.reaching_condition.is_true
-                and not child.does_end_with_break
+                and not child.does_end_with_break # TODO
                 and (candidate := self._find_switch_expression_and_case_condition_for(child.reaching_condition))
             ):
                 expression, case_condition = candidate
@@ -161,7 +162,7 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
 
             elif isinstance(child, ConditionNode):
                 for branch in child.children:
-                    if not branch.does_end_with_break and (
+                    if not branch.does_end_with_break and ( # TODO
                         candidate := self._find_switch_expression_and_case_condition_for(branch.branch_condition)
                     ):
                         expression, case_condition = candidate
@@ -312,8 +313,8 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
         return (
             position == 0
             or switch_node.cases[position - 1].break_case
-            or switch_node.cases[position - 1].does_end_with_return
-            or switch_node.cases[position - 1].does_end_with_continue
+            or switch_node.cases[position - 1].does_end_with_return # TODO?
+            or switch_node.cases[position - 1].does_end_with_continue # TODO?
         )
 
     @staticmethod
