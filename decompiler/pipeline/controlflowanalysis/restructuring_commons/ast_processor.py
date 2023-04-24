@@ -108,6 +108,33 @@ class Processor:
             + last_break_condition
         )
 
+    def _remove_break_condition_from_nodes_behind(self):
+        # """Remove break-, continue-, and return-conditions from the following conditions."""
+        """Remove break-conditions from the following conditions."""
+        for seq_node in self.asforest.get_sequence_nodes_post_order():
+            break_nodes: List[Union[CodeNode, ConditionNode]] = [
+                child for child in seq_node.children if child.is_break_node or child.is_break_condition
+            ]
+            reachability_of_seq_node_children: SiblingReachability = seq_node.get_reachability_of_children()
+            for break_node in break_nodes:
+                neg_break_cond = ~(
+                    break_node.reaching_condition
+                    if break_node.is_break_node
+                    else break_node.condition & break_node.reaching_condition & break_node.true_branch_child.reaching_condition
+                )
+                if not reachability_of_seq_node_children.siblings_reaching(break_node):
+                    reachable_children = seq_node.children
+                else:
+                    reachable_children = reachability_of_seq_node_children.reachable_siblings_of(break_node)
+                break_node: CodeNode = next(break_node.get_descendant_code_nodes())
+                for child in [c for c in reachable_children if c not in break_nodes]:
+                    # old_cond = child.reaching_condition.copy()
+                    child.reaching_condition.substitute_by_true(neg_break_cond)
+                    # if not old_cond.is_equal_to(child.reaching_condition):
+                    self.asforest._code_node_reachability_graph.add_reachability_from(
+                            ((break_node, cn) for cn in child.get_descendant_code_nodes())
+                        )
+
 
 class AcyclicProcessor(Processor):
     """Class in charge of pre- and post-processing when restructuring acyclic regions"""
@@ -122,6 +149,7 @@ class AcyclicProcessor(Processor):
         self._simplify_reaching_conditions()
         self.asforest.clean_up(self.asforest.current_root)
         self._combine_break_nodes()
+        self._remove_break_condition_from_nodes_behind()
 
     def preprocess_condition_aware_refinement(self):
         """Flatten nested Sequence nodes, removes Sequence nodes with only one child and combines cascading condition nodes, if possible."""

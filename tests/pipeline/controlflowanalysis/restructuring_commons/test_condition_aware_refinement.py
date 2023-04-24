@@ -4055,7 +4055,7 @@ def test_switch_no_empty_fallthough(task):
     assert isinstance(current_cond, CodeNode) and current_cond.instructions == vertices[1].instructions
 
 
-def test_switch_test_no_default_initial(task):
+def test_switch_test_no_default(task):
     """Test with no default value."""
     var_1 = Variable(
         "var_1", Pointer(Integer(32, True), 32), None, False, Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
@@ -4117,9 +4117,9 @@ def test_switch_test_no_default_initial(task):
     assert current_condition_node is None
 
 
-def test_break_contained_in_switch(task):
+def test_break_contained_in_switch_initial(task):
     """
-
+    Check that we check for breaks when constructing the initial switch node:
                                     +--------------------------------------------+
                                     |                                            |
                                     |       +----------------------------+       |
@@ -4260,6 +4260,8 @@ def test_break_contained_in_switch(task):
     )
 
     PatternIndependentRestructuring().run(task)
+    from decompiler.util.decoration import DecoratedAST
+    DecoratedAST.from_ast(task.syntax_tree).export_plot("/home/eva/Projects/dewolf-decompiler/AST/test_ast.png")
 
     assert isinstance(seq_node := task.syntax_tree.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions
@@ -4310,7 +4312,7 @@ def test_break_contained_in_switch(task):
 
 def test_break_contained_in_switch_add_case(task):
     """
-
+    Check that we check for breaks when adding case nodes to the switch node:
                                     +--------------------------------------------+
                                     |                                            |
                                     |       +----------------------------+       |
@@ -4489,8 +4491,8 @@ def test_break_contained_in_switch_add_case(task):
 
     assert isinstance(df_code := default_case.children[0], CodeNode) and df_code.instructions == vertices[5].instructions[:-1]
     assert (
-        isinstance(df_cond := default_case.children[1], ConditionNode)
-        and isinstance(df_cond.true_branch_child, CodeNode)
+            isinstance(df_cond := default_case.children[1], ConditionNode)
+            and isinstance(df_cond.true_branch_child, CodeNode)
         and isinstance(df_cond.false_branch_child, CodeNode)
     )
     if df_cond.true_branch_child.instructions != vertices[11].instructions:
