@@ -7,6 +7,7 @@ from decompiler.structures.ast.reachability_graph import SiblingReachability
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo.instructions import Break
+from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 
 
 class Processor:
@@ -80,9 +81,7 @@ class Processor:
         then combine these Condition nodes if possible.
         """
         for seq_node in self.asforest.get_sequence_nodes_post_order(self.asforest.current_root):
-            break_nodes: List[Union[CodeNode, ConditionNode]] = [
-                child for child in seq_node.children if child.is_break_node or child.is_break_condition
-            ]
+            break_nodes: List[Union[CodeNode, ConditionNode]] = list(seq_node.get_break_nodes())
             if break_nodes:
                 self._partition_conditional_breaks_in_groups_and_combine(seq_node, break_nodes)
                 seq_node.clean()
@@ -109,31 +108,32 @@ class Processor:
         )
 
     def _remove_break_condition_from_nodes_behind(self):
-        # """Remove break-, continue-, and return-conditions from the following conditions."""
         """Remove break-conditions from the following conditions."""
         for seq_node in self.asforest.get_sequence_nodes_post_order():
-            break_nodes: List[Union[CodeNode, ConditionNode]] = [
-                child for child in seq_node.children if child.is_break_node or child.is_break_condition
-            ]
+            break_nodes: InsertionOrderedSet[Union[CodeNode, ConditionNode]] = InsertionOrderedSet(seq_node.get_break_nodes())
             reachability_of_seq_node_children: SiblingReachability = seq_node.get_reachability_of_children()
             for break_node in break_nodes:
-                neg_break_cond = ~(
-                    break_node.reaching_condition
-                    if break_node.is_break_node
-                    else break_node.condition & break_node.reaching_condition & break_node.true_branch_child.reaching_condition
-                )
-                if not reachability_of_seq_node_children.siblings_reaching(break_node):
-                    reachable_children = seq_node.children
-                else:
-                    reachable_children = reachability_of_seq_node_children.reachable_siblings_of(break_node)
-                break_node: CodeNode = next(break_node.get_descendant_code_nodes())
-                for child in [c for c in reachable_children if c not in break_nodes]:
-                    # old_cond = child.reaching_condition.copy()
-                    child.reaching_condition.substitute_by_true(neg_break_cond)
-                    # if not old_cond.is_equal_to(child.reaching_condition):
-                    self.asforest._code_node_reachability_graph.add_reachability_from(
-                            ((break_node, cn) for cn in child.get_descendant_code_nodes())
-                        )
+                neg_break_cond = ~self.__get_break_condition(break_node)
+                if reachability_of_seq_node_children.siblings_reaching(break_node):
+                    continue
+                for child in (c for c in seq_node.children if c not in break_nodes):
+                    old_cond = child.reaching_condition.copy()
+                    child.reaching_condition.substitute_by_true(neg_break_cond, self.asforest.condition_handler)
+                    if not old_cond.is_equal_to(child.reaching_condition):
+                        self.__update_reachability(break_node, child)
+
+    def __update_reachability(self, break_node, child):
+        break_node: CodeNode = break_node if break_node.is_break_node else break_node.true_branch_child
+        for cn in child.get_descendant_code_nodes():
+            self.asforest.add_reachability(break_node, cn)
+
+    def __get_break_condition(self, break_node: Union[CodeNode, ConditionNode]) -> LogicCondition:
+        """Return the break-condition, i.e., the condition that must be fulfilled to reach the break node."""
+        break_condition = break_node.reaching_condition
+        if not break_node.is_break_node:
+            assert isinstance(break_node, ConditionNode) and break_node.true_branch_child.is_break_node
+            break_condition &= break_node.condition & break_node.true_branch_child.reaching_condition
+        return break_condition
 
 
 class AcyclicProcessor(Processor):
@@ -168,10 +168,10 @@ class AcyclicProcessor(Processor):
         self._combine_cascading_breaks()
         self._combine_break_nodes()
 
-        self._sort_sequence_node_children_while_over_do_while()
-
         self._extract_conditional_breaks()
         self._extract_conditional_returns()
+
+        self._sort_sequence_node_children_while_over_do_while()
 
         self.asforest.clean_up(self.asforest.current_root)
 

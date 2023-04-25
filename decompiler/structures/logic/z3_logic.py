@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import functools
 from itertools import product
-from typing import TYPE_CHECKING, Dict, Generic, Iterable, Iterator, List, Sequence, TypeVar
+from typing import TYPE_CHECKING, Dict, Generic, Iterable, Iterator, List, Optional, Sequence, TypeVar
 
 from decompiler.structures.logic.logic_interface import ConditionInterface, PseudoLogicInterface
 from decompiler.structures.logic.z3_implementations import Z3Implementation
@@ -184,14 +184,17 @@ class Z3LogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         for z3_literal in self.z3.get_literals(self._condition):
             yield self.__class__(z3_literal)
 
-    def substitute_by_true(self, condition: LOGICCLASS) -> LOGICCLASS:
+    def substitute_by_true(self, condition: LOGICCLASS, condition_handler: Optional[ConditionHandler] = None) -> LOGICCLASS:
         """
         Substitutes the given condition by true.
 
         Example: substituting in the expression (a∨b)∧c the condition (a∨b) by true results in the condition c,
              and substituting the condition c by true in the condition (a∨b)
         """
-        tmp_condition = self.z3.simplify_z3_condition(And(self._condition, condition._condition))
+        self._condition = self.z3.simplify_z3_condition(And(self._condition, condition._condition))
+        if condition_handler:
+            self.remove_redundancy(condition_handler)
+        tmp_condition = self._condition
 
         cond_operands = condition._condition.children() if condition.is_conjunction else [condition._condition]
         tmp_condition_operands = tmp_condition.children() if is_and(tmp_condition) else [tmp_condition]

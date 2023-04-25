@@ -130,7 +130,7 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         parent = node.parent
         if parent is not None:
             if isinstance(parent, SeqNode):
-                parent._sorted_children = tuple(loop_node if child == node else child for child in parent.children)
+                parent._sorted_children = tuple(loop_node if hash(child) == hash(node) else child for child in parent.children)
             self._remove_edge(parent, node)
             self._add_edge(parent, loop_node)
         self._add_edge(loop_node, node)
@@ -163,7 +163,7 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         self._code_node_reachability_graph.add_reachability_for_fallthrough_cases(new_case_nodes)
 
         if isinstance(parent, SeqNode):
-            parent._sorted_children = tuple(node for node in parent._sorted_children if node != child)
+            parent._sorted_children = tuple(node for node in parent._sorted_children if hash(node) != hash(child))
             parent.clean()
         else:
             parent.parent.clean()
@@ -247,10 +247,10 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         new_seq_node = self._add_sequence_node_before(condition_node)
         self._remove_edge(seq_node_branch, switch_node)
         self._add_edge(new_seq_node, switch_node)
-        if switch_node == seq_node_branch_children[0]:
+        if hash(switch_node) == hash(seq_node_branch_children[0]):
             new_seq_node._sorted_children = (new_seq_node, condition_node)
             seq_node_branch._sorted_children = seq_node_branch_children[1:]
-        elif switch_node == seq_node_branch_children[-1]:
+        elif hash(switch_node) == hash(seq_node_branch_children[-1]):
             new_seq_node._sorted_children = (condition_node, new_seq_node)
             seq_node_branch._sorted_children = seq_node_branch_children[:-1]
 

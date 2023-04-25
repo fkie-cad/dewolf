@@ -179,7 +179,9 @@ class AbstractSyntaxTreeNode(BaseAbstractSyntaxTreeNode, ABC):
     def get_possible_case_candidate_condition(self) -> Optional[LogicCondition]:
         """Returns the reaching condition of a node if it is a possible case node of a switch node."""
         # if not self.reaching_condition.is_true and not self.does_end_with_break:
-        if not self.reaching_condition.is_true and not any(code_node.does_end_with_break for code_node in self.get_descendant_code_nodes_interrupting_ancestor_loop()):
+        if not self.reaching_condition.is_true and not any(
+            code_node.does_end_with_break for code_node in self.get_descendant_code_nodes_interrupting_ancestor_loop()
+        ):
             return self.reaching_condition
         return None
 
@@ -310,6 +312,17 @@ class SeqNode(AbstractSyntaxTreeNode):
     def get_reachability_of_children(self) -> SiblingReachability:
         """Return the sibling reachability of the children of the seq node."""
         return self._ast.get_sibling_reachability_of_children_of(self)
+
+    def get_break_nodes(self) -> Iterable[Union[CodeNode, ConditionNode]]:
+        """
+        Return all break-node children of the sequence node
+
+        - Code-Nodes containing only a break statement
+        - Condition-Nodes having one branch that is a code-node with only a break-statement
+        """
+        for child in self.children:
+            if child.is_break_node or child.is_break_condition:
+                yield child
 
     def accept(self, visitor: ASTVisitorInterface[T]) -> T:
         return visitor.visit_seq_node(self)
@@ -540,8 +553,9 @@ class ConditionNode(AbstractSyntaxTreeNode):
     def get_possible_case_candidate_condition(self) -> Optional[LogicCondition]:
         """Returns the reaching condition of a node if it is a possible case node of a switch node."""
         self.clean()
-        # TODO
-        if self.false_branch is None and not self.true_branch.does_end_with_break:
+        if self.false_branch is None and not any(
+            code_node.does_end_with_break for code_node in self.get_descendant_code_nodes_interrupting_ancestor_loop()
+        ):
             return self.reaching_condition & self.condition
         return None
 
@@ -945,7 +959,7 @@ class SwitchNode(AbstractSyntaxTreeNode):
         Order the switch cases according to their constant (if possible) and prepend breaks to the cases that do not reach any other case.
 
         1. Pick Case nodes, where a linear order starts, and whose constant is minimum among the not picked case nodes with this property.
-        2. Append break break to last node of this order, if it does not end with a return or continue statement.
+        2. Append break to last node of this order, if it does not end with a return or continue statement.
         """
         default_node = self.default
         case_nodes = tuple(case for case in super().children if case != default_node)

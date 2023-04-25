@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, Type, TypeVar
+from typing import TYPE_CHECKING, Dict, Optional, Type, TypeVar
 
 from decompiler.structures.logic.custom_logic import CustomLogicCondition, PseudoCustomLogicCondition
 from decompiler.structures.logic.interface_decorators import ensure_cnf
@@ -42,14 +42,14 @@ def generate_logic_condition_class(base) -> Type[LOGICCLASS]:
             return count
 
         @ensure_cnf
-        def substitute_by_true(self, condition: BLogicCondition) -> BLogicCondition:
+        def substitute_by_true(self, condition: BLogicCondition, condition_handler: Optional[ConditionHandler] = None) -> BLogicCondition:
             """
             Substitutes the given condition by true, i.e., changes the condition under the assumption that the given condition fulfilled.
 
             Example: substituting in the expression (a∨b)∧c the condition (a∨b) by true results in the condition c,
                  and substituting the condition c by true in the condition (a∨b)
             """
-            return super().substitute_by_true(condition)
+            return super().substitute_by_true(condition, condition_handler)
 
         @ensure_cnf
         def remove_redundancy(self, condition_handler: ConditionHandler) -> BLogicCondition:
