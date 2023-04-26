@@ -191,12 +191,13 @@ class AbstractSyntaxTreeNode(BaseAbstractSyntaxTreeNode, ABC):
         return self._ast.reachable_code_nodes(self)
 
     def get_descendant_code_nodes_interrupting_ancestor_loop(self) -> Iterable[CodeNode]:
+        """Return all descendant code-nodes ending with a return- or continue-statement interrupting the above loop."""
         for child in self.children:
             yield from child.get_descendant_code_nodes_interrupting_ancestor_loop()
 
     def _has_descendant_code_node_breaking_ancestor_loop(self) -> bool:
+        """Check whether any descendant code-nodes ends with a return-statement interrupting the above loop."""
         return any(code_node.does_end_with_break for code_node in self.get_descendant_code_nodes_interrupting_ancestor_loop())
-
 
     def get_required_variables(self, condition_map: Optional[Dict[LogicCondition, Condition]] = None) -> Iterable[Variable]:
         """Return all variables that are required in this node."""
@@ -440,6 +441,7 @@ class CodeNode(AbstractSyntaxTreeNode):
         return visitor.visit_code_node(self)
 
     def get_descendant_code_nodes_interrupting_ancestor_loop(self) -> Iterable[CodeNode]:
+        """Return the code-node itself if it ends with a return- or continue-statement."""
         if self.does_end_with_break or self.does_end_with_continue:
             yield self
 
@@ -754,6 +756,7 @@ class LoopNode(AbstractSyntaxTreeNode, ABC):
         return visitor.visit_loop_node(self)
 
     def get_descendant_code_nodes_interrupting_ancestor_loop(self) -> Iterable[CodeNode]:
+        """No descendant code-node ending with a return- or continue-statement can interrupt an above loop, they all interrupt this loop."""
         yield from []
 
     def get_required_variables(self, condition_map: Optional[Dict[LogicCondition, Condition]] = None) -> Iterable[Variable]:

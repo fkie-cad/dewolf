@@ -122,7 +122,8 @@ class Processor:
                     if not old_cond.is_equal_to(child.reaching_condition):
                         self.__update_reachability(break_node, child)
 
-    def __update_reachability(self, break_node, child):
+    def __update_reachability(self, break_node: Union[CodeNode, ConditionNode], child: AbstractSyntaxTreeNode):
+        """Add reachability of code-nodes such that the break-node must always be executed before the child."""
         break_node: CodeNode = break_node if break_node.is_break_node else break_node.true_branch_child
         for cn in child.get_descendant_code_nodes():
             self.asforest.add_reachability(break_node, cn)
