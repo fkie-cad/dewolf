@@ -89,9 +89,7 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
         possible_case_node = condition_node.false_branch_child
         case_condition = condition_node.false_branch.branch_condition
 
-        if not switch_node.reaching_condition.is_true or any(
-            code_node.does_end_with_break for code_node in possible_case_node.get_descendant_code_nodes_interrupting_ancestor_loop()
-        ):
+        if not switch_node.reaching_condition.is_true or possible_case_node._has_descendant_code_node_breaking_ancestor_loop():
             return None
 
         if not self._get_const_eq_check_expression_of_disjunction(case_condition) == switch_node.expression:
@@ -155,7 +153,7 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
         for child in self._current_seq_node.children:
             if (
                 not child.reaching_condition.is_true
-                and not any(code_node.does_end_with_break for code_node in child.get_descendant_code_nodes_interrupting_ancestor_loop())
+                and not child._has_descendant_code_node_breaking_ancestor_loop()
                 and (candidate := self._find_switch_expression_and_case_condition_for(child.reaching_condition))
             ):
                 expression, case_condition = candidate
@@ -163,7 +161,7 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
 
             elif isinstance(child, ConditionNode):
                 for branch in child.children:
-                    if not any(cn.does_end_with_break for cn in branch.get_descendant_code_nodes_interrupting_ancestor_loop()) and (
+                    if not branch._has_descendant_code_node_breaking_ancestor_loop() and (
                         candidate := self._find_switch_expression_and_case_condition_for(branch.branch_condition)
                     ):
                         expression, case_condition = candidate

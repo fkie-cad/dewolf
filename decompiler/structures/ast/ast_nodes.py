@@ -178,10 +178,7 @@ class AbstractSyntaxTreeNode(BaseAbstractSyntaxTreeNode, ABC):
 
     def get_possible_case_candidate_condition(self) -> Optional[LogicCondition]:
         """Returns the reaching condition of a node if it is a possible case node of a switch node."""
-        # if not self.reaching_condition.is_true and not self.does_end_with_break:
-        if not self.reaching_condition.is_true and not any(
-            code_node.does_end_with_break for code_node in self.get_descendant_code_nodes_interrupting_ancestor_loop()
-        ):
+        if not self.reaching_condition.is_true and not self._has_descendant_code_node_breaking_ancestor_loop():
             return self.reaching_condition
         return None
 
@@ -196,6 +193,10 @@ class AbstractSyntaxTreeNode(BaseAbstractSyntaxTreeNode, ABC):
     def get_descendant_code_nodes_interrupting_ancestor_loop(self) -> Iterable[CodeNode]:
         for child in self.children:
             yield from child.get_descendant_code_nodes_interrupting_ancestor_loop()
+
+    def _has_descendant_code_node_breaking_ancestor_loop(self) -> bool:
+        return any(code_node.does_end_with_break for code_node in self.get_descendant_code_nodes_interrupting_ancestor_loop())
+
 
     def get_required_variables(self, condition_map: Optional[Dict[LogicCondition, Condition]] = None) -> Iterable[Variable]:
         """Return all variables that are required in this node."""
@@ -553,9 +554,7 @@ class ConditionNode(AbstractSyntaxTreeNode):
     def get_possible_case_candidate_condition(self) -> Optional[LogicCondition]:
         """Returns the reaching condition of a node if it is a possible case node of a switch node."""
         self.clean()
-        if self.false_branch is None and not any(
-            code_node.does_end_with_break for code_node in self.get_descendant_code_nodes_interrupting_ancestor_loop()
-        ):
+        if self.false_branch is None and not self._has_descendant_code_node_breaking_ancestor_loop():
             return self.reaching_condition & self.condition
         return None
 
