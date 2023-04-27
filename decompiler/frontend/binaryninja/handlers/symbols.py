@@ -6,7 +6,7 @@ from binaryninja import CoreSymbol
 from binaryninja import Symbol as bSymbol
 from binaryninja import SymbolType
 from decompiler.frontend.lifter import Handler, ObserverLifter
-from decompiler.structures.pseudo import Constant, FunctionSymbol, GlobalVariable, ImportedFunctionSymbol, Integer, Symbol
+from decompiler.structures.pseudo import Constant, FunctionSymbol, ImportedFunctionSymbol, Symbol
 
 
 class SymbolHandler(Handler):
@@ -33,9 +33,9 @@ class SymbolHandler(Handler):
             }
         )
 
-    def lift_symbol(self, symbol: CoreSymbol, **kwargs,) -> Union[GlobalVariable, Constant]:
+    def lift_symbol(self, symbol: CoreSymbol, **kwargs,) -> Union[Symbol, ImportedFunctionSymbol, FunctionSymbol, Constant]:
         """Lift the given symbol from binaryninja MLIL."""
         if not (symbol_type := self.SYMBOL_MAP.get(symbol.type, None)):
             warning(f"[Lifter] Can not handle symbols of type {symbol.type}, falling back to constant lifting.")
             return Constant(symbol.address)
-        return symbol_type(symbol.name, symbol.address)
+        return symbol_type(symbol.short_name, symbol.address)
