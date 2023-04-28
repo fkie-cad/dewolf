@@ -22,6 +22,112 @@ from decompiler.util.options import Options
 int32 = Integer.int32_t()
 int64 = Integer.int64_t()
 
+
+def test_postponed_aliased_propagation_handles_aliases_correctly():
+    """
+     +--------------------------------+
+    |               0.               |
+    |      var_18#1 = var_18#0       |
+    |             func()             |
+    |      var_18#2 = var_18#1       |
+    |     var_28#1 = &(var_18#2)     |
+    |        scanf(var_28#1)         |
+    |      var_18#3 -> var_18#2      |
+    |        eax#1 = var_18#3        |
+    |        var_14#4 = eax#1        |<--------var_14 is now an alias of var_18
+    |             func()             |
+    |      var_18#4 = var_18#3       |
+    |     var_10#1 = &(var_18#4)     |
+    |       *(var_10#1) = 0x7        |<--------var_18 is changed via deref, so does var_14, since they are aliases
+    |      var_18#5 -> var_18#4      |
+    |      var_14#5 = var_14#4       |<--------do not propagate old value of var_14 here, cause of change above
+    |       eax_2#3 = var_18#5       |
+    | return (&(var_14#5)) + eax_2#3 |
+    +--------------------------------+
+
+    +---------------------------------+
+    |               0.                |
+    |       var_18#1 = var_18#0       |
+    |             func()              |
+    |       var_18#2 = var_18#0       |
+    |     var_28#1 = &(var_18#2)      |
+    |       scanf(&(var_18#2))        |
+    |      var_18#3 -> var_18#2       |
+    |        eax#1 = var_18#3         |
+    |       var_14#4 = var_18#3       |
+    |             func()              |
+    |       var_18#4 = var_18#3       |
+    |     var_10#1 = &(var_18#4)      |
+    |        *(var_10#1) = 0x7        |
+    |      var_18#5 -> var_18#4       |
+    |       var_14#5 = var_14#4       |<--------this instruction should not be changed after epm
+    |       eax_2#3 = var_18#5        |
+    | return (&(var_14#5)) + var_18#5 |
++---------------------------------+
+    """
+    input_cfg, output_cfg = graphs_with_aliases()
+    _run_expression_propagation(input_cfg)
+    assert _graphs_equal(input_cfg, output_cfg)
+
+
+def graphs_with_aliases():
+
+    var_18 = vars("var_18", 6, aliased=True)
+    var_14 = vars("var_14", 6, aliased=True)
+    var_28 = vars("var_28", 2, type=Pointer(int32))
+    var_10 = vars("var_10", 2, type=Pointer(int32))
+    eax = vars("eax", 2)
+    eax_2 = vars("eax_2", 4)
+    c = const(8)
+
+    in_n0 = BasicBlock(
+        0,
+        [_assign(var_18[1], var_18[0]),
+         _call("func", [], []),
+         _assign(var_18[2], var_18[1]),
+         _assign(var_28[1], _addr(var_18[2])),
+         _call("scanf", [], [var_28[1]]),
+         Relation(var_18[3], var_18[2]),
+         _assign(eax[1], var_18[3]),
+         _assign(var_14[4], eax[1]),
+         _call("func", [], []),
+         _assign(var_18[4], var_18[3]),
+         _assign(var_10[1], _addr(var_18[4])),
+         _assign(_deref(var_10[1]), c[7]),
+         Relation(var_18[5], var_18[4]),
+         _assign(var_14[5], var_14[4]),
+         _assign(eax_2[3], var_18[5]),
+         _ret(_add(_addr(var_14[5]), eax_2[3]))
+         ]
+    )
+    in_cfg = ControlFlowGraph()
+    in_cfg.add_node(in_n0)
+    out_cfg = ControlFlowGraph()
+    out_cfg.add_node(
+        BasicBlock(
+            0,
+            [_assign(var_18[1], var_18[0]),
+             _call("func", [], []),
+             _assign(var_18[2], var_18[0]),
+             _assign(var_28[1], _addr(var_18[2])),
+             _call("scanf", [], [_addr(var_18[2])]),
+             Relation(var_18[3], var_18[2]),
+             _assign(eax[1], var_18[3]),
+             _assign(var_14[4], var_18[3]),
+             _call("func", [], []),
+             _assign(var_18[4], var_18[3]),
+             _assign(var_10[1], _addr(var_18[4])),
+             _assign(_deref(var_10[1]), c[7]),
+             Relation(var_18[5], var_18[4]),
+             _assign(var_14[5], var_14[4]),
+             _assign(eax_2[3], var_18[5]),
+             _ret(_add(_addr(var_14[5]), var_18[5]))
+             ]
+        )
+    )
+    return in_cfg, out_cfg
+
+
 def test_address_propagation_does_not_break_relations_between_aliased_versions():
     """
         +------------------+
