@@ -24,7 +24,7 @@ class SwitchNodeCandidate:
     def construct_switch_cases(self) -> Iterator[Tuple[CaseNode, AbstractSyntaxTreeNode]]:
         """Construct Switch-case for itself."""
         for case_candidate in self.cases:
-            yield (case_candidate.construct_case_node(self.expression), case_candidate.node)
+            yield case_candidate.construct_case_node(self.expression), case_candidate.node
 
 
 class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
@@ -400,8 +400,6 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
             self._update_reaching_condition_of(case_node, considered_conditions)
 
             if case_node.reaching_condition.is_literal:
-                # condition: Condition = self._get_literal_condition(case_node.reaching_condition)
-                # case_node.constant = self._get_constant_compared_in_condition(condition)
                 case_node.constant = self._get_constant_compared_with_expression(case_node.reaching_condition)
                 considered_conditions.add(case_node.reaching_condition)
             elif case_node.reaching_condition.is_false:

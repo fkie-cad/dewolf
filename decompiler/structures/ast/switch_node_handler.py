@@ -53,17 +53,38 @@ class CaseNodeProperties:
 
 
 class SwitchNodeHandler:
+    """Handler for switch node reconstruction knowing possible constants and expressions for switch-nodes for each symbol."""
+
     def __init__(self, condition_handler: ConditionHandler):
+        """
+        Initialize the switch-node constructor.
+
+        self._zero_case_of_switch_expression: maps to each possible switch-expression the possible zero-case condition.
+        self._case_node_property_of_symbol: maps to each symbol the possible expression and constant for a switch it can belong to.
+        """
         self._condition_handler: ConditionHandler = condition_handler
-        self._z3_converter = Z3Converter()
+        self._z3_converter: Z3Converter = Z3Converter()
         self._zero_case_of_switch_expression: Dict[ExpressionUsages, ZeroCaseCondition] = dict()
         self._get_zero_cases_for_possible_switch_expressions()
         self._case_node_properties_of_symbol: Dict[LogicCondition, Optional[CaseNodeProperties]] = dict()
         self._initialize_case_node_properties_for_symbols()
 
-    # TODO: Can we add new potential switch-expressions??
+    def is_potential_switch_case(self, condition: LogicCondition) -> bool:
+        """Check whether the given condition is a potential switch case."""
+        return self._get_case_node_property_of(condition) is not None
 
-    def get_case_node_property_of(self, condition: LogicCondition) -> Optional[CaseNodeProperties]:
+    def get_potential_switch_expression(self, condition: LogicCondition) -> Optional[ExpressionUsages]:
+        """Check whether the given condition is a potential switch case, and if return the corresponding expression."""
+        if (case_node_property := self._get_case_node_property_of(condition)) is not None:
+            return case_node_property.expression
+
+    def get_potential_switch_constant(self, condition: LogicCondition) -> Optional[Constant]:
+        """Check whether the given condition is a potential switch case, and if return the corresponding constant."""
+        if (case_node_property := self._get_case_node_property_of(condition)) is not None:
+            return case_node_property.constant
+
+    def _get_case_node_property_of(self, condition: LogicCondition) -> Optional[CaseNodeProperties]:
+        """Return the case-property of a given literal."""
         negation = False
         if condition.is_negation:
             condition = condition.operands[0]
@@ -71,24 +92,9 @@ class SwitchNodeHandler:
         if condition.is_symbol:
             if condition not in self._case_node_properties_of_symbol:
                 self._case_node_properties_of_symbol[condition] = self.__get_case_node_property_of_symbol(condition)
-            if (
-                case_node_property := self._case_node_properties_of_symbol[condition]
-            ) is not None and case_node_property.negation == negation:
-                return case_node_property
+            if (case_property := self._case_node_properties_of_symbol[condition]) is not None and case_property.negation == negation:
+                return case_property
         return None
-
-    def is_potential_switch_case(self, condition: LogicCondition) -> bool:
-        """Check whether the given condition is a potential switch case."""
-        return self.get_case_node_property_of(condition) is not None
-
-    def get_potential_switch_expression(self, condition: LogicCondition) -> Optional[ExpressionUsages]:
-        """Check whether the given condition is a potential switch case."""
-        if (case_node_property := self.get_case_node_property_of(condition)) is not None:
-            return case_node_property.expression
-
-    def get_potential_switch_constant(self, condition: LogicCondition) -> Optional[Constant]:
-        if (case_node_property := self.get_case_node_property_of(condition)) is not None:
-            return case_node_property.constant
 
     def _get_zero_cases_for_possible_switch_expressions(self) -> None:
         """Get all possible switch expressions, i.e., all expression compared with a constant, together with the potential zero case."""
@@ -116,7 +122,8 @@ class SwitchNodeHandler:
             expression_usage.expression, set(expression_usage.ssa_usages), z3_condition
         )
 
-    def __get_ssa_expression(self, expression_usage: ExpressionUsages) -> Expression:
+    @staticmethod
+    def __get_ssa_expression(expression_usage: ExpressionUsages) -> Expression:
         """Construct SSA-expression of the given expression."""
         if isinstance(expression_usage.expression, Variable):
             return expression_usage.expression.ssa_name if expression_usage.expression.ssa_name else expression_usage.expression
@@ -146,6 +153,8 @@ class SwitchNodeHandler:
             self._condition_handler.update_z3_condition_of(symbol, Condition(condition.operation, [expression_usage.expression, const]))
         else:
             return None
+        if expression_usage not in self._zero_case_of_switch_expression:
+            self.__add_switch_expression(expression_usage)
         return CaseNodeProperties(symbol, expression_usage, const, condition.operation == OperationType.not_equal)
 
     def __check_for_zero_case_condition(self, condition: Condition) -> Optional[Tuple[ExpressionUsages, Constant]]:
@@ -174,7 +183,8 @@ class SwitchNodeHandler:
         z3_condition = self._z3_converter.convert(ssa_condition)
         return z3_condition
 
-    def __is_equivalent(self, cond1: BoolRef, cond2: BoolRef):
+    @staticmethod
+    def __is_equivalent(cond1: BoolRef, cond2: BoolRef):
         """Check whether the given conditions are equivalent."""
         z3_implementation = Z3Implementation(True)
         if z3_implementation.is_equal(cond1, cond2):

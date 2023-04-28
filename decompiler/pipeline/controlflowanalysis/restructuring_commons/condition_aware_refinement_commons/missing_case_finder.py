@@ -28,7 +28,6 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
         self._current_seq_node: The seq_node which we consider to find missing cases.
         self._switch_node_of_expression: a dictionary that maps to each expression the corresponding switch node.
         """
-        # self.asforest = asforest
         super().__init__(asforest)
         self._current_seq_node: Optional[SeqNode] = None
         self._switch_node_of_expression: Dict[ExpressionUsages, SwitchNode] = dict()
