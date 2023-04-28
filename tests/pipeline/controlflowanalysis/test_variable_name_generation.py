@@ -1,5 +1,3 @@
-from typing import List
-
 import pytest
 from decompiler.backend.codegenerator import CodeGenerator
 from decompiler.pipeline.controlflowanalysis import VariableNameGeneration
@@ -88,3 +86,18 @@ def test_hungarian_notation_separators(type_sep: str, counter_sep: str):
     ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", I32), Constant(0)), true_value), {})
     _run_vng(ast, _generate_options(type_sep=type_sep, counter_sep=counter_sep))
     assert var.name == f"i{type_sep}Var{counter_sep}0"
+
+
+def test_custom_type():
+    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", CustomType("size_t", 64)), Constant(0)), true_value), {})
+    _run_vng(ast, _generate_options())
+    # Add check for custom type default
+
+
+def test_bninja_invalid_type():
+    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", Integer(104, True)), Constant(0)), true_value), {})
+    _run_vng(ast, _generate_options())
+    pass
+    # Add check for invalid type default

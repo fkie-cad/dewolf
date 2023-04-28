@@ -33,7 +33,7 @@ def _get_operands_of_complexity_greater_1(operation: Operation) -> Iterator[Expr
 
 @dataclass
 class ComplexityBounds:
-    """Dataclass that stores information about the maximum allowed complexity of varíous instruction types."""
+    """Dataclass that stores information about the maximum allowed complexity of various instruction types."""
 
     assignment_instr: int = 0
     call_operation: int = 0
@@ -112,7 +112,7 @@ class TargetSimplifier:
             self.start_simplification(subtarget)
 
     def simplify_target(self, instruction_target: Target) -> None:
-        """Handle the actual simplification of the Target by choosing an adequate simplfifier for the instruction type."""
+        """Handle the actual simplification of the Target by choosing an adequate simplifier for the instruction type."""
         if not instruction_target.exceeds_complexity_bounds():
             return
         if isinstance(instruction_target.target, BinaryOperation):

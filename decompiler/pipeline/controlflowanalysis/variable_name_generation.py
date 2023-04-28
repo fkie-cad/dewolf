@@ -4,8 +4,7 @@ from enum import Enum
 from typing import Dict, List, Optional
 
 from decompiler.pipeline.stage import PipelineStage
-from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, LoopNode, SwitchNode
-from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
+from decompiler.structures.ast.ast_nodes import ConditionNode, LoopNode
 from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import Condition, CustomType, DataflowObject, Float, GlobalVariable, Integer, Pointer, Type, Variable
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
@@ -75,8 +74,14 @@ class RenamingScheme(ABC):
         
 
     def _filter_variables(self, item: Variable) -> bool:
-        """Return False if variable is a parameter, renamed loop variable or GlobalVariable, else True"""
-        if item in self._params or (item in self._loop_vars and item.name.find("var_") == -1) or isinstance(item, GlobalVariable):
+        """Return False if variable is a:
+            - parameter
+            - renamed loop variable
+            - GlobalVariable
+            - tmp variable produced by instruction-length-handler
+        """
+        if item in self._params or (item in self._loop_vars and item.name.find("var_") == -1) or \
+            isinstance(item, GlobalVariable) or item.name.find("tmp_") != -1:
             return False
         return True
 
@@ -128,9 +133,11 @@ class HungarianScheme(RenamingScheme):
                 return "b"
             elif var_type.size == 0:
                 return "v"
+            else:
+                return "cm"
         if isinstance(var_type, (Integer, Float)):
             sign = "" if var_type.is_signed else "u"
-            prefix = self.type_prefix[type(var_type)][var_type.size]
+            prefix = self.type_prefix[type(var_type)].get(var_type.size, "unk")
             return f"{sign}{prefix}"
 
 
