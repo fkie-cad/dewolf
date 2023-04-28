@@ -1,7 +1,7 @@
 import re
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.ast.ast_nodes import ConditionNode, LoopNode
@@ -69,8 +69,8 @@ class RenamingScheme(ABC):
         collector = VariableCollector(task._ast.condition_map)
         collector.visit_ast(task._ast)
         self._params: List[Variable] = task._function_parameters
-        self._loop_vars : List[Variable] = collector.get_loop_variables()  
-        self._variables: List[Variable] = list(filter(self._filter_variables, collector.get_variables()))  
+        self._loop_vars : Set[Variable] = set(collector.get_loop_variables()) 
+        self._variables: Set[Variable] = set(filter(self._filter_variables, collector.get_variables()))  
         
 
     def _filter_variables(self, item: Variable) -> bool:
@@ -78,10 +78,9 @@ class RenamingScheme(ABC):
             - parameter
             - renamed loop variable
             - GlobalVariable
-            - tmp variable produced by instruction-length-handler
         """
         if item in self._params or (item in self._loop_vars and item.name.find("var_") == -1) or \
-            isinstance(item, GlobalVariable) or item.name.find("tmp_") != -1:
+            isinstance(item, GlobalVariable):
             return False
         return True
 
@@ -100,6 +99,9 @@ class HungarianScheme(RenamingScheme):
         Integer: {8: "ch", 16: "s", 32: "i", 64: "l", 128: "i128"},
     }
 
+    custom_var_names = {
+        "tmp_": "Tmp"
+    }
 
     def __init__(self, task: DecompilerTask) -> None:
         super().__init__(task)
@@ -114,12 +116,15 @@ class HungarianScheme(RenamingScheme):
         """Rename all collected variables to the hungarian notation."""
         for var in self._variables:
             counter = _get_var_counter(var.name)
+            if var._name.find("tmp_") != -1:
+                pass
             var._name = self._hungarian_notation(var, counter if counter else "")
+            pass
             
 
     def _hungarian_notation(self, var: Variable, counter: int) -> str:
         """Return hungarian notation to a given variable."""
-        return f"{self._hungarian_prefix(var.type)}{self._type_separator}{self._var_name}{self._counter_separator}{counter}"
+        return f"{self._hungarian_prefix(var.type)}{self._type_separator}{self.custom_var_names.get(var._name.rstrip(counter), self._var_name)}{self._counter_separator}{counter}"
 
 
     def _hungarian_prefix(self, var_type: Type) -> str:

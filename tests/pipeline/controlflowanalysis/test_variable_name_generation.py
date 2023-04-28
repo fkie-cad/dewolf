@@ -101,3 +101,10 @@ def test_bninja_invalid_type():
     _run_vng(ast, _generate_options())
     pass
     # Add check for invalid type default
+
+
+def test_tmp_variable():
+    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("tmp_42", Float(64)), Constant(0)), true_value), {})
+    _run_vng(ast, _generate_options())
+    assert var._name == "dTmp42"
