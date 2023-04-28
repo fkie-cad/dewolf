@@ -374,6 +374,37 @@ def ast_call_init() -> AbstractSyntaxTree:
 
 
 @pytest.fixture
+def ast_call_for_loop() -> AbstractSyntaxTree:
+    """
+    a = 5;
+    while(b = foo; b <= 5; b++){
+        a++;
+    }
+    """
+    true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(
+        root := SeqNode(true_value),
+        condition_map={logic_cond("x1", context): Condition(OperationType.less_or_equal, [Variable("b"), Constant(5)])},
+    )
+    code_node = ast._add_code_node(
+        instructions=[
+            Assignment(Variable("a"), Constant(5)),
+        ]
+    )
+    loop_node = ast.factory.create_for_loop_node(Assignment(ListOperation([Variable("b")]), Call(ImportedFunctionSymbol("foo", 0), [])), logic_cond("x1", context), Assignment(Variable("b"), BinaryOperation(OperationType.plus, [Variable("b"), Constant(1)])))
+    loop_node_body = ast._add_code_node(
+        [
+            Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Variable("1")])),
+        ]
+    )
+    ast._add_node(loop_node)
+    ast._add_edges_from(((root, code_node), (root, loop_node), (loop_node, loop_node_body)))
+    ast._code_node_reachability_graph.add_reachability(code_node, loop_node_body)
+    root._sorted_children = (code_node, loop_node)
+    return ast
+
+
+@pytest.fixture
 def ast_redundant_init() -> AbstractSyntaxTree:
     """
     b = 0;
@@ -1116,7 +1147,7 @@ class TestReadabilityBasedRefinement:
         ]
 
     def test_init_with_call(self, ast_call_init):
-        self.run_rbr(ast_call_init)
+        self.run_rbr(ast_call_init, _generate_options(rename_for=True))
 
         code_node = ast_call_init.root.children[0]
         assert isinstance(code_node, CodeNode)
@@ -1471,10 +1502,10 @@ class TestForLoopRecovery:
         self.run_rbr(ast, _generate_options(empty_loops=True, blacklist=forbidden_conditon_types))
 
         for loop_node in list(ast.get_loop_nodes_post_order()):
-                if ast.condition_map[loop_node.condition].operation.name in forbidden_conditon_types:
-                    assert isinstance(loop_node, WhileLoopNode)
-                else:
-                    assert isinstance(loop_node, ForLoopNode)
+            if ast.condition_map[loop_node.condition].operation.name in forbidden_conditon_types:
+                assert isinstance(loop_node, WhileLoopNode)
+            else:
+                assert isinstance(loop_node, ForLoopNode)
 
 
 class TestReadabilityUtils:
@@ -1999,3 +2030,9 @@ class TestReadabilityUtils:
         )
         assert [renamer._get_variable_name() for _ in range(5)] == ["counter", "counter1", "counter2", "counter3", "counter4"]
 
+    def test_declaration_listop(self, ast_call_for_loop):
+        """Test renaming with ListOperation as Declaration"""
+        ForLoopVariableRenamer(ast_call_for_loop, ["i"]).rename()
+        for node in ast_call_for_loop:
+            if isinstance(node, ForLoopNode):
+                assert node.declaration.destination.operands[0].name == "i"
