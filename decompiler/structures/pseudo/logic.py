@@ -30,7 +30,7 @@ class BaseConverter(ABC, Generic[T]):
         if isinstance(expression, Condition):
             return self._convert_condition(expression)
         if isinstance(expression, UnaryOperation) and expression.operation == OperationType.dereference:
-            return self._convert_variable(Variable(str(expression),expression.type))
+            return self._convert_variable(Variable(str(expression), expression.type))
         if isinstance(expression, Operation):
             return self._convert_operation(expression)
         raise ValueError(f"Could not convert {expression} into a logic statement.")

@@ -118,8 +118,10 @@ class SwitchNodeHandler:
 
     def __get_ssa_expression(self, expression_usage: ExpressionUsages) -> Expression:
         """Construct SSA-expression of the given expression."""
+        if isinstance(expression_usage.expression, Variable):
+            return expression_usage.expression.ssa_name if expression_usage.expression.ssa_name else expression_usage.expression
         ssa_expression = expression_usage.expression.copy()
-        for variable in [var for var in expression_usage.ssa_usages if var is not None]:
+        for variable in [var for var in ssa_expression.requirements if var.ssa_name]:
             ssa_expression.substitute(variable, variable.ssa_name)
         return ssa_expression
 

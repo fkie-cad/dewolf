@@ -18,7 +18,7 @@ class SwitchExtractor(BaseClassConditionAwareRefinement):
         self._current_cond_node: Optional[ConditionNode] = None
 
     @classmethod
-    def extract(cls, asforest):
+    def extract(cls, asforest: AbstractSyntaxForest):
         """
         Extract switch nodes from condition nodes, i.e., if a switch node is a branch of a condition node whose condition is redundant for
         the switch node, we extract it from the condition node.

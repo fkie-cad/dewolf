@@ -4156,6 +4156,7 @@ def test_case_0_different_condition(task):
     switch_nodes = list(task.syntax_tree.get_switch_nodes_post_order())
     assert len(switch_nodes) == 1
     assert len(switch_nodes[0].cases) == 2 and switch_nodes[0].default is not None
+    assert vertices[0].instructions[-1].condition in task.syntax_tree.condition_map.values()
 
 
 @pytest.mark.parametrize(

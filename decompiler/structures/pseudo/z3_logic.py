@@ -65,7 +65,7 @@ class Z3Converter(BaseConverter):
 
     def _convert_variable(self, variable: Variable, **kwargs) -> BitVecRef:
         """Represent the given Variable as a BitVector in z3."""
-        return BitVec(variable.name, variable.type.size if variable.type.size else 32, ctx=self._context)
+        return BitVec(str(variable), variable.type.size if variable.type.size else 32, ctx=self._context)
 
     def _convert_constant(self, constant: Constant, **kwargs) -> BitVecRef:
         """Represent the given variable as a BitVector (no types)."""
@@ -103,6 +103,8 @@ class Z3Converter(BaseConverter):
     def _get_operation(self, operation: Operation) -> Union[BoolRef, BitVecRef]:
         """Convert the given operation into a z3 expression utilizing the handler functions."""
         operands = self._ensure_same_sort([self.convert(operand) for operand in operation.operands])
+        if not operands:
+            raise ValueError("FOUND")
         if operands and isinstance(operands[0], BoolRef) and operation.operation in self.OPERATIONS_BOOLREF:
             converter = self.OPERATIONS_BOOLREF.get(operation.operation, None)
         elif operands and isinstance(operands[0], BoolRef) and operation.operation in self.OPERATIONS_INVALID_BOOLREF_OP:

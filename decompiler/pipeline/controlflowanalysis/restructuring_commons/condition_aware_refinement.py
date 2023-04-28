@@ -27,10 +27,6 @@ class ConditionAwareRefinement(BaseClassConditionAwareRefinement):
         MissingCaseFinder.find_in_sequence,
     ]
 
-    # def __init__(self, asforest: AbstractSyntaxForest):
-    #     self.asforest = asforest
-    #     super().__init__(asforest.condition_handler)
-
     @classmethod
     def refine(cls, asforest: AbstractSyntaxForest):
         condition_aware_refinement = cls(asforest)
