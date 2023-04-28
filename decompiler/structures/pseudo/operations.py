@@ -9,6 +9,7 @@ from itertools import chain, zip_longest
 from typing import TYPE_CHECKING, Dict, Iterator, List, Optional, Sequence, Tuple, TypeVar, Union
 
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
+
 from .expressions import Constant, Expression, FunctionSymbol, ImportedFunctionSymbol, IntrinsicSymbol, Symbol, Tag, Variable
 from .typing import CustomType, Type, UnknownType
 

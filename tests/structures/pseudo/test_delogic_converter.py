@@ -1,12 +1,11 @@
 import pytest
-from simplifier.world.nodes import Variable as WorldVariable
-
 from decompiler.structures.pseudo.delogic_logic import DelogicConverter
 from decompiler.structures.pseudo.expressions import Constant, Variable
 from decompiler.structures.pseudo.instructions import Branch, Return
 from decompiler.structures.pseudo.logic import BaseConverter
 from decompiler.structures.pseudo.operations import BinaryOperation, Condition, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import Float, Integer, Pointer
+from simplifier.world.nodes import Variable as WorldVariable
 
 var_a = Variable("a", Integer.int32_t())
 var_b = Variable("b", Integer.int32_t())

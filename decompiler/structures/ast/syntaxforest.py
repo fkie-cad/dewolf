@@ -475,7 +475,7 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
             yield child, condition, case_node.break_case
 
     def __add_condition_before_nodes(
-            self, condition: LogicCondition, true_branch: AbstractSyntaxTreeNode, false_branch: Optional[AbstractSyntaxTreeNode] = None
+        self, condition: LogicCondition, true_branch: AbstractSyntaxTreeNode, false_branch: Optional[AbstractSyntaxTreeNode] = None
     ) -> ConditionNode:
         """
         Add the given condition before the true_branch and its negation before the false branch.
@@ -510,4 +510,3 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         new_condition_node = self.__add_condition_before_nodes(case_condition, case_node)
         self._add_edge(true_branch, new_condition_node)
         true_branch._sorted_children = (new_condition_node,) + true_branch._sorted_children
-

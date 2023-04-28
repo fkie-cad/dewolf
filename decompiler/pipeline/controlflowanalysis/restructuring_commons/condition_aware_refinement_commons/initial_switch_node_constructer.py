@@ -191,8 +191,8 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
             assert isinstance(inner_condition_node, ConditionNode), "parent of True Branch must be a condition node."
             second_case_node.reaching_condition &= inner_condition_node.condition
             if default_case_node := inner_condition_node.false_branch_child:
-                default_case_node.reaching_condition &= LogicCondition.conjunction_of((
-                    common_condition, ~inner_condition_node.condition, ~cond_node.condition)
+                default_case_node.reaching_condition &= LogicCondition.conjunction_of(
+                    (common_condition, ~inner_condition_node.condition, ~cond_node.condition)
                 )
 
         cond_node.reaching_condition = self.condition_handler.get_true_value()
