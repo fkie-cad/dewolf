@@ -365,7 +365,7 @@ class DecoratedCode:
 
     def export_ascii(self) -> str:
         with self.TempFile(self._text) as filename:
-            result: CompletedProcess = run(["pygmentize", "-l", "c", f"-O style={self._style}", filename], capture_output=True)
+            result: CompletedProcess = run(["pygmentize", "-l", "cpp", f"-O style={self._style}", filename], capture_output=True)
         return result.stdout.decode("ascii")
 
     def export_html(self) -> str:
