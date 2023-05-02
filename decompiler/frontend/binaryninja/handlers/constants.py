@@ -32,7 +32,7 @@ class ConstantHandler(Handler):
             }
         )
 
-    def lift_constant(self, constant: mediumlevelil.MediumLevelILConst, **kwargs) -> Union[NotUseableConstant, Constant]:
+    def lift_constant(self, constant: mediumlevelil.MediumLevelILConst, **kwargs) -> Constant:
         """Lift the given constant value."""
         if(constant.constant in [math.inf, -math.inf, math.nan]):
             return NotUseableConstant(str(constant.constant))
