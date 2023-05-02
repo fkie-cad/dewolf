@@ -36,7 +36,7 @@ class ConstantHandler(Handler):
         """Lift the given literal, which is most likely an artefact from shift operations and the like."""
         return Constant(value, vartype=Integer.int32_t())
 
-    def lift_constant_pointer(self, pointer: mediumlevelil.MediumLevelILConstPtr, **kwargs) -> Union[Constant, StringSymbol, UnaryOperation, GlobalVariable]:
+    def lift_constant_pointer(self, pointer: mediumlevelil.MediumLevelILConstPtr, **kwargs):
         """Lift the given constant pointer, e.g. &0x80000."""
         view = pointer.function.view
 
@@ -54,7 +54,8 @@ class ConstantHandler(Handler):
 
         return self._propagate_global_string(global_variable, variable, view)
 
-    def _propagate_global_string(self, globalVariable: GlobalVariable, variable: DataVariable, view: BinaryView):
+    def _propagate_global_string(self, globalVariable: GlobalVariable, variable: DataVariable, view: BinaryView) -> StringSymbol:
+        """Propagate a constant string into code, if possible and allowed (maybe add support for types)"""
         if not self._in_read_only_section(variable.address, view) or not isinstance(globalVariable.initial_value, str):
             return globalVariable
         return StringSymbol(globalVariable.initial_value, variable.address, vartype=Pointer(Integer.char(), view.address_size * 8))

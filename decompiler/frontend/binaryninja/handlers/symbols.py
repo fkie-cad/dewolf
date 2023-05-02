@@ -38,8 +38,8 @@ class SymbolHandler(Handler):
         if not (symbol_type := self.SYMBOL_MAP.get(symbol.type, None)):
             warning(f"[Lifter] Can not handle symbols of type {symbol.type}, falling back to constant lifting.")
             return Constant(symbol.address)
-        return symbol_type(self._string_symbol_names(symbol.short_name), symbol.address)
+        return symbol_type(self._purge_symbol_name(symbol.short_name[:]), symbol.address)
 
-    def _string_symbol_names(self, name: str) -> str:
-        """Purge every symbol name for invalid characters."""
+    def _purge_symbol_name(self, name: str) -> str:
+        """Purge invalid chars from symbol names"""
         return name.translate({ord(' '): '_', ord("'"): "", ord('.'): "_", ord('`'): ""})
