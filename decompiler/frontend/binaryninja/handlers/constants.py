@@ -1,16 +1,7 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
-from typing import Union
-
-from binaryninja import DataVariable, SymbolType, Type, mediumlevelil, BinaryView, SectionSemantics
+from binaryninja import BinaryView, DataVariable, SectionSemantics, SymbolType, Type, mediumlevelil
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import (
-    Constant,
-    GlobalVariable,
-    Integer,
-    StringSymbol,
-    UnaryOperation,
-    Pointer,
-)
+from decompiler.structures.pseudo import Constant, GlobalVariable, Integer, Pointer, StringSymbol
 
 
 class ConstantHandler(Handler):
@@ -55,8 +46,8 @@ class ConstantHandler(Handler):
         return self._propagate_global_string(global_variable, variable, view)
 
     def _propagate_global_string(self, globalVariable: GlobalVariable, variable: DataVariable, view: BinaryView) -> StringSymbol:
-        """Propagate a constant string into code, if possible and allowed (maybe add support for types)"""
-        if not self._in_read_only_section(variable.address, view) or not isinstance(globalVariable.initial_value, str):
+        """Propagate a constant string into code, if it's a char* and in a read only section"""
+        if not self._in_read_only_section(variable.address, view) or str(globalVariable.type) == "void *":
             return globalVariable
         return StringSymbol(globalVariable.initial_value, variable.address, vartype=Pointer(Integer.char(), view.address_size * 8))
 

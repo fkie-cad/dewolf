@@ -2,17 +2,18 @@
 from typing import Optional, Tuple
 
 from binaryninja import BinaryView, DataVariable, Endianness, MediumLevelILInstruction, Type
+from binaryninja.types import ArrayType, BoolType, CharType, FloatType, FunctionType, IntegerType, PointerType, VoidType
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import Constant, GlobalVariable, OperationType, UnaryOperation, ImportedFunctionSymbol, Integer, Pointer, StringSymbol, Symbol
-from binaryninja.types import (
-    ArrayType,
-    BoolType,
-    CharType,
-    FloatType,
-    FunctionType,
-    IntegerType,
-    PointerType,
-    VoidType,
+from decompiler.structures.pseudo import (
+    Constant,
+    GlobalVariable,
+    ImportedFunctionSymbol,
+    Integer,
+    OperationType,
+    Pointer,
+    StringSymbol,
+    Symbol,
+    UnaryOperation,
 )
 
 
@@ -53,8 +54,9 @@ class GlobalHandler(Handler):
 
 
     def _lift_constant_type(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None) -> StringSymbol:
-        """Lift a constant datavariable directly into code (for now: only strings)"""
-        return StringSymbol(str(variable.value)[2:-1].rstrip("\\x00"), variable.address, vartype=Pointer(Integer.char(), view.address_size * 8))
+        """Lift a constant datavariable directly into code (only string should be affected)"""
+        string = str(variable.value)[2:-1].rstrip("\\x00")
+        return StringSymbol(f'"{string}"', variable.address, vartype=Pointer(Integer.char(), view.address_size * 8))
 
     
     def _lift_pointer_type(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None):
@@ -78,7 +80,7 @@ class GlobalHandler(Handler):
         )
 
 
-    def _lift_basic_type(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None):
+    def _lift_basic_type(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None) -> UnaryOperation:
         """Lift basic known type"""
         return UnaryOperation(
             OperationType.address,
@@ -93,8 +95,8 @@ class GlobalHandler(Handler):
         )
 
 
-    def _lift_void_type(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None):
-        "Lift unknown type, by checkind data at address"
+    def _lift_void_type(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None) -> GlobalVariable:
+        "Lift unknown type, by checking the value at the given address. Will always be lifted as a pointer"
         value, type = self._get_unknown_value(variable.address, view)
         return GlobalVariable(
                     name=self._lifter.lift(variable.symbol).name if variable.symbol else "data_" + f"{variable.address:x}",
@@ -105,64 +107,71 @@ class GlobalHandler(Handler):
 
 
     def _get_unknown_value(self, addr: int, view: BinaryView):
-        """Return initial value + type of an unknown address (data from bninja, string or raw bytes)"""
+        """Return string or raw bytes string at given address"""
         if datavariable := view.get_data_var_at(addr):
             return self._lifter.lift(datavariable, view=view, caller_addr=addr), datavariable.type
-        elif (data := self._get_different_string_types_at(addr, view)) and data[0] != "":
-            return data[0], Type.pointer(view.arch, data[1])
+        if (string := self._get_different_string_types_at(addr, view)) and string is not None:
+            value, type = string, Type.pointer(view.arch, Type.char())
         else:
-            return self._get_raw_bytes(addr, view), Type.pointer(view.arch, Type.void()) # 128 max size
+            value, type = self._get_raw_bytes(addr, view), Type.pointer(view.arch, Type.void())
+
+        if len(value) > 129:
+            value = value[:129] + '..."'
+        return value, type
             
 
-    def _get_raw_bytes(self, addr: int, view: BinaryView) -> bytes:
-        """Returns raw bytes after a given address to the next data structure or section"""
+    def _get_raw_bytes(self, addr: int, view: BinaryView) -> str:
+        """Returns raw bytes as hex string after a given address to the next data structure or section"""
         if (next_data_var := view.get_next_data_var_after(addr)) is not None:
-            return view.read(addr, next_data_var.address - addr)
+            data = view.read(addr, next_data_var.address - addr)
         else:
-            return view.read(addr, view.get_sections_at(addr)[0].end)
+            data = view.read(addr, view.get_sections_at(addr)[0].end)
+
+        string = ''.join("\\x{:02x}".format(x) for x in data)
+        return f'"{string}"'
 
 
-    def _get_different_string_types_at(self, addr: int, view: BinaryView) -> Tuple[str, Type]:
+    def _get_different_string_types_at(self, addr: int, view: BinaryView) -> Optional[str]:
         """Tries to extract different string types at address"""
-        types = [Type.char(), Type.wide_char(2), Type.wide_char(4)]
+        types: list[Type] = [Type.char(), Type.wide_char(2), Type.wide_char(4)]
         string = ""
         for type in types:
-            string = self._get_string_at(view, addr, type)
-            if string != "":
+            string = self._get_string_at(view, addr, type.width)
+            if string != None:
                 break
-        # show w_chat id (L"..")
-        return string, Type.char()
+        return string
 
 
-    def _get_string_at(self, view: BinaryView, addr: int, type: Type) -> str:
+    def _get_string_at(self, view: BinaryView, addr: int, width: int) -> Optional[str]:
         """Read string with specified width from location."""
-        size = self._get_size_of_data_var(view, addr, type.width)
-        data_var = DataVariable(view, addr, Type.array(type, size), True)
-        try:
-            string: str = data_var.value.decode("ascii")
-        except:
-            return ""
-        if not string.isprintable() or size < 2:
-            return ""
-        return '"' + string + '"'
-
-    def _get_size_of_data_var(self, view: BinaryView, addr: int, width: int) -> int:
-        """Returns the size of string at address"""
-        size = 0
+        raw_bytes: bytearray = bytearray()
         match width:
             case 1:
                 read = view.reader(addr).read8
+                identifier = ""
             case 2:
                 read = view.reader(addr).read16
+                identifier = "L"
             case 4:
                 read = view.reader(addr).read32
+                identifier = "L"
             case _:
-                raise ValueError("Width not supported for reading raw bytes")
+                raise ValueError("Width not supported for reading bytes")
 
-        while read() != 0x00:
-            size += 1
+        while (byte := read()) != 0x00:
+            if byte > 255:
+                return None
+            raw_bytes.append(byte)
+
+        try:
+            string = str(raw_bytes)[12:-2].rstrip("\\x00")
+        except:
+            return None
+
+        if len(string) < 2 or string.find("\\x") != -1:
+            return None
         
-        return size
+        return identifier + f'"{string}"'
 
 
     def _addr_in_section(self, view: BinaryView, addr: int) -> bool:
