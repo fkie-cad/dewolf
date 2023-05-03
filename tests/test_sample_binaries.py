@@ -241,8 +241,8 @@ def test_w_char():
     output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
     print(output)
 
-    assert output.count('L"Hello w_char32_t string"') == 1
-    assert output.count('L"Inlined w_char32_t string");') == 1 # part of printf because of closing bracket
+    assert output.count('L"Hello wchar32_t string"') == 1
+    assert output.count('L"Inlined wchar32_t string");') == 1 # part of printf because of closing bracket
 
 
 def test_overflow():
