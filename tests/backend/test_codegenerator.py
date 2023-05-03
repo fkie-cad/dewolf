@@ -18,8 +18,8 @@ from decompiler.structures.pseudo.expressions import (
     ExternFunctionPointer,
     FunctionSymbol,
     GlobalVariable,
+    ImportedFunctionSymbol,
     Variable,
-    ImportedFunctionSymbol
 )
 from decompiler.structures.pseudo.instructions import Assignment, Comment, Return
 from decompiler.structures.pseudo.operations import (
