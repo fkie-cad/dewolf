@@ -47,7 +47,7 @@ class ConstantHandler(Handler):
 
     def _propagate_global_string(self, globalVariable: GlobalVariable, variable: DataVariable, view: BinaryView) -> StringSymbol:
         """Propagate a constant string into code, if it's a char* and in a read only section"""
-        if not self._in_read_only_section(variable.address, view) or str(globalVariable.type) == "void *":
+        if not self._in_read_only_section(variable.address, view) or not str(globalVariable.type) == "char *":
             return globalVariable
         return StringSymbol(globalVariable.initial_value, variable.address, vartype=Pointer(Integer.char(), view.address_size * 8))
 

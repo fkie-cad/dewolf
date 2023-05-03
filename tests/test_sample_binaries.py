@@ -104,7 +104,7 @@ def test_global_ptr_addr():
     assert output.count("e = 0x17") == 1
     assert output.count("f = 0x42") == 1
     assert output.count("h = 0x0") == 1
-    assert output.count("void * g = &(e)") == 1
+    assert output.count("unsigned int * g = &(e)") == 1
     # Assert call correct
     len(re.findall("h = &f", output)) == 1
     len(re.findall("var_[0-9]+= h", output)) == 1
@@ -232,6 +232,27 @@ def test_string_with_pointer_compare():
     print(output)
 
     assert output.count("Hello Decompiler") == 1 # it's enough to test if the output has the string. Would crash if not possible in if
+
+
+def test_w_char():
+    """Test that w_char strings are correctly found and propagated"""
+    base_args = ["python", "decompile.py", "tests/samples/bin/systemtests/64/0/globals"]
+    args1 = base_args + ["global_w_char"]
+    output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
+    print(output)
+
+    assert output.count('L"Hello w_char32_t string"') == 1
+    assert output.count('L"Inlined w_char32_t string");') == 1 # part of printf because of closing bracket
+
+
+def test_overflow():
+    """Test that long strings/bytes are cut after a certain number of chars"""
+    base_args = ["python", "decompile.py", "tests/samples/bin/systemtests/64/0/globals"]
+    args1 = base_args + ["global_overflow"]
+    output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
+    print(output)
+
+    assert output.count('...') == 2
 
 
 def test_tailcall_display():

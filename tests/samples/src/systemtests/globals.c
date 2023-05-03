@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
-
+#include <stddef.h>
 
 int global_table(unsigned x) {
 	static char table[64] =
@@ -156,6 +156,31 @@ int global_string_compare(char* ptr){
 	return 0;
 }
 
+wchar_t* wide_string = L"Hello wchar32_t string"; // 4 Byte in 64Bit UNIX
+
+int global_w_char(){
+	printf("%ls\n", wide_string);
+	printf("%ls\n", L"Inlined wchar32_t string");
+}
+
+char* long_string = "Did you ever hear the tragedy of Darth Plagueis The Wise?\
+I thought not. It's not a story the Jedi would tell you.\
+It's a Sith legend. Darth Plagueis was a Dark Lord of the Sith, so powerful and so wise he could use the Force to influence the midichlorians to create life...\
+He had such a knowledge of the dark side that he could even keep the ones he cared about from dying.\
+The dark side of the Force is a pathway to many abilities some consider to be unnatural.\
+He became so powerful... the only thing he was afraid of was losing his power, which eventually, of course, he did.\
+Unfortunately, he taught his apprentice everything he knew, then his apprentice killed him in his sleep.\
+Ironic. He could save others from death, but not himself.";
+
+int long_array[128] = {0};
+
+int global_overflow(){
+	printf("%s\n", long_string);
+	for(int i = 0; i < 128; i++){
+		printf("%d\n", long_array[i]);
+	}
+}
+
 int main(int argc, char *argv[]) {
 	global_table(argc);
 	global_addr_add();
@@ -166,5 +191,7 @@ int main(int argc, char *argv[]) {
 	global_fkt_ptr();
 	global_indirect_ptrs2();
 	global_recursive_ptr();
+	global_w_char();
+	global_overflow();
 	return 0;
 }

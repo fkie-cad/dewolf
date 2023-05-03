@@ -1,5 +1,5 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
-from typing import Optional, Tuple
+from typing import Optional, Union
 
 from binaryninja import BinaryView, DataVariable, Endianness, MediumLevelILInstruction, Type
 from binaryninja.types import ArrayType, BoolType, CharType, FloatType, FunctionType, IntegerType, PointerType, VoidType
@@ -41,12 +41,12 @@ class GlobalHandler(Handler):
 
     def lift_global_variable(self, variable: DataVariable, view: BinaryView, 
         parent: Optional[MediumLevelILInstruction] = None, caller_addr: int = 0, **kwargs
-    ) -> UnaryOperation:
-        """Lift global variables via datavariable type"""
+    ) -> Union[Symbol, UnaryOperation, GlobalVariable, StringSymbol]:
+        """Lift global variables via datavariable type. Check bninja error case + recursive datavariable first"""
         if not self._addr_in_section(view, variable.address):
             return Constant(variable.address, vartype=Integer(view.address_size*8, False))
 
-        if caller_addr == variable.address:
+        if caller_addr == variable.address: 
             return self._lifter.lift(variable.symbol) if variable.symbol else \
             Symbol("data_" + f"{variable.address:x}", variable.address, vartype=Integer.uint32_t())
 
@@ -54,17 +54,23 @@ class GlobalHandler(Handler):
 
 
     def _lift_constant_type(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None) -> StringSymbol:
-        """Lift a constant datavariable directly into code (only string should be affected)"""
-        string = str(variable.value)[2:-1].rstrip("\\x00")
+        """Lift a constant datavariable directly into code (bninja should only yield strings)"""
+        string = str(variable.value)[2:-1].rstrip('\\x00')
         return StringSymbol(f'"{string}"', variable.address, vartype=Pointer(Integer.char(), view.address_size * 8))
 
     
     def _lift_pointer_type(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None):
-        """Lift a pointer as an Functionpointer, if the value is an FunctionType, otherwise as Void or type ptr"""
+        """Lift a pointer as:
+            1. Function pointer: If bninja already knows it's a fkt. ptr.
+            2. Type pointer: As normal type pointer (there _should_ be a datavariable at the pointers dest.)
+            3. Void pointer: Try to extract a datavariable (recover type of void* directly), string (char*) or raw bytes (void*) at the given address
+        """
         if isinstance(variable.type.target, FunctionType):
             return ImportedFunctionSymbol(variable.name, variable.address, vartype=Pointer(Integer.char(), view.address_size * 8))
         if isinstance(variable.type.target, VoidType):
-            init_value, type = self._get_unknown_value(variable.value, view)
+            init_value, type = self._get_unknown_value(variable.value, view, variable.address)
+            if not isinstance(type, PointerType): # Fix type to be a pointer (happens when a datavariable is at the dest.)
+                type = Type.pointer(view.arch, type)
         else:
             init_value, type = self._lifter.lift(view.get_data_var_at(variable.value), view=view, caller_addr=variable.address), variable.type
         return UnaryOperation(
@@ -96,8 +102,8 @@ class GlobalHandler(Handler):
 
 
     def _lift_void_type(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None) -> GlobalVariable:
-        "Lift unknown type, by checking the value at the given address. Will always be lifted as a pointer"
-        value, type = self._get_unknown_value(variable.address, view)
+        "Lift unknown type, by checking the value at the given address. Will always be lifted as a pointer. Try to extract datavariable, string or bytes as value"
+        value, type = self._get_unknown_value(variable.address, view, variable.address)
         return GlobalVariable(
                     name=self._lifter.lift(variable.symbol).name if variable.symbol else "data_" + f"{variable.address:x}",
                     vartype=self._lifter.lift(type),
@@ -106,18 +112,18 @@ class GlobalHandler(Handler):
                 )
 
 
-    def _get_unknown_value(self, addr: int, view: BinaryView):
-        """Return string or raw bytes string at given address"""
+    def _get_unknown_value(self, addr: int, view: BinaryView, caller_addr: int = 0):
+        """Return datavariable, string or raw bytes at given address."""
         if datavariable := view.get_data_var_at(addr):
-            return self._lifter.lift(datavariable, view=view, caller_addr=addr), datavariable.type
+            return self._lifter.lift(datavariable, view=view, caller_addr=caller_addr), datavariable.type
         if (string := self._get_different_string_types_at(addr, view)) and string is not None:
-            value, type = string, Type.pointer(view.arch, Type.char())
+            data, type = string, Type.pointer(view.arch, Type.char())
         else:
-            value, type = self._get_raw_bytes(addr, view), Type.pointer(view.arch, Type.void())
+            data, type = self._get_raw_bytes(addr, view), Type.pointer(view.arch, Type.void())
 
-        if len(value) > 129:
-            value = value[:129] + '..."'
-        return value, type
+        if len(data) > 129:
+            data = data[:129] + '..."'
+        return data, type
             
 
     def _get_raw_bytes(self, addr: int, view: BinaryView) -> str:
@@ -132,7 +138,7 @@ class GlobalHandler(Handler):
 
 
     def _get_different_string_types_at(self, addr: int, view: BinaryView) -> Optional[str]:
-        """Tries to extract different string types at address"""
+        """Extract string with char/wchar16/wchar32 type if there is one"""
         types: list[Type] = [Type.char(), Type.wide_char(2), Type.wide_char(4)]
         string = ""
         for type in types:
@@ -159,16 +165,12 @@ class GlobalHandler(Handler):
                 raise ValueError("Width not supported for reading bytes")
 
         while (byte := read()) != 0x00:
-            if byte > 255:
+            if byte > 127: # ASCII (127) or UTF8 (255)?
                 return None
             raw_bytes.append(byte)
 
-        try:
-            string = str(raw_bytes)[12:-2].rstrip("\\x00")
-        except:
-            return None
-
-        if len(string) < 2 or string.find("\\x") != -1:
+        string = str(raw_bytes)[12:-2]
+        if len(string) < 2 or string.find("\\x") != -1: # string at least 2 chars + no hex parts in str
             return None
         
         return identifier + f'"{string}"'
