@@ -258,7 +258,7 @@ class SiblingReachabilityGraph:
         assert source in self._case_node_reachability_graph.nodes, f"Source {source} not in the graph"
         assert sink in self._case_node_reachability_graph.nodes, f"Sink {sink} not in the graph."
         removed_edge = False
-        if no_edge and sink in self.reachable_cases_of(source):
+        if no_edge and sink in set(self.reachable_cases_of(source)):
             self.remove_reachability((source, sink))
             removed_edge = True
         path_exists = has_path(self._case_node_reachability_graph, source, sink)
