@@ -789,7 +789,7 @@ class ForLoopNode(LoopNode):
 
     def __init__(
         self,
-        declaration: Optional[Union[Expression, Assignment]],
+        declaration: Optional[Assignment],
         condition: LogicCondition,
         modification: Optional[Assignment],
         reaching_condition: LogicCondition,
