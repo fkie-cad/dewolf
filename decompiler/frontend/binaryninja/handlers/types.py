@@ -14,6 +14,7 @@ from binaryninja.types import (
     StructureType,
     Type,
     VoidType,
+    WideCharType,
 )
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import CustomType, Float, FunctionTypeDef, Integer, Parameter, Pointer, UnknownType
@@ -32,6 +33,7 @@ class TypeHandler(Handler):
                 BoolType: self.lift_bool,
                 VoidType: self.lift_void,
                 CharType: self.lift_integer,
+                WideCharType: self.lift_custom,
                 NamedTypeReferenceType: self.lift_custom,
                 StructureType: self.lift_custom,
                 FunctionParameter: self.lift_function_parameter,
