@@ -237,7 +237,7 @@
             },
             {
                 "dest": "array-access-detection.enabled",
-                "default": false,
+                "default": true,
                 "title": "Array access detection",
                 "type": "boolean",
                 "description": "write array access as base[offset], instead of (*(base+offset))",
@@ -516,7 +516,7 @@
             },
             {
                 "dest": "code-generator.aggressive_array_detection",
-                "default": false,
+                "default": true,
                 "title": "Access array elements via index instead of pointer",
                 "type": "boolean",
                 "description": "aggressive: *(a+i*4) is printed as a[i] even if the type of a is void/unknown",
