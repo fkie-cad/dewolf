@@ -237,7 +237,7 @@
             },
             {
                 "dest": "array-access-detection.enabled",
-                "default": false,
+                "default": true,
                 "title": "Array access detection",
                 "type": "boolean",
                 "description": "write array access as base[offset], instead of (*(base+offset))",
@@ -358,6 +358,61 @@
                 "argument_name": "--rename-while-loop-variables"
             },
             {
+                "dest": "variable-name-generation.notation",
+                "default": "system_hungarian",
+                "title": "Variable Naming Convention",
+                "type": "string",
+                "enum": ["default", "system_hungarian"],
+                "enumDescriptions": [
+                  "Default setting (e.g. int var_0).",
+                  "System Hungarian (e.g. int iVar0; float fVar0)"
+                ],
+                "description": "Selects the naming convention for variable names.",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--variable-generation-notation"
+            },
+            {
+                "dest": "variable-name-generation.variable_name",
+                "default": "Var",
+                "title": "Variable Base Name for hungarian notation",
+                "type": "string",
+                "description": "",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--variable-generation-variable-name"
+            },
+            {
+                "dest": "variable-name-generation.pointer_base",
+                "default": true,
+                "title": "Pointer base type prefix for hungarian notation",
+                "type": "boolean",
+                "description": "Prefix the basetype of a pointer (e.g. int * piVar0)",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--variable-generation-pointer-base"
+            },
+            {
+                "dest": "variable-name-generation.type_separator",
+                "default": "",
+                "title": "Type Separator for hungarian notation",
+                "type": "string",
+                "description": "How to separate the prefix from the variable name (e.g. '_' -> i_Var0)",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--variable-generation-type-separator"
+            },
+            {
+                "dest": "variable-name-generation.counter_separator",
+                "default": "",
+                "title": "Counter Separator for hungarian notation",
+                "type": "string",
+                "description": "How to separate the variable name from its counter (e.g. '_' -> iVar_0)",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--variable-generation-counter-separator"
+            },
+            {
                 "dest": "code-generator.max_complexity",
                 "default": 100,
                 "title": "Maximum Complexity for the Logic Simplifier",
@@ -461,7 +516,7 @@
             },
             {
                 "dest": "code-generator.aggressive_array_detection",
-                "default": false,
+                "default": true,
                 "title": "Access array elements via index instead of pointer",
                 "type": "boolean",
                 "description": "aggressive: *(a+i*4) is printed as a[i] even if the type of a is void/unknown",
@@ -546,7 +601,8 @@
                 "default": [
                     "readability-based-refinement",
                     "expression-simplification",
-                    "instruction-length-handler"
+                    "instruction-length-handler",
+                    "variable-name-generation"
                 ],
                 "title": "AST pipeline stages",
                 "type": "array",
