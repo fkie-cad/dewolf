@@ -45,4 +45,3 @@ WORKDIR /opt/dewolf
 # activate venv for docker exec
 ENV VIRTUAL_ENV=/opt/dewolf/.venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-# RUN pip install -r requirements.txt
