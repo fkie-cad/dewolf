@@ -2,6 +2,7 @@ from typing import List, Tuple
 
 import pytest as pytest
 from decompiler.structures.ast.condition_symbol import ConditionHandler, ConditionSymbol
+from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.logic.z3_implementations import Z3Implementation
 from decompiler.structures.logic.z3_logic import PseudoZ3LogicCondition, Z3LogicCondition
 from decompiler.structures.pseudo import BinaryOperation, Condition, Constant, Integer, OperationType, Variable
@@ -584,13 +585,13 @@ class TestZ3LogicCondition:
     )
     def test_remove_redundancy(self, term, conditions, result):
         class MockConditionHandler(ConditionHandler):
-            def add_condition(self, condition: Condition) -> ConditionSymbol:
+            def add_condition(self, condition: Condition) -> LogicCondition:
                 """Adds a condition to the condition map."""
                 symbol = self._get_next_symbol()
                 z3_condition = PseudoZ3LogicCondition.initialize_from_condition(condition, self._logic_context).simplify()
                 condition_symbol = ConditionSymbol(condition, symbol, z3_condition)
                 self._condition_map[symbol] = condition_symbol
-                return condition_symbol
+                return symbol
 
             def _get_next_symbol(self) -> Z3LogicCondition:
                 """Get the next unused symbol name."""

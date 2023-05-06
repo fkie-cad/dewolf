@@ -53,6 +53,11 @@ class UseMap:
     def get(self, used: Variable) -> Set[Instruction]:
         return self._map[used]
 
+    def remove_use(self, variable: Variable, instruction: Instruction) -> None:
+        """Remove the instruction from the uses of a certain variable
+        e.g. if the instruction has been changed and the variable is not being used by it anymore."""
+        self.get(variable).discard(instruction)
+
     @property
     def used_variables(self) -> InsertionOrderedSet[Variable]:
         return InsertionOrderedSet(self._map.keys())

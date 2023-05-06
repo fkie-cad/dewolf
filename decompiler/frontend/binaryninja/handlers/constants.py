@@ -1,20 +1,17 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
-from typing import List, Optional, Union
+from typing import Optional, Union
 
-from binaryninja import BinaryView
-from binaryninja import Symbol as bSymbol
-from binaryninja import SymbolType, TypeClass, mediumlevelil
+from binaryninja import BinaryView, DataVariable, FunctionType, PointerType, SectionSemantics, SymbolType, Type, VoidType, mediumlevelil
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import (
     Constant,
-    FunctionSymbol,
     GlobalVariable,
     ImportedFunctionSymbol,
     Integer,
     OperationType,
     Pointer,
+    StringSymbol,
     Symbol,
-    Type,
     UnaryOperation,
 )
 
@@ -29,7 +26,7 @@ class ConstantHandler(Handler):
                 mediumlevelil.MediumLevelILExternPtr: self.lift_constant_pointer,
                 mediumlevelil.MediumLevelILConstPtr: self.lift_constant_pointer,
                 mediumlevelil.MediumLevelILImport: self.lift_constant_pointer,
-                int: self.lift_literal,
+                int: self.lift_integer_literal,
             }
         )
 
@@ -37,64 +34,111 @@ class ConstantHandler(Handler):
         """Lift the given constant value."""
         return Constant(constant.constant, vartype=self._lifter.lift(constant.expr_type))
 
-    def lift_literal(self, value: int, **kwargs) -> Constant:
+    @staticmethod
+    def lift_integer_literal(value: int, **kwargs) -> Constant:
         """Lift the given literal, which is most likely an artefact from shift operations and the like."""
         return Constant(value, vartype=Integer.int32_t())
 
-    def lift_constant_pointer(self, pointer: mediumlevelil.MediumLevelILConstPtr, **kwargs) -> Union[Constant, Symbol, UnaryOperation]:
-        bv = pointer.function.source_function.view
-        address = pointer.constant
+    def lift_constant_pointer(self, pointer: mediumlevelil.MediumLevelILConstPtr, **kwargs) -> Union[Constant, StringSymbol, UnaryOperation, GlobalVariable]:
+        """Lift the given constant pointer, e.g. &0x80000.
+            For clarity all cases:
+                1. Address is not in a section
+                    - bninja type error, bninja wants the constant value instead of the address (and NULL case: &0x00)
+                2. Address is a constant read only string
+                    - lift as StringSymbol right into code (without pointer; purge NULL byte)
+                3. Address is a external function pointer
+                    - lift as ImportedFunctionSymbol right into code
+                4. Address has datavariable with a basic type (everything except void/void*)
+                    - lift as datavariable
+                5. Address has a symbol, which is not a datasymbol
+                    - lift as symbol
+                6. Address has a function there 
+                    - lift the function symbol as symbol
+                7. Lift as raw address
+        """
+        view = pointer.function.view
 
-        if address == 0:
-            # TODO: hack - Binja thinks that 0 is a null pointer, even though it may be just integer 0.
-            return Constant(0, vartype=Integer.uint64_t() if bv.address_size == 8 else Integer.uint32_t())
+        if not self._addr_in_section(view, pointer.constant):
+            return Constant(pointer.constant, vartype=Integer(view.address_size*8, False))
 
-        symbol = self._get_symbol(bv, address)
+        if string_variable := self._get_read_only_string_data_var(view, pointer.constant):
+            return StringSymbol(str(string_variable.value)[2:-1].rstrip("\\x00"), string_variable.address, vartype=Pointer(Integer.char(), view.address_size * 8))
 
-        if symbol is not None and symbol.type in (
-            SymbolType.ImportedFunctionSymbol,
-            SymbolType.ExternalSymbol,
-            SymbolType.FunctionSymbol,
-            SymbolType.ImportAddressSymbol,
-        ):
-            return self._lift_symbol_pointer(bv, address, symbol)
+        if (variable := view.get_data_var_at(pointer.constant)) and isinstance(variable.type, PointerType) and isinstance(variable.type.target, FunctionType):
+            return ImportedFunctionSymbol(variable.name, variable.address, vartype=Pointer(Integer.char(),  view.address_size * 8))
 
-        if (
-            not isinstance(pointer, mediumlevelil.MediumLevelILImport)
-            and (symbol is None or symbol.type != SymbolType.DataSymbol)
-            and (string := bv.get_string_at(address, partial=True) or bv.get_ascii_string_at(address, min_length=2))
-        ):
-            return Constant(address, Pointer(Integer.char()), Constant(string.value, Integer.char()))
+        if variable and not (isinstance(variable.type, PointerType) and isinstance(variable.type.target, VoidType)):
+            return self._lifter.lift(variable, view=view, parent=pointer)
 
-        if (variable := bv.get_data_var_at(address)) is not None:
-            return self._lifter.lift(variable, bv=bv, parent_addr=None)
+        if (symbol := view.get_symbol_at(pointer.constant)) and symbol.type != SymbolType.DataSymbol:
+            return self._lifter.lift(symbol)
 
-    def _lift_symbol_pointer(self, bv: BinaryView, address: int, symbol: bSymbol) -> Optional[Union[Symbol, UnaryOperation]]:
-        """Try to lift a pointer at the given address with a Symbol as a symbol pointer."""
-        # symbol containing custom function name, e.g. lookup
-        if symbol.type == SymbolType.FunctionSymbol:
-            return FunctionSymbol(symbol.name, address, vartype=Pointer(Integer.char()))
-        # symbol containing c function name, Win API name (tailcall), etc. e.g. memset
-        if symbol.type in (SymbolType.ImportedFunctionSymbol, SymbolType.ExternalSymbol):
-            return ImportedFunctionSymbol(symbol.name, address, vartype=Pointer(Integer.char()))
-        # IAT entry or .got entry
-        if symbol.type == SymbolType.ImportAddressSymbol:
-            # if it is .got entry, then it points at the external global variable or function
-            # so we try to get the symbol on that address, lift it and lift .got entry as an address of that (lifted) symbol
-            pointer_value = bv.read_pointer(symbol.address)
-            global_data_pointed_by_symbol = bv.get_data_var_at(pointer_value)
-            if global_data_pointed_by_symbol:
-                lifted_global_var = self._lifter.lift(global_data_pointed_by_symbol, bv=bv, parent_addr=symbol.address)
-                return UnaryOperation(OperationType.address, [lifted_global_var])
-            else:
-                # otherwise it is an IAT entry -> construct ImportedFunctionSymbol with the same name.
-                return ImportedFunctionSymbol(symbol.name, symbol.address, vartype=Pointer(Integer.char()))
+        if function := view.get_function_at(pointer.constant):
+            return self._lifter.lift(function.symbol)
 
-    @staticmethod
-    def _get_symbol(bv: BinaryView, address: int) -> Optional[bSymbol]:
-        """Retrieve the symbol at the given location, if any."""
-        if symbol := bv.get_symbol_at(address):
-            return symbol
-        elif function := bv.get_function_at(address):
-            return function.symbol
-        return None
+        return self.lift_const_addr(view, pointer)
+
+  
+    def lift_const_addr(self, view: BinaryView, pointer : mediumlevelil.MediumLevelILConstPtr):
+        """Lift a raw address:
+            - lift as char* if there is a string, otherwise as void* with raw bytes (if the datavariable was a ptr, lift as &ptr*, otherwise as ptr*)
+            - there were symbols which call them self recursively, therefore a small check before the end
+        """
+        variable = view.get_data_var_at(pointer.constant)
+        symbol = view.get_symbol_at(pointer.constant)
+
+        var_ref_string = (view.get_string_at(variable.value, True) or view.get_ascii_string_at(variable.value, min_length=2)) if variable and variable.value else None
+        var_ref_value = view.get_data_var_at(variable.value) if variable and variable.value else None
+
+        if var_ref_value and pointer.constant == var_ref_value.address: # Recursive ptr to itself (0x4040 := 0x4040), lift symbol if there, else just make a data_addr symbol
+            data_symbol =  view.get_symbol_at(variable.value)
+            var_ref_value = data_symbol if data_symbol else Symbol("data_" + f"{pointer.constant:x}", pointer.constant, vartype=Integer.uint32_t())    
+
+        g_var = GlobalVariable(
+            name=symbol.name[:-2] if symbol and symbol.name.find(".0") != -1 else symbol.name if symbol else "data_" + f"{pointer.constant:x}",
+            vartype=self._lifter.lift(Type.pointer(view.arch, Type.char())) if var_ref_string else self._lifter.lift(Type.pointer(view.arch, Type.void())),
+            ssa_label=pointer.ssa_memory_version if pointer else 0,
+            initial_value=self._lifter.lift(var_ref_value, view=view, parent=pointer) if var_ref_value else Constant(var_ref_string.value) \
+            if var_ref_string else self._get_raw_bytes(view, pointer.constant)
+        ) 
+
+        return UnaryOperation(OperationType.address,[g_var]) if variable is not None and isinstance(variable.type, PointerType) else g_var
+
+
+    def _get_raw_bytes(self, view: BinaryView, addr: int) -> bytes:
+        """ Returns raw bytes after a given address to the next data structure or section"""
+        if (next_data_var := view.get_next_data_var_after(addr)) is not None:
+            return view.read(addr, next_data_var.address - addr)
+        else:
+            return view.read(addr, view.get_sections_at(addr)[0].end)
+
+
+    def _addr_in_section(self, view: BinaryView, addr: int) -> bool:
+        """Returns True if address is contained in a section, False otherwise"""
+        for _, section in view.sections.items():
+            if addr >= section.start and addr <= section.end:
+                return True
+        return False
+
+
+    def _in_read_only_section(self, view: BinaryView, addr: int) -> bool:
+        """Returns True if address is contained in a read only section, False otherwise"""
+        for _, section in view.sections.items():
+            if addr >= section.start and addr <= section.end and section.semantics == SectionSemantics.ReadOnlyDataSectionSemantics:
+                return True
+        return False
+
+    def _get_read_only_string_data_var(self, view: BinaryView, addr: int) -> Optional[DataVariable]:
+        """Return a read only string datavariable which should be propagated into the code."""
+        data_var = view.get_data_var_at(addr)
+        if data_var and not isinstance(data_var.value, bytes):
+            return None
+        if not self._in_read_only_section(view, addr):
+            return None    
+        data_var = DataVariable(view, addr, Type.array(Type.char(), len(self._get_raw_bytes(view, addr))), False)
+        try:
+            data_var.value.decode("utf-8")
+        except UnicodeDecodeError:
+            return None
+
+        return data_var

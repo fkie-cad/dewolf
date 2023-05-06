@@ -789,9 +789,9 @@ class ForLoopNode(LoopNode):
 
     def __init__(
         self,
-        declaration: Optional[Union[Expression, Assignment]],
+        declaration: Optional[Assignment],
         condition: LogicCondition,
-        modification: Assignment,
+        modification: Optional[Assignment],
         reaching_condition: LogicCondition,
         ast: Optional[AbstractSyntaxInterface] = None,
     ):
@@ -827,8 +827,10 @@ class ForLoopNode(LoopNode):
     def replace_variable(self, replacee: Variable, replacement: Variable) -> None:
         """Replace the variable replacee by replacement in the loop-condition, declaration and modification."""
         super().replace_variable(replacee, replacement)
-        self.declaration.substitute(replacee, replacement)
-        self.modification.substitute(replacee, replacement)
+        if self.declaration is not None:
+            self.declaration.substitute(replacee, replacement)
+        if self.modification is not None:
+            self.modification.substitute(replacee, replacement)
 
     def get_required_variables(self, condition_map: Optional[Dict[LogicCondition, Condition]] = None) -> Iterable[Variable]:
         yield from self.declaration.requirements
@@ -932,7 +934,9 @@ class SwitchNode(AbstractSyntaxTreeNode):
         1. Pick Case nodes, where a linear order starts, and whose constant is minimum among the not picked case nodes with this property.
         2. Append break break to last node of this order, if it does not end with a return or continue statement.
         """
-        case_dependency_graph = CaseDependencyGraph(self._ast.get_sibling_reachability_for(self.cases))
+        default_node = self.default
+        case_nodes = tuple(case for case in super().children if case != default_node)
+        case_dependency_graph = CaseDependencyGraph(self._ast.get_sibling_reachability_for(case_nodes))
         linear_ordering_starting_at: Dict[CaseNode, List[CaseNode]] = dict(case_dependency_graph.find_partial_order_of_cases())
         sorted_cases = list()
         for case_node in sorted(linear_ordering_starting_at.keys(), key=lambda node: node.constant.value):
@@ -943,7 +947,7 @@ class SwitchNode(AbstractSyntaxTreeNode):
             last_node = linear_ordering_starting_at[case_node][-1]
             if not (last_node.does_end_with_continue or last_node.does_end_with_return):
                 last_node.break_case = True
-        if default_node := self.default:
+        if default_node:
             sorted_cases.append(default_node)
         self._sorted_cases = tuple(sorted_cases)
 

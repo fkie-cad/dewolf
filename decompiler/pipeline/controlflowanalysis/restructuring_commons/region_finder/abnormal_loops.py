@@ -38,7 +38,7 @@ class AbnormalLoopRestructurer:
                 Condition(OperationType.equal, [new_variable, Constant(index, Integer.int32_t())])
             )
 
-            yield condition_node, condition_symbol.symbol
+            yield condition_node, condition_symbol
 
     def _construct_code_nodes(self, new_variable: Variable, amount: int) -> Iterator[TransitionBlock]:
         """

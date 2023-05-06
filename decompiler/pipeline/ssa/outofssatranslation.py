@@ -81,6 +81,7 @@ class OutOfSsaTranslation(PipelineStage):
         """Execute the PipelineStage on the current ControlFlowGraph."""
         self._setup(task)
         self._out_of_ssa()
+        pass
 
     def _init_phi_functions_of_block(self) -> None:
         """This function initializes the dictionary that maps to each basic block the list of its Phi-instructions."""

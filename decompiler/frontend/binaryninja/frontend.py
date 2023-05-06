@@ -15,6 +15,7 @@ from decompiler.util.options import Options
 from ..frontend import Frontend
 from .lifter import BinaryninjaLifter
 from .parser import BinaryninjaParser
+from .tagging import CompilerIdiomsTagging
 
 
 class FunctionObject:
@@ -23,6 +24,7 @@ class FunctionObject:
     def __init__(self, function: Function):
         self._function = function
         self._lifter = BinaryninjaLifter()
+        self._name = self._lifter.lift(self._function.symbol).name
 
     @classmethod
     def get(cls, bv: BinaryView, identifier: Union[str, Function]) -> FunctionObject:
@@ -50,7 +52,7 @@ class FunctionObject:
     @property
     def name(self) -> str:
         """Name of function object"""
-        return self._function.name
+        return self._name
 
     @property
     def return_type(self) -> Type:
@@ -104,7 +106,7 @@ class BinaryninjaFrontend(Frontend):
 
     def __init__(self, bv: BinaryView):
         """Create a new binaryninja view with the given path."""
-        self._bv = bv
+        self._bv = bv if type(bv) == BinaryView else bv.getCurrentFunction().view
 
     @classmethod
     def from_path(cls, path: str, options: Options):
@@ -122,14 +124,18 @@ class BinaryninjaFrontend(Frontend):
     def create_task(self, function_identifier: Union[str, Function], options: Options) -> DecompilerTask:
         """Create a task from the given function identifier."""
         function = FunctionObject.get(self._bv, function_identifier)
+        tagging = CompilerIdiomsTagging(self._bv, function.function.start, options)
+        tagging.run()
         try:
             cfg = self._extract_cfg(function.function, options)
             task = DecompilerTask(
-                function.name, cfg, function_return_type=function.return_type, function_parameters=function.params, options=options
+                function.name, cfg, function_return_type=function.return_type, function_parameters=function.params,
+                options=options
             )
         except Exception as e:
             task = DecompilerTask(
-                function.name, None, function_return_type=function.return_type, function_parameters=function.params, options=options
+                function.name, None, function_return_type=function.return_type, function_parameters=function.params,
+                options=options
             )
             task.fail(origin="CFG creation")
             logging.error(f"Failed to decompile {task.name}, error during CFG creation: {e}")

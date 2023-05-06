@@ -1061,3 +1061,49 @@ def test_missing_definitions_for_global_variables_are_correct():
     assert inserted_definition.writes_memory == 1
     assert isinstance(inserted_definition.value, GlobalVariable) and isinstance(inserted_definition.destination, GlobalVariable)
     assert inserted_definition.value.initial_value == inserted_definition.destination.initial_value == 42
+
+
+def test_relation_and_assignment_insertion_after_memory_changing_instructions():
+    """
+    Both a and b are aliased variables. Order of 2 last inserted definitions does not matter
+    +---------------+
+    |      0.       |
+    |   a#1 = 0x1   |
+    | b#2 = &(a#1)  |
+    | scanf(&(a#2)) |
+    +---------------+
+
+    +---------------+
+    |      0.       |
+    |   a#1 = 0x1   |
+    |   b#1 = b#0   | <- assignment for aliased b#1
+    | b#2 = &(a#1)  |
+    |   a#2 = a#1   | <- ASSIGNMENT for aliased a#2, since the previous instruction does not modify a#1, similarly to print call
+    | scanf(&(a#2)) |
+    |   b#3 = b#2   | <- assignment for aliased b#3, since b#2 is not modified
+    |  a#3 -> a#2   | <- relation for aliased a#3, since a#2 is being modified
+    +---------------+
+
+    """
+    a = [Variable("a", Integer.int32_t(), i, is_aliased=True) for i in range(10)]
+    b = [Variable("b", Integer.int32_t(), i, is_aliased=True) for i in range(10)]
+    instruction_0 = Assignment(a[1], Constant(0x1))
+    instruction_1 = Assignment(b[2], UnaryOperation(OperationType.address, [a[1]], writes_memory=2))
+    instruction_2 = Assignment(ListOperation([]), Call(function_symbol("scanf"), [UnaryOperation(OperationType.address, [a[2]])], writes_memory=3))
+    cfg = ControlFlowGraph()
+    cfg.add_node(BasicBlock(0, [instruction_0, instruction_1, instruction_2]))
+    task = DecompilerTask("test", cfg)
+    InsertMissingDefinitions().run(task)
+
+    assert task.graph.nodes[0].instructions[:-2] == [
+        instruction_0,
+        Assignment(b[1], b[0]),
+        instruction_1,
+        Assignment(a[2], a[1]),
+        instruction_2,
+    ]
+
+    # test last 2 inserted definitions separately
+    # since I am not sure if the definitions insertion order is deterministic
+    assert {Relation(a[3], a[2]), Assignment(b[3], b[2])} == set(task.graph.nodes[0].instructions[-2:])
+
