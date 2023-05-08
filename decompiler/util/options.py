@@ -72,6 +72,10 @@ class Options:
         if self._is_gui:
             self._register_gui_settings()
 
+    def update(self, options_settings_key_value: dict):
+        """Update Options with settings key-value dict (e.g., {'pipeline.debug': True})"""
+        self._settings_key_values.update(options_settings_key_value)
+
     def _load_user_config(self):
         """Load additional user settings and override defaults"""
         if isfile(self.USER_CONFIG):
