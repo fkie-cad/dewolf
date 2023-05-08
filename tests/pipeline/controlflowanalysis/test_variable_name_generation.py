@@ -122,3 +122,4 @@ def test_same_variable():
     _run_vng(ast, _generate_options())
     assert var1._name == "dTmp42"
     assert var2._name == "unkVar0"
+    
