@@ -44,7 +44,10 @@ class LocalDeclarationGenerator(BaseAstDataflowObjectVisitor):
     def visit_loop_node(self, node: LoopNode):
         """Visit the given loop node, taking node of the loop declaration."""
         if isinstance(node, ForLoopNode) and isinstance(node.declaration, Assignment):
-            self._variables.add(node.declaration.destination)
+            if isinstance(node.declaration.destination, Operation):
+                self._variables.add(node.declaration.destination[0])
+            else:
+                self._variables.add(node.declaration.destination)
 
     def visit_unary_operation(self, unary: UnaryOperation):
         """Visit unary operations to remember all variables those memory location was read."""

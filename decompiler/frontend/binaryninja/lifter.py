@@ -1,10 +1,10 @@
 """Module implementing the BinaryNinjaLifter of the binaryninja frontend."""
 from logging import warning
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
-from binaryninja import MediumLevelILInstruction
+from binaryninja import MediumLevelILInstruction, Type
 from decompiler.frontend.lifter import ObserverLifter
-from decompiler.structures.pseudo import DataflowObject, Tag, UnknownExpression
+from decompiler.structures.pseudo import DataflowObject, Tag, UnknownExpression, UnknownType
 
 from .handlers import HANDLERS
 
@@ -30,7 +30,11 @@ class BinaryninjaLifter(ObserverLifter):
                 pseudo_expression.tags = self.lift_tags(expression)
             return pseudo_expression
 
-    def lift_unknown(self, expression: MediumLevelILInstruction, **kwargs) -> UnknownExpression:
+    def lift_unknown(self, expression, **kwargs) -> Union[UnknownType, UnknownExpression]:
+        """Lift a unknown expression or type of a given expression."""
+        if isinstance(expression, Type):
+            warning(f"Can not lift unknown type {expression}")
+            return UnknownType()
         warning(f"Can not lift {expression} ({type(expression)}")
         return UnknownExpression(str(expression))
 
