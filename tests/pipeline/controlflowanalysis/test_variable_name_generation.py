@@ -92,15 +92,14 @@ def test_custom_type():
     true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
     ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", CustomType("size_t", 64)), Constant(0)), true_value), {})
     _run_vng(ast, _generate_options())
-    # Add check for custom type default
+    assert var._name == "Var0"
 
 
 def test_bninja_invalid_type():
     true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
     ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", Integer(104, True)), Constant(0)), true_value), {})
     _run_vng(ast, _generate_options())
-    pass
-    # Add check for invalid type default
+    assert var._name == "unkVar0"
 
 
 def test_tmp_variable():
@@ -108,3 +107,18 @@ def test_tmp_variable():
     ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("tmp_42", Float(64)), Constant(0)), true_value), {})
     _run_vng(ast, _generate_options())
     assert var._name == "dTmp42"
+
+
+def test_same_variable():
+    """Variables can be copies of the same one. The renamer should only rename a variable once. (More times would destroy the actual name)"""
+    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
+    var1 = Variable("tmp_42", Float(64))
+    var2 = Variable("var_0", Integer(104, True))
+    ast = AbstractSyntaxTree(CodeNode([
+        Assignment(var1, Constant(0)),
+        Assignment(var1, Constant(0)),
+        Assignment(var2, Constant(0)),
+        Assignment(var2, Constant(0))], true_value), {})
+    _run_vng(ast, _generate_options())
+    assert var1._name == "dTmp42"
+    assert var2._name == "unkVar0"

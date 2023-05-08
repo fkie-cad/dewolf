@@ -69,8 +69,8 @@ class RenamingScheme(ABC):
         collector = VariableCollector(task._ast.condition_map)
         collector.visit_ast(task._ast)
         self._params: List[Variable] = task._function_parameters
-        self._loop_vars : Set[Variable] = set(collector.get_loop_variables()) 
-        self._variables: Set[Variable] = set(filter(self._filter_variables, collector.get_variables()))  
+        self._loop_vars : List[Variable] = collector.get_loop_variables()  
+        self._variables: List[Variable] = list(filter(self._filter_variables, collector.get_variables()))    
         
 
     def _filter_variables(self, item: Variable) -> bool:
@@ -115,11 +115,10 @@ class HungarianScheme(RenamingScheme):
     def renameVariableNames(self):
         """Rename all collected variables to the hungarian notation."""
         for var in self._variables:
+            if self.alread_renamed(var._name):
+                continue
             counter = _get_var_counter(var.name)
-            if var._name.find("tmp_") != -1:
-                pass
             var._name = self._hungarian_notation(var, counter if counter else "")
-            pass
             
 
     def _hungarian_notation(self, var: Variable, counter: int) -> str:
@@ -139,12 +138,20 @@ class HungarianScheme(RenamingScheme):
             elif var_type.size == 0:
                 return "v"
             else:
-                return "cm"
+                return ""
         if isinstance(var_type, (Integer, Float)):
             sign = "" if var_type.is_signed else "u"
             prefix = self.type_prefix[type(var_type)].get(var_type.size, "unk")
             return f"{sign}{prefix}"
 
+
+    def alread_renamed(self, name) -> bool: 
+        """Return true if variable with custom name was already renamed, false otherwise"""
+        renamed_keys_words = [key for key in self.custom_var_names.values()] + ["unk", self._var_name]
+        for keyword in renamed_keys_words:
+            if keyword in name:
+                return True
+        return False
 
 class DefaultScheme(RenamingScheme):
     """Class which renames variables into the default scheme."""
