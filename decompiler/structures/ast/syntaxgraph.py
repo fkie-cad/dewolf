@@ -434,7 +434,7 @@ class AbstractSyntaxInterface(ABC):
         self._add_node(replacement_root)
         parent = replacee_root.parent
         if isinstance(parent, SeqNode):
-            parent._sorted_children = tuple(replacement_root if nd == replacee_root else nd for nd in parent.children)
+            parent._sorted_children = tuple(replacement_root if nd == replacee_root else nd for nd in parent._sorted_children)
         self.remove_subtree(replacee_root)
         if parent:
             self._add_edge(parent, replacement_root)

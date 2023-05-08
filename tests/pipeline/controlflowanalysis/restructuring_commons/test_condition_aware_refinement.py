@@ -1,6 +1,6 @@
 """ Tests for the PatternIndependentRestructuring pipeline stage condition aware refinement."""
 from itertools import combinations
-from typing import List, Union
+from typing import Dict, List, Tuple, Union
 
 import pytest
 from decompiler.pipeline.controlflowanalysis.restructuring import PatternIndependentRestructuring
@@ -11,6 +11,7 @@ from decompiler.structures.pseudo.instructions import Assignment, Branch, Break,
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer, Type, UnknownType
 from decompiler.task import DecompilerTask
+from decompiler.util.options import Options
 
 
 def imp_function_symbol(name: str, value: int = 0x42, vartype: Type = UnknownType()) -> ImportedFunctionSymbol:
@@ -31,9 +32,16 @@ class MockDecompilerTask(DecompilerTask):
             self.function_type = self.FunctionType()
 
     def __init__(self, cfg):
-        super().__init__(None, None)
+        super().__init__("test", None)
         self._cfg = cfg
+        self.set_options()
         self.function = self.MockFunction()
+
+    def set_options(self):
+        self.options = Options()
+        self.options.set("pattern-independent-restructuring.switch_reconstruction", True)
+        self.options.set("pattern-independent-restructuring.nested_switch_nodes", True)
+        self.options.set("pattern-independent-restructuring.min_switch_case_number", 2)
 
     def reset(self):
         pass
@@ -98,6 +106,375 @@ def printf_chk_call(string: Union[str, Variable], variable_1: Variable, variable
     )
 
 
+def _basic_switch_cfg(task) -> Tuple[Variable, List[BasicBlock]]:
+    var_1 = Variable(
+        "var_1", Pointer(Integer(32, True), 32), None, False, Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
+    )
+    var_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
+    task.graph.add_nodes_from(
+        vertices := [
+            BasicBlock(
+                0,
+                [
+                    Assignment(ListOperation([]), print_call("Enter week number(1-7): ", 1)),
+                    Assignment(var_1, UnaryOperation(OperationType.address, [var_0], Pointer(Integer(32, True), 32), None, False)),
+                    Assignment(ListOperation([]), scanf_call(var_1, 134524965, 2)),
+                    Branch(Condition(OperationType.greater_us, [var_0, Constant(7, Integer(32, True))], CustomType("bool", 1))),
+                ],
+            ),
+            BasicBlock(2, [IndirectBranch(var_0)]),
+            BasicBlock(3, [Assignment(ListOperation([]), print_call("Invalid input! Please enter week number between 1-7.", 10))]),
+            BasicBlock(4, [Assignment(ListOperation([]), print_call("Monday", 3))]),
+            BasicBlock(5, [Assignment(ListOperation([]), print_call("Tuesday", 4))]),
+            BasicBlock(6, [Assignment(ListOperation([]), print_call("Wednesday", 5))]),
+            BasicBlock(7, [Assignment(ListOperation([]), print_call("Thursday", 6))]),
+            BasicBlock(8, [Assignment(ListOperation([]), print_call("Friday", 7))]),
+            BasicBlock(9, [Assignment(ListOperation([]), print_call("Saturday", 8))]),
+            BasicBlock(10, [Assignment(ListOperation([]), print_call("Sunday", 9))]),
+            BasicBlock(11, [Return(ListOperation([Constant(0, Integer(32, True))]))]),
+        ]
+    )
+    task.graph.add_edges_from(
+        [
+            FalseCase(vertices[0], vertices[1]),
+            TrueCase(vertices[0], vertices[2]),
+            SwitchCase(vertices[1], vertices[2], [Constant(0, Integer(32, signed=True))]),
+            SwitchCase(vertices[1], vertices[3], [Constant(1, Integer(32, signed=True))]),
+            SwitchCase(vertices[1], vertices[4], [Constant(2, Integer(32, signed=True))]),
+            SwitchCase(vertices[1], vertices[5], [Constant(3, Integer(32, signed=True))]),
+            SwitchCase(vertices[1], vertices[6], [Constant(4, Integer(32, signed=True))]),
+            SwitchCase(vertices[1], vertices[7], [Constant(5, Integer(32, signed=True))]),
+            SwitchCase(vertices[1], vertices[8], [Constant(6, Integer(32, signed=True))]),
+            SwitchCase(vertices[1], vertices[9], [Constant(7, Integer(32, signed=True))]),
+            UnconditionalEdge(vertices[2], vertices[10]),
+            UnconditionalEdge(vertices[3], vertices[10]),
+            UnconditionalEdge(vertices[4], vertices[10]),
+            UnconditionalEdge(vertices[5], vertices[10]),
+            UnconditionalEdge(vertices[6], vertices[10]),
+            UnconditionalEdge(vertices[7], vertices[10]),
+            UnconditionalEdge(vertices[8], vertices[10]),
+            UnconditionalEdge(vertices[9], vertices[10]),
+        ]
+    )
+    return var_0, vertices
+
+
+def _switch_empty_fallthrough(task) -> Tuple[Variable, List[BasicBlock]]:
+    var_1 = Variable(
+        "var_1", Pointer(Integer(32, True), 32), None, False, Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
+    )
+    var_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
+    task.graph.add_nodes_from(
+        vertices := [
+            BasicBlock(
+                0,
+                [
+                    Assignment(ListOperation([]), print_call("Enter month number(1-12): ", 1)),
+                    Assignment(var_1, UnaryOperation(OperationType.address, [var_0], Pointer(Integer(32, True), 32), None, False)),
+                    Assignment(ListOperation([]), scanf_call(var_1, 134524965, 2)),
+                    Branch(Condition(OperationType.greater_us, [var_0, Constant(12, Integer(32, True))], CustomType("bool", 1))),
+                ],
+            ),
+            BasicBlock(2, [IndirectBranch(var_0)]),
+            BasicBlock(3, [Assignment(ListOperation([]), print_call("Invalid input! Please enter month number between 1-12", 6))]),
+            BasicBlock(4, [Assignment(ListOperation([]), print_call("31 days", 3))]),
+            BasicBlock(5, [Assignment(ListOperation([]), print_call("30 days", 4))]),
+            BasicBlock(6, [Assignment(ListOperation([]), print_call("28/29 days", 5))]),
+            BasicBlock(7, [Return(ListOperation([Constant(0, Integer(32, True))]))]),
+        ]
+    )
+    task.graph.add_edges_from(
+        [
+            FalseCase(vertices[0], vertices[1]),
+            TrueCase(vertices[0], vertices[2]),
+            SwitchCase(vertices[1], vertices[2], [Constant(0, Integer(32, True))]),
+            SwitchCase(vertices[1], vertices[3], [Constant(i, Integer(32, True)) for i in (1, 3, 5, 7, 8, 10, 12)]),
+            SwitchCase(vertices[1], vertices[4], [Constant(i, Integer(32, True)) for i in (4, 6, 9, 11)]),
+            SwitchCase(vertices[1], vertices[5], [Constant(2, Integer(32, True))]),
+            UnconditionalEdge(vertices[2], vertices[6]),
+            UnconditionalEdge(vertices[3], vertices[6]),
+            UnconditionalEdge(vertices[4], vertices[6]),
+            UnconditionalEdge(vertices[5], vertices[6]),
+        ]
+    )
+    return var_0, vertices
+
+
+def _switch_no_empty_fallthrough(task) -> Tuple[Variable, List[BasicBlock]]:
+    var_1 = Variable(
+        "var_1", Pointer(Integer(32, True), 32), None, False, Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
+    )
+    var_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
+    task.graph.add_nodes_from(
+        vertices := [
+            BasicBlock(
+                0,
+                [
+                    Assignment(ListOperation([]), print_call("Enter a digit (0-9): ", 1)),
+                    Assignment(var_1, UnaryOperation(OperationType.address, [var_0], Pointer(Integer(32, True), 32), None, False)),
+                    Assignment(ListOperation([]), scanf_call(var_1, 134524965, 2)),
+                    Branch(Condition(OperationType.greater_us, [var_0, Constant(9, Integer(32, True))], CustomType("bool", 1))),
+                ],
+            ),
+            BasicBlock(1, [Assignment(ListOperation([]), print_call("Not a digit ", 3))]),
+            BasicBlock(2, [IndirectBranch(var_0)]),
+            BasicBlock(3, [Return(ListOperation([Constant(0, Integer(32, True))]))]),
+            BasicBlock(4, [Assignment(ListOperation([]), putchar_call(48, 4))]),
+            BasicBlock(5, [Assignment(ListOperation([]), putchar_call(49, 6))]),
+            BasicBlock(6, [Assignment(ListOperation([]), putchar_call(50, 7))]),
+            BasicBlock(7, [Assignment(ListOperation([]), putchar_call(51, 9))]),
+            BasicBlock(8, [Assignment(ListOperation([]), putchar_call(52, 11))]),
+            BasicBlock(9, [Assignment(ListOperation([]), putchar_call(53, 12))]),
+            BasicBlock(10, [Assignment(ListOperation([]), putchar_call(54, 14))]),
+            BasicBlock(11, [Assignment(ListOperation([]), putchar_call(55, 16))]),
+            BasicBlock(12, [Assignment(ListOperation([]), putchar_call(56, 18))]),
+            BasicBlock(13, [Assignment(ListOperation([]), putchar_call(57, 20))]),
+        ]
+    )
+    task.graph.add_edges_from(
+        [
+            TrueCase(vertices[0], vertices[1]),
+            FalseCase(vertices[0], vertices[2]),
+            UnconditionalEdge(vertices[1], vertices[3]),
+            SwitchCase(vertices[2], vertices[4], [Constant(0, Integer(32))]),
+            SwitchCase(vertices[2], vertices[5], [Constant(1, Integer(32))]),
+            SwitchCase(vertices[2], vertices[6], [Constant(2, Integer(32))]),
+            SwitchCase(vertices[2], vertices[7], [Constant(3, Integer(32))]),
+            SwitchCase(vertices[2], vertices[8], [Constant(4, Integer(32))]),
+            SwitchCase(vertices[2], vertices[9], [Constant(5, Integer(32))]),
+            SwitchCase(vertices[2], vertices[10], [Constant(6, Integer(32))]),
+            SwitchCase(vertices[2], vertices[11], [Constant(7, Integer(32))]),
+            SwitchCase(vertices[2], vertices[12], [Constant(8, Integer(32))]),
+            SwitchCase(vertices[2], vertices[13], [Constant(9, Integer(32))]),
+            UnconditionalEdge(vertices[4], vertices[5]),
+            UnconditionalEdge(vertices[5], vertices[3]),
+            UnconditionalEdge(vertices[6], vertices[7]),
+            UnconditionalEdge(vertices[7], vertices[8]),
+            UnconditionalEdge(vertices[8], vertices[3]),
+            UnconditionalEdge(vertices[9], vertices[10]),
+            UnconditionalEdge(vertices[10], vertices[11]),
+            UnconditionalEdge(vertices[11], vertices[12]),
+            UnconditionalEdge(vertices[12], vertices[13]),
+            UnconditionalEdge(vertices[13], vertices[3]),
+        ]
+    )
+    return var_0, vertices
+
+
+def _switch_in_switch(task) -> Tuple[Variable, Variable, List[BasicBlock]]:
+    var_1 = Variable("var_1", Integer(32, True), None, True, Variable("var_14", Integer(32, True), 0, True, None))
+    var_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
+    var_2_1 = Variable(
+        "var_2", Pointer(Integer(32, True), 32), None, False, Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
+    )
+    var_2_2 = Variable(
+        "var_2", Pointer(Integer(32, True), 32), None, False, Variable("var_28_1", Pointer(Integer(32, True), 32), 2, False, None)
+    )
+    task.graph.add_nodes_from(
+        vertices := [
+            BasicBlock(
+                0,
+                [
+                    Assignment(ListOperation([]), print_call("Enter week number(1-7): ", 1)),
+                    Assignment(var_2_1, UnaryOperation(OperationType.address, [var_0], Pointer(Integer(32, True), 32), None, False)),
+                    Assignment(ListOperation([]), scanf_call(var_2_1, 134524965, 2)),
+                    Assignment(ListOperation([]), print_call("Enter a time (1-4): ", 3)),
+                    Assignment(var_2_2, UnaryOperation(OperationType.address, [var_1], Pointer(Integer(32, True), 32), None, False)),
+                    Assignment(ListOperation([]), scanf_call(var_2_2, 134524965, 4)),
+                    Branch(Condition(OperationType.greater_us, [var_0, Constant(7, Integer(32, True))], CustomType("bool", 1))),
+                ],
+            ),
+            BasicBlock(2, [IndirectBranch(var_0)]),
+            BasicBlock(3, [Assignment(ListOperation([]), print_call("Invalid input! Please enter week number between 1-7.", 22))]),
+            BasicBlock(4, [Branch(Condition(OperationType.equal, [var_1, Constant(4, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(5, [Assignment(ListOperation([]), print_call("Tuesday", 11))]),
+            BasicBlock(6, [Assignment(ListOperation([]), print_call("Wednesday", 12))]),
+            BasicBlock(7, [Branch(Condition(OperationType.equal, [var_1, Constant(4, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(8, [Assignment(ListOperation([]), print_call("Friday", 19))]),
+            BasicBlock(9, [Assignment(ListOperation([]), print_call("Saturday", 20))]),
+            BasicBlock(10, [Assignment(ListOperation([]), print_call("Sunday", 21))]),
+            BasicBlock(11, [Return(ListOperation([Constant(0, Integer(32, True))]))]),
+            BasicBlock(12, [Assignment(ListOperation([]), print_call("Monday midnight", 5))]),
+            BasicBlock(13, [Branch(Condition(OperationType.greater, [var_1, Constant(4, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(14, [Assignment(ListOperation([]), print_call("Thursday midnight", 13))]),
+            BasicBlock(15, [Branch(Condition(OperationType.greater, [var_1, Constant(4, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(18, [Branch(Condition(OperationType.equal, [var_1, Constant(3, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(21, [Branch(Condition(OperationType.equal, [var_1, Constant(3, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(22, [Assignment(ListOperation([]), print_call("Monday", 9))]),
+            BasicBlock(23, [Assignment(ListOperation([]), print_call("Monday evening", 6))]),
+            BasicBlock(24, [Branch(Condition(OperationType.greater, [var_1, Constant(3, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(25, [Assignment(ListOperation([]), print_call("Thursday", 17))]),
+            BasicBlock(26, [Assignment(ListOperation([]), print_call("Thursday evening", 14))]),
+            BasicBlock(27, [Branch(Condition(OperationType.greater, [var_1, Constant(3, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(29, [Branch(Condition(OperationType.equal, [var_1, Constant(1, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(31, [Branch(Condition(OperationType.equal, [var_1, Constant(1, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(32, [Assignment(ListOperation([]), print_call("Monday morning", 7))]),
+            BasicBlock(33, [Branch(Condition(OperationType.equal, [var_1, Constant(2, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(34, [Assignment(ListOperation([]), print_call("Thursday morning", 15))]),
+            BasicBlock(35, [Branch(Condition(OperationType.equal, [var_1, Constant(2, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(36, [Assignment(ListOperation([]), print_call("Monday afternoon", 8))]),
+            BasicBlock(38, [Assignment(ListOperation([]), print_call("Thursday afternoon", 16))]),
+        ]
+    )
+    task.graph.add_edges_from(
+        [
+            FalseCase(vertices[0], vertices[1]),
+            TrueCase(vertices[0], vertices[2]),
+            SwitchCase(vertices[1], vertices[2], [Constant(0, Integer(32))]),
+            SwitchCase(vertices[1], vertices[3], [Constant(1, Integer(32))]),
+            SwitchCase(vertices[1], vertices[4], [Constant(2, Integer(32))]),
+            SwitchCase(vertices[1], vertices[5], [Constant(3, Integer(32))]),
+            SwitchCase(vertices[1], vertices[6], [Constant(4, Integer(32))]),
+            SwitchCase(vertices[1], vertices[7], [Constant(5, Integer(32))]),
+            SwitchCase(vertices[1], vertices[8], [Constant(6, Integer(32))]),
+            SwitchCase(vertices[1], vertices[9], [Constant(7, Integer(32))]),
+            UnconditionalEdge(vertices[2], vertices[10]),
+            TrueCase(vertices[3], vertices[11]),
+            FalseCase(vertices[3], vertices[12]),
+            UnconditionalEdge(vertices[4], vertices[10]),
+            UnconditionalEdge(vertices[5], vertices[10]),
+            TrueCase(vertices[6], vertices[13]),
+            FalseCase(vertices[6], vertices[14]),
+            UnconditionalEdge(vertices[7], vertices[10]),
+            UnconditionalEdge(vertices[8], vertices[10]),
+            UnconditionalEdge(vertices[9], vertices[10]),
+            UnconditionalEdge(vertices[11], vertices[10]),
+            FalseCase(vertices[12], vertices[15]),
+            TrueCase(vertices[12], vertices[17]),
+            UnconditionalEdge(vertices[13], vertices[10]),
+            FalseCase(vertices[14], vertices[16]),
+            TrueCase(vertices[14], vertices[20]),
+            TrueCase(vertices[15], vertices[18]),
+            FalseCase(vertices[15], vertices[19]),
+            TrueCase(vertices[16], vertices[21]),
+            FalseCase(vertices[16], vertices[22]),
+            UnconditionalEdge(vertices[17], vertices[10]),
+            UnconditionalEdge(vertices[18], vertices[10]),
+            FalseCase(vertices[19], vertices[23]),
+            TrueCase(vertices[19], vertices[17]),
+            UnconditionalEdge(vertices[20], vertices[10]),
+            UnconditionalEdge(vertices[21], vertices[10]),
+            FalseCase(vertices[22], vertices[24]),
+            TrueCase(vertices[22], vertices[20]),
+            TrueCase(vertices[23], vertices[25]),
+            FalseCase(vertices[23], vertices[26]),
+            TrueCase(vertices[24], vertices[27]),
+            FalseCase(vertices[24], vertices[28]),
+            UnconditionalEdge(vertices[25], vertices[10]),
+            TrueCase(vertices[26], vertices[29]),
+            FalseCase(vertices[26], vertices[17]),
+            UnconditionalEdge(vertices[27], vertices[10]),
+            TrueCase(vertices[28], vertices[30]),
+            FalseCase(vertices[28], vertices[20]),
+            UnconditionalEdge(vertices[29], vertices[10]),
+            UnconditionalEdge(vertices[30], vertices[10]),
+        ]
+    )
+    return var_0, var_1, vertices
+
+
+def _switch_test_19(task) -> Tuple[Variable, List[BasicBlock]]:
+    var_1 = Variable(
+        "var_1", Pointer(Integer(32, True), 32), None, False, Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
+    )
+    var_0_1 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
+    var_0_2 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 9, True, None))
+    task.graph.add_nodes_from(
+        vertices := [
+            BasicBlock(
+                0,
+                [
+                    Assignment(ListOperation([]), print_call("Enter week number(1-7): ", 1)),
+                    Assignment(var_1, UnaryOperation(OperationType.address, [var_0_1], Pointer(Integer(32, True), 32), None, False)),
+                    Assignment(ListOperation([]), scanf_call(var_1, 134524965, 2)),
+                    Branch(Condition(OperationType.less_or_equal, [var_0_1, Constant(39, Integer(32, True))], CustomType("bool", 1))),
+                ],
+            ),
+            BasicBlock(1, [Branch(Condition(OperationType.greater_us, [var_0_1, Constant(40, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(
+                2,
+                [
+                    Assignment(ListOperation([var_0_2]), Call(imp_function_symbol("rand"), [], Pointer(CustomType("void", 0), 32), 8)),
+                    Branch(Condition(OperationType.not_equal, [var_0_2, Constant(50, Integer(32, True))], CustomType("bool", 1))),
+                ],
+            ),
+            BasicBlock(4, [IndirectBranch(var_0_1)]),
+            BasicBlock(6, [Assignment(ListOperation([]), print_call("Friday", 10))]),
+            BasicBlock(7, [Assignment(ListOperation([]), print_call("Invalid input! Please enter week number between 1-7.", 12))]),
+            BasicBlock(8, [Assignment(ListOperation([]), print_call("Monday", 3))]),
+            BasicBlock(9, [Assignment(ListOperation([]), print_call("Tuesday", 4))]),
+            BasicBlock(10, [Assignment(ListOperation([]), print_call("Wednesday", 5))]),
+            BasicBlock(11, [Assignment(ListOperation([]), print_call("Saturday", 6))]),
+            BasicBlock(12, [Assignment(ListOperation([]), print_call("Sunday", 7))]),
+            BasicBlock(13, [Return(ListOperation([Constant(0, Integer(32, True))]))]),
+        ]
+    )
+    task.graph.add_edges_from(
+        [
+            TrueCase(vertices[0], vertices[1]),
+            FalseCase(vertices[0], vertices[2]),
+            FalseCase(vertices[1], vertices[3]),
+            TrueCase(vertices[1], vertices[5]),
+            FalseCase(vertices[2], vertices[4]),
+            TrueCase(vertices[2], vertices[5]),
+            SwitchCase(
+                vertices[3],
+                vertices[5],
+                [
+                    Constant(0, Integer(32)),
+                    Constant(2, Integer(32)),
+                    Constant(3, Integer(32)),
+                    Constant(4, Integer(32)),
+                    Constant(5, Integer(32)),
+                    Constant(7, Integer(32)),
+                    Constant(8, Integer(32)),
+                    Constant(10, Integer(32)),
+                    Constant(11, Integer(32)),
+                    Constant(13, Integer(32)),
+                    Constant(14, Integer(32)),
+                    Constant(15, Integer(32)),
+                    Constant(16, Integer(32)),
+                    Constant(17, Integer(32)),
+                    Constant(18, Integer(32)),
+                    Constant(19, Integer(32)),
+                    Constant(20, Integer(32)),
+                    Constant(21, Integer(32)),
+                    Constant(22, Integer(32)),
+                    Constant(23, Integer(32)),
+                    Constant(24, Integer(32)),
+                    Constant(25, Integer(32)),
+                    Constant(26, Integer(32)),
+                    Constant(27, Integer(32)),
+                    Constant(28, Integer(32)),
+                    Constant(29, Integer(32)),
+                    Constant(30, Integer(32)),
+                    Constant(31, Integer(32)),
+                    Constant(32, Integer(32)),
+                    Constant(33, Integer(32)),
+                    Constant(35, Integer(32)),
+                    Constant(36, Integer(32)),
+                    Constant(37, Integer(32)),
+                    Constant(38, Integer(32)),
+                    Constant(39, Integer(32)),
+                ],
+            ),
+            SwitchCase(vertices[3], vertices[6], [Constant(1, Integer(32))]),
+            SwitchCase(vertices[3], vertices[7], [Constant(12, Integer(32))]),
+            SwitchCase(vertices[3], vertices[8], [Constant(34, Integer(32))]),
+            SwitchCase(vertices[3], vertices[9], [Constant(6, Integer(32))]),
+            SwitchCase(vertices[3], vertices[10], [Constant(9, Integer(32))]),
+            UnconditionalEdge(vertices[4], vertices[11]),
+            UnconditionalEdge(vertices[5], vertices[11]),
+            UnconditionalEdge(vertices[6], vertices[11]),
+            UnconditionalEdge(vertices[7], vertices[11]),
+            UnconditionalEdge(vertices[8], vertices[11]),
+            UnconditionalEdge(vertices[9], vertices[11]),
+            UnconditionalEdge(vertices[10], vertices[11]),
+        ]
+    )
+    return var_0_1, vertices
+
+
 def test_basic_switch(task):
     """
       test_switch test1
@@ -148,55 +525,7 @@ def test_basic_switch(task):
     +------------------------------------------------------------------------------------------------> |                                                                                         |
                                                                                                        +-----------------------------------------------------------------------------------------+
     """
-    var_1 = Variable(
-        "var_1", Pointer(Integer(32, True), 32), None, False, Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
-    )
-    var_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
-    task.graph.add_nodes_from(
-        vertices := [
-            BasicBlock(
-                0,
-                [
-                    Assignment(ListOperation([]), print_call("Enter week number(1-7): ", 1)),
-                    Assignment(var_1, UnaryOperation(OperationType.address, [var_0], Pointer(Integer(32, True), 32), None, False)),
-                    Assignment(ListOperation([]), scanf_call(var_1, 134524965, 2)),
-                    Branch(Condition(OperationType.greater_us, [var_0, Constant(7, Integer(32, True))], CustomType("bool", 1))),
-                ],
-            ),
-            BasicBlock(2, [IndirectBranch(var_0)]),
-            BasicBlock(3, [Assignment(ListOperation([]), print_call("Invalid input! Please enter week number between 1-7.", 10))]),
-            BasicBlock(4, [Assignment(ListOperation([]), print_call("Monday", 3))]),
-            BasicBlock(5, [Assignment(ListOperation([]), print_call("Tuesday", 4))]),
-            BasicBlock(6, [Assignment(ListOperation([]), print_call("Wednesday", 5))]),
-            BasicBlock(7, [Assignment(ListOperation([]), print_call("Thursday", 6))]),
-            BasicBlock(8, [Assignment(ListOperation([]), print_call("Friday", 7))]),
-            BasicBlock(9, [Assignment(ListOperation([]), print_call("Saturday", 8))]),
-            BasicBlock(10, [Assignment(ListOperation([]), print_call("Sunday", 9))]),
-            BasicBlock(11, [Return(ListOperation([Constant(0, Integer(32, True))]))]),
-        ]
-    )
-    task.graph.add_edges_from(
-        [
-            FalseCase(vertices[0], vertices[1]),
-            TrueCase(vertices[0], vertices[2]),
-            SwitchCase(vertices[1], vertices[2], [Constant(0, Integer(32, signed=True))]),
-            SwitchCase(vertices[1], vertices[3], [Constant(1, Integer(32, signed=True))]),
-            SwitchCase(vertices[1], vertices[4], [Constant(2, Integer(32, signed=True))]),
-            SwitchCase(vertices[1], vertices[5], [Constant(3, Integer(32, signed=True))]),
-            SwitchCase(vertices[1], vertices[6], [Constant(4, Integer(32, signed=True))]),
-            SwitchCase(vertices[1], vertices[7], [Constant(5, Integer(32, signed=True))]),
-            SwitchCase(vertices[1], vertices[8], [Constant(6, Integer(32, signed=True))]),
-            SwitchCase(vertices[1], vertices[9], [Constant(7, Integer(32, signed=True))]),
-            UnconditionalEdge(vertices[2], vertices[10]),
-            UnconditionalEdge(vertices[3], vertices[10]),
-            UnconditionalEdge(vertices[4], vertices[10]),
-            UnconditionalEdge(vertices[5], vertices[10]),
-            UnconditionalEdge(vertices[6], vertices[10]),
-            UnconditionalEdge(vertices[7], vertices[10]),
-            UnconditionalEdge(vertices[8], vertices[10]),
-            UnconditionalEdge(vertices[9], vertices[10]),
-        ]
-    )
+    var_0, vertices = _basic_switch_cfg(task)
 
     PatternIndependentRestructuring().run(task)
 
@@ -289,43 +618,7 @@ def test_switch_cases_without_break_and_no_instruction(task):
                                                                             ^                                                 |
                                                                             +-------------------------------------------------+
     """
-    var_1 = Variable(
-        "var_1", Pointer(Integer(32, True), 32), None, False, Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
-    )
-    var_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
-    task.graph.add_nodes_from(
-        vertices := [
-            BasicBlock(
-                0,
-                [
-                    Assignment(ListOperation([]), print_call("Enter month number(1-12): ", 1)),
-                    Assignment(var_1, UnaryOperation(OperationType.address, [var_0], Pointer(Integer(32, True), 32), None, False)),
-                    Assignment(ListOperation([]), scanf_call(var_1, 134524965, 2)),
-                    Branch(Condition(OperationType.greater_us, [var_0, Constant(12, Integer(32, True))], CustomType("bool", 1))),
-                ],
-            ),
-            BasicBlock(2, [IndirectBranch(var_0)]),
-            BasicBlock(3, [Assignment(ListOperation([]), print_call("Invalid input! Please enter month number between 1-12", 6))]),
-            BasicBlock(4, [Assignment(ListOperation([]), print_call("31 days", 3))]),
-            BasicBlock(5, [Assignment(ListOperation([]), print_call("30 days", 4))]),
-            BasicBlock(6, [Assignment(ListOperation([]), print_call("28/29 days", 5))]),
-            BasicBlock(7, [Return(ListOperation([Constant(0, Integer(32, True))]))]),
-        ]
-    )
-    task.graph.add_edges_from(
-        [
-            FalseCase(vertices[0], vertices[1]),
-            TrueCase(vertices[0], vertices[2]),
-            SwitchCase(vertices[1], vertices[2], [Constant(0, Integer(32, True))]),
-            SwitchCase(vertices[1], vertices[3], [Constant(i, Integer(32, True)) for i in (1, 3, 5, 7, 8, 10, 12)]),
-            SwitchCase(vertices[1], vertices[4], [Constant(i, Integer(32, True)) for i in (4, 6, 9, 11)]),
-            SwitchCase(vertices[1], vertices[5], [Constant(2, Integer(32, True))]),
-            UnconditionalEdge(vertices[2], vertices[6]),
-            UnconditionalEdge(vertices[3], vertices[6]),
-            UnconditionalEdge(vertices[4], vertices[6]),
-            UnconditionalEdge(vertices[5], vertices[6]),
-        ]
-    )
+    var_0, vertices = _switch_empty_fallthrough(task)
 
     PatternIndependentRestructuring().run(task)
 
@@ -787,63 +1080,7 @@ def test_switch_cases_without_break_and_instructions(task):
 
 
     """
-    var_1 = Variable(
-        "var_1", Pointer(Integer(32, True), 32), None, False, Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
-    )
-    var_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
-    task.graph.add_nodes_from(
-        vertices := [
-            BasicBlock(
-                0,
-                [
-                    Assignment(ListOperation([]), print_call("Enter a digit (0-9): ", 1)),
-                    Assignment(var_1, UnaryOperation(OperationType.address, [var_0], Pointer(Integer(32, True), 32), None, False)),
-                    Assignment(ListOperation([]), scanf_call(var_1, 134524965, 2)),
-                    Branch(Condition(OperationType.greater_us, [var_0, Constant(9, Integer(32, True))], CustomType("bool", 1))),
-                ],
-            ),
-            BasicBlock(1, [Assignment(ListOperation([]), print_call("Not a digit ", 3))]),
-            BasicBlock(2, [IndirectBranch(var_0)]),
-            BasicBlock(3, [Return(ListOperation([Constant(0, Integer(32, True))]))]),
-            BasicBlock(4, [Assignment(ListOperation([]), putchar_call(48, 4))]),
-            BasicBlock(5, [Assignment(ListOperation([]), putchar_call(49, 6))]),
-            BasicBlock(6, [Assignment(ListOperation([]), putchar_call(50, 7))]),
-            BasicBlock(7, [Assignment(ListOperation([]), putchar_call(51, 9))]),
-            BasicBlock(8, [Assignment(ListOperation([]), putchar_call(52, 11))]),
-            BasicBlock(9, [Assignment(ListOperation([]), putchar_call(53, 12))]),
-            BasicBlock(10, [Assignment(ListOperation([]), putchar_call(54, 14))]),
-            BasicBlock(11, [Assignment(ListOperation([]), putchar_call(55, 16))]),
-            BasicBlock(12, [Assignment(ListOperation([]), putchar_call(56, 18))]),
-            BasicBlock(13, [Assignment(ListOperation([]), putchar_call(57, 20))]),
-        ]
-    )
-    task.graph.add_edges_from(
-        [
-            TrueCase(vertices[0], vertices[1]),
-            FalseCase(vertices[0], vertices[2]),
-            UnconditionalEdge(vertices[1], vertices[3]),
-            SwitchCase(vertices[2], vertices[4], [Constant(0, Integer(32))]),
-            SwitchCase(vertices[2], vertices[5], [Constant(1, Integer(32))]),
-            SwitchCase(vertices[2], vertices[6], [Constant(2, Integer(32))]),
-            SwitchCase(vertices[2], vertices[7], [Constant(3, Integer(32))]),
-            SwitchCase(vertices[2], vertices[8], [Constant(4, Integer(32))]),
-            SwitchCase(vertices[2], vertices[9], [Constant(5, Integer(32))]),
-            SwitchCase(vertices[2], vertices[10], [Constant(6, Integer(32))]),
-            SwitchCase(vertices[2], vertices[11], [Constant(7, Integer(32))]),
-            SwitchCase(vertices[2], vertices[12], [Constant(8, Integer(32))]),
-            SwitchCase(vertices[2], vertices[13], [Constant(9, Integer(32))]),
-            UnconditionalEdge(vertices[4], vertices[5]),
-            UnconditionalEdge(vertices[5], vertices[3]),
-            UnconditionalEdge(vertices[6], vertices[7]),
-            UnconditionalEdge(vertices[7], vertices[8]),
-            UnconditionalEdge(vertices[8], vertices[3]),
-            UnconditionalEdge(vertices[9], vertices[10]),
-            UnconditionalEdge(vertices[10], vertices[11]),
-            UnconditionalEdge(vertices[11], vertices[12]),
-            UnconditionalEdge(vertices[12], vertices[13]),
-            UnconditionalEdge(vertices[13], vertices[3]),
-        ]
-    )
+    var_0, vertices = _switch_no_empty_fallthrough(task)
 
     PatternIndependentRestructuring().run(task)
 
@@ -1554,114 +1791,7 @@ def test_switch_in_switch_long(task):
                                                                                                                           +------------------------------------+
 
     """
-    var_1 = Variable("var_1", Integer(32, True), None, True, Variable("var_14", Integer(32, True), 0, True, None))
-    var_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
-    var_2_1 = Variable(
-        "var_2", Pointer(Integer(32, True), 32), None, False, Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
-    )
-    var_2_2 = Variable(
-        "var_2", Pointer(Integer(32, True), 32), None, False, Variable("var_28_1", Pointer(Integer(32, True), 32), 2, False, None)
-    )
-    task.graph.add_nodes_from(
-        vertices := [
-            BasicBlock(
-                0,
-                [
-                    Assignment(ListOperation([]), print_call("Enter week number(1-7): ", 1)),
-                    Assignment(var_2_1, UnaryOperation(OperationType.address, [var_0], Pointer(Integer(32, True), 32), None, False)),
-                    Assignment(ListOperation([]), scanf_call(var_2_1, 134524965, 2)),
-                    Assignment(ListOperation([]), print_call("Enter a time (1-4): ", 3)),
-                    Assignment(var_2_2, UnaryOperation(OperationType.address, [var_1], Pointer(Integer(32, True), 32), None, False)),
-                    Assignment(ListOperation([]), scanf_call(var_2_2, 134524965, 4)),
-                    Branch(Condition(OperationType.greater_us, [var_0, Constant(7, Integer(32, True))], CustomType("bool", 1))),
-                ],
-            ),
-            BasicBlock(2, [IndirectBranch(var_0)]),
-            BasicBlock(3, [Assignment(ListOperation([]), print_call("Invalid input! Please enter week number between 1-7.", 22))]),
-            BasicBlock(4, [Branch(Condition(OperationType.equal, [var_1, Constant(4, Integer(32, True))], CustomType("bool", 1)))]),
-            BasicBlock(5, [Assignment(ListOperation([]), print_call("Tuesday", 11))]),
-            BasicBlock(6, [Assignment(ListOperation([]), print_call("Wednesday", 12))]),
-            BasicBlock(7, [Branch(Condition(OperationType.equal, [var_1, Constant(4, Integer(32, True))], CustomType("bool", 1)))]),
-            BasicBlock(8, [Assignment(ListOperation([]), print_call("Friday", 19))]),
-            BasicBlock(9, [Assignment(ListOperation([]), print_call("Saturday", 20))]),
-            BasicBlock(10, [Assignment(ListOperation([]), print_call("Sunday", 21))]),
-            BasicBlock(11, [Return(ListOperation([Constant(0, Integer(32, True))]))]),
-            BasicBlock(12, [Assignment(ListOperation([]), print_call("Monday midnight", 5))]),
-            BasicBlock(13, [Branch(Condition(OperationType.greater, [var_1, Constant(4, Integer(32, True))], CustomType("bool", 1)))]),
-            BasicBlock(14, [Assignment(ListOperation([]), print_call("Thursday midnight", 13))]),
-            BasicBlock(15, [Branch(Condition(OperationType.greater, [var_1, Constant(4, Integer(32, True))], CustomType("bool", 1)))]),
-            BasicBlock(18, [Branch(Condition(OperationType.equal, [var_1, Constant(3, Integer(32, True))], CustomType("bool", 1)))]),
-            BasicBlock(21, [Branch(Condition(OperationType.equal, [var_1, Constant(3, Integer(32, True))], CustomType("bool", 1)))]),
-            BasicBlock(22, [Assignment(ListOperation([]), print_call("Monday", 9))]),
-            BasicBlock(23, [Assignment(ListOperation([]), print_call("Monday evening", 6))]),
-            BasicBlock(24, [Branch(Condition(OperationType.greater, [var_1, Constant(3, Integer(32, True))], CustomType("bool", 1)))]),
-            BasicBlock(25, [Assignment(ListOperation([]), print_call("Thursday", 17))]),
-            BasicBlock(26, [Assignment(ListOperation([]), print_call("Thursday evening", 14))]),
-            BasicBlock(27, [Branch(Condition(OperationType.greater, [var_1, Constant(3, Integer(32, True))], CustomType("bool", 1)))]),
-            BasicBlock(29, [Branch(Condition(OperationType.equal, [var_1, Constant(1, Integer(32, True))], CustomType("bool", 1)))]),
-            BasicBlock(31, [Branch(Condition(OperationType.equal, [var_1, Constant(1, Integer(32, True))], CustomType("bool", 1)))]),
-            BasicBlock(32, [Assignment(ListOperation([]), print_call("Monday morning", 7))]),
-            BasicBlock(33, [Branch(Condition(OperationType.equal, [var_1, Constant(2, Integer(32, True))], CustomType("bool", 1)))]),
-            BasicBlock(34, [Assignment(ListOperation([]), print_call("Thursday morning", 15))]),
-            BasicBlock(35, [Branch(Condition(OperationType.equal, [var_1, Constant(2, Integer(32, True))], CustomType("bool", 1)))]),
-            BasicBlock(36, [Assignment(ListOperation([]), print_call("Monday afternoon", 8))]),
-            BasicBlock(38, [Assignment(ListOperation([]), print_call("Thursday afternoon", 16))]),
-        ]
-    )
-    task.graph.add_edges_from(
-        [
-            FalseCase(vertices[0], vertices[1]),
-            TrueCase(vertices[0], vertices[2]),
-            SwitchCase(vertices[1], vertices[2], [Constant(0, Integer(32))]),
-            SwitchCase(vertices[1], vertices[3], [Constant(1, Integer(32))]),
-            SwitchCase(vertices[1], vertices[4], [Constant(2, Integer(32))]),
-            SwitchCase(vertices[1], vertices[5], [Constant(3, Integer(32))]),
-            SwitchCase(vertices[1], vertices[6], [Constant(4, Integer(32))]),
-            SwitchCase(vertices[1], vertices[7], [Constant(5, Integer(32))]),
-            SwitchCase(vertices[1], vertices[8], [Constant(6, Integer(32))]),
-            SwitchCase(vertices[1], vertices[9], [Constant(7, Integer(32))]),
-            UnconditionalEdge(vertices[2], vertices[10]),
-            TrueCase(vertices[3], vertices[11]),
-            FalseCase(vertices[3], vertices[12]),
-            UnconditionalEdge(vertices[4], vertices[10]),
-            UnconditionalEdge(vertices[5], vertices[10]),
-            TrueCase(vertices[6], vertices[13]),
-            FalseCase(vertices[6], vertices[14]),
-            UnconditionalEdge(vertices[7], vertices[10]),
-            UnconditionalEdge(vertices[8], vertices[10]),
-            UnconditionalEdge(vertices[9], vertices[10]),
-            UnconditionalEdge(vertices[11], vertices[10]),
-            FalseCase(vertices[12], vertices[15]),
-            TrueCase(vertices[12], vertices[17]),
-            UnconditionalEdge(vertices[13], vertices[10]),
-            FalseCase(vertices[14], vertices[16]),
-            TrueCase(vertices[14], vertices[20]),
-            TrueCase(vertices[15], vertices[18]),
-            FalseCase(vertices[15], vertices[19]),
-            TrueCase(vertices[16], vertices[21]),
-            FalseCase(vertices[16], vertices[22]),
-            UnconditionalEdge(vertices[17], vertices[10]),
-            UnconditionalEdge(vertices[18], vertices[10]),
-            FalseCase(vertices[19], vertices[23]),
-            TrueCase(vertices[19], vertices[17]),
-            UnconditionalEdge(vertices[20], vertices[10]),
-            UnconditionalEdge(vertices[21], vertices[10]),
-            FalseCase(vertices[22], vertices[24]),
-            TrueCase(vertices[22], vertices[20]),
-            TrueCase(vertices[23], vertices[25]),
-            FalseCase(vertices[23], vertices[26]),
-            TrueCase(vertices[24], vertices[27]),
-            FalseCase(vertices[24], vertices[28]),
-            UnconditionalEdge(vertices[25], vertices[10]),
-            TrueCase(vertices[26], vertices[29]),
-            FalseCase(vertices[26], vertices[17]),
-            UnconditionalEdge(vertices[27], vertices[10]),
-            TrueCase(vertices[28], vertices[30]),
-            FalseCase(vertices[28], vertices[20]),
-            UnconditionalEdge(vertices[29], vertices[10]),
-            UnconditionalEdge(vertices[30], vertices[10]),
-        ]
-    )
+    var_0, var_1, vertices = _switch_in_switch(task)
 
     PatternIndependentRestructuring().run(task)
 
@@ -2353,104 +2483,7 @@ def test_no_switch_ssa_variable_wrong(task):
                                                                                                              +----------------------------------------------------------------------------------------+
 
     """
-    var_1 = Variable(
-        "var_1", Pointer(Integer(32, True), 32), None, False, Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
-    )
-    var_0_1 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
-    var_0_2 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 9, True, None))
-    task.graph.add_nodes_from(
-        vertices := [
-            BasicBlock(
-                0,
-                [
-                    Assignment(ListOperation([]), print_call("Enter week number(1-7): ", 1)),
-                    Assignment(var_1, UnaryOperation(OperationType.address, [var_0_1], Pointer(Integer(32, True), 32), None, False)),
-                    Assignment(ListOperation([]), scanf_call(var_1, 134524965, 2)),
-                    Branch(Condition(OperationType.less_or_equal, [var_0_1, Constant(39, Integer(32, True))], CustomType("bool", 1))),
-                ],
-            ),
-            BasicBlock(1, [Branch(Condition(OperationType.greater_us, [var_0_1, Constant(40, Integer(32, True))], CustomType("bool", 1)))]),
-            BasicBlock(
-                2,
-                [
-                    Assignment(ListOperation([var_0_2]), Call(imp_function_symbol("rand"), [], Pointer(CustomType("void", 0), 32), 8)),
-                    Branch(Condition(OperationType.not_equal, [var_0_2, Constant(50, Integer(32, True))], CustomType("bool", 1))),
-                ],
-            ),
-            BasicBlock(4, [IndirectBranch(var_0_1)]),
-            BasicBlock(6, [Assignment(ListOperation([]), print_call("Friday", 10))]),
-            BasicBlock(7, [Assignment(ListOperation([]), print_call("Invalid input! Please enter week number between 1-7.", 12))]),
-            BasicBlock(8, [Assignment(ListOperation([]), print_call("Monday", 3))]),
-            BasicBlock(9, [Assignment(ListOperation([]), print_call("Tuesday", 4))]),
-            BasicBlock(10, [Assignment(ListOperation([]), print_call("Wednesday", 5))]),
-            BasicBlock(11, [Assignment(ListOperation([]), print_call("Saturday", 6))]),
-            BasicBlock(12, [Assignment(ListOperation([]), print_call("Sunday", 7))]),
-            BasicBlock(13, [Return(ListOperation([Constant(0, Integer(32, True))]))]),
-        ]
-    )
-    task.graph.add_edges_from(
-        [
-            TrueCase(vertices[0], vertices[1]),
-            FalseCase(vertices[0], vertices[2]),
-            FalseCase(vertices[1], vertices[3]),
-            TrueCase(vertices[1], vertices[5]),
-            FalseCase(vertices[2], vertices[4]),
-            TrueCase(vertices[2], vertices[5]),
-            SwitchCase(
-                vertices[3],
-                vertices[5],
-                [
-                    Constant(0, Integer(32)),
-                    Constant(2, Integer(32)),
-                    Constant(3, Integer(32)),
-                    Constant(4, Integer(32)),
-                    Constant(5, Integer(32)),
-                    Constant(7, Integer(32)),
-                    Constant(8, Integer(32)),
-                    Constant(10, Integer(32)),
-                    Constant(11, Integer(32)),
-                    Constant(13, Integer(32)),
-                    Constant(14, Integer(32)),
-                    Constant(15, Integer(32)),
-                    Constant(16, Integer(32)),
-                    Constant(17, Integer(32)),
-                    Constant(18, Integer(32)),
-                    Constant(19, Integer(32)),
-                    Constant(20, Integer(32)),
-                    Constant(21, Integer(32)),
-                    Constant(22, Integer(32)),
-                    Constant(23, Integer(32)),
-                    Constant(24, Integer(32)),
-                    Constant(25, Integer(32)),
-                    Constant(26, Integer(32)),
-                    Constant(27, Integer(32)),
-                    Constant(28, Integer(32)),
-                    Constant(29, Integer(32)),
-                    Constant(30, Integer(32)),
-                    Constant(31, Integer(32)),
-                    Constant(32, Integer(32)),
-                    Constant(33, Integer(32)),
-                    Constant(35, Integer(32)),
-                    Constant(36, Integer(32)),
-                    Constant(37, Integer(32)),
-                    Constant(38, Integer(32)),
-                    Constant(39, Integer(32)),
-                ],
-            ),
-            SwitchCase(vertices[3], vertices[6], [Constant(1, Integer(32))]),
-            SwitchCase(vertices[3], vertices[7], [Constant(12, Integer(32))]),
-            SwitchCase(vertices[3], vertices[8], [Constant(34, Integer(32))]),
-            SwitchCase(vertices[3], vertices[9], [Constant(6, Integer(32))]),
-            SwitchCase(vertices[3], vertices[10], [Constant(9, Integer(32))]),
-            UnconditionalEdge(vertices[4], vertices[11]),
-            UnconditionalEdge(vertices[5], vertices[11]),
-            UnconditionalEdge(vertices[6], vertices[11]),
-            UnconditionalEdge(vertices[7], vertices[11]),
-            UnconditionalEdge(vertices[8], vertices[11]),
-            UnconditionalEdge(vertices[9], vertices[11]),
-            UnconditionalEdge(vertices[10], vertices[11]),
-        ]
-    )
+    var_0_1, vertices = _switch_test_19(task)
 
     PatternIndependentRestructuring().run(task)
 
@@ -3883,3 +3916,201 @@ def test_only_one_occurrence_of_each_case(task):
     assert isinstance(case1 := switch.cases[0], CaseNode) and case1.constant.value == 1 and isinstance(case1.child, ConditionNode)
     assert all(case1.constant != case2.constant for case1, case2 in combinations(switch.cases, 2))
     assert isinstance(seq_node.children[2], ConditionNode)
+
+
+@pytest.mark.parametrize(
+    "graph", [_basic_switch_cfg, _switch_empty_fallthrough, _switch_no_empty_fallthrough, _switch_in_switch, _switch_test_19]
+)
+def test_no_switch(graph, task):
+    """Test construct no switch statement"""
+    task.options.set("pattern-independent-restructuring.switch_reconstruction", False)
+    graph(task)
+    PatternIndependentRestructuring().run(task)
+
+    assert len(list(task.syntax_tree.get_switch_nodes_post_order())) == 0
+
+
+@pytest.mark.parametrize(
+    "graph", [_basic_switch_cfg, _switch_empty_fallthrough, _switch_no_empty_fallthrough, _switch_in_switch, _switch_test_19]
+)
+def test_no_switch_in_switch(graph, task):
+    """Test construct no switch-in-switch statement"""
+    task.options.set("pattern-independent-restructuring.nested_switch_nodes", False)
+    graph(task)
+    PatternIndependentRestructuring().run(task)
+
+    assert len(list(task.syntax_tree.get_switch_nodes_post_order())) == 1
+
+
+@pytest.mark.parametrize(
+    "graph", [_basic_switch_cfg, _switch_empty_fallthrough, _switch_no_empty_fallthrough, _switch_in_switch, _switch_test_19]
+)
+def test_min_bound_5(graph, task):
+    """Test construct only a switch statement with at least 5 cases."""
+    task.options.set("pattern-independent-restructuring.min_switch_case_number", 5)
+    graph(task)
+    PatternIndependentRestructuring().run(task)
+
+    assert len(list(task.syntax_tree.get_switch_nodes_post_order())) == 1
+
+
+def test_lower_bound_basic_switch(task):
+    """Have 7 cases and a default, but the lower bound is 8."""
+    task.options.set("pattern-independent-restructuring.min_switch_case_number", 8)
+    switch_variable, vertices = _basic_switch_cfg(task)
+    PatternIndependentRestructuring().run(task)
+
+    assert isinstance(seq_node := task.syntax_tree.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
+    assert isinstance(cond_node := seq_node.children[1], ConditionNode)
+    assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[-1].instructions
+
+    # switch node:
+    current_condition_node: ConditionNode = cond_node
+    for case_const in range(1, 8):
+        assert isinstance(current_condition_node, ConditionNode)
+        assert task.syntax_tree.condition_map[current_condition_node.condition] == Condition(
+            OperationType.equal, [switch_variable, Constant(case_const, Integer(32, signed=True))]
+        )
+        assert (
+            isinstance(tb := current_condition_node.true_branch_child, CodeNode)
+            and tb.instructions == vertices[case_const + 2].instructions
+        )
+        current_condition_node = current_condition_node.false_branch_child
+    assert isinstance(current_condition_node, CodeNode) and current_condition_node.instructions == vertices[2].instructions
+
+
+def test_switch_empty_fallthrough(task):
+    """Have 12 cases and a default, but the lower bound is 13, with empty fallthrough cases."""
+    task.options.set("pattern-independent-restructuring.min_switch_case_number", 13)
+    switch_variable, vertices = _switch_empty_fallthrough(task)
+    PatternIndependentRestructuring().run(task)
+
+    assert isinstance(seq_node := task.syntax_tree.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
+    assert isinstance(cond_31_days := seq_node.children[1], ConditionNode)
+    assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[-1].instructions
+
+    # switch node:
+    # 31 days
+    assert cond_31_days.condition.is_disjunction
+    assert {task.syntax_tree.condition_map[op] for op in cond_31_days.condition.operands} == {
+        Condition(OperationType.equal, [switch_variable, Constant(c, Integer.int32_t())]) for c in [1, 3, 5, 7, 8, 10, 12]
+    }
+    assert isinstance(cond_31_days.true_branch_child, CodeNode) and cond_31_days.true_branch_child.instructions == vertices[3].instructions
+    # 28 days:
+    assert isinstance(cond_28_days := cond_31_days.false_branch_child, ConditionNode)
+    assert task.syntax_tree.condition_map[cond_28_days.condition] == Condition(
+        OperationType.equal, [switch_variable, Constant(2, Integer.int32_t())]
+    )
+    assert isinstance(cond_28_days.true_branch_child, CodeNode) and cond_28_days.true_branch_child.instructions == vertices[5].instructions
+    # 30 days:
+    assert isinstance(cond_30_days := cond_28_days.false_branch_child, ConditionNode) and cond_30_days.condition.is_disjunction
+    assert {task.syntax_tree.condition_map[op] for op in cond_30_days.condition.operands} == {
+        Condition(OperationType.equal, [switch_variable, Constant(c, Integer.int32_t())]) for c in [4, 6, 9, 11]
+    }
+    assert isinstance(cond_30_days.true_branch_child, CodeNode) and cond_30_days.true_branch_child.instructions == vertices[4].instructions
+    # # default case:
+    assert isinstance(else_case := cond_30_days.false_branch_child, CodeNode) and else_case.instructions == vertices[2].instructions
+
+
+def test_switch_no_empty_fallthough(task):
+    """Have 10 cases and a default, but the lower bound is 13, with non-empty fallthrough cases."""
+    task.options.set("pattern-independent-restructuring.min_switch_case_number", 11)
+    switch_variable, vertices = _switch_no_empty_fallthrough(task)
+    PatternIndependentRestructuring().run(task)
+
+    assert isinstance(seq_node := task.syntax_tree.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
+    assert isinstance(current_cond := seq_node.children[1], ConditionNode)
+    assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[3].instructions
+
+    # switch node:
+    for constants in [[0, 1], [2, 3, 4], [5, 6, 7, 8, 9]]:
+        assert isinstance(current_cond, ConditionNode) and current_cond.condition.is_disjunction
+        assert {task.syntax_tree.condition_map[op] for op in current_cond.condition.operands} == {
+            Condition(OperationType.equal, [switch_variable, Constant(c, Integer(32))]) for c in constants
+        }
+        assert isinstance(fallthrough := current_cond.true_branch_child, SeqNode) and len(fallthrough.children) == len(constants)
+        or_cases = []
+        for child, const in zip(fallthrough.children[:-1], constants):
+            or_cases.append(const)
+            assert isinstance(child, ConditionNode) and child.false_branch is None
+            assert (len(or_cases) > 1 and child.condition.is_disjunction) or (len(or_cases) == 1 and child.condition.is_symbol)
+            operands = child.condition.operands if len(or_cases) > 1 else [child.condition]
+            assert {task.syntax_tree.condition_map[op] for op in operands} == {
+                Condition(OperationType.equal, [switch_variable, Constant(c, Integer(32))]) for c in or_cases
+            }
+            assert (
+                isinstance(child.true_branch_child, CodeNode) and child.true_branch_child.instructions == vertices[const + 4].instructions
+            )
+        assert (
+            isinstance(fallthrough.children[-1], CodeNode)
+            and fallthrough.children[-1].instructions == vertices[constants[-1] + 4].instructions
+        )
+        current_cond = current_cond.false_branch_child
+
+    # default case:
+    assert isinstance(current_cond, CodeNode) and current_cond.instructions == vertices[1].instructions
+
+
+def test_switch_test_no_default(task):
+    """Test with no default value."""
+    var_1 = Variable(
+        "var_1", Pointer(Integer(32, True), 32), None, False, Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
+    )
+    switch_variable = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
+    task.graph.add_nodes_from(
+        vertices := [
+            BasicBlock(
+                0,
+                [
+                    Assignment(ListOperation([]), print_call("Enter week number(1-7): ", 1)),
+                    Assignment(
+                        var_1, UnaryOperation(OperationType.address, [switch_variable], Pointer(Integer(32, True), 32), None, False)
+                    ),
+                    Assignment(ListOperation([]), scanf_call(var_1, 134524965, 2)),
+                    Branch(Condition(OperationType.greater_us, [switch_variable, Constant(7, Integer(32, True))], CustomType("bool", 1))),
+                ],
+            ),
+            BasicBlock(2, [IndirectBranch(switch_variable)]),
+            BasicBlock(4, [Assignment(ListOperation([]), print_call("Monday", 3))]),
+            BasicBlock(5, [Assignment(ListOperation([]), print_call("Tuesday", 4))]),
+            BasicBlock(6, [Assignment(ListOperation([]), print_call("Wednesday", 5))]),
+            BasicBlock(11, [Return(ListOperation([Constant(0, Integer(32, True))]))]),
+        ]
+    )
+    task.graph.add_edges_from(
+        [
+            FalseCase(vertices[0], vertices[1]),
+            TrueCase(vertices[0], vertices[5]),
+            SwitchCase(vertices[1], vertices[5], [Constant(0, Integer(32, signed=True))]),
+            SwitchCase(vertices[1], vertices[2], [Constant(1, Integer(32, signed=True))]),
+            SwitchCase(vertices[1], vertices[3], [Constant(2, Integer(32, signed=True))]),
+            SwitchCase(vertices[1], vertices[4], [Constant(3, Integer(32, signed=True))]),
+            UnconditionalEdge(vertices[2], vertices[5]),
+            UnconditionalEdge(vertices[3], vertices[5]),
+            UnconditionalEdge(vertices[4], vertices[5]),
+        ]
+    )
+    task.options.set("pattern-independent-restructuring.min_switch_case_number", 4)
+    PatternIndependentRestructuring().run(task)
+
+    assert isinstance(seq_node := task.syntax_tree.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
+    assert isinstance(cond_node := seq_node.children[1], ConditionNode)
+    assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[-1].instructions
+
+    # switch node:
+    current_condition_node: ConditionNode = cond_node
+    for case_const in range(1, 4):
+        assert isinstance(current_condition_node, ConditionNode)
+        assert task.syntax_tree.condition_map[current_condition_node.condition] == Condition(
+            OperationType.equal, [switch_variable, Constant(case_const, Integer(32, signed=True))]
+        )
+        assert (
+            isinstance(tb := current_condition_node.true_branch_child, CodeNode)
+            and tb.instructions == vertices[case_const + 1].instructions
+        )
+        current_condition_node = current_condition_node.false_branch_child
+    assert current_condition_node is None

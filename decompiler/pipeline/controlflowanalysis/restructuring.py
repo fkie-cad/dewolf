@@ -9,7 +9,9 @@ from typing import List, Optional
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.acyclic_restructuring import AcyclicRegionRestructurer
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.cyclic_restructuring import CyclicRegionStructurer
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.empty_basic_block_remover import EmptyBasicBlockRemover
+from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
 from decompiler.pipeline.stage import PipelineStage
+from decompiler.structures.ast.ast_nodes import CaseNode, SwitchNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.graphs.classifiedgraph import EdgeProperty
@@ -33,6 +35,7 @@ class PatternIndependentRestructuring(PipelineStage):
         """
         self.t_cfg: TransitionCFG = tcfg
         self.asforest: AbstractSyntaxForest = asforest
+        self.options: Optional[RestructuringOptions] = None
 
     def run(self, task: DecompilerTask):
         """
@@ -41,6 +44,7 @@ class PatternIndependentRestructuring(PipelineStage):
         EmptyBasicBlockRemover(task.graph).remove()
         self.t_cfg = TransitionCFG.generate(task.graph)
         self.asforest = AbstractSyntaxForest.generate_from_code_nodes([node.ast for node in self.t_cfg], self.t_cfg.condition_handler)
+        self.options = RestructuringOptions.generate(task.options)
 
         self.restructure_cfg()
 
@@ -69,7 +73,7 @@ class PatternIndependentRestructuring(PipelineStage):
             return
 
         loop_heads: List[TransitionBlock] = self._get_loop_heads()
-        loop_structurer = CyclicRegionStructurer(self.t_cfg, self.asforest)
+        loop_structurer = CyclicRegionStructurer(self.t_cfg, self.asforest, self.options)
         while loop_heads:
             head = loop_heads.pop()
             changed_t_cfg = loop_structurer.restructure(head)
@@ -78,7 +82,8 @@ class PatternIndependentRestructuring(PipelineStage):
                 self.t_cfg.refresh_edge_properties()
                 loop_heads = self._get_loop_heads()
 
-        AcyclicRegionRestructurer(self.t_cfg, self.asforest).restructure()
+        AcyclicRegionRestructurer(self.t_cfg, self.asforest, self.options).restructure()
+        self._fulfill_switch_options()
 
     def _restructure_empty_cfg(self):
         """Restructure the empty transition cfg."""
@@ -94,3 +99,26 @@ class PatternIndependentRestructuring(PipelineStage):
                 loop_heads.append(node)
         loop_heads.reverse()
         return loop_heads
+
+    def _fulfill_switch_options(self):
+        """
+        Make sure that all switch-options are fulfilled.
+
+        - We have to first construct all switch nodes because we only know after the construction is done whether they are fulfilled or not.
+        """
+        for switch_node in self.asforest.get_switch_nodes_post_order():
+            if len(switch_node.cases) < self.options.min_switch_cases or (
+                self.options.allow_nested_switch is False and self._is_nested_switch(switch_node)
+            ):
+                self.asforest.replace_switch_by_conditions(switch_node)
+        self.asforest.clean_up(self.t_cfg.root.ast)
+
+    @staticmethod
+    def _is_nested_switch(switch_node: SwitchNode) -> bool:
+        """Check whether the given switch node has a predecessor that is also a switch node"""
+        current_node = switch_node
+        while current_node.parent:
+            current_node = current_node.parent
+            if isinstance(current_node, CaseNode):
+                return True
+        return False

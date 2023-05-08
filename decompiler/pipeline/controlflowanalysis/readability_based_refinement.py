@@ -19,7 +19,7 @@ from decompiler.structures.ast.ast_nodes import (
 )
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.logic.logic_condition import LogicCondition
-from decompiler.structures.pseudo import Assignment, Condition, Variable
+from decompiler.structures.pseudo import Assignment, Condition, Expression, Operation, Variable
 from decompiler.structures.visitors.assignment_visitor import AssignmentVisitor
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
@@ -428,7 +428,7 @@ class ForLoopVariableRenamer:
             if not isinstance(loop_node.declaration, Assignment):
                 continue
 
-            old_variable: Variable = loop_node.declaration.destination
+            old_variable: Variable = self._get_variable_from_assignment(loop_node.declaration.destination)
             new_variable = Variable(self._get_variable_name(), old_variable.type, ssa_name=old_variable.ssa_name)
             self._ast.replace_variable_in_subtree(loop_node, old_variable, new_variable)
 
@@ -442,6 +442,13 @@ class ForLoopVariableRenamer:
             self._variable_counter = 0
             self._iteration += 1
         return f"{self._candidates[self._variable_counter]}{self._iteration if self._iteration > 0 else ''}"
+
+    def _get_variable_from_assignment(self, expr: Expression) -> Variable:
+        if isinstance(expr, Variable):
+            return expr
+        if isinstance(expr, Operation) and len(expr.operands) == 1:
+            return expr.operands[0]
+        raise ValueError("Did not expect a Constant/Unknown/Operation with more then 1 operand as a ForLoop declaration")
 
 
 class ReadabilityBasedRefinement(PipelineStage):

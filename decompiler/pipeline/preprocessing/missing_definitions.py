@@ -8,7 +8,7 @@ from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.pointers import Pointers
 from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Instruction, Phi, Relation
-from decompiler.structures.pseudo.operations import Call, ListOperation
+from decompiler.structures.pseudo.operations import Call, ListOperation, OperationType, UnaryOperation
 from decompiler.task import DecompilerTask
 from networkx import DiGraph
 
@@ -263,6 +263,8 @@ class InsertMissingDefinitions(PipelineStage):
         """Checks whether the memory instruction may change the value of the given variable."""
         if self._is_printing_call(memory_instruction):
             return False
+        if self._is_assignment_of_variable_address(memory_instruction):
+            return False
         return self._uses_variable_related_to_aliased_variable(memory_instruction, variable)
 
     def _uses_variable_related_to_aliased_variable(self, memory_instruction: Instruction, variable: Variable) -> bool:
@@ -357,4 +359,15 @@ class InsertMissingDefinitions(PipelineStage):
             isinstance(memory_instruction, Assignment)
             and isinstance(call := memory_instruction.value, Call)
             and str(call.function) in ["printf", "__printf_chk", "puts"]
+        )
+
+    @staticmethod
+    def _is_assignment_of_variable_address(memory_instruction: Instruction) -> bool:
+        """Checks whether the memory instruction is an assignment of variable address (e.g. a=&b)"""
+        return (
+            isinstance(memory_instruction, Assignment)
+            and isinstance(unary_operation := memory_instruction.value, UnaryOperation)
+            and isinstance(memory_instruction.destination, Variable)
+            and unary_operation.operation == OperationType.address
+            and isinstance(unary_operation.operand, Variable)
         )
