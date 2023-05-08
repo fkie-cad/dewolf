@@ -40,7 +40,7 @@ def sha256sum(file_path: Union[str, Path]) -> str:
 
 
 class DBConnector:
-    SCHEMA = """CREATE TABLE dewolf (
+    SCHEMA = """CREATE TABLE IF NOT EXISTS dewolf (
         id INTEGER NOT NULL PRIMARY KEY,
         function_name TEXT,
         function_basic_block_count INTEGER,
@@ -62,10 +62,9 @@ class DBConnector:
 
     def __init__(self, db_conn: Union[str, Path]) -> None:
         self.file_path = Path(db_conn)
-        logging.debug("[Bugfinder] connect DB")
+        logging.debug(f"[Bugfinder] connect DB {self.file_path}")
         self.con = sqlite3.connect(self.file_path)
-        if not self._exists():
-            self._create_table()
+        self._create_table()
 
     def __enter__(self):
         return self
@@ -74,9 +73,6 @@ class DBConnector:
         logging.debug("[Bugfinder] close DB")
         self.con.close()
         return True
-
-    def _exists(self) -> bool:
-        return self.file_path.exists()
 
     def _create_table(self):
         logging.debug("[Bugfinder] create database")
