@@ -1,5 +1,5 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
 
 from binaryninja import BinaryView, DataVariable, Endianness, MediumLevelILInstruction, Type
 from binaryninja.types import ArrayType, BoolType, CharType, FloatType, FunctionType, IntegerType, PointerType, VoidType
@@ -116,8 +116,8 @@ class GlobalHandler(Handler):
         """Return datavariable, string or raw bytes at given address."""
         if datavariable := view.get_data_var_at(addr):
             return self._lifter.lift(datavariable, view=view, caller_addr=caller_addr), datavariable.type
-        if (string := self._get_different_string_types_at(addr, view)) and string is not None:
-            data, type = string, Type.pointer(view.arch, Type.char())
+        if (data := self._get_different_string_types_at(addr, view)) and data[0] is not None:
+            data, type = data[0], Type.pointer(view.arch, data[1])
         else:
             data, type = self._get_raw_bytes(addr, view), Type.pointer(view.arch, Type.void())
 
@@ -137,15 +137,14 @@ class GlobalHandler(Handler):
         return f'"{string}"'
 
 
-    def _get_different_string_types_at(self, addr: int, view: BinaryView) -> Optional[str]:
+    def _get_different_string_types_at(self, addr: int, view: BinaryView) -> Tuple[Optional[str], Type]:
         """Extract string with char/wchar16/wchar32 type if there is one"""
         types: list[Type] = [Type.char(), Type.wide_char(2), Type.wide_char(4)]
-        string = ""
         for type in types:
             string = self._get_string_at(view, addr, type.width)
             if string != None:
                 break
-        return string
+        return string, type
 
 
     def _get_string_at(self, view: BinaryView, addr: int, width: int) -> Optional[str]:
