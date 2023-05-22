@@ -339,7 +339,7 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
         -> Note, the possible case node is either a child of the same sequence node as the switch node or the branch of a condition node
            that is a child of the same sequence node as the switch node.
         """
-        if hash(possible_case_node.parent) == hash(switch_node.parent):
+        if possible_case_node.parent is switch_node.parent:
             compare_node = possible_case_node
         else:
             compare_node = possible_case_node.parent.parent

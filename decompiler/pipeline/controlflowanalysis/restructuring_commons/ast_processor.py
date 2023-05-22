@@ -107,15 +107,23 @@ class Processor:
             + last_break_condition
         )
 
-    def _remove_break_condition_from_nodes_behind(self):
-        """Remove break-conditions from the following conditions."""
+    def _update_condition_for_nodes_reachable_from_break(self):
+        """
+        Update the reaching condition of all nodes reachable from a break-node in a sequence.
+
+        - Given a sequence node, consider all break-nodes that are not reachable from any other node.
+        - These break-nodes can all be at the beginning of the sequence.
+        - For all other children of the sequence-node, the negated reaching-condition of the break-conditions must hold
+        - If setting the negated-break condition to true, changes the reaching-condition of a child,
+          then the break-node must be executed before the child, and we update the reachability.
+        """
         for seq_node in self.asforest.get_sequence_nodes_post_order():
             break_nodes: InsertionOrderedSet[Union[CodeNode, ConditionNode]] = InsertionOrderedSet(seq_node.get_break_nodes())
             reachability_of_seq_node_children: SiblingReachability = seq_node.get_reachability_of_children()
             for break_node in break_nodes:
-                neg_break_cond = ~self.__get_break_condition(break_node)
                 if reachability_of_seq_node_children.siblings_reaching(break_node):
                     continue
+                neg_break_cond = ~self.__get_break_condition(break_node)
                 for child in (c for c in seq_node.children if c not in break_nodes):
                     old_cond = child.reaching_condition.copy()
                     child.reaching_condition.substitute_by_true(neg_break_cond, self.asforest.condition_handler)
@@ -150,7 +158,7 @@ class AcyclicProcessor(Processor):
         self._simplify_reaching_conditions()
         self.asforest.clean_up(self.asforest.current_root)
         self._combine_break_nodes()
-        self._remove_break_condition_from_nodes_behind()
+        self._update_condition_for_nodes_reachable_from_break()
 
     def preprocess_condition_aware_refinement(self):
         """Flatten nested Sequence nodes, removes Sequence nodes with only one child and combines cascading condition nodes, if possible."""

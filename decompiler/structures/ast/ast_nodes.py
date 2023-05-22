@@ -3,12 +3,12 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import TYPE_CHECKING, Dict, Iterable, List, Literal, Optional, Tuple, TypeVar, Union
+from typing import TYPE_CHECKING, Dict, Generator, Iterable, List, Literal, Optional, Tuple, TypeVar, Union
 
 from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.structures.ast.reachability_graph import CaseDependencyGraph, SiblingReachability
 from decompiler.structures.graphs.interface import GraphNodeInterface
-from decompiler.structures.logic.logic_condition import LogicCondition, PseudoLogicCondition
+from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import Assignment, Break, Condition, Constant, Continue, Expression, Instruction, Return, Variable
 
 if TYPE_CHECKING:
@@ -196,7 +196,7 @@ class AbstractSyntaxTreeNode(BaseAbstractSyntaxTreeNode, ABC):
             yield from child.get_descendant_code_nodes_interrupting_ancestor_loop()
 
     def _has_descendant_code_node_breaking_ancestor_loop(self) -> bool:
-        """Check whether any descendant code-nodes ends with a return-statement interrupting the above loop."""
+        """Check whether any descendant code-nodes ends with a return-statement interrupting the parent-loop."""
         return any(code_node.does_end_with_break for code_node in self.get_descendant_code_nodes_interrupting_ancestor_loop())
 
     def get_required_variables(self, condition_map: Optional[Dict[LogicCondition, Condition]] = None) -> Iterable[Variable]:
@@ -315,16 +315,14 @@ class SeqNode(AbstractSyntaxTreeNode):
         """Return the sibling reachability of the children of the seq node."""
         return self._ast.get_sibling_reachability_of_children_of(self)
 
-    def get_break_nodes(self) -> Iterable[Union[CodeNode, ConditionNode]]:
+    def get_break_nodes(self) -> Generator[Union[CodeNode, ConditionNode]]:
         """
         Return all break-node children of the sequence node
 
         - Code-Nodes containing only a break statement
         - Condition-Nodes having one branch that is a code-node with only a break-statement
         """
-        for child in self.children:
-            if child.is_break_node or child.is_break_condition:
-                yield child
+        return (child for child in self.children if child.is_break_node or child.is_break_condition)
 
     def accept(self, visitor: ASTVisitorInterface[T]) -> T:
         return visitor.visit_seq_node(self)
