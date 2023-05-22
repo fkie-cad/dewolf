@@ -10,10 +10,7 @@ def _has_only_loop_interruptions_in(end_nodes: Set[CodeNode], body: SeqNode) -> 
     Check that there is no continue-statement in the loop-body and no break statement except the last child that could
     interrupt the loop node.
     """
-    for code_node in body.get_descendant_code_nodes_interrupting_ancestor_loop():
-        if code_node not in end_nodes:
-            return False
-    return True
+    return all(code_node in end_nodes for code_node in body.get_descendant_code_nodes_interrupting_ancestor_loop())
 
 
 class LoopStructuringRule(ABC):
