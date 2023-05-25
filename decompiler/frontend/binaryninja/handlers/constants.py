@@ -26,6 +26,7 @@ class ConstantHandler(Handler):
                 mediumlevelil.MediumLevelILExternPtr: self.lift_constant_pointer,
                 mediumlevelil.MediumLevelILConstPtr: self.lift_constant_pointer,
                 mediumlevelil.MediumLevelILImport: self.lift_constant_pointer,
+                mediumlevelil.MediumLevelILConstData: self.lift_constant_data,
                 int: self.lift_integer_literal,
             }
         )
@@ -38,6 +39,10 @@ class ConstantHandler(Handler):
     def lift_integer_literal(value: int, **kwargs) -> Constant:
         """Lift the given literal, which is most likely an artefact from shift operations and the like."""
         return Constant(value, vartype=Integer.int32_t())
+
+    def lift_constant_data(self, pointer: mediumlevelil.MediumLevelILConstData, **kwargs) -> Constant:
+        """Lift const data as a non mute able constant string"""
+        return StringSymbol(str(pointer), pointer.address)
 
     def lift_constant_pointer(self, pointer: mediumlevelil.MediumLevelILConstPtr, **kwargs) -> Union[Constant, StringSymbol, UnaryOperation, GlobalVariable]:
         """Lift the given constant pointer, e.g. &0x80000.
