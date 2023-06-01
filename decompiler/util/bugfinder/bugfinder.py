@@ -49,6 +49,7 @@ class DBConnector:
         function_platform TEXT,
         sample_hash TEXT,
         sample_name TEXT,
+        sample_total_function_count INTEGER,
         dewolf_options TEXT,
         dewolf_current_commit TEXT,
         binaryninja_version TEXT,
@@ -88,10 +89,13 @@ class DBConnector:
         self.con.commit()
 
     @staticmethod
-    def get_dewolf_info(options: Options, sample: Path) -> dict:
+    def get_sample_info(sample: Path, function_count: int) -> dict:
+        sample_info = {"sample_name": sample.name, "sample_hash": sha256sum(sample), "sample_total_function_count": function_count}
+        return sample_info
+
+    @staticmethod
+    def get_dewolf_info(options: Options) -> dict:
         dewolf_info = {
-            "sample_name": sample.name,
-            "sample_hash": sha256sum(sample),
             "dewolf_options": str(options),
             "dewolf_current_commit": get_git_commit(),
             "binaryninja_version": core_version(),
@@ -155,7 +159,8 @@ class DecompilerReporter(Decompiler):
         options = self.create_options()
         options.update(self.REPORT_OPTIONS)
         logging.debug(f"[Bugfinder] dewolf options:\n{options}")
-        dewolf_info = DBConnector.get_dewolf_info(options, sample)
+        dewolf_info = DBConnector.get_dewolf_info(options)
+        sample_info = DBConnector.get_sample_info(sample, len(self._frontend._bv.functions))
         for function in self._bn_functions():
             logging.debug(f"[Bugfinder] decompiling {function.name}")
             function_info = DBConnector.get_function_info(function)
@@ -166,7 +171,7 @@ class DecompilerReporter(Decompiler):
                 decompilation_info = DBConnector.get_successful_info(task_result.code, int(time2 - time1))
             except Exception as e:
                 decompilation_info = DBConnector.get_error_info(e)
-            yield {**dewolf_info, **function_info, **decompilation_info}
+            yield {**dewolf_info, **sample_info, **function_info, **decompilation_info}
 
 
 def store_reports_from_sample(sample: Path, db_reports: DBConnector):
