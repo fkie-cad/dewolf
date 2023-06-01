@@ -174,7 +174,7 @@ Ironic. He could save others from death, but not himself.";
 
 int long_array[128] = {0};
 
-int global_string_max_length(){
+int global_string_length(){
 	printf("%s\n", long_string);
 	for(int i = 0; i < 128; i++){
 		printf("%d\n", long_array[i]);
