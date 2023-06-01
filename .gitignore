@@ -20,3 +20,5 @@ merge_mirror.sh
 /report.xml
 tests/.pytest_cache/
 tests/*.png
+/bugs.db
+/bugfinder.py

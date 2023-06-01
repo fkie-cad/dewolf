@@ -18,6 +18,7 @@ from decompiler.structures.pseudo.expressions import (
     ExternFunctionPointer,
     FunctionSymbol,
     GlobalVariable,
+    ImportedFunctionSymbol,
     Variable,
 )
 from decompiler.structures.pseudo.instructions import Assignment, Comment, Return
@@ -57,6 +58,9 @@ def x2_symbol(context=None):
 def true_condition(context=None):
     context = LogicCondition.generate_new_context() if context is None else context
     return LogicCondition.initialize_true(context)
+
+def logic_cond(name: str, context) -> LogicCondition:
+    return LogicCondition.initialize_symbol(name, context)
 
 
 var_a = Variable("a", int32)
@@ -445,6 +449,37 @@ class TestCodeGeneration:
 
         regex = r"^%int +test_function\(\)%{(?s).*if%\(%COND_STR%\)%{%return%0%;%}%}%$"
         assert self._regex_matches(regex.replace("COND_STR", expected).replace("%", "\\s*"), self._task(ast))
+
+    
+    def test_loop_declaration_ListOp(self):
+        """
+        a = 5;
+        while(b = foo; b <= 5; b++){
+            a++;
+        }
+        """
+        true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+        ast = AbstractSyntaxTree(
+            root := SeqNode(true_value),
+            condition_map={logic_cond("x1", context): Condition(OperationType.less_or_equal, [Variable("b"), Constant(5)])},
+        )
+        code_node = ast._add_code_node(
+            instructions=[
+                Assignment(Variable("a"), Constant(5)),
+            ]
+        )
+        loop_node = ast.factory.create_for_loop_node(Assignment(ListOperation([Variable("b")]), Call(ImportedFunctionSymbol("foo", 0), [])), logic_cond("x1", context), Assignment(Variable("b"), BinaryOperation(OperationType.plus, [Variable("b"), Constant(1)])))
+        loop_node_body = ast._add_code_node(
+            [
+                Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Variable("1")])),
+            ]
+        )
+        ast._add_node(loop_node)
+        ast._add_edges_from(((root, code_node), (root, loop_node), (loop_node, loop_node_body)))
+        ast._code_node_reachability_graph.add_reachability(code_node, loop_node_body)
+        root._sorted_children = (code_node, loop_node)
+        source_code = CodeGenerator().generate([self._task(ast)]).replace("\n", "")
+        assert source_code.find("for (b = foo();") != -1 
 
 
 class TestExpression:
