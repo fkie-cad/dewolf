@@ -24,7 +24,7 @@ ___
 Before we start, please make sure you have the following dependencies installed and available on your computer:
 
 - At least [Python 3.10](https://www.python.org/)
-- Latest stable release of [Binary Ninja (>=3.0)](https://binary.ninja/)
+- Latest stable release of [Binary Ninja (>=3.4)](https://binary.ninja/)
 - [astyle](https://code.tools/man/1/astyle/) for proper indentation of the decompiled code
 - [libgraph-easy-perl](https://packages.ubuntu.com/source/focal/libgraph-easy-perl) only required for printing ASCII graphs
 
@@ -60,7 +60,7 @@ pip install -r requirements.txt
 Install Binary Ninja python API with:
 
 ```bash
-python <binaryninja_path>/scripts/install_api.py [-v if using virtualenv]
+python <binaryninja_path>/scripts/install_api.py [--install-on-pyenv if using virtualenv]
 ```
 
 **Warning:** Changes made to the dewolf plugin only comes into effect after restarting the Binary Ninja GUI.

@@ -1,6 +1,6 @@
 import logging
 
-from binaryninja import BinaryView, TagType
+from binaryninja import BinaryView
 from compiler_idioms.matcher import Matcher
 from decompiler.util.options import Options
 
@@ -40,15 +40,8 @@ class CompilerIdiomsTagging:
     def _set_tag(binary_view: BinaryView, tag_name: str, address: int, text: str):
         """Sets tag in the given binary view at the corresponding address.
         Does nothing if there is already compiler idiom tag set at address"""
-        if tags := binary_view.get_user_data_tags_at(address):
+        if tags := binary_view.get_tags_at(address, auto=False):
             if any(CompilerIdiomsTagging.TAG_PREFIX in tag.type.name for tag in tags):
                 return
-        tag_type = CompilerIdiomsTagging._get_tag_type(binary_view, tag_name)
-        binary_view.create_user_data_tag(address, tag_type, text, unique=True)
-
-    @staticmethod
-    def _get_tag_type(binary_view: BinaryView, tag_type_name: str) -> TagType:
-        """Creates the tag type [compiler-idioms] in the binary view if id does not exist and returns it."""
-        if tag_type_name in binary_view.tag_types.keys():
-            return binary_view.tag_types[tag_type_name]
-        return binary_view.create_tag_type(tag_type_name, CompilerIdiomsTagging.TAG_SYMBOL)
+        binary_view.create_tag_type(tag_name, CompilerIdiomsTagging.TAG_SYMBOL)
+        binary_view.add_tag(address, tag_name, text)
