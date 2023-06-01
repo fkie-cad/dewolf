@@ -43,10 +43,10 @@ class ConstantHandler(Handler):
         variable = DataVariable(view, pointer.constant, Type.void(), False)
         global_variable = self._lifter.lift(variable, view=view, parent=pointer)
 
-        return self._propagate_global_string(global_variable, variable, view)
+        return self._replace_global_variable_with_value(global_variable, variable, view)
 
-    def _propagate_global_string(self, globalVariable: GlobalVariable, variable: DataVariable, view: BinaryView) -> StringSymbol:
-        """Propagate a constant string into code, if it's a char/wchar16/wchar32* and in a read only section"""
+    def _replace_global_variable_with_value(self, globalVariable: GlobalVariable, variable: DataVariable, view: BinaryView) -> StringSymbol:
+        """Replace global variable with it's value, if it's a char/wchar16/wchar32* and in a read only section"""
         if not self._in_read_only_section(variable.address, view) or str(globalVariable.type) == "void *":
             return globalVariable
         return StringSymbol(globalVariable.initial_value, variable.address, vartype=Pointer(Integer.char(), view.address_size * 8))

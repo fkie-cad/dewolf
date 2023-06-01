@@ -174,7 +174,7 @@ Ironic. He could save others from death, but not himself.";
 
 int long_array[128] = {0};
 
-int global_overflow(){
+int global_string_max_length(){
 	printf("%s\n", long_string);
 	for(int i = 0; i < 128; i++){
 		printf("%d\n", long_array[i]);
@@ -192,6 +192,6 @@ int main(int argc, char *argv[]) {
 	global_indirect_ptrs2();
 	global_recursive_ptr();
 	global_w_char();
-	global_overflow();
+	global_string_length();
 	return 0;
 }

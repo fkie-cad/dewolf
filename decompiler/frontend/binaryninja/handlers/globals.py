@@ -1,8 +1,9 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple, Union, Callable
 
 from binaryninja import BinaryView, DataVariable, Endianness, MediumLevelILInstruction, Type
-from binaryninja.types import ArrayType, BoolType, CharType, FloatType, FunctionType, IntegerType, PointerType, VoidType
+from binaryninja.types import ArrayType, BoolType, CharType, FloatType, FunctionType, IntegerType, PointerType, VoidType, Type
+from decompiler.frontend.binaryninja.handlers.symbols import GLOBAL_VARIABLE_PREFIX
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import (
     Constant,
@@ -16,6 +17,7 @@ from decompiler.structures.pseudo import (
     UnaryOperation,
 )
 
+MAX_GLOBAL_STRINGBYTES_LENGTH = 129
 
 class GlobalHandler(Handler):
     """Handle for global variables."""
@@ -25,7 +27,7 @@ class GlobalHandler(Handler):
 
     def __init__(self, lifter):
         super().__init__(lifter)
-        self._datavariable_types = {
+        self._lift_datavariable_type : dict[Type, Callable] = {
             CharType: self._lift_basic_type,
             IntegerType: self._lift_basic_type,
             FloatType: self._lift_basic_type,
@@ -48,9 +50,9 @@ class GlobalHandler(Handler):
 
         if caller_addr == variable.address: 
             return self._lifter.lift(variable.symbol) if variable.symbol else \
-            Symbol("data_" + f"{variable.address:x}", variable.address, vartype=Integer.uint32_t())
+            Symbol(GLOBAL_VARIABLE_PREFIX + f"{variable.address:x}", variable.address, vartype=Integer.uint32_t())
 
-        return self._datavariable_types[type(variable.type)](variable, view, parent)
+        return self._lift_datavariable_type[type(variable.type)](variable, view, parent)
 
 
     def _lift_constant_type(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None) -> StringSymbol:
@@ -60,8 +62,8 @@ class GlobalHandler(Handler):
 
     
     def _lift_pointer_type(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None):
-        """Lift a pointer as:
-            1. Function pointer: If bninja already knows it's a fkt. ptr.
+        """Lift pointer as:
+            1. Function pointer: If bninja already knows it's a function pointer.
             2. Type pointer: As normal type pointer (there _should_ be a datavariable at the pointers dest.)
             3. Void pointer: Try to extract a datavariable (recover type of void* directly), string (char*) or raw bytes (void*) at the given address
         """
@@ -77,7 +79,7 @@ class GlobalHandler(Handler):
             OperationType.address,
                 [
                     GlobalVariable(
-                    name=self._lifter.lift(variable.symbol).name if variable.symbol else "data_" + f"{variable.address:x}",
+                    name=self._lifter.lift(variable.symbol).name if variable.symbol else GLOBAL_VARIABLE_PREFIX + f"{variable.address:x}",
                     vartype=self._lifter.lift(type),
                     ssa_label=parent.ssa_memory_version if parent else 0,
                     initial_value=init_value
@@ -92,7 +94,7 @@ class GlobalHandler(Handler):
             OperationType.address,
                 [
                     GlobalVariable(
-                    name=self._lifter.lift(variable.symbol).name if variable.symbol else "data_" + f"{variable.address:x}",
+                    name=self._lifter.lift(variable.symbol).name if variable.symbol else GLOBAL_VARIABLE_PREFIX + f"{variable.address:x}",
                     vartype=self._lifter.lift(variable.type),
                     ssa_label=parent.ssa_memory_version if parent else 0,
                     initial_value=Constant(variable.value)
@@ -105,7 +107,7 @@ class GlobalHandler(Handler):
         "Lift unknown type, by checking the value at the given address. Will always be lifted as a pointer. Try to extract datavariable, string or bytes as value"
         value, type = self._get_unknown_value(variable.address, view, variable.address)
         return GlobalVariable(
-                    name=self._lifter.lift(variable.symbol).name if variable.symbol else "data_" + f"{variable.address:x}",
+                    name=self._lifter.lift(variable.symbol).name if variable.symbol else GLOBAL_VARIABLE_PREFIX + f"{variable.address:x}",
                     vartype=self._lifter.lift(type),
                     ssa_label=parent.ssa_memory_version if parent else 0,
                     initial_value=value
@@ -121,8 +123,8 @@ class GlobalHandler(Handler):
         else:
             data, type = self._get_raw_bytes(addr, view), Type.pointer(view.arch, Type.void())
 
-        if len(data) > 129:
-            data = data[:129] + '..."'
+        if len(data) > MAX_GLOBAL_STRINGBYTES_LENGTH:
+            data = data[:MAX_GLOBAL_STRINGBYTES_LENGTH] + '..."'
         return data, type
             
 
@@ -149,7 +151,7 @@ class GlobalHandler(Handler):
 
     def _get_string_at(self, view: BinaryView, addr: int, width: int) -> Optional[str]:
         """Read string with specified width from location."""
-        raw_bytes: bytearray = bytearray()
+        raw_bytes = bytearray()
         match width:
             case 1:
                 read = view.reader(addr).read8
@@ -164,12 +166,12 @@ class GlobalHandler(Handler):
                 raise ValueError("Width not supported for reading bytes")
 
         while (byte := read()) != 0x00:
-            if byte > 127: # ASCII (127) or UTF8 (255)?
+            if byte > 127:
                 return None
             raw_bytes.append(byte)
 
         string = str(raw_bytes)[12:-2]
-        if len(string) < 2 or string.find("\\x") != -1: # string at least 2 chars + no hex parts in str
+        if not raw_bytes.isalnum() or len(string) < 2:
             return None
         
         return identifier + f'"{string}"'

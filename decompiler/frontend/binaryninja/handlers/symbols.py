@@ -6,8 +6,10 @@ from binaryninja import CoreSymbol
 from binaryninja import Symbol as bSymbol
 from binaryninja import SymbolType
 from decompiler.frontend.lifter import Handler, ObserverLifter
-from decompiler.structures.pseudo import Constant, FunctionSymbol, GlobalVariable, ImportedFunctionSymbol, Integer, Symbol
+from decompiler.structures.pseudo import Constant, FunctionSymbol, GlobalVariable, ImportedFunctionSymbol, Symbol
 
+MAX_SYMBOL_NAME_LENGTH = 64
+GLOBAL_VARIABLE_PREFIX = "data_"
 
 class SymbolHandler(Handler):
     """Handler for phi instructions emitted by binaryninja."""
@@ -42,8 +44,8 @@ class SymbolHandler(Handler):
 
     def _purge_symbol_name(self, name: str, addr: int) -> str:
         """Purge invalid chars from symbol names or lift as data_addr if name is too long"""
-        if len(name) > 64:
-            return f"data_{hex(addr)}" 
+        if name[:2] == "??" or len(name) > MAX_SYMBOL_NAME_LENGTH: # strip useless PDB debug names which start with `??`
+            return GLOBAL_VARIABLE_PREFIX + f"{hex(addr)}"
         return name.translate({
             ord(' '): '_', 
             ord("'"): "", 
