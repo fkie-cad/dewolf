@@ -171,7 +171,7 @@ class GlobalHandler(Handler):
             raw_bytes.append(byte)
 
         string = str(raw_bytes)[12:-2]
-        if not raw_bytes.isalnum() or len(string) < 2:
+        if len(string) < 2 or string.find("\\x") != -1:
             return None
         
         return identifier + f'"{string}"'
