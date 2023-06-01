@@ -1,6 +1,44 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+int test0(int a, int b)
+{
+    for(int i = 0; i < 10; i++){
+        switch(a){
+            case 1:
+                printf("You chose the 1\n");
+                break;
+            case 2:
+                printf("You chose the prime number 2\n");
+            case 4:
+                printf("You chose an even number\n");
+                break;
+            case 5:
+               if( b == 5){
+                   goto L;
+               }
+               printf("both numbers are 5\n");
+               break;
+            case 3:
+                printf("Another prime\n");
+                break;
+            default:
+                printf("Number not between 1 and 5\n");
+                if(a > 5){
+                    a -= 5;
+                }
+                else{
+                    a += 5;
+                }
+
+        }
+        b += i;
+        printf("b= %d\n", b);
+    }
+    L: printf("final b= %d\n", b);
+    return b;
+}
+
 int test1()
 {
     int week;

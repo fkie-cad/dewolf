@@ -526,7 +526,7 @@ class TestZ3LogicCondition:
         ],
     )
     def test_substitute_by_true_basics(self, term, condition, result):
-        assert term.substitute_by_true(condition) == result
+        assert term.substitute_by_true(condition).simplify() == result
 
     @pytest.mark.parametrize(
         "condition, result",
@@ -541,7 +541,7 @@ class TestZ3LogicCondition:
             (z3_x[6].copy() & z3_x[7].copy(), (z3_x[1].copy() | z3_x[2].copy() | z3_x[3].copy()) & (z3_x[4].copy() | z3_x[5].copy())),
             (
                 z3_x[1].copy() | z3_x[2].copy(),
-                (z3_x[1].copy() | z3_x[2].copy() | z3_x[3].copy()) & (z3_x[4].copy() | z3_x[5].copy()) & z3_x[6].copy() & z3_x[7].copy(),
+                (z3_x[4].copy() | z3_x[5].copy()) & z3_x[6].copy() & z3_x[7].copy(),
             ),
             (
                 (z3_x[1].copy() | z3_x[2].copy() | z3_x[3].copy())
@@ -556,6 +556,12 @@ class TestZ3LogicCondition:
     def test_substitute_by_true(self, condition, result):
         term = (z3_x[1].copy() | z3_x[2].copy() | z3_x[3].copy()) & (z3_x[4].copy() | z3_x[5].copy()) & z3_x[6].copy() & z3_x[7].copy()
         term.substitute_by_true(condition)
+        assert term.simplify() == result.simplify()
+
+    def test_substitute_by_no_equivalence(self):
+        term = (z3_x[1].copy() | z3_x[2].copy()) & (~z3_x[1].copy() | z3_x[3].copy()) & (z3_x[4].copy() | z3_x[5].copy())
+        term.substitute_by_true(z3_x[1].copy())
+        result = z3_x[3].copy() & (z3_x[4].copy() | z3_x[5].copy())
         assert term.simplify() == result.simplify()
 
     @pytest.mark.parametrize(
