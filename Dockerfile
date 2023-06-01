@@ -21,7 +21,7 @@ RUN apt -y update && apt -y upgrade && apt install -y --no-install-recommends \
     # others
     virtualenv \
     unzip \
-	  astyle \
+	astyle \
     # plotting ascii graphs for debug purposes
     libgraph-easy-perl \
     z3
@@ -41,3 +41,7 @@ RUN cd /opt/dewolf & make -f /opt/dewolf/Makefile.venv venv VENV_PATH=/opt/dewol
 
 RUN mkdir -p /root/.binaryninja/plugins/
 WORKDIR /opt/dewolf
+
+# activate venv for docker exec
+ENV VIRTUAL_ENV=/opt/dewolf/.venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
