@@ -1,8 +1,8 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
-from typing import Optional, Tuple, Union, Callable
+from typing import Callable, Optional, Tuple, Union
 
 from binaryninja import BinaryView, DataVariable, Endianness, MediumLevelILInstruction, Type
-from binaryninja.types import ArrayType, BoolType, CharType, FloatType, FunctionType, IntegerType, PointerType, VoidType, Type
+from binaryninja.types import ArrayType, BoolType, CharType, FloatType, FunctionType, IntegerType, PointerType, Type, VoidType
 from decompiler.frontend.binaryninja.handlers.symbols import GLOBAL_VARIABLE_PREFIX
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import (
