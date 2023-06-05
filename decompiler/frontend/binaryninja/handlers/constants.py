@@ -1,4 +1,5 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
+import math
 from typing import Optional, Union
 
 from binaryninja import BinaryView, DataVariable, FunctionType, PointerType, SectionSemantics, SymbolType, Type, VoidType, mediumlevelil
@@ -8,6 +9,7 @@ from decompiler.structures.pseudo import (
     GlobalVariable,
     ImportedFunctionSymbol,
     Integer,
+    NotUseableConstant,
     OperationType,
     Pointer,
     StringSymbol,
@@ -33,6 +35,8 @@ class ConstantHandler(Handler):
 
     def lift_constant(self, constant: mediumlevelil.MediumLevelILConst, **kwargs) -> Constant:
         """Lift the given constant value."""
+        if(constant.constant in [math.inf, -math.inf, math.nan]):
+            return NotUseableConstant(str(constant.constant))
         return Constant(constant.constant, vartype=self._lifter.lift(constant.expr_type))
 
     @staticmethod
