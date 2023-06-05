@@ -367,7 +367,7 @@ class AbstractSyntaxInterface(ABC):
     def _remove_node(self, node: AbstractSyntaxTreeNode):
         """Remove the node from the graph."""
         if isinstance(node.parent, SeqNode):
-            node.parent._sorted_children = tuple(child for child in node.parent._sorted_children if child != node)
+            node.parent._sorted_children = tuple(child for child in node.parent._sorted_children if child is not node)
         if isinstance(node, CodeNode):
             self._code_node_reachability_graph.remove_code_node(node)
         self._ast.remove_node(node)
@@ -423,7 +423,7 @@ class AbstractSyntaxInterface(ABC):
         for child in children:
             self._add_edge(replacement, child)
         if isinstance(parent, SeqNode):
-            parent._sorted_children = tuple(replacement if child == replacee else child for child in parent._sorted_children)
+            parent._sorted_children = tuple(replacement if child is replacee else child for child in parent._sorted_children)
 
         self._remove_node(replacee)
 
@@ -434,7 +434,7 @@ class AbstractSyntaxInterface(ABC):
         self._add_node(replacement_root)
         parent = replacee_root.parent
         if isinstance(parent, SeqNode):
-            parent._sorted_children = tuple(replacement_root if nd == replacee_root else nd for nd in parent._sorted_children)
+            parent._sorted_children = tuple(replacement_root if nd is replacee_root else nd for nd in parent._sorted_children)
         self.remove_subtree(replacee_root)
         if parent:
             self._add_edge(parent, replacement_root)
@@ -446,7 +446,7 @@ class AbstractSyntaxInterface(ABC):
         parent = node.parent
         if parent is not None:
             if isinstance(parent, SeqNode):
-                parent._sorted_children = tuple(new_seq if child == node else child for child in parent._sorted_children)
+                parent._sorted_children = tuple(new_seq if child is node else child for child in parent._sorted_children)
             self._remove_edge(parent, node)
             self._add_edge(parent, new_seq)
         self._add_edge(new_seq, node)

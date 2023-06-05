@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import functools
 from itertools import product
-from typing import TYPE_CHECKING, Dict, Generic, Iterable, Iterator, List, Sequence, TypeVar
+from typing import TYPE_CHECKING, Dict, Generic, Iterable, Iterator, List, Optional, Sequence, TypeVar
 
 from decompiler.structures.logic.logic_interface import ConditionInterface, PseudoLogicInterface
 from decompiler.structures.logic.z3_implementations import Z3Implementation
@@ -184,34 +184,29 @@ class Z3LogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         for z3_literal in self.z3.get_literals(self._condition):
             yield self.__class__(z3_literal)
 
-    def substitute_by_true(self, condition: LOGICCLASS) -> LOGICCLASS:
+    def substitute_by_true(self, condition: LOGICCLASS, condition_handler: Optional[ConditionHandler] = None) -> LOGICCLASS:
         """
         Substitutes the given condition by true.
 
         Example: substituting in the expression (a∨b)∧c the condition (a∨b) by true results in the condition c,
              and substituting the condition c by true in the condition (a∨b)
         """
-        if condition.does_imply(self):
-            self._condition = BoolVal(True, ctx=condition.context)
-            return self
-        self.to_cnf()
+        self._condition = self.z3.simplify_z3_condition(And(self._condition, condition._condition))
+        if condition_handler:
+            self.remove_redundancy(condition_handler)
+        tmp_condition = self._condition
 
-        if self.is_true or self.is_false or self.is_negation or self.is_symbol:
-            return self
+        cond_operands = condition._condition.children() if condition.is_conjunction else [condition._condition]
+        tmp_condition_operands = tmp_condition.children() if is_and(tmp_condition) else [tmp_condition]
 
-        condition_operands: List[LOGICCLASS] = condition.operands
-        numb_of_arg_expr: int = len(self.operands) if self.is_conjunction else 1
-        numb_of_arg_cond: int = len(condition_operands) if condition.is_conjunction else 1
-
-        if numb_of_arg_expr <= numb_of_arg_cond:
+        if is_true(tmp_condition) or is_false(tmp_condition):
+            self._condition = tmp_condition
             return self
 
-        expression: BoolRef = self._condition
-        subexpressions: List[LOGICCLASS] = [condition] if numb_of_arg_cond == 1 else condition_operands
-        for sub_expr_1, sub_expr_2 in product(subexpressions, self.operands):
-            if sub_expr_1.is_equivalent_to(sub_expr_2):
-                expression = substitute(expression, (sub_expr_2._condition, BoolVal(True, ctx=condition.context)))
-        self._condition = expression
+        for tmp_operand in tmp_condition_operands:
+            if any(self.z3.does_imply(op, tmp_operand) for op in cond_operands):
+                tmp_condition = substitute(tmp_condition, (tmp_operand, BoolVal(True, ctx=condition.context)))
+        self._condition = tmp_condition
         return self
 
     def remove_redundancy(self, condition_handler: ConditionHandler) -> LOGICCLASS:

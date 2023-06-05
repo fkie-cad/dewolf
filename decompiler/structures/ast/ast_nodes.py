@@ -3,12 +3,12 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import TYPE_CHECKING, Dict, Iterable, List, Literal, Optional, Tuple, TypeVar, Union
+from typing import TYPE_CHECKING, Dict, Generator, Iterable, List, Literal, Optional, Tuple, TypeVar, Union
 
 from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.structures.ast.reachability_graph import CaseDependencyGraph, SiblingReachability
 from decompiler.structures.graphs.interface import GraphNodeInterface
-from decompiler.structures.logic.logic_condition import LogicCondition, PseudoLogicCondition
+from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import Assignment, Break, Condition, Constant, Continue, Expression, Instruction, Return, Variable
 
 if TYPE_CHECKING:
@@ -178,7 +178,7 @@ class AbstractSyntaxTreeNode(BaseAbstractSyntaxTreeNode, ABC):
 
     def get_possible_case_candidate_condition(self) -> Optional[LogicCondition]:
         """Returns the reaching condition of a node if it is a possible case node of a switch node."""
-        if not self.reaching_condition.is_true and not self.does_end_with_break:
+        if not self.reaching_condition.is_true and not self._has_descendant_code_node_breaking_ancestor_loop():
             return self.reaching_condition
         return None
 
@@ -189,6 +189,15 @@ class AbstractSyntaxTreeNode(BaseAbstractSyntaxTreeNode, ABC):
     def get_reachable_code_nodes(self) -> Iterable[CodeNode]:
         """Return all code nodes that are reachable from this node."""
         return self._ast.reachable_code_nodes(self)
+
+    def get_descendant_code_nodes_interrupting_ancestor_loop(self) -> Iterable[CodeNode]:
+        """Return all descendant code-nodes ending with a return- or continue-statement interrupting the above loop."""
+        for child in self.children:
+            yield from child.get_descendant_code_nodes_interrupting_ancestor_loop()
+
+    def _has_descendant_code_node_breaking_ancestor_loop(self) -> bool:
+        """Check whether any descendant code-nodes ends with a return-statement interrupting the parent-loop."""
+        return any(code_node.does_end_with_break for code_node in self.get_descendant_code_nodes_interrupting_ancestor_loop())
 
     def get_required_variables(self, condition_map: Optional[Dict[LogicCondition, Condition]] = None) -> Iterable[Variable]:
         """Return all variables that are required in this node."""
@@ -306,6 +315,15 @@ class SeqNode(AbstractSyntaxTreeNode):
         """Return the sibling reachability of the children of the seq node."""
         return self._ast.get_sibling_reachability_of_children_of(self)
 
+    def get_break_nodes(self) -> Generator[Union[CodeNode, ConditionNode]]:
+        """
+        Return all break-node children of the sequence node
+
+        - Code-Nodes containing only a break statement
+        - Condition-Nodes having one branch that is a code-node with only a break-statement
+        """
+        return (child for child in self.children if child.is_break_node or child.is_break_condition)
+
     def accept(self, visitor: ASTVisitorInterface[T]) -> T:
         return visitor.visit_seq_node(self)
 
@@ -420,6 +438,11 @@ class CodeNode(AbstractSyntaxTreeNode):
     def accept(self, visitor: ASTVisitorInterface[T]) -> T:
         return visitor.visit_code_node(self)
 
+    def get_descendant_code_nodes_interrupting_ancestor_loop(self) -> Iterable[CodeNode]:
+        """Return the code-node itself if it ends with a return- or continue-statement."""
+        if self.does_end_with_break or self.does_end_with_continue:
+            yield self
+
     def get_required_variables(self, condition_map: Optional[Dict[LogicCondition, Condition]] = None) -> Iterable[Variable]:
         for instruction in self.instructions:
             yield from instruction.requirements
@@ -531,7 +554,7 @@ class ConditionNode(AbstractSyntaxTreeNode):
     def get_possible_case_candidate_condition(self) -> Optional[LogicCondition]:
         """Returns the reaching condition of a node if it is a possible case node of a switch node."""
         self.clean()
-        if self.false_branch is None and not self.true_branch.does_end_with_break:
+        if self.false_branch is None and not self._has_descendant_code_node_breaking_ancestor_loop():
             return self.reaching_condition & self.condition
         return None
 
@@ -729,6 +752,10 @@ class LoopNode(AbstractSyntaxTreeNode, ABC):
 
     def accept(self, visitor: ASTVisitorInterface[T]) -> T:
         return visitor.visit_loop_node(self)
+
+    def get_descendant_code_nodes_interrupting_ancestor_loop(self) -> Iterable[CodeNode]:
+        """No descendant code-node ending with a return- or continue-statement can interrupt an above loop, they all interrupt this loop."""
+        yield from []
 
     def get_required_variables(self, condition_map: Optional[Dict[LogicCondition, Condition]] = None) -> Iterable[Variable]:
         if not condition_map:
@@ -932,7 +959,7 @@ class SwitchNode(AbstractSyntaxTreeNode):
         Order the switch cases according to their constant (if possible) and prepend breaks to the cases that do not reach any other case.
 
         1. Pick Case nodes, where a linear order starts, and whose constant is minimum among the not picked case nodes with this property.
-        2. Append break break to last node of this order, if it does not end with a return or continue statement.
+        2. Append break to last node of this order, if it does not end with a return or continue statement.
         """
         default_node = self.default
         case_nodes = tuple(case for case in super().children if case != default_node)
