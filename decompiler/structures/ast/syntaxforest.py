@@ -60,9 +60,7 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
             asforest.add_code_node(node)
         return asforest
 
-    def construct_initial_ast_for_region(
-        self, reaching_conditions: Dict[TransitionBlock, LogicCondition], reachability_sets: Dict[TransitionBlock, Set[TransitionBlock]]
-    ) -> SeqNode:
+    def construct_initial_ast_for_region(self, reaching_conditions: Dict[TransitionBlock, LogicCondition]) -> SeqNode:
         """
         Initialize the AST for a region of the AST using dictionaries that map each node of the region to the nodes it reaches in the region
         as well as their reaching condition.
@@ -74,13 +72,6 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         for node, reaching_condition in reaching_conditions.items():
             node.ast.reaching_condition = reaching_condition
             self._add_edge(new_seq_node, node.ast)
-
-        descendant_code_nodes = {node: set(node.ast.get_descendant_code_nodes()) for node in reachability_sets}
-        for node, reachability_sets in reachability_sets.items():
-            for reachable in reachability_sets:
-                self._code_node_reachability_graph.add_reachability_from(
-                    product(descendant_code_nodes[node], descendant_code_nodes[reachable])
-                )
 
         new_seq_node.sort_children()
         return new_seq_node
@@ -473,7 +464,7 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
             yield child, condition, case_node.break_case
 
     def __add_condition_before_nodes(
-            self, condition: LogicCondition, true_branch: AbstractSyntaxTreeNode, false_branch: Optional[AbstractSyntaxTreeNode] = None
+        self, condition: LogicCondition, true_branch: AbstractSyntaxTreeNode, false_branch: Optional[AbstractSyntaxTreeNode] = None
     ) -> ConditionNode:
         """
         Add the given condition before the true_branch and its negation before the false branch.
@@ -508,4 +499,3 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         new_condition_node = self.__add_condition_before_nodes(case_condition, case_node)
         self._add_edge(true_branch, new_condition_node)
         true_branch._sorted_children = (new_condition_node,) + true_branch._sorted_children
-

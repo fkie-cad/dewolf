@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from itertools import product
 from typing import Dict, Optional, Set
 
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.ast_processor import AcyclicProcessor
@@ -14,7 +15,7 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder
     Strategy,
 )
 from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
-from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, SeqNode
+from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, SeqNode, CodeNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock, TransitionCFG
 from decompiler.structures.logic.logic_condition import LogicCondition
@@ -36,6 +37,24 @@ class AcyclicRegionRestructurer:
         self.head: Optional[TransitionBlock] = None
         self.current_region: Optional[TransitionCFG] = None
         self.options: RestructuringOptions = options
+        self._initialize_reachability()
+
+    def _initialize_reachability(self):
+        """Initialize the reachability of the code-nodes"""
+        reachability_sets: Dict[TransitionBlock, Set[CodeNode]] = dict()
+        descendant_code_nodes: Dict[TransitionBlock, Set[CodeNode]] = dict()
+        for node in self.t_cfg.iter_postorder():
+            reachability_sets[node] = set()
+            descendant_code_nodes[node] = set(node.ast.get_descendant_code_nodes())
+            for successor in self.t_cfg.get_successors(node):
+                reachability_sets[node].update(descendant_code_nodes[successor])
+                reachability_sets[node].update(reachability_sets[successor])
+
+        for node, reachability_sets in reachability_sets.items():
+            for reachable in reachability_sets:
+                self.asforest._code_node_reachability_graph.add_reachability_from(
+                    *((descendant, reachable) for descendant in descendant_code_nodes[node])
+                )
 
     def restructure(self):
         """Restructure the acyclic transition graph."""
@@ -59,9 +78,9 @@ class AcyclicRegionRestructurer:
         self.current_region: TransitionCFG = GraphSlice.compute_graph_slice_for_region(self.t_cfg, head, region)
 
         reaching_conditions: Dict[TransitionBlock, LogicCondition] = compute_reaching_conditions(self.current_region, head, self.t_cfg)
-        reachability_sets: Dict[TransitionBlock, Set[TransitionBlock]] = self._compute_reachability_sets()
+        # reachability_sets: Dict[TransitionBlock, Set[TransitionBlock]] = self._compute_reachability_sets()
 
-        seq_node: SeqNode = self.asforest.construct_initial_ast_for_region(reaching_conditions, reachability_sets)
+        seq_node: SeqNode = self.asforest.construct_initial_ast_for_region(reaching_conditions)
 
         if all(node.is_empty_code_node for node in seq_node.children):
             logging.warning(f"We restructured a graph with at least two nodes that contains no code.")
