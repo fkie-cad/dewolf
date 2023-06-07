@@ -37,24 +37,23 @@ class AcyclicRegionRestructurer:
         self.head: Optional[TransitionBlock] = None
         self.current_region: Optional[TransitionCFG] = None
         self.options: RestructuringOptions = options
-        self._initialize_reachability()
+        self._initialize_code_node_reachability()
 
-    def _initialize_reachability(self):
+    def _initialize_code_node_reachability(self):
         """Initialize the reachability of the code-nodes"""
-        reachability_sets: Dict[TransitionBlock, Set[CodeNode]] = dict()
-        descendant_code_nodes: Dict[TransitionBlock, Set[CodeNode]] = dict()
+        reachability_sets: Dict[CodeNode, Set[CodeNode]] = dict()
+        descendant_code_of: Dict[TransitionBlock, Set[CodeNode]] = {node: set(node.ast.get_descendant_code_nodes()) for node in self.t_cfg}
         for node in self.t_cfg.iter_postorder():
-            reachability_sets[node] = set()
-            descendant_code_nodes[node] = set(node.ast.get_descendant_code_nodes())
+            reachability_of_descendants: Set[CodeNode] = set()
             for successor in self.t_cfg.get_successors(node):
-                reachability_sets[node].update(descendant_code_nodes[successor])
-                reachability_sets[node].update(reachability_sets[successor])
+                reachability_of_descendants.update(descendant_code_of[successor])
+                reachability_of_descendants.update(*(reachability_sets[descendant] for descendant in descendant_code_of[successor]))
+            for descendant in descendant_code_of[node]:
+                reachability_sets[descendant] = reachability_of_descendants
 
         for node, reachability_sets in reachability_sets.items():
             for reachable in reachability_sets:
-                self.asforest._code_node_reachability_graph.add_reachability_from(
-                    *((descendant, reachable) for descendant in descendant_code_nodes[node])
-                )
+                self.asforest._code_node_reachability_graph.add_reachability(node, reachable)
 
     def restructure(self):
         """Restructure the acyclic transition graph."""

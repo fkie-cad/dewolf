@@ -160,6 +160,7 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
             parent.parent.clean()
 
     def add_reachability(self, reaching_node: AbstractSyntaxTreeNode, reachable_node: AbstractSyntaxTreeNode) -> None:
+        """Add reachability between all descendant code nodes of the reaching-node and the reachable_node"""
         descendant_code_node_of_cross_node = reachable_node.get_descendant_code_nodes()
         for descendant_node in reaching_node.get_descendant_code_nodes():
             self._code_node_reachability_graph.add_reachability_from(

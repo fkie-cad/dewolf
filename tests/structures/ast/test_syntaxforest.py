@@ -439,18 +439,15 @@ def test_construct_initial_ast_for_region():
         TransitionBlock(2, code_node_2),
         TransitionBlock(3, code_node_3),
     ]
+    asforest.add_reachability(transition_blocks[1], transition_blocks[2])
+    asforest.add_reachability(transition_blocks[1], transition_blocks[3])
 
     reaching_conditions = {
         transition_blocks[1]: LogicCondition.initialize_true(context),
         transition_blocks[2]: LogicCondition.initialize_symbol("a", asforest.factory.logic_context),
         transition_blocks[3]: ~LogicCondition.initialize_symbol("a", asforest.factory.logic_context),
     }
-    reachability_sets = {
-        transition_blocks[1]: {transition_blocks[2], transition_blocks[3]},
-        transition_blocks[2]: set(),
-        transition_blocks[3]: set(),
-    }
-    seq_node = asforest.construct_initial_ast_for_region(reaching_conditions, reachability_sets)
+    seq_node = asforest.construct_initial_ast_for_region(reaching_conditions)
 
     assert isinstance(seq_node, SeqNode) and len(seq_node.children) == 3
     assert (
