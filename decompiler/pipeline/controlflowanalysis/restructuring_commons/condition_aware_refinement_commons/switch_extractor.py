@@ -24,7 +24,7 @@ class SwitchExtractor(BaseClassConditionAwareRefinement):
         the switch node, we extract it from the condition node.
         """
         switch_extractor = cls(asforest)
-        # Also do it for sequence nodes with a reaching condition?
+        # TODO: Also do it for sequence nodes with a reaching condition?
         # DO it later in the postprocessor after inserting all condition nodes?
         for condition_node in asforest.get_condition_nodes_post_order(asforest.current_root):
             switch_extractor._current_cond_node = condition_node

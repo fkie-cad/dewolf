@@ -12,7 +12,7 @@ from z3 import BoolRef
 
 @dataclass(frozen=True)
 class ExpressionUsages:
-    """Dataclass that maintain for a condition the used SSA-variables."""
+    """Dataclass maintaining for a condition the used SSA-variables."""
 
     expression: Expression
     ssa_usages: Tuple[Optional[Variable]]
