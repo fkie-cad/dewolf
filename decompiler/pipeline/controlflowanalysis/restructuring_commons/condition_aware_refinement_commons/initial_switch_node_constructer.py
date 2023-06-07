@@ -36,77 +36,8 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         initial_switch_constructor = cls(asforest)
         for cond_node in asforest.get_condition_nodes_post_order(asforest.current_root):
             initial_switch_constructor._extract_case_nodes_from_nested_condition(cond_node)
-        # python decompile.py ../test-samples/coreutils/chmod main --debug
-        # Combining Should be part of a pre- or post-processing.
-        # for seq_node in asforest.get_sequence_nodes_post_order(asforest.current_root):
-        #     initial_switch_constructor._try_to_extract_breaks_from(seq_node)
         for seq_node in asforest.get_sequence_nodes_post_order(asforest.current_root):
             initial_switch_constructor._try_to_construct_initial_switch_node_for(seq_node)
-
-    # def _try_to_extract_breaks_from(self, seq_node: SeqNode) -> None:
-    #     """
-    #     We try to extract breaks from possible switch cases so that _try_to_construct_initial_switch_node_for can detect
-    #     the switch. This is done in the following way:
-    #     1. Look for an existing break node or create a break node where we can add the conditions of breaks in other
-    #     code nodes.
-    #     2. Look for existing switch expressions or find a possible switch expression.
-    #     3. Check if a child is a possible switch case ending with break and if the break can be moved to the existing
-    #     break node.
-    #     4. If yes, move the break from the child to the break node.
-    #     5. Clean up the break node if it is not used.
-    #     """
-    #     break_node = None
-    #     for child in seq_node.children:
-    #         if child.is_break_node:
-    #             break_node = child
-    #     if break_node is None:
-    #         break_node = CodeNode([Break()], self.condition_handler.get_false_value())
-    #         self.asforest.add_code_node(break_node)
-    #         self.asforest._add_edge(seq_node, break_node)
-    #
-    #     switch_expression = None
-    #     for child in seq_node.children:
-    #         if isinstance(child, SwitchNode):
-    #             switch_expression = child.expression
-    #     if switch_expression is None:
-    #         possible_switch_expressions = []
-    #         for child in seq_node.children:
-    #             if expression := self._get_expression_compared_with_constant(child.reaching_condition):
-    #                 possible_switch_expressions.append(expression.expression)
-    #         if len(set(possible_switch_expressions)) == 1 and len(possible_switch_expressions) > 1:
-    #             switch_expression = possible_switch_expressions[0]
-    #
-    #     if switch_expression:
-    #         for child in seq_node.children:
-    #             if (
-    #                 isinstance(child, CodeNode)
-    #                 # same here -> should be contained but not in loop
-    #                 and child.does_end_with_break
-    #                 and child != break_node
-    #                 and self._get_expression_compared_with_constant(child.reaching_condition).expression == switch_expression
-    #                 and self._can_move_break_instruction(seq_node, child, break_node)
-    #             ):
-    #                 # raise ValueError("Found sample where we extract breaks for switch reconstruction!")
-    #                 break_node.reaching_condition = break_node.reaching_condition | child.reaching_condition
-    #                 child.instructions.pop()
-    #                 for reachable_sibling in self.asforest.reachable_code_nodes(child):
-    #                     self.asforest.add_reachability(break_node, reachable_sibling)
-    #                 self.asforest.add_reachability(child, break_node)
-    #                 seq_node.sort_children()
-    #
-    #     if break_node.reaching_condition == self.condition_handler.get_false_value():
-    #         self.asforest.remove_subtree(break_node)
-
-    # def _can_move_break_instruction(self, parent: SeqNode, code_node: CodeNode, break_node: CodeNode):
-    #     """
-    #     Check if we can move the break from code_node to break_node.
-    #     """
-    #     sibling_reachability = self.asforest.get_sibling_reachability_of_children_of(parent)
-    #     copy_sibling_reachability = sibling_reachability.copy()
-    #     for reachable_sibling in copy_sibling_reachability.reachable_siblings_of(code_node):
-    #         copy_sibling_reachability._add_first_node_reaches_second(break_node, reachable_sibling)
-    #     copy_sibling_reachability._add_first_node_reaches_second(code_node, break_node)
-    #     return copy_sibling_reachability.sorted_nodes() is not None
 
     def _extract_case_nodes_from_nested_condition(self, cond_node: ConditionNode) -> None:
         """
