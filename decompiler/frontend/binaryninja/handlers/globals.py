@@ -2,7 +2,7 @@
 from typing import Callable, Optional, Tuple, Union
 
 from binaryninja import BinaryView, DataVariable, Endianness, MediumLevelILInstruction, Type
-from binaryninja.types import ArrayType, BoolType, CharType, FloatType, FunctionType, IntegerType, PointerType, Type, VoidType
+from binaryninja.types import ArrayType, BoolType, CharType, FloatType, FunctionType, IntegerType, PointerType, Type, VoidType, NamedTypeReferenceType
 from decompiler.frontend.binaryninja.handlers.symbols import GLOBAL_VARIABLE_PREFIX
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import (
@@ -15,6 +15,7 @@ from decompiler.structures.pseudo import (
     StringSymbol,
     Symbol,
     UnaryOperation,
+    Variable,
 )
 
 MAX_GLOBAL_STRINGBYTES_LENGTH = 129
@@ -35,6 +36,7 @@ class GlobalHandler(Handler):
             VoidType: self._lift_void_type,
             ArrayType: self._lift_constant_type,
             PointerType: self._lift_pointer_type,
+            NamedTypeReferenceType : self._lift_named_type_ref,
         }
 
     def register(self):
@@ -112,10 +114,15 @@ class GlobalHandler(Handler):
                     ssa_label=parent.ssa_memory_version if parent else 0,
                     initial_value=value
                 )
+        
+    def _lift_named_type_ref(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None) -> GlobalVariable:
+        return Variable(variable.type.name, self._lifter.lift(variable.type))
 
 
     def _get_unknown_value(self, addr: int, view: BinaryView, caller_addr: int = 0):
-        """Return datavariable, string or raw bytes at given address."""
+        """Return symbol, datavariable, string or raw bytes at given address."""
+        if symbol := view.get_symbol_at(addr):
+            return self._lifter.lift(symbol), Type.pointer(view.arch, Type.void())
         if datavariable := view.get_data_var_at(addr):
             return self._lifter.lift(datavariable, view=view, caller_addr=caller_addr), datavariable.type
         if (data := self._get_different_string_types_at(addr, view)) and data[0] is not None:
