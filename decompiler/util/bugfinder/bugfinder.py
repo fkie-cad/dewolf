@@ -160,6 +160,7 @@ class DecompilerReporter(Decompiler):
 
     @function_max_basic_blocks.setter
     def function_max_basic_blocks(self, value: int):
+        """Set the basic block threshold above which the function will be skipped for decompilation"""
         self._function_max_basic_blocks = value
 
     def _bn_functions(self):
