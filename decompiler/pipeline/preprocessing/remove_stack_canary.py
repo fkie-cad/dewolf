@@ -3,7 +3,7 @@ from typing import Iterator
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock, UnconditionalEdge
-from decompiler.structures.pseudo.instructions import Branch, Call
+from decompiler.structures.pseudo.instructions import Branch, Call, Assignment
 from decompiler.task import DecompilerTask
 
 
@@ -18,7 +18,7 @@ class RemoveStackCanary(PipelineStage):
     STACK_FAIL_STR = "__stack_chk_fail"
 
     def run(self, task: DecompilerTask):
-        if task.options.getboolean(f"{self.name}.remove_canary", fallback=False):
+        if task.options.getboolean(f"{self.name}.remove_canary", fallback=False) and task.name != self.STACK_FAIL_STR:
             self._cfg = task.graph
             for fail_node in list(self._contains_stack_check_fail()):
                 self._patch_canary(fail_node)
@@ -36,7 +36,7 @@ class RemoveStackCanary(PipelineStage):
         """
         Check if node contains call to __stack_chk_fail
         """
-        return any(self.STACK_FAIL_STR in str(inst) for inst in node.instructions if isinstance(inst, Call))
+        return any(self.STACK_FAIL_STR in str(inst) for inst in node.instructions)
 
     def _patch_canary(self, node: BasicBlock):
         """
