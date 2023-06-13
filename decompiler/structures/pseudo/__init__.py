@@ -9,6 +9,7 @@ from .expressions import (
     GlobalVariable,
     ImportedFunctionSymbol,
     IntrinsicSymbol,
+    NotUseableConstant,
     RegisterPair,
     StringSymbol,
     Symbol,

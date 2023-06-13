@@ -3,7 +3,7 @@ import logging
 from itertools import product
 from typing import Dict, Iterator, Optional, Set
 
-from decompiler.structures.pseudo import Condition, Constant, Expression, OperationType, Variable
+from decompiler.structures.pseudo import Condition, Constant, Expression, NotUseableConstant, OperationType, Variable
 from z3 import (
     UGE,
     UGT,
@@ -236,6 +236,8 @@ class Z3Implementation:
         """Convert the given expression into a z3 bit-vector."""
         if bit_vec_size is None:
             bit_vec_size = expression.type.size
+        if isinstance(expression, NotUseableConstant):
+            return BitVec(expression.value, bit_vec_size, ctx=context)
         if isinstance(expression, Constant):
             return BitVecVal(expression.value, bit_vec_size, ctx=context)
         elif isinstance(expression, Variable):
