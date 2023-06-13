@@ -69,20 +69,17 @@ class RenamingScheme(ABC):
         collector = VariableCollector(task._ast.condition_map)
         collector.visit_ast(task._ast)
         self._params: List[Variable] = task._function_parameters
-        self._loop_vars : List[Variable] = collector.get_loop_variables()  
-        self._variables: List[Variable] = list(filter(self._filter_variables, collector.get_variables()))    
+        self._loop_vars : List[Variable] = collector.get_loop_variables()
+        self._variables: List[Variable] = list(filter(self._filter_variables, collector.get_variables()))
         
 
     def _filter_variables(self, item: Variable) -> bool:
-        """Return False if variable is a:
+        """Return False if variable is either a:
             - parameter
             - renamed loop variable
             - GlobalVariable
         """
-        if item in self._params or (item in self._loop_vars and item.name.find("var_") == -1) or \
-            isinstance(item, GlobalVariable):
-            return False
-        return True
+        return not item in self._params and not (item in self._loop_vars and item.name.find("var_") == -1) and not isinstance(item, GlobalVariable)
 
 
     @abstractmethod
@@ -143,15 +140,13 @@ class HungarianScheme(RenamingScheme):
             sign = "" if var_type.is_signed else "u"
             prefix = self.type_prefix[type(var_type)].get(var_type.size, "unk")
             return f"{sign}{prefix}"
+        return ""
 
 
     def alread_renamed(self, name) -> bool: 
         """Return true if variable with custom name was already renamed, false otherwise"""
         renamed_keys_words = [key for key in self.custom_var_names.values()] + ["unk", self._var_name]
-        for keyword in renamed_keys_words:
-            if keyword in name:
-                return True
-        return False
+        return any(keyword in name for keyword in renamed_keys_words)
 
 class DefaultScheme(RenamingScheme):
     """Class which renames variables into the default scheme."""
