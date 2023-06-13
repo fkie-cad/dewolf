@@ -3,7 +3,7 @@ from typing import Iterator
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock, UnconditionalEdge
-from decompiler.structures.pseudo.instructions import Assignment, Branch, Call
+from decompiler.structures.pseudo.instructions import Branch
 from decompiler.task import DecompilerTask
 
 
