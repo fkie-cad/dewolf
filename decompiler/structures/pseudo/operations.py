@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Dict, Iterator, List, Optional, Sequence, Tupl
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 
 from .expressions import Constant, Expression, FunctionSymbol, ImportedFunctionSymbol, IntrinsicSymbol, Symbol, Tag, Variable
-from .typing import CustomType, Type, UnknownType
+from .typing import CustomType, Type, UnknownType, Pointer
 
 T = TypeVar("T")
 
@@ -73,6 +73,7 @@ class OperationType(Enum):
     field = auto()
     list_op = auto()
     adc = auto()
+    struct_member = auto()
 
 
 # For pretty-printing and debug
@@ -127,6 +128,7 @@ SHORTHANDS = {
     OperationType.field: "->",
     OperationType.list_op: "list",
     OperationType.adc: "adc",
+    OperationType.struct_member: ".",
 }
 
 UNSIGNED_OPERATIONS = {
@@ -374,6 +376,48 @@ class UnaryOperation(Operation):
     def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
         """Invoke the appropriate visitor for this Operation."""
         return visitor.visit_unary_operation(self)
+
+
+class StructMember(Operation):
+    def __init__(
+        self,
+        src: Expression,
+        offset: int,
+        member_name: str,
+        operands: List[Expression],
+        vartype: Type = UnknownType(),
+        writes_memory: Optional[int] = None,
+    ):
+        super().__init__(OperationType.struct_member, operands, vartype, writes_memory)
+        self.struct_variable = src
+        self.member_offset = offset
+        self.member_name = member_name
+
+    def __str__(self):
+        return f"{self.struct_variable}->{self.member_name}"
+        # if isinstance(self.src.type, Pointer):
+        #     return f"{self.src}->{self.member_name}"
+        # return f"{self.src}.{self.member_name}"
+
+    def substitute(self, replacee: Expression, replacement: Expression) -> None:
+        if isinstance(replacee, Variable) and replacee == self.struct_variable and isinstance(replacement, Variable):
+            self.struct_variable = replacement
+            self.operands[:] = [replacement]
+
+    def copy(self) -> StructMember:
+        """Copy the current UnaryOperation, copying all operands and the type."""
+        return StructMember(
+            self.struct_variable,
+            self.member_offset,
+            self.member_name,
+            [operand.copy() for operand in self._operands],
+            self._type.copy(),
+            # writes_memory=self._writes_memory,
+        )
+
+    def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
+        """Invoke the appropriate visitor for this Operation."""
+        return str(self)
 
 
 class BinaryOperation(Operation):

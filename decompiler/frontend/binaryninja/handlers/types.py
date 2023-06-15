@@ -1,5 +1,6 @@
 import logging
 
+from binaryninja import BinaryView
 from binaryninja.types import (
     ArrayType,
     BoolType,
@@ -11,12 +12,15 @@ from binaryninja.types import (
     NamedTypeReferenceType,
     PointerType,
     StructureType,
+    StructureMember,
     Type,
     VoidType,
     WideCharType,
 )
 from decompiler.frontend.lifter import Handler
+
 from decompiler.structures.pseudo import CustomType, Float, FunctionTypeDef, Integer, Pointer, UnknownType, Variable
+from decompiler.structures.pseudo.typing import StructureType as PseudoStructureType, StructureMemberType as PseudoStructureMember
 
 
 class TypeHandler(Handler):
@@ -34,7 +38,8 @@ class TypeHandler(Handler):
                 CharType: self.lift_integer,
                 WideCharType: self.lift_custom,
                 NamedTypeReferenceType: self.lift_custom,
-                StructureType: self.lift_custom,
+                StructureType: self.lift_struct,
+                StructureMember: self.lift_struct_member,
                 FunctionType: self.lift_function_type,
                 EnumerationType: self.lift_custom,
                 type(None): self.lift_none,
@@ -47,8 +52,25 @@ class TypeHandler(Handler):
 
     def lift_custom(self, custom: Type, **kwargs) -> CustomType:
         """Lift custom types such as structs as a custom type."""
-        logging.debug(f"[TypeHandler] lifting custom type: {custom}")
+        # TODO split lifting custom from lifting namedtypereferencetype
+        view: BinaryView = self._lifter.bv
+        if (defined_type:= view.get_type_by_name(custom.name)):
+            return self._lifter.lift(defined_type, **kwargs)
         return CustomType(str(custom), custom.width * self.BYTE_SIZE)
+
+    def lift_struct(self, struct: StructureType, **kwargs) -> PseudoStructureType:
+        """Lift struct type."""
+        # TODO better way to get the name
+        # TODO type width?
+        struct_name = struct.get_string().split(" ")[1]
+        # members_dict = {m.offset: self.lift_struct_member(m) for m in struct.members}
+        members_dict = {}
+        for m in struct.members:
+            members_dict[m.offset] = self.lift_struct_member(m)
+        return PseudoStructureType(tag_name=struct_name, members=members_dict, size=0)
+
+    def lift_struct_member(self, member: StructureMember) -> PseudoStructureMember:
+        return PseudoStructureMember(name=member.name, offset=member.offset, type=self._lifter.lift(member.type), size=0)
 
     def lift_void(self, _, **kwargs) -> CustomType:
         """Lift the void-type (should only be used as function return type)."""

@@ -158,5 +158,5 @@ class BinaryninjaFrontend(Frontend):
         """Extract a control flow graph utilizing the parser and fixing it afterwards."""
         report_threshold = options.getint("lifter.report_threshold", fallback=3)
         no_masks = options.getboolean("lifter.no_bit_masks", fallback=True)
-        parser = BinaryninjaParser(BinaryninjaLifter(no_masks), report_threshold)
+        parser = BinaryninjaParser(BinaryninjaLifter(no_masks, bv=function.view), report_threshold)
         return parser.parse(function)

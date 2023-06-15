@@ -6,6 +6,8 @@ from decompiler.structures import pseudo as expressions
 from decompiler.structures.pseudo import Float, FunctionTypeDef, Integer, OperationType, Pointer, StringSymbol, Type
 from decompiler.structures.pseudo import instructions as instructions
 from decompiler.structures.pseudo import operations as operations
+from decompiler.structures.pseudo.operations import StructMember
+from decompiler.structures.pseudo.typing import StructureType
 from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInterface
 
 
@@ -64,6 +66,7 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         OperationType.greater_or_equal_us: ">=",
         OperationType.dereference: "*",
         OperationType.address: "&",
+        # OperationType.struct_member: "->",
         # Handled in code
         # OperationType.cast: "cast",
         # OperationType.pointer: "point",
@@ -146,6 +149,7 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         OperationType.ternary: 30,
         OperationType.call: 150,
         OperationType.field: 150,
+        OperationType.struct_member: 150,
         OperationType.list_op: 10,
         # TODO: Figure out what these are / how to handle this
         # OperationType.adc: "adc",

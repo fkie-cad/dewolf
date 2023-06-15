@@ -2,7 +2,7 @@
 from logging import warning
 from typing import Optional, Tuple, Union
 
-from binaryninja import MediumLevelILInstruction, Type
+from binaryninja import MediumLevelILInstruction, Type, BinaryView
 from decompiler.frontend.lifter import ObserverLifter
 from decompiler.structures.pseudo import DataflowObject, Tag, UnknownExpression, UnknownType
 
@@ -12,8 +12,9 @@ from .handlers import HANDLERS
 class BinaryninjaLifter(ObserverLifter):
     """Lifter converting Binaryninja.mediumlevelil expressions to pseudo expressions."""
 
-    def __init__(self, no_bit_masks: bool = True):
+    def __init__(self, no_bit_masks: bool = True, bv: BinaryView = None):
         self.no_bit_masks = no_bit_masks
+        self.bv: BinaryView = bv
         for handler in HANDLERS:
             handler(self).register()
 
