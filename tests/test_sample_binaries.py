@@ -239,7 +239,6 @@ def test_w_char():
     base_args = ["python", "decompile.py", "tests/samples/bin/systemtests/64/0/globals"]
     args1 = base_args + ["global_w_char"]
     output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
-    print(output)
 
     assert output.count('L"Hello wchar32_t string"') == 1
     assert output.count('printf(/* format */ "%ls\\\\n", L"Inlined wchar32_t string")') == 1
@@ -250,7 +249,6 @@ def test_string_length():
     base_args = ["python", "decompile.py", "tests/samples/bin/systemtests/64/0/globals"]
     args1 = base_args + ["global_string_length"]
     output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
-    print(output)
 
     assert output.count('...') == 2
 
