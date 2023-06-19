@@ -27,7 +27,6 @@ from decompiler.structures.pseudo import (
     StringSymbol,
     Symbol,
     UnaryOperation,
-    Variable,
 )
 
 MAX_GLOBAL_STRINGBYTES_LENGTH = 129
@@ -48,7 +47,7 @@ class GlobalHandler(Handler):
             VoidType: self._lift_void_type,
             ArrayType: self._lift_constant_type,
             PointerType: self._lift_pointer_type,
-            NamedTypeReferenceType : self._lift_named_type_ref,
+            NamedTypeReferenceType : self._lift_named_type_ref, # Lift DataVariable with type NamedTypeRef
         }
 
     def register(self):
@@ -127,9 +126,10 @@ class GlobalHandler(Handler):
                     initial_value=value
                 )
         
+    
     def _lift_named_type_ref(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None) -> GlobalVariable:
         """Lift a named custom type (Enum, Structs)"""
-        return Constant("Unknown value") # BNinja error, need to check with the issue
+        return Constant("Unknown value", self._lifter.lift(variable.type)) # BNinja error, need to check with the issue to get the correct value
 
 
     def _get_unknown_value(self, addr: int, view: BinaryView, caller_addr: int = 0):
