@@ -168,7 +168,12 @@ class GlobalHandler(Handler):
 
 
     def _get_string_at(self, view: BinaryView, addr: int, width: int) -> Optional[str]:
-        """Read string with specified width from location."""
+        """Read string with specified width from location. Explanation for the magic parsing:
+            - we read 1, 2 or 4 long integers which should be interpreted as a byte in ASCII range (while Loop; can't use chr() for checking)
+            - afterwards we convert bytes array manually to a string by removing the "bytearray(...)" parts from the string
+            - this string now consists of readable chars (A, b), escaped hex values (\\x17) and control chars (\n, \t) 
+            - we consider a it a string, if it only consists of readable chars + control chars
+        """
         raw_bytes = bytearray()
         match width:
             case 1:
@@ -189,7 +194,7 @@ class GlobalHandler(Handler):
             raw_bytes.append(byte)
 
         string = str(raw_bytes)[12:-2]
-        if len(string) < 2 or string.find("\\x") != -1:
+        if len(string) < 2 or string.find("\\x") != -1: # escaped 
             return None
         
         return identifier + f'"{string}"'
