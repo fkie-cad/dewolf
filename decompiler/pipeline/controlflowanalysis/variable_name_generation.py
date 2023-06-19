@@ -10,6 +10,13 @@ from decompiler.structures.pseudo import Condition, CustomType, DataflowObject, 
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask
 
+"""
+    Small explanation how variables work in the decompiler:
+        - sometimes they are the same object in different structures (assignments, loops etc.)
+        - sometimes they are real copies of another
+    ==> Therefore if we change a parameter of a variable (name), we have no guarantee that all usages of the variable will be updated
+    ==> Therefore we always collect EVERY variable used + check with a method (already_renamed) if we already renamed it to our new naming scheme
+"""
 
 def _get_var_counter(var_name: str) -> Optional[str]:
     """Return the counter of a given variable name, if any is present."""
