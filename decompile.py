@@ -9,7 +9,6 @@ from decompiler.frontend import BinaryninjaFrontend, Frontend
 from decompiler.pipeline.pipeline import DecompilerPipeline
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
-from decompiler.util.decoration import DecoratedAST
 
 
 class Decompiler:
@@ -41,7 +40,6 @@ class Decompiler:
         """Create a decompiler instance from existing frontend instance (e.g. a binaryninja view)."""
         return cls(frontend.from_raw(data))
 
-
     def decompile(self, function: str, task_options: Optional[Options] = None) -> DecompilerTask:
         """Decompile the target function."""
         # Sanity check to ensure task_options is populated
@@ -52,7 +50,6 @@ class Decompiler:
         task = self._frontend.create_task(function, task_options)
         pipeline.run(task)
         task.code = self._backend.generate([task])
-        DecoratedAST.print_ascii(task._ast)
         return task
 
     def decompile_all(self, task_options: Optional[Options] = None) -> str:
