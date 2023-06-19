@@ -39,7 +39,7 @@ class GlobalHandler(Handler):
 
     def __init__(self, lifter):
         super().__init__(lifter)
-        self._lift_datavariable_type : dict[Type, Callable] = {
+        self._lift_datavariable_by_type : dict[Type, Callable] = {
             CharType: self._lift_basic_type,
             IntegerType: self._lift_basic_type,
             FloatType: self._lift_basic_type,
@@ -65,11 +65,15 @@ class GlobalHandler(Handler):
             return self._lifter.lift(variable.symbol) if variable.symbol else \
             Symbol(GLOBAL_VARIABLE_PREFIX + f"{variable.address:x}", variable.address, vartype=Integer.uint32_t())
 
-        return self._lift_datavariable_type[type(variable.type)](variable, view, parent)
+        return self._lift_datavariable_by_type[type(variable.type)](variable, view, parent)
 
 
     def _lift_constant_type(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None) -> StringSymbol:
-        """Lift a constant datavariable directly into code (bninja should only yield strings)"""
+        """Lift pointer as:
+            1. Function pointer: If bninja already knows it's a function pointer.
+            2. Type pointer: As normal type pointer (there _should_ be a datavariable at the pointers dest.)
+            3. Void pointer: Try to extract a datavariable (recover type of void* directly), string (char*) or raw bytes (void*) at the given address
+        """
         string = str(variable.value)[2:-1].rstrip('\\x00')
         return StringSymbol(f'"{string}"', variable.address, vartype=Pointer(Integer.char(), view.address_size * 8))
 
@@ -132,8 +136,6 @@ class GlobalHandler(Handler):
 
     def _get_unknown_value(self, addr: int, view: BinaryView, caller_addr: int = 0):
         """Return symbol, datavariable, string or raw bytes at given address."""
-        if symbol := view.get_symbol_at(addr):
-            return self._lifter.lift(symbol), Type.pointer(view.arch, Type.void())
         if datavariable := view.get_data_var_at(addr):
             return self._lifter.lift(datavariable, view=view, caller_addr=caller_addr), datavariable.type
         if (data := self._get_different_string_types_at(addr, view)) and data[0] is not None:
