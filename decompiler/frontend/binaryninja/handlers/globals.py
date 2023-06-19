@@ -128,7 +128,8 @@ class GlobalHandler(Handler):
                 )
         
     def _lift_named_type_ref(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None) -> GlobalVariable:
-        return Variable(variable.type.name, self._lifter.lift(variable.type))
+        """Lift a named custom type (Enum, Structs)"""
+        return Constant("Unknown value") # BNinja error, need to check with the issue
 
 
     def _get_unknown_value(self, addr: int, view: BinaryView, caller_addr: int = 0):
