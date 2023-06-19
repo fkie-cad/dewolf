@@ -14,6 +14,7 @@ from binaryninja.types import (
     Type,
     VoidType,
 )
+from decompiler.frontend.binaryninja.handlers.constants import BYTE_SIZE
 from decompiler.frontend.binaryninja.handlers.symbols import GLOBAL_VARIABLE_PREFIX
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import (
@@ -59,7 +60,7 @@ class GlobalHandler(Handler):
     ) -> Union[Symbol, UnaryOperation, GlobalVariable, StringSymbol]:
         """Lift global variables via datavariable type. Check bninja error case + recursive datavariable first"""
         if not self._addr_in_section(view, variable.address):
-            return Constant(variable.address, vartype=Integer(view.address_size*8, False))
+            return Constant(variable.address, vartype=Integer(view.address_size*BYTE_SIZE, False))
 
         if caller_addr == variable.address: 
             return self._lifter.lift(variable.symbol) if variable.symbol else \
@@ -69,13 +70,9 @@ class GlobalHandler(Handler):
 
 
     def _lift_constant_type(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None) -> StringSymbol:
-        """Lift pointer as:
-            1. Function pointer: If bninja already knows it's a function pointer.
-            2. Type pointer: As normal type pointer (there _should_ be a datavariable at the pointers dest.)
-            3. Void pointer: Try to extract a datavariable (recover type of void* directly), string (char*) or raw bytes (void*) at the given address
-        """
-        string = str(variable.value)[2:-1].rstrip('\\x00')
-        return StringSymbol(f'"{string}"', variable.address, vartype=Pointer(Integer.char(), view.address_size * 8))
+        """Lift constant data type (bninja only uses strings) into code"""
+        string = str(variable.value)[2:-1].rstrip('\\x00') # we want to keep escaped control chars (\n), therefore we take the raw string representation of bytes and purge b""
+        return StringSymbol(f'"{string}"', variable.address, vartype=Pointer(Integer.char(), view.address_size * BYTE_SIZE))
 
     
     def _lift_pointer_type(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None):
@@ -85,7 +82,7 @@ class GlobalHandler(Handler):
             3. Void pointer: Try to extract a datavariable (recover type of void* directly), string (char*) or raw bytes (void*) at the given address
         """
         if isinstance(variable.type.target, FunctionType):
-            return ImportedFunctionSymbol(variable.name, variable.address, vartype=Pointer(Integer.char(), view.address_size * 8))
+            return ImportedFunctionSymbol(variable.name, variable.address, vartype=Pointer(Integer.char(), view.address_size * BYTE_SIZE))
         if isinstance(variable.type.target, VoidType):
             init_value, type = self._get_unknown_value(variable.value, view, variable.address)
             if not isinstance(type, PointerType): # Fix type to be a pointer (happens when a datavariable is at the dest.)

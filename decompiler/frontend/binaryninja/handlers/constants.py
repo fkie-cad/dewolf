@@ -5,6 +5,7 @@ from binaryninja import BinaryView, DataVariable, SectionSemantics, SymbolType, 
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import Constant, GlobalVariable, Integer, NotUseableConstant, Pointer, StringSymbol
 
+BYTE_SIZE = 8
 
 class ConstantHandler(Handler):
     def register(self):
@@ -59,7 +60,7 @@ class ConstantHandler(Handler):
         """Replace global variable with it's value, if it's a char/wchar16/wchar32* and in a read only section"""
         if not self._in_read_only_section(variable.address, view) or str(globalVariable.type) == "void *":
             return globalVariable
-        return StringSymbol(globalVariable.initial_value, variable.address, vartype=Pointer(Integer.char(), view.address_size * 8))
+        return StringSymbol(globalVariable.initial_value, variable.address, vartype=Pointer(Integer.char(), view.address_size * BYTE_SIZE))
 
     def _in_read_only_section(self, addr: int, view: BinaryView) -> bool:
         """Returns True if address is contained in a read only section, False otherwise"""
