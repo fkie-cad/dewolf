@@ -1,16 +1,22 @@
 import re
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 from decompiler.pipeline.stage import PipelineStage
-from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, LoopNode, SwitchNode
-from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
+from decompiler.structures.ast.ast_nodes import ConditionNode, LoopNode
 from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import Condition, CustomType, DataflowObject, Float, GlobalVariable, Integer, Pointer, Type, Variable
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask
 
+"""
+    Small explanation how variables work in the decompiler:
+        - sometimes they are the same object in different structures (assignments, loops etc.)
+        - sometimes they are real copies of another
+    ==> Therefore if we change a parameter of a variable (name), we have no guarantee that all usages of the variable will be updated
+    ==> Therefore we always collect EVERY variable used + check with a method (already_renamed) if we already renamed it to our new naming scheme
+"""
 
 def _get_var_counter(var_name: str) -> Optional[str]:
     """Return the counter of a given variable name, if any is present."""
@@ -70,15 +76,17 @@ class RenamingScheme(ABC):
         collector = VariableCollector(task._ast.condition_map)
         collector.visit_ast(task._ast)
         self._params: List[Variable] = task._function_parameters
-        self._loop_vars : List[Variable] = collector.get_loop_variables()  
-        self._variables: List[Variable] = list(filter(self._filter_variables, collector.get_variables()))  
+        self._loop_vars : List[Variable] = collector.get_loop_variables()
+        self._variables: List[Variable] = list(filter(self._filter_variables, collector.get_variables()))
         
 
     def _filter_variables(self, item: Variable) -> bool:
-        """Return False if variable is a parameter, renamed loop variable or GlobalVariable, else True"""
-        if item in self._params or (item in self._loop_vars and item.name.find("var_") == -1) or isinstance(item, GlobalVariable):
-            return False
-        return True
+        """Return False if variable is either a:
+            - parameter
+            - renamed loop variable
+            - GlobalVariable
+        """
+        return not item in self._params and not (item in self._loop_vars and item.name.find("var_") == -1) and not isinstance(item, GlobalVariable)
 
 
     @abstractmethod
@@ -95,6 +103,9 @@ class HungarianScheme(RenamingScheme):
         Integer: {8: "ch", 16: "s", 32: "i", 64: "l", 128: "i128"},
     }
 
+    custom_var_names = {
+        "tmp_": "Tmp"
+    }
 
     def __init__(self, task: DecompilerTask) -> None:
         super().__init__(task)
@@ -108,13 +119,15 @@ class HungarianScheme(RenamingScheme):
     def renameVariableNames(self):
         """Rename all collected variables to the hungarian notation."""
         for var in self._variables:
+            if self.alread_renamed(var._name):
+                continue
             counter = _get_var_counter(var.name)
             var._name = self._hungarian_notation(var, counter if counter else "")
             
 
     def _hungarian_notation(self, var: Variable, counter: int) -> str:
         """Return hungarian notation to a given variable."""
-        return f"{self._hungarian_prefix(var.type)}{self._type_separator}{self._var_name}{self._counter_separator}{counter}"
+        return f"{self._hungarian_prefix(var.type)}{self._type_separator}{self.custom_var_names.get(var._name.rstrip(counter), self._var_name)}{self._counter_separator}{counter}"
 
 
     def _hungarian_prefix(self, var_type: Type) -> str:
@@ -128,11 +141,19 @@ class HungarianScheme(RenamingScheme):
                 return "b"
             elif var_type.size == 0:
                 return "v"
+            else:
+                return ""
         if isinstance(var_type, (Integer, Float)):
             sign = "" if var_type.is_signed else "u"
-            prefix = self.type_prefix[type(var_type)][var_type.size]
+            prefix = self.type_prefix[type(var_type)].get(var_type.size, "unk")
             return f"{sign}{prefix}"
+        return ""
 
+
+    def alread_renamed(self, name) -> bool: 
+        """Return true if variable with custom name was already renamed, false otherwise"""
+        renamed_keys_words = [key for key in self.custom_var_names.values()] + ["unk", self._var_name]
+        return any(keyword in name for keyword in renamed_keys_words)
 
 class DefaultScheme(RenamingScheme):
     """Class which renames variables into the default scheme."""
