@@ -70,6 +70,9 @@ class TypeHandler(Handler):
         return PseudoStructureType(tag_name=struct_name, members=members_dict, size=0)
 
     def lift_struct_member(self, member: StructureMember) -> PseudoStructureMember:
+        # TODO handle the case when struct member is a pointer on the same struct
+        if isinstance(member.type, PointerType) and (isinstance(member.type.target, StructureType) or isinstance(member.type.target, NamedTypeReferenceType)):
+            return CustomType("SomeStructTemp", size=0)
         return PseudoStructureMember(name=member.name, offset=member.offset, type=self._lifter.lift(member.type), size=0)
 
     def lift_void(self, _, **kwargs) -> CustomType:

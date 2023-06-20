@@ -378,7 +378,7 @@ class UnaryOperation(Operation):
         return visitor.visit_unary_operation(self)
 
 
-class StructMember(Operation):
+class StructMemberAccess(Operation):
     def __init__(
         self,
         src: Expression,
@@ -388,10 +388,11 @@ class StructMember(Operation):
         vartype: Type = UnknownType(),
         writes_memory: Optional[int] = None,
     ):
-        super().__init__(OperationType.struct_member, operands, vartype, writes_memory)
+        super().__init__(OperationType.struct_member, operands, vartype)
         self.struct_variable = src
         self.member_offset = offset
         self.member_name = member_name
+        self.writes_memory = writes_memory
 
     def __str__(self):
         return f"{self.struct_variable}->{self.member_name}"
@@ -404,20 +405,26 @@ class StructMember(Operation):
             self.struct_variable = replacement
             self.operands[:] = [replacement]
 
-    def copy(self) -> StructMember:
+    def copy(self) -> StructMemberAccess:
         """Copy the current UnaryOperation, copying all operands and the type."""
-        return StructMember(
+        return StructMemberAccess(
             self.struct_variable,
             self.member_offset,
             self.member_name,
             [operand.copy() for operand in self._operands],
             self._type.copy(),
-            # writes_memory=self._writes_memory,
+            writes_memory=self.writes_memory,
         )
 
     def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
         """Invoke the appropriate visitor for this Operation."""
         return str(self)
+
+    def is_read_access(self):
+        return self.writes_memory is None
+
+    def is_write_access(self):
+        return self.writes_memory is not None
 
 
 class BinaryOperation(Operation):

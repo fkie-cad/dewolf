@@ -1,4 +1,5 @@
 """Module implementing the AssignmentHandler for binaryninja."""
+import logging
 from functools import partial
 from typing import Union
 
@@ -16,6 +17,7 @@ from decompiler.structures.pseudo import (
     RegisterPair,
     UnaryOperation,
 )
+from decompiler.structures.pseudo.operations import StructMemberAccess
 
 
 class AssignmentHandler(Handler):
@@ -170,21 +172,14 @@ class AssignmentHandler(Handler):
     def _lift_store_struct(self, instruction: mediumlevelil.MediumLevelILStoreStruct, **kwargs) -> Assignment:
         """Lift a MLIL_STORE_STRUCT_SSA instruction to pseudo (e.g. object->field = x)."""
         vartype = self._lifter.lift(instruction.dest.expr_type)
-        return Assignment(
-            UnaryOperation(
-                OperationType.dereference,
-                [
-                    BinaryOperation(
-                        OperationType.plus,
-                        [
-                            UnaryOperation(OperationType.cast, [self._lifter.lift(instruction.dest)], vartype=Pointer(Integer.char())),
-                            Constant(instruction.offset),
-                        ],
-                        vartype=vartype,
-                    ),
-                ],
-                vartype=Pointer(vartype),
-                writes_memory=instruction.dest_memory
-            ),
-            self._lifter.lift(instruction.src),
+        struct_variable = self._lifter.lift(instruction.dest)
+        struct_member_access = StructMemberAccess(
+            src=struct_variable,
+            member_name=vartype.type.members.get(instruction.offset),
+            offset=instruction.offset,
+            operands=[struct_variable],
+            vartype=vartype,
+            writes_memory=instruction.dest_memory,
         )
+        src = self._lifter.lift(instruction.src)
+        return Assignment(struct_member_access, src)

@@ -15,7 +15,7 @@ from decompiler.structures.pseudo import (
     Pointer,
     UnaryOperation,
 )
-from decompiler.structures.pseudo.operations import StructMember
+from decompiler.structures.pseudo.operations import StructMemberAccess
 from decompiler.structures.pseudo.typing import StructureType
 
 
@@ -94,17 +94,16 @@ class UnaryOperationHandler(Handler):
             )
         return self.lift_cast(instruction, **kwargs)
 
-    def _lift_load_struct(self, instruction: mediumlevelil.MediumLevelILLoadStruct, **kwargs) -> StructMember:
+    def _lift_load_struct(self, instruction: mediumlevelil.MediumLevelILLoadStruct, **kwargs) -> StructMemberAccess:
         """Lift a MLIL_LOAD_STRUCT_SSA (struct member access e.g. var#n->x) instruction."""
         # TODO type of struct variable should be either ptr on struct or struct
         # TODO type of the member hm actually we want member instance to know the struct type.
         # TODO But it is not the same as vartype
-        # TODO check what happens if members values are changed
         struct_variable = self._lifter.lift(instruction.src)
         struct_ptr: Pointer = self._lifter.lift(instruction.src.expr_type)
         struct_type: StructureType = struct_ptr.type
         struct_member_name = struct_type.members.get(instruction.offset).name
-        return StructMember(src=struct_variable,  vartype=struct_ptr, operands=[struct_variable], offset=instruction.offset, member_name=struct_member_name)
+        return StructMemberAccess(src=struct_variable, vartype=struct_ptr, operands=[struct_variable], offset=instruction.offset, member_name=struct_member_name)
 
     def _lift_ftrunc(self, instruction: mediumlevelil.MediumLevelILFtrunc, **kwargs) -> UnaryOperation:
         """Lift a MLIL_FTRUNC operation."""
