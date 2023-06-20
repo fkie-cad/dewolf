@@ -406,8 +406,10 @@ def test_generate_from_code_nodes():
             TransitionEdge(vertices[2], vertices[1], LogicCondition.initialize_true(context), EdgeProperty.back),
         ]
     )
+    symbol_x1 = LogicCondition.initialize_symbol("x1", context)
+    pseudo_cond = Condition(OperationType.not_equal, [var("i"), Constant(3)])
     t_cfg.condition_handler = ConditionHandler(
-        {LogicCondition.initialize_symbol("x1", context): Condition(OperationType.not_equal, [var("i"), Constant(3)])}
+        {symbol_x1: ConditionSymbol(pseudo_cond, symbol_x1, PseudoLogicCondition.initialize_from_condition(pseudo_cond, context))}
     )
 
     asforest = AbstractSyntaxForest.generate_from_code_nodes([node.ast for node in vertices], t_cfg.condition_handler)
@@ -421,8 +423,12 @@ def test_generate_from_code_nodes():
 
 def test_construct_initial_ast_for_region():
     context = LogicCondition.generate_new_context()
+    symbol_x1 = LogicCondition.initialize_symbol("x1", context)
+    pseudo_cond = Condition(OperationType.not_equal, [var("i"), Constant(3)])
     asforest = AbstractSyntaxForest(
-        ConditionHandler({LogicCondition.initialize_symbol("x1", context): Condition(OperationType.not_equal, [var("i"), Constant(3)])})
+        ConditionHandler(
+            {symbol_x1: ConditionSymbol(pseudo_cond, symbol_x1, PseudoLogicCondition.initialize_from_condition(pseudo_cond, context))}
+        )
     )
     code_node_0 = asforest.add_code_node([Assignment(var("i"), Constant(0)), Assignment(var("x"), Constant(42))])
     code_node_1 = asforest.add_code_node()

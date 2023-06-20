@@ -1,9 +1,8 @@
 """Implements translating pseudo instructions into delogic statements."""
 from __future__ import annotations
 
-from typing import Generic, Union
+from typing import Union
 
-from simplifier.world.nodes import Operation as WorldOperation
 from simplifier.world.nodes import Variable as WorldVariable
 from simplifier.world.nodes import WorldObject
 from simplifier.world.world import World
@@ -70,7 +69,7 @@ class DelogicConverter(BaseConverter):
 
     def _convert_variable(self, variable: Variable, default_size: int = 32) -> WorldObject:
         """Represent the given variable as a WorldObject."""
-        return self._world.from_string(f"{variable.name}@{variable.type.size or default_size}")
+        return WorldVariable(self._world, str(variable), variable.type.size or default_size)
 
     def _convert_constant(self, constant: Constant, default_size: int = 32) -> WorldObject:
         """Represent the given constant as a WorldObject."""

@@ -15,7 +15,6 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
     SwitchExtractor,
 )
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
-from decompiler.structures.logic.logic_condition import LogicCondition
 
 
 class ConditionAwareRefinement(BaseClassConditionAwareRefinement):
@@ -27,10 +26,6 @@ class ConditionAwareRefinement(BaseClassConditionAwareRefinement):
         SwitchExtractor.extract,
         MissingCaseFinder.find_in_sequence,
     ]
-
-    def __init__(self, asforest: AbstractSyntaxForest):
-        self.asforest = asforest
-        super().__init__(asforest.condition_handler)
 
     @classmethod
     def refine(cls, asforest: AbstractSyntaxForest):

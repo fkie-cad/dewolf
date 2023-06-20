@@ -17,6 +17,7 @@ from decompiler.structures.ast.ast_nodes import (
     VirtualRootNode,
 )
 from decompiler.structures.ast.condition_symbol import ConditionHandler
+from decompiler.structures.ast.switch_node_handler import SwitchNodeHandler
 from decompiler.structures.ast.syntaxgraph import AbstractSyntaxInterface
 from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock
 from decompiler.structures.logic.logic_condition import LogicCondition
@@ -37,6 +38,7 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         self.condition_handler: ConditionHandler = condition_handler
         self._current_root: VirtualRootNode = self.factory.create_virtual_node()
         self._add_node(self._current_root)
+        self.switch_node_handler: SwitchNodeHandler = SwitchNodeHandler(condition_handler)
 
     @property
     def current_root(self) -> Optional[AbstractSyntaxTreeNode]:
@@ -473,7 +475,7 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
             yield child, condition, case_node.break_case
 
     def __add_condition_before_nodes(
-            self, condition: LogicCondition, true_branch: AbstractSyntaxTreeNode, false_branch: Optional[AbstractSyntaxTreeNode] = None
+        self, condition: LogicCondition, true_branch: AbstractSyntaxTreeNode, false_branch: Optional[AbstractSyntaxTreeNode] = None
     ) -> ConditionNode:
         """
         Add the given condition before the true_branch and its negation before the false branch.
@@ -508,4 +510,3 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         new_condition_node = self.__add_condition_before_nodes(case_condition, case_node)
         self._add_edge(true_branch, new_condition_node)
         true_branch._sorted_children = (new_condition_node,) + true_branch._sorted_children
-
