@@ -1,5 +1,3 @@
-from typing import List
-
 import pytest
 from decompiler.backend.codegenerator import CodeGenerator
 from decompiler.pipeline.controlflowanalysis import VariableNameGeneration
@@ -88,3 +86,40 @@ def test_hungarian_notation_separators(type_sep: str, counter_sep: str):
     ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", I32), Constant(0)), true_value), {})
     _run_vng(ast, _generate_options(type_sep=type_sep, counter_sep=counter_sep))
     assert var.name == f"i{type_sep}Var{counter_sep}0"
+
+
+def test_custom_type():
+    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", CustomType("size_t", 64)), Constant(0)), true_value), {})
+    _run_vng(ast, _generate_options())
+    assert var._name == "Var0"
+
+
+def test_bninja_invalid_type():
+    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", Integer(104, True)), Constant(0)), true_value), {})
+    _run_vng(ast, _generate_options())
+    assert var._name == "unkVar0"
+
+
+def test_tmp_variable():
+    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("tmp_42", Float(64)), Constant(0)), true_value), {})
+    _run_vng(ast, _generate_options())
+    assert var._name == "dTmp42"
+
+
+def test_same_variable():
+    """Variables can be copies of the same one. The renamer should only rename a variable once. (More times would destroy the actual name)"""
+    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
+    var1 = Variable("tmp_42", Float(64))
+    var2 = Variable("var_0", Integer(104, True))
+    ast = AbstractSyntaxTree(CodeNode([
+        Assignment(var1, Constant(0)),
+        Assignment(var1, Constant(0)),
+        Assignment(var2, Constant(0)),
+        Assignment(var2, Constant(0))], true_value), {})
+    _run_vng(ast, _generate_options())
+    assert var1._name == "dTmp42"
+    assert var2._name == "unkVar0"
+    
