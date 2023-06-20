@@ -1,3 +1,6 @@
+from math import inf, nan
+
+import pytest
 from decompiler.structures.pseudo import OperationType, UnaryOperation
 from decompiler.structures.pseudo.expressions import (
     Constant,
@@ -6,6 +9,7 @@ from decompiler.structures.pseudo.expressions import (
     FunctionSymbol,
     GlobalVariable,
     ImportedFunctionSymbol,
+    NotUseableConstant,
     RegisterPair,
     Symbol,
     Variable,
@@ -179,6 +183,47 @@ class TestConstant:
         copy = original.copy()
         assert id(original) != id(copy) and original == copy
 
+
+class TestNotUseableConstant:
+    def test_str(self):
+        assert str(NotUseableConstant(str(inf))) == "inf"
+        assert str(NotUseableConstant(str(-inf))) == "-inf"
+        assert str(NotUseableConstant(str(nan))) == "nan"
+
+    def test_requirements(self):
+        "Should not have requirements"
+        assert NotUseableConstant(str(inf)).requirements == []
+
+    def test_complexity(self):
+        "Should have a complexity of 1"
+        assert NotUseableConstant(str(inf)).complexity == 1
+
+    def test_equal(self):
+        "Should at least compare the id of the objects (inf == inf)"
+        assert NotUseableConstant(str(inf)) != NotUseableConstant(str(-inf))
+        assert NotUseableConstant(str(inf)) == NotUseableConstant(str(inf))
+
+    def test_repr(self):
+        assert repr(NotUseableConstant(str(inf))) == "inf type: not-usable-constant"
+        assert repr(NotUseableConstant(str(-inf))) == "-inf type: not-usable-constant"
+        assert repr(NotUseableConstant(str(nan))) == "nan type: not-usable-constant"
+
+    def test_substitute(self):
+        """Substitute shall have no effect when called directly on a variable."""
+        v = NotUseableConstant(str(inf))
+        v.substitute(v, NotUseableConstant(str(-inf)))
+        assert v == NotUseableConstant(str(inf))
+
+    def test_iter(self):
+        assert list(NotUseableConstant(str(inf))) == []
+        assert list(NotUseableConstant(str(inf))) == []
+        assert list(NotUseableConstant(str(inf))) == []
+
+    def test_copy(self):
+        original = NotUseableConstant(str(inf))
+        copy = original.copy()
+        assert id(original) != id(copy) and original == copy
+        
 
 class TestExternConstant:
     def test_copy(self):

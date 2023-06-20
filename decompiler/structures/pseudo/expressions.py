@@ -32,7 +32,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Generic, Iterator, List, Optional, Tuple, TypeVar, Union
 
-from .typing import Type, UnknownType
+from .typing import CustomType, Type, UnknownType
 
 T = TypeVar("T")
 DecompiledType = TypeVar("DecompiledType", bound=Type)
@@ -250,6 +250,24 @@ class ExternFunctionPointer(Constant):
         return ExternFunctionPointer(self.value, self._type.copy(), self.tags)
 
 
+class NotUseableConstant(Constant):
+    """Represents a non useable constant like 'inf' or 'NaN' as a string"""
+    def __init__(self, value: str, tags: Optional[Tuple[Tag, ...]] = None):
+        super().__init__(value, CustomType("double", 0), tags=tags)
+
+    def __str__(self) -> str:
+        """Return a string because NotUseableConstant are string only"""
+        return self.value 
+
+    def __repr__(self):
+        """Return the non usable constant."""
+        return f"{self.value} type: not-usable-constant"
+
+    def copy(self) -> NotUseableConstant:
+        """Generate an NonUseableConstant with the same value"""
+        return NotUseableConstant(self.value)
+
+
 class Symbol(Constant):
     """Represents a symbol based expression."""
 
@@ -278,10 +296,11 @@ class Symbol(Constant):
 
 
 class StringSymbol(Symbol):
-    """Represents a global string constant (const char[size])."""
+    """Represents a global string constant (const char[size]). Special chars should be escaped!"""
 
     def __str__(self):
-        return f'"{self._name}"'
+        """Return raw string."""
+        return self._name
 
     def __repr__(self):
         """Return the global string with its address."""

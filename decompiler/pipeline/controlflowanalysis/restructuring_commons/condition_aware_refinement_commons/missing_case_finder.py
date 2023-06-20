@@ -89,7 +89,7 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
         possible_case_node = condition_node.false_branch_child
         case_condition = condition_node.false_branch.branch_condition
 
-        if not switch_node.reaching_condition.is_true or possible_case_node.does_end_with_break:
+        if not switch_node.reaching_condition.is_true or possible_case_node._has_descendant_code_node_breaking_ancestor_loop():
             return None
 
         if not self._get_const_eq_check_expression_of_disjunction(case_condition) == switch_node.expression:
@@ -153,7 +153,7 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
         for child in self._current_seq_node.children:
             if (
                 not child.reaching_condition.is_true
-                and not child.does_end_with_break
+                and not child._has_descendant_code_node_breaking_ancestor_loop()
                 and (candidate := self._find_switch_expression_and_case_condition_for(child.reaching_condition))
             ):
                 expression, case_condition = candidate
@@ -161,7 +161,7 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
 
             elif isinstance(child, ConditionNode):
                 for branch in child.children:
-                    if not branch.does_end_with_break and (
+                    if not branch._has_descendant_code_node_breaking_ancestor_loop() and (
                         candidate := self._find_switch_expression_and_case_condition_for(branch.branch_condition)
                     ):
                         expression, case_condition = candidate
@@ -339,7 +339,7 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
         -> Note, the possible case node is either a child of the same sequence node as the switch node or the branch of a condition node
            that is a child of the same sequence node as the switch node.
         """
-        if possible_case_node.parent == switch_node.parent:
+        if possible_case_node.parent is switch_node.parent:
             compare_node = possible_case_node
         else:
             compare_node = possible_case_node.parent.parent
