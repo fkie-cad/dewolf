@@ -2,7 +2,7 @@
 from logging import warning
 from typing import Optional, Tuple, Union
 
-from binaryninja import MediumLevelILInstruction, Type, BinaryView
+from binaryninja import BinaryView, MediumLevelILInstruction, Type
 from decompiler.frontend.lifter import ObserverLifter
 from decompiler.structures.pseudo import DataflowObject, Tag, UnknownExpression, UnknownType
 

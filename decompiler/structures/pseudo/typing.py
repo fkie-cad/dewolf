@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, replace, field
-from typing import Tuple, Dict
+from dataclasses import dataclass, field, replace
+from typing import Dict, Tuple
 
 
 @dataclass(frozen=True, order=True)

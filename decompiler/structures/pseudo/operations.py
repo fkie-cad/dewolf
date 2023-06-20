@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Dict, Iterator, List, Optional, Sequence, Tupl
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 
 from .expressions import Constant, Expression, FunctionSymbol, ImportedFunctionSymbol, IntrinsicSymbol, Symbol, Tag, Variable
-from .typing import CustomType, Type, UnknownType, Pointer
+from .typing import CustomType, Pointer, Type, UnknownType
 
 T = TypeVar("T")
 
