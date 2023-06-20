@@ -11,6 +11,10 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder import (
     MissingCaseFinder,
 )
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder_condition import \
+    MissingCaseFinderCondition
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder_sequence import \
+    MissingCaseFinderSequence
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.switch_extractor import (
     SwitchExtractor,
 )
@@ -22,9 +26,9 @@ class ConditionAwareRefinement(BaseClassConditionAwareRefinement):
 
     REFINEMENT_PIPELINE = [
         InitialSwitchNodeConstructor.construct,
-        MissingCaseFinder.find_in_condition,
+        MissingCaseFinderCondition.find,
         SwitchExtractor.extract,
-        MissingCaseFinder.find_in_sequence,
+        MissingCaseFinderSequence.find,
     ]
 
     @classmethod

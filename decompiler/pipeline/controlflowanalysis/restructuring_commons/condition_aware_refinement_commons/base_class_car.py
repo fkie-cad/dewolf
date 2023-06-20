@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Iterator, Optional, Tuple
+from typing import Iterator, Optional, Tuple, Set
 
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, SwitchNode
 from decompiler.structures.ast.condition_symbol import ConditionHandler

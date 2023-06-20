@@ -82,8 +82,18 @@ class SiblingReachability:
             self._sibling_reachability_graph.add_node(node)
 
     def _add_first_node_reaches_second(self, first_node: AbstractSyntaxTreeNode, second_node: AbstractSyntaxTreeNode):
-        """Adds and edge such that the first node reaches the second AST node afterwards."""
+        """Adds and edge such that the first node reaches the second AST node afterward."""
         self._sibling_reachability_graph.add_edge(first_node, second_node)
+
+    def remove_reachability_between(self, nodes: List[AbstractSyntaxTreeNode]):
+        """Remove the reachability between the given set of nodes"""
+        for node1, node2 in permutations(nodes, 2):
+            if self._sibling_reachability_graph.has_edge(node1, node2):
+                self._sibling_reachability_graph.remove_edge(node1, node2)
+
+    def reaches(self, node_1, node_2) -> bool:
+        """Checks whether node_1 reaches node_2"""
+        return (node_1, node_2) in self._sibling_reachability_graph.edges
 
     def sorted_nodes(self) -> Optional[Tuple[AbstractSyntaxTreeNode, ...]]:
         """Sorts the siblings in topological order."""
@@ -181,6 +191,11 @@ class ReachabilityGraph:
         """Checks whether node_1 reaches node_2"""
         return (node_1, node_2) in self.edges
 
+    def remove_reachability_between(self, node_sets: Dict[CodeNode, int]):
+        for node1, node2 in permutations(node_sets, 2):
+            if node_sets[node1] == node_sets[node2] or not self.reaches(node1, node2):
+                continue
+            self._code_node_reachability_graph.remove_edge(node1, node2)
 
 class SiblingReachabilityGraph:
     """Graph representation of the reaches attribute of a set of AST-nodes."""

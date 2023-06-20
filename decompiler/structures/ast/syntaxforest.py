@@ -22,6 +22,7 @@ from decompiler.structures.ast.syntaxgraph import AbstractSyntaxInterface
 from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock
 from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import Break, Condition, Constant, Expression, Instruction, OperationType, Variable
+from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 
 
 class AbstractSyntaxForest(AbstractSyntaxInterface):
@@ -366,27 +367,25 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
             )
 
     def combine_switch_nodes(self, combinable_switch_nodes: List[SwitchNode]) -> SwitchNode:
-        """Combine two sibling switch nodes that have the same expression and no overlapping cases."""
+        """
+        Combine two sibling switch nodes that have the same expression and no overlapping cases.
+
+        -> the cases can always be sorted, because they are not overlapping.
+        """
         assert (parent := self.have_same_parent(combinable_switch_nodes)) is not None, "All switch nodes must have the same parent."
         assert isinstance(parent, SeqNode), "The parent of all switches must be a Sequence node."
         self._add_node(new_switch_node := self.factory.create_switch_node(combinable_switch_nodes[0].expression))
         self._add_edge(parent, new_switch_node)
-        switch_node_cases: Dict[SwitchNode, List[CaseNode]] = dict()
-        for switch_node in combinable_switch_nodes:
-            switch_node_cases[switch_node] = []
+        descendant_code_nodes: Dict[CodeNode, int] = dict()
+        for idx, switch_node in enumerate(combinable_switch_nodes):
+            descendant_code_nodes.update((cn, idx) for cn in switch_node.get_descendant_code_nodes())
             for case in switch_node.cases:
                 self._add_edge(new_switch_node, case)
-                switch_node_cases[switch_node].append(case)
             self._remove_node(switch_node)
-        try:
-            new_switch_node.sort_cases()
-        except ValueError:
-            for switch_node, cases in switch_node_cases.items():
-                self._add_node(switch_node)
-                self._add_edges_from((switch_node, case) for case in cases)
-                self._add_edge(parent, switch_node)
-            self._remove_node(new_switch_node)
+        # python decompile.py ../../Downloads/test_condition_for_eva test17 --debug
+        self._code_node_reachability_graph.remove_reachability_between(descendant_code_nodes)
 
+        new_switch_node.sort_cases()
         parent.sort_children()
         return new_switch_node if new_switch_node in set(self.nodes) else None
 

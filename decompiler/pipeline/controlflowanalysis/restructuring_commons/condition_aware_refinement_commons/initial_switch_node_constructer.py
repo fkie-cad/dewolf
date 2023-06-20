@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from itertools import chain
+from itertools import chain, combinations, permutations
 from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple
 
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.base_class_car import (
@@ -147,6 +147,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         """
         for possible_switch_node in self._get_possible_switch_nodes_for(seq_node):
             sibling_reachability = self.asforest.get_sibling_reachability_of_children_of(seq_node)
+            self._clean_up_reachability(possible_switch_node, sibling_reachability)
             if len(possible_switch_node.cases) > 1:
                 self._remove_too_nested_cases(possible_switch_node, sibling_reachability)
             if len(possible_switch_node.cases) > 1 and self._can_place_switch_node(possible_switch_node, sibling_reachability):
@@ -196,6 +197,32 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
             return CaseNodeCandidate(ast_node, expression_usage, condition)
 
         return None
+
+    def _clean_up_reachability(self, possible_switch_node, sibling_reachability):
+        case_constants_of_case: Dict[CaseNodeCandidate, Set[Constant]] = dict()
+        descendant_code_nodes_of: Dict[CaseNodeCandidate, Set[CodeNode]] = dict()
+        for candidate_1, candidate_2 in permutations(possible_switch_node.cases, 2):
+            if sibling_reachability.reaches(candidate_1.node, candidate_2.node):
+                self.__update_case_constants_for(candidate_1, case_constants_of_case)
+                self.__update_case_constants_for(candidate_2, case_constants_of_case)
+
+                if not (case_constants_of_case[candidate_1] & case_constants_of_case[candidate_2]):
+                    self.__update_descendant_for(candidate_1, descendant_code_nodes_of)
+                    self.__update_descendant_for(candidate_2, descendant_code_nodes_of)
+                    self.asforest._code_node_reachability_graph.remove_reachability_between(
+                        {cn: idx for idx, c in enumerate([candidate_1, candidate_2]) for cn in descendant_code_nodes_of[c]}
+                    )
+                    sibling_reachability.remove_reachability_between([candidate_1.node, candidate_2.node])
+
+    def __update_descendant_for(self, candidate_1, descendant_code_nodes_of):
+        if candidate_1 not in descendant_code_nodes_of:
+            descendant_code_nodes_of[candidate_1] = set(candidate_1.node.get_descendant_code_nodes())
+
+    def __update_case_constants_for(self, candidate_1, case_constants_of_case):
+        if candidate_1 not in case_constants_of_case:
+            case_constants_of_case[candidate_1] = set(
+                self.asforest.switch_node_handler.get_potential_switch_constant(literal) for literal in candidate_1.condition.get_literals()
+            )
 
     def _update_reaching_condition_for_case_node_children(self, switch_node: SwitchNode):
         """
