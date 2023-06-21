@@ -1,7 +1,7 @@
 """Module to handle the reaches attribute using graphs."""
 from __future__ import annotations
 
-from itertools import chain, permutations
+from itertools import chain, permutations, product
 from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Set, Tuple
 
 from decompiler.structures.pseudo.expressions import Constant
@@ -191,11 +191,12 @@ class ReachabilityGraph:
         """Checks whether node_1 reaches node_2"""
         return (node_1, node_2) in self.edges
 
-    def remove_reachability_between(self, node_sets: Dict[CodeNode, int]):
-        for node1, node2 in permutations(node_sets, 2):
-            if node_sets[node1] == node_sets[node2] or not self.reaches(node1, node2):
-                continue
-            self._code_node_reachability_graph.remove_edge(node1, node2)
+    def remove_reachability_between(self, ast_nodes: Iterable[AbstractSyntaxTreeNode]):
+        descendant_sets: List[Set[CodeNode]] = [set(node.get_descendant_code_nodes()) for node in ast_nodes]
+        for descendant_set_1, descendant_set_2 in permutations(descendant_sets):
+            for node1, node2 in product(descendant_set_1, descendant_set_2):
+                if self.reaches(node1, node2):
+                    self._code_node_reachability_graph.remove_edge(node1, node2)
 
 class SiblingReachabilityGraph:
     """Graph representation of the reaches attribute of a set of AST-nodes."""

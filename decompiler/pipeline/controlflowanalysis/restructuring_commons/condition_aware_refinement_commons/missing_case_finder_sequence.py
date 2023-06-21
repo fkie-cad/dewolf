@@ -1,7 +1,3 @@
-from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder import (
-    MissingCaseFinder,
-)
-
 import logging
 from collections import defaultdict
 from typing import DefaultDict, Dict, Iterable, List, Optional, Set, Tuple, Union
@@ -9,6 +5,9 @@ from typing import DefaultDict, Dict, Iterable, List, Optional, Set, Tuple, Unio
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.base_class_car import (
     BaseClassConditionAwareRefinement,
     CaseNodeCandidate,
+)
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder import (
+    MissingCaseFinder,
 )
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, ConditionNode, FalseNode, SeqNode, SwitchNode, TrueNode
 from decompiler.structures.ast.reachability_graph import SiblingReachabilityGraph
@@ -129,7 +128,14 @@ class MissingCaseFinderSequence(MissingCaseFinder):
                 and (candidate := self._find_switch_expression_and_case_condition_for(child.reaching_condition))
             ):
                 expression, case_condition = candidate
-                new_case_candidates_for_expression[expression].add(CaseNodeCandidate(child, expression, case_condition))
+                new_case_candidates_for_expression[expression].add(
+                    CaseNodeCandidate(
+                        child,
+                        expression,
+                        case_condition,
+                        dict(self.asforest.switch_node_handler.get_literal_and_constant_for(case_condition)),
+                    )
+                )
 
             elif isinstance(child, ConditionNode):
                 for branch in child.children:
@@ -137,7 +143,14 @@ class MissingCaseFinderSequence(MissingCaseFinder):
                         candidate := self._find_switch_expression_and_case_condition_for(branch.branch_condition)
                     ):
                         expression, case_condition = candidate
-                        new_case_candidates_for_expression[expression].add(CaseNodeCandidate(branch.child, expression, case_condition))
+                        new_case_candidates_for_expression[expression].add(
+                            CaseNodeCandidate(
+                                branch.child,
+                                expression,
+                                case_condition,
+                                dict(self.asforest.switch_node_handler.get_literal_and_constant_for(case_condition)),
+                            )
+                        )
         return dict(new_case_candidates_for_expression)
 
     def _find_switch_expression_and_case_condition_for(
@@ -179,9 +192,7 @@ class MissingCaseFinderSequence(MissingCaseFinder):
                     possible_case.node.reaching_condition &= possible_case.node.parent.branch_condition
                 possible_case.node.reaching_condition.substitute_by_true(possible_case.condition)
                 reachability_graph.update_when_inserting_new_case_node(possible_case.node, switch_node)
-                self.asforest._code_node_reachability_graph.remove_reachability_between(
-                    {cn: idx for idx, c in enumerate([possible_case.node, switch_node]) for cn in c.get_descendant_code_nodes()}
-                )
+                self.asforest._code_node_reachability_graph.remove_reachability_between([possible_case.node, switch_node])
                 self._insert_case_node(possible_case.node, case_constants_for_node[possible_case.node], switch_node)
                 cases_of_switch_node.update(case_constants_for_node[possible_case.node])
                 if self._current_seq_node in self.asforest:

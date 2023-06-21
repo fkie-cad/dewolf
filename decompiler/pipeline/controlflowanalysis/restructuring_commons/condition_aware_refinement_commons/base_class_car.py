@@ -1,9 +1,9 @@
 from dataclasses import dataclass, field
-from typing import Iterator, Optional, Tuple, Set
+from typing import Dict, Iterator, Optional, Set, Tuple
 
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, SwitchNode
 from decompiler.structures.ast.condition_symbol import ConditionHandler
-from decompiler.structures.ast.switch_node_handler import ExpressionUsages
+from decompiler.structures.ast.switch_node_handler import ExpressionUsages, SwitchNodeHandler
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition, PseudoLogicCondition
 from decompiler.structures.pseudo import Condition, Constant, Expression, OperationType
@@ -17,14 +17,17 @@ class CaseNodeCandidate:
     -> node is the AST node that we want to have as a case node
     -> The condition that the new case node should get.
     """
-
     node: AbstractSyntaxTreeNode
     expression: Optional[ExpressionUsages]
-    condition: LogicCondition = field(compare=False)
+    condition: LogicCondition
+    constant_of_literal: Optional[Dict[LogicCondition, Constant]] = field(default=None)
 
     def construct_case_node(self, expression: Expression) -> CaseNode:
         """Construct Case node for itself with the given switch expression."""
         return CaseNode(expression, Constant("unknown"), self.condition.copy())
+
+    def compared_constants(self) -> Set[Constant]:
+        return set(self.constant_of_literal.values())
 
     def __eq__(self, other) -> bool:
         """
