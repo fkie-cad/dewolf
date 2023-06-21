@@ -14,7 +14,7 @@ class CompilerIdiomsTagging:
         self._bv = binary_view
         self._function_start = start
         self._enabled = options.getboolean("compiler-idioms-tagging.enabled", fallback=True)
-        self._debug = options.getboolean("pipeline.debug")
+        self._debug_submodules = options.getboolean("logging.debug-submodules")
 
     def run(self):
         """
@@ -26,7 +26,7 @@ class CompilerIdiomsTagging:
         try:
             matches = Matcher().find_idioms_in_function(self._bv.file.filename, self._function_start)
         except Exception as e:
-            if self._debug:
+            if self._debug_submodules:
                 raise RuntimeError(e)
             logging.warning("Compiler idioms matching failed, continue without compiler idioms.")
             return
