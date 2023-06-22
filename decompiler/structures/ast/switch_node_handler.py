@@ -83,12 +83,15 @@ class SwitchNodeHandler:
         if (case_node_property := self._get_case_node_property_of(condition)) is not None:
             return case_node_property.constant
 
-
     def get_literal_and_constant_for(self, condition: LogicCondition) -> Iterable[LogicCondition, Constant]:
         """Get the constant for each literal of the given condition."""
         for literal in condition.get_literals():
             yield literal, self.get_potential_switch_constant(literal)
 
+    def get_constants_for(self, condition: LogicCondition) -> Iterable[Constant]:
+        """Get the constant for each literal of the given condition."""
+        for literal in condition.get_literals():
+            yield self.get_potential_switch_constant(literal)
 
     def _get_case_node_property_of(self, condition: LogicCondition) -> Optional[CaseNodeProperties]:
         """Return the case-property of a given literal."""

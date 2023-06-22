@@ -128,14 +128,7 @@ class MissingCaseFinderSequence(MissingCaseFinder):
                 and (candidate := self._find_switch_expression_and_case_condition_for(child.reaching_condition))
             ):
                 expression, case_condition = candidate
-                new_case_candidates_for_expression[expression].add(
-                    CaseNodeCandidate(
-                        child,
-                        expression,
-                        case_condition,
-                        dict(self.asforest.switch_node_handler.get_literal_and_constant_for(case_condition)),
-                    )
-                )
+                new_case_candidates_for_expression[expression].add(CaseNodeCandidate(child, expression, case_condition))
 
             elif isinstance(child, ConditionNode):
                 for branch in child.children:
@@ -143,14 +136,7 @@ class MissingCaseFinderSequence(MissingCaseFinder):
                         candidate := self._find_switch_expression_and_case_condition_for(branch.branch_condition)
                     ):
                         expression, case_condition = candidate
-                        new_case_candidates_for_expression[expression].add(
-                            CaseNodeCandidate(
-                                branch.child,
-                                expression,
-                                case_condition,
-                                dict(self.asforest.switch_node_handler.get_literal_and_constant_for(case_condition)),
-                            )
-                        )
+                        new_case_candidates_for_expression[expression].add(CaseNodeCandidate(branch.child, expression, case_condition))
         return dict(new_case_candidates_for_expression)
 
     def _find_switch_expression_and_case_condition_for(

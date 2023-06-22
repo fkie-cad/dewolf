@@ -194,25 +194,18 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
 
         if len(possible_conditions) == 1:
             expression_usage, condition = possible_conditions[0]
-            return CaseNodeCandidate(
-                ast_node, expression_usage, condition, dict(self.asforest.switch_node_handler.get_literal_and_constant_for(condition))
-            )
+            return CaseNodeCandidate(ast_node, expression_usage, condition)
 
         return None
 
-    def _clean_up_reachability(self, possible_switch_node, sibling_reachability):
-        case_constants_of_case: Dict[CaseNodeCandidate, Set[Constant]] = dict()
-        descendant_code_nodes_of: Dict[CaseNodeCandidate, Set[CodeNode]] = dict()
+    def _clean_up_reachability(self, possible_switch_node: SwitchNodeCandidate, sibling_reachability):
         for candidate_1, candidate_2 in permutations(possible_switch_node.cases, 2):
             if sibling_reachability.reaches(candidate_1.node, candidate_2.node) and not (
-                candidate_1.compared_constants() & candidate_2.compared_constants()
+                set(self.asforest.switch_node_handler.get_constants_for(candidate_1.condition))
+                & set(self.asforest.switch_node_handler.get_constants_for(candidate_2.condition))
             ):
                 self.asforest._code_node_reachability_graph.remove_reachability_between([candidate_1.node, candidate_2.node])
                 sibling_reachability.remove_reachability_between([candidate_1.node, candidate_2.node])
-
-    def __update_descendant_for(self, candidate_1, descendant_code_nodes_of):
-        if candidate_1 not in descendant_code_nodes_of:
-            descendant_code_nodes_of[candidate_1] = set(candidate_1.node.get_descendant_code_nodes())
 
     def _update_reaching_condition_for_case_node_children(self, switch_node: SwitchNode):
         """
@@ -290,7 +283,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         first_node: CaseNode,
         linear_ordering_starting_at: Dict[CaseNode, List[CaseNode]],
         linear_order_dependency_graph: LinearOrderDependency,
-        considered_conditions: Optional[Set[CaseNode]] = None,
+        considered_conditions: Optional[Set[LogicCondition]] = None,
     ) -> CaseNode:
         """
         Add constants for all nodes whose order starts at the given case node, i.e., nodes in linear_order_starting_at[first_node]'.
@@ -347,6 +340,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
 
             if case_node.reaching_condition.is_literal:
                 case_node.constant = self._get_constant_compared_with_expression(case_node.reaching_condition)
+                case_node.constant = self.asforest.switch_node_handler.get_potential_switch_constant(case_node.reaching_condition)
                 considered_conditions.add(case_node.reaching_condition)
             elif case_node.reaching_condition.is_false:
                 case_node.constant = Constant("add_to_previous_case")
@@ -389,7 +383,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         Check whether the given literal is contained in the set of literals. If this is the case, we return the literal.
 
         Note, two literals can have different names (be different symbols) but still are the same.
-        Therefore we also check whether the z3-conditions are equivalent.
+        Therefore, we also check whether the z3-conditions are equivalent.
 
         :param condition: The literal, which is a z3-symbol, of which we want to know whether its condition is in the set of literals.
         :param literals_of_current_case_node: The set of literals, which are all z3-symbols.
