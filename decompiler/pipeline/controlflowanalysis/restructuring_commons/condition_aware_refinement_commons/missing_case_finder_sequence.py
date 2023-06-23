@@ -156,7 +156,10 @@ class MissingCaseFinderSequence(MissingCaseFinder):
         return None
 
     def _add_new_case_nodes_to_switch_node(
-        self, expression: ExpressionUsages, case_node_candidates: Set[CaseNodeCandidate], reachability_graph: SiblingReachabilityGraph
+        self,
+        expression: ExpressionUsages,
+        case_node_candidates: Set[CaseNodeCandidate],
+        sibling_reachability_graph: SiblingReachabilityGraph,
     ) -> None:
         """
         Check for each case node whether we can add it to the switch node.
@@ -166,23 +169,117 @@ class MissingCaseFinderSequence(MissingCaseFinder):
         cases_of_switch_node: Set[Constant] = {case.constant for case in switch_node.children}
         case_constants_for_node: Dict[AbstractSyntaxTreeNode, Set[Constant]] = dict()
         for possible_case in case_node_candidates:
-            if not self._can_insert_case_node(possible_case.node, switch_node, reachability_graph):
+            if not self._can_insert_case_node(possible_case.node, switch_node, sibling_reachability_graph):
                 continue
             case_constants_for_node[possible_case.node] = set(self._get_case_constants_for_condition(possible_case.condition))
             # TODO:
             if intersection := (case_constants_for_node[possible_case.node] & cases_of_switch_node):
+                compare_node = possible_case.node if possible_case.node.parent is switch_node.parent else possible_case.node.parent.parent
+                intersecting_linear_cases = self.__get_linear_order_intersection_constants(switch_node, intersection)
+                if sibling_reachability_graph.reaches(compare_node, switch_node):
+                    # Insert content before case-node
+                    if len(intersection) < len(case_constants_for_node[possible_case.node]):
+                        continue
+                    uncommon_cases = list()
+                    common_cases = list()
+                    for case in intersecting_linear_cases:
+                        if case.constant not in intersection:
+                            uncommon_cases.append(case)
+                        else:
+                            common_cases.append(case)
+                        if not case.child.is_empty_code_node:
+                            break
+                    if len(common_cases) != len(intersection):
+                        continue
+                    old_children_order = [c.child for c in intersecting_linear_cases]
+                    for case_node, old_child in zip(common_cases + uncommon_cases, old_children_order):
+                        if case_node is common_cases[-1]:
+                            if isinstance(possible_case.node.parent, (TrueNode, FalseNode)):
+                                possible_case.node.reaching_condition &= possible_case.node.parent.branch_condition
+                            possible_case.node.reaching_condition.substitute_by_true(possible_case.condition)
+                            self.asforest._remove_edge(possible_case.node.parent, possible_case.node)
+                            if old_child.is_empty_code_node:
+                                self.asforest._add_edge(case_node, possible_case.node)
+                                for descendant in possible_case.node.get_descendant_code_nodes():
+                                    self.asforest._code_node_reachability_graph.add_reachability_from(
+                                        (descendant, r) for r in self.asforest._code_node_reachability_graph.reachable_from(old_child)
+                                    )
+                                    self.asforest._code_node_reachability_graph.add_reachability_from(
+                                        (r, descendant) for r in self.asforest._code_node_reachability_graph.reaching(old_child)
+                                    )
+                                    self.asforest._remove_node(old_child)
+                            else:
+                                new_seq = self.asforest._add_sequence_node_before(old_child)
+                                self.asforest._add_edge(new_seq, possible_case.node)
+                        else:
+                            self.asforest._remove_edge(case_node, case_node.child)
+                            self.asforest._add_edge(case_node, old_child)
+
+                if sibling_reachability_graph.reaches(switch_node, compare_node):
+                    if len(intersecting_linear_cases) != len(intersection):
+                        continue
+                    if len(intersection) == len(case_constants_for_node[possible_case.node]):
+                        new_seq = self.asforest._add_sequence_node_before(intersecting_linear_cases[-1].child)
+                        if isinstance(branch := possible_case.node.parent, (TrueNode, FalseNode)):
+                            possible_case.node.reaching_condition &= branch.branch_condition
+                        possible_case.node.reaching_condition.substitute_by_true(possible_case.condition)
+                        #  TODO: update sibling reachability
+                        self.asforest._remove_edge(possible_case.node.parent, possible_case.node)
+                        self.asforest._add_edge(new_seq, possible_case.node)
+                    else:
+                        remaining_cases = list(
+                            sorted(case_constants_for_node[possible_case.node] - intersection, key=lambda const: const.value)
+                        )
+                        self._new_case_nodes_for(possible_case.node, switch_node, remaining_cases)
+                        intersecting_linear_cases[-1].break_case = False
                 logging.info(f"We will handle in a later Issue how to insert Case nodes whose constant already exists.")
-                continue
+                compare_node.clean()
+                # continue
             else:
                 if isinstance(possible_case.node.parent, (TrueNode, FalseNode)):
                     possible_case.node.reaching_condition &= possible_case.node.parent.branch_condition
                 possible_case.node.reaching_condition.substitute_by_true(possible_case.condition)
-                reachability_graph.update_when_inserting_new_case_node(possible_case.node, switch_node)
+                sibling_reachability_graph.update_when_inserting_new_case_node(possible_case.node, switch_node)
                 self.asforest._code_node_reachability_graph.remove_reachability_between([possible_case.node, switch_node])
                 self._insert_case_node(possible_case.node, case_constants_for_node[possible_case.node], switch_node)
                 cases_of_switch_node.update(case_constants_for_node[possible_case.node])
                 if self._current_seq_node in self.asforest:
                     self._current_seq_node.clean()
+
+    def __get_linear_order_intersection_constants(self, switch: SwitchNode, case_constants: Set[Constant]) -> Optional[Tuple[CaseNode]]:
+        idx_break_cases = [
+            idx + 1 for idx, case in enumerate(switch.cases) if case.break_case or case.does_end_with_return or case.does_end_with_continue
+        ]
+        assert len(switch.cases) == idx_break_cases[-1], "The last case-node must end with a break, continue or return."
+        linear_cases = [switch.cases[i:j] for i, j in zip([0] + idx_break_cases, idx_break_cases)]
+        for linear_case in linear_cases:
+            case_constant_in_order = sum(case.constant in case_constants for case in linear_case)
+            if case_constant_in_order > 0:
+                if case_constant_in_order != len(case_constants):
+                    return None
+                else:
+                    return linear_case
+        return None
+
+    @staticmethod
+    def _can_insert_case_node(
+        possible_case_node: AbstractSyntaxTreeNode, switch_node: SwitchNode, reachability_graph: SiblingReachabilityGraph
+    ) -> bool:
+        """
+        Check whether we can insert the given ast-node into the switch node.
+
+        -> Possible if inserting does not lead to cycles in the dependency graph
+        -> Note, the possible case node is either a child of the same sequence node as the switch node or the branch of a condition node
+           that is a child of the same sequence node as the switch node.
+        """
+        if possible_case_node.parent is switch_node.parent:
+            compare_node = possible_case_node
+        else:
+            compare_node = possible_case_node.parent.parent
+        return not (
+            reachability_graph.has_path(compare_node, switch_node, no_edge=True)
+            or reachability_graph.has_path(switch_node, compare_node, no_edge=True)
+        )
 
     def _add_default_case(self):
         """Try to find a possible default case for each switch node that is a child of the current sequence node."""
@@ -200,30 +297,6 @@ class MissingCaseFinderSequence(MissingCaseFinder):
                     possible_default_cases.remove(default_candidate)
                     reachability_graph.update_when_inserting_new_case_node(default_candidate.node, switch_node)
                     break
-
-    @staticmethod
-    def _can_insert_case_node(
-        possible_case_node: AbstractSyntaxTreeNode, switch_node: SwitchNode, reachability_graph: SiblingReachabilityGraph
-    ) -> bool:
-        """
-        Check whether we can insert the given ast-node into the switch node.
-
-        -> Possible if inserting does not lead to cycles in the dependency graph
-        -> Note, the possible case node is either a child of the same sequence node as the switch node or the branch of a condition node
-           that is a child of the same sequence node as the switch node.
-        """
-        if possible_case_node.parent is switch_node.parent:
-            compare_node = possible_case_node
-        else:
-            compare_node = possible_case_node.parent.parent
-        removed_edges = [edge for edge in [(compare_node, switch_node), (switch_node, compare_node)] if edge in reachability_graph.edges]
-        reachability_graph.remove_reachability_from(removed_edges)
-
-        can_insert_case_node = not (
-            reachability_graph.has_path(compare_node, switch_node) and reachability_graph.has_path(switch_node, compare_node)
-        )
-        reachability_graph.add_reachability_from(removed_edges)
-        return can_insert_case_node
 
     def _get_possible_default_cases_candidates(self, ast_nodes: Tuple[AbstractSyntaxTreeNode]) -> Set[CaseNodeCandidate]:
         """
@@ -253,18 +326,6 @@ class MissingCaseFinderSequence(MissingCaseFinder):
         )
 
     @staticmethod
-    def _repeating_cases(combinable_switch_nodes: List[SwitchNode]) -> bool:
-        """Check whether all cases occur only once."""
-        case_constants: Set[Constant] = set()
-        for switch_node in combinable_switch_nodes:
-            for case_node in switch_node.cases:
-                if case_node.constant in case_constants:
-                    return True
-                else:
-                    case_constants.add(case_node.constant)
-        return False
-
-    @staticmethod
     def _can_insert_default_case(
         default_candidate: CaseNodeCandidate,
         switch_node: SwitchNode,
@@ -282,3 +343,15 @@ class MissingCaseFinderSequence(MissingCaseFinder):
         ):
             return False
         return (case_conditions | default_candidate.condition).is_true and (case_conditions & default_candidate.condition).is_false
+
+    @staticmethod
+    def _repeating_cases(combinable_switch_nodes: List[SwitchNode]) -> bool:
+        """Check whether all cases occur only once."""
+        case_constants: Set[Constant] = set()
+        for switch_node in combinable_switch_nodes:
+            for case_node in switch_node.cases:
+                if case_node.constant in case_constants:
+                    return True
+                else:
+                    case_constants.add(case_node.constant)
+        return False
