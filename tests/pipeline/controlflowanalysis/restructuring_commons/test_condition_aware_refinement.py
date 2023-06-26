@@ -4004,7 +4004,7 @@ def test_fallthrough_reaching_problem(task):
 
 
 def test_only_one_occurrence_of_each_case(task):
-    """Make sure that each case is only added once to a switch node."""
+    """Insert cases that already occur."""
     var_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
     var_1 = Variable(
         "var_1", Pointer(Integer(32, True), 32), None, False, Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
@@ -4078,12 +4078,18 @@ def test_only_one_occurrence_of_each_case(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 4
+    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode) and len(switch.cases) == 7
-    assert isinstance(case1 := switch.cases[0], CaseNode) and case1.constant.value == 1 and isinstance(case1.child, ConditionNode)
+    assert isinstance(case1 := switch.cases[0], CaseNode) and case1.constant.value == 1 and isinstance(case1_seq := case1.child, SeqNode)
     assert all(case1.constant != case2.constant for case1, case2 in combinations(switch.cases, 2))
-    assert isinstance(seq_node.children[2], ConditionNode)
+    assert len(case1_seq.children) == 3
+    assert isinstance(cn := case1_seq.children[0], ConditionNode) and cn.false_branch is None
+    assert isinstance(tb:= cn.true_branch_child, CodeNode) and tb.instructions == vertices[3].instructions
+    assert isinstance(cn := case1_seq.children[1], ConditionNode) and cn.false_branch is None
+    assert isinstance(tb := cn.true_branch_child, CodeNode) and tb.instructions == vertices[17].instructions
+    assert isinstance(cn := case1_seq.children[2], CodeNode) and cn.instructions == vertices[5].instructions
+    assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[18].instructions
 
 
 def test_case_0_different_condition(task):

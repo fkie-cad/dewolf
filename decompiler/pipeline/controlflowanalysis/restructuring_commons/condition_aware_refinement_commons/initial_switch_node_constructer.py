@@ -384,28 +384,6 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         if not exception_condition.is_true:
             case_node.child.reaching_condition = case_node.child.reaching_condition & exception_condition
 
-    # def _is_literal_of_current_case_node(
-    #     self, condition: LogicCondition, literals_of_current_case_node: Set[LogicCondition]
-    # ) -> Optional[LogicCondition]:
-    #     """
-    #     Check whether the given literal is contained in the set of literals. If this is the case, we return the literal.
-    #
-    #     Note, two literals can have different names (be different symbols) but still are the same.
-    #     Therefore, we also check whether the z3-conditions are equivalent.
-    #
-    #     :param condition: The literal, which is a z3-symbol, of which we want to know whether its condition is in the set of literals.
-    #     :param literals_of_current_case_node: The set of literals, which are all z3-symbols.
-    #     :return: The literals in the given set that is equivalent to the given literal or None if it is not equivalent to any literal.
-    #     """
-    #     if condition in literals_of_current_case_node:
-    #         return condition
-    #
-    #     z3_condition = self._z3_condition_of_literal(condition)
-    #     for literal in literals_of_current_case_node:
-    #         if self._z3_condition_of_literal(literal).is_equivalent_to(z3_condition):
-    #             return literal
-    #     return None
-
     def handle_empty_fallthrough(self, linear_order: List[CaseNode]) -> List[CaseNode]:
         """
         Given a list of case nodes, that are ordered according to their reachability, we insert new empty case nodes before every case
