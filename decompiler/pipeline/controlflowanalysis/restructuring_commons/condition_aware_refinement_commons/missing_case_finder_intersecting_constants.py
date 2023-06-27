@@ -1,4 +1,4 @@
-from typing import Set, List, Optional, Tuple
+from typing import List, Optional, Set, Tuple
 
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.base_class_car import (
     CaseNodeCandidate,
@@ -6,7 +6,7 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder import (
     MissingCaseFinder,
 )
-from decompiler.structures.ast.ast_nodes import CaseNode, SwitchNode, TrueNode, FalseNode
+from decompiler.structures.ast.ast_nodes import CaseNode, FalseNode, SwitchNode, TrueNode
 from decompiler.structures.ast.reachability_graph import SiblingReachabilityGraph
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.pseudo import Constant

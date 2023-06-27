@@ -5000,7 +5000,8 @@ def test_hash_eq_problem(task):
                 ],
             ),
             BasicBlock(9, instructions=[Assignment(arg1, Constant(1, Integer.int32_t()))]),
-            BasicBlock(10, instructions=[Return([arg1])]),        ]
+            BasicBlock(10, instructions=[Return([arg1])]),
+        ]
     )
     task.graph.add_edges_from(
         [
@@ -5022,12 +5023,14 @@ def test_hash_eq_problem(task):
         ]
     )
     PatternIndependentRestructuring().run(task)
-    from decompiler.util.decoration import DecoratedAST
-    DecoratedAST.from_ast(task.syntax_tree).export_plot("/home/eva/Projects/dewolf/AST/z_ast.png")
     assert any(isinstance(node, SwitchNode) for node in task.syntax_tree)
     var_2_conditions = []
     for node in task.syntax_tree.get_condition_nodes_post_order():
-        if not node.condition.is_symbol and node.condition.is_literal and str(task.syntax_tree.condition_map[~node.condition]) in {"var_2 != 0x0"}:
+        if (
+            not node.condition.is_symbol
+            and node.condition.is_literal
+            and str(task.syntax_tree.condition_map[~node.condition]) in {"var_2 != 0x0"}
+        ):
             node.switch_branches()
         if node.condition.is_symbol and str(task.syntax_tree.condition_map[node.condition]) in {"var_2 != 0x0"}:
             var_2_conditions.append(node)

@@ -8,8 +8,9 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder import (
     MissingCaseFinder,
 )
-from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder_intersecting_constants import \
-    MissingCaseFinderIntersectingConstants
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder_intersecting_constants import (
+    MissingCaseFinderIntersectingConstants,
+)
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, ConditionNode, FalseNode, SeqNode, SwitchNode, TrueNode
 from decompiler.structures.ast.reachability_graph import SiblingReachabilityGraph
 from decompiler.structures.ast.switch_node_handler import ExpressionUsages
@@ -169,12 +170,16 @@ class MissingCaseFinderSequence(MissingCaseFinder):
         switch_node = self._switch_node_of_expression[expression]
         cases_of_switch_node: Set[Constant] = {case.constant for case in switch_node.children}
         # case_constants_for_node: Dict[AbstractSyntaxTreeNode, Set[Constant]] = dict()
-        missing_case_finder_intersecting_constants = MissingCaseFinderIntersectingConstants(self.asforest, switch_node, sibling_reachability_graph)
+        missing_case_finder_intersecting_constants = MissingCaseFinderIntersectingConstants(
+            self.asforest, switch_node, sibling_reachability_graph
+        )
         # TODO: order may be important!!!
         for possible_case in case_node_candidates:
             if not self._can_insert_case_node(possible_case, switch_node, sibling_reachability_graph):
                 continue
-            if any(case_constant in cases_of_switch_node for case_constant in self._get_case_constants_for_condition(possible_case.condition)):
+            if any(
+                case_constant in cases_of_switch_node for case_constant in self._get_case_constants_for_condition(possible_case.condition)
+            ):
                 missing_case_finder_intersecting_constants.insert(possible_case)
             else:
                 case_constants_for_possible_case_node = set(self._get_case_constants_for_condition(possible_case.condition))

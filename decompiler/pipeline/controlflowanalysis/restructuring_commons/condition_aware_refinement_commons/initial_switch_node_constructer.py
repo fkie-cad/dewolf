@@ -406,11 +406,13 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         Given a case node whose reaching condition is a disjunction of literals, we create one case node for each literal and return
         the list of new case nodes.
         """
-        condition_for_constant: Dict[Constant, LogicCondition] = {c: l for l, c in self.asforest.switch_node_handler.get_literal_and_constant_for(case.reaching_condition)}
+        condition_for_constant: Dict[Constant, LogicCondition] = {
+            c: l for l, c in self.asforest.switch_node_handler.get_literal_and_constant_for(case.reaching_condition)
+        }
         if None in condition_for_constant:
             raise ValueError(
-                    f"The case node should have a reaching-condition that is a disjunction of literals, but it has the clause {condition_for_constant[None]}."
-               )
+                f"The case node should have a reaching-condition that is a disjunction of literals, but it has the clause {condition_for_constant[None]}."
+            )
         sorted_constants: List[Constant] = sorted(condition_for_constant, key=lambda constant: constant.value)
         fallthrough_cases = self.asforest.split_case_node(case, sorted_constants)
         for case in fallthrough_cases:

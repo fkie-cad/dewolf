@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Dict, Iterator, Optional, Set, Tuple
 
-from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, SwitchNode, TrueNode, FalseNode
+from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, FalseNode, SwitchNode, TrueNode
 from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.structures.ast.switch_node_handler import ExpressionUsages, SwitchNodeHandler
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
@@ -17,6 +17,7 @@ class CaseNodeCandidate:
     -> node is the AST node that we want to have as a case node
     -> The condition that the new case node should get.
     """
+
     node: AbstractSyntaxTreeNode
     expression: Optional[ExpressionUsages]
     condition: LogicCondition
