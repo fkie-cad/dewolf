@@ -32,6 +32,16 @@ from .instructions import (
     Relation,
     Return,
 )
-from .operations import BinaryOperation, Call, Condition, ListOperation, Operation, OperationType, TernaryExpression, UnaryOperation
+from .operations import (
+    SHORTHANDS,
+    BinaryOperation,
+    Call,
+    Condition,
+    ListOperation,
+    Operation,
+    OperationType,
+    TernaryExpression,
+    UnaryOperation,
+)
 from .typing import CustomType, Float, FunctionTypeDef, Integer, Parameter, Pointer, Type, TypeParser, UnknownType
 from .z3_logic import Z3Converter

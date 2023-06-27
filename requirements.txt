@@ -7,3 +7,4 @@ pydot
 pygments
 pytest !=5.3.4
 z3-solver == 4.8.10
+pycparser
