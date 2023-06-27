@@ -755,6 +755,16 @@
                 "argument_name": "--show-stages"
             },
             {
+                "dest": "logging.debug-submodules",
+                "default": false,
+                "title": "Debug mode for submodules",
+                "type": "boolean",
+                "description": "Crash on error when error is caused by a submodule (e.g. compiler idioms)",
+                "is_hidden_from_gui": true,
+                "is_hidden_from_cli": false,
+                "argument_name": "--debug-submodules"
+            },
+            {
                 "dest": "gui.font",
                 "default": "source code pro",
                 "title": "Font",

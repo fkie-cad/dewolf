@@ -12,15 +12,13 @@ class SwitchExtractor(BaseClassConditionAwareRefinement):
 
     def __init__(self, asforest: AbstractSyntaxForest):
         """
-        self.asforest: The asforst where we try to construct switch nodes
         self.current_cond_node: The condition node which we consider to extract switch nodes.
         """
-        self.asforest = asforest
+        super().__init__(asforest)
         self._current_cond_node: Optional[ConditionNode] = None
-        super().__init__(asforest.condition_handler)
 
     @classmethod
-    def extract(cls, asforest):
+    def extract(cls, asforest: AbstractSyntaxForest):
         """
         Extract switch nodes from condition nodes, i.e., if a switch node is a branch of a condition node whose condition is redundant for
         the switch node, we extract it from the condition node.
