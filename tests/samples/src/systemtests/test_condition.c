@@ -666,10 +666,7 @@ int print_problem(){
 
 int main()
 {
-	test4();
-	test5();
-	test13();
-
+    test17(7);
 
 	printf("Testing DREAM restruring algoritm\r\n");
 }

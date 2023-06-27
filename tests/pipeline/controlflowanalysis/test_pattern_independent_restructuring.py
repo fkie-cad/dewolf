@@ -4941,7 +4941,6 @@ def test_hash_eq_problem(task):
     - eq: Same condition node in sense of same condition
     - hash: same node in the graph
     """
-    #  TODO: python decompile.py ../../Downloads/samples/fsutil.exe 140010200 (Issue 210)
     arg1 = Variable("arg1", Integer.int32_t(), ssa_name=Variable("arg1", Integer.int32_t(), 0))
     arg2 = Variable("arg2", Integer.int32_t(), ssa_name=Variable("arg2", Integer.int32_t(), 0))
     var_2 = Variable("var_2", Integer.int32_t(), None, True, Variable("rax_1", Integer.int32_t(), 1, True, None))
@@ -5001,8 +5000,7 @@ def test_hash_eq_problem(task):
                 ],
             ),
             BasicBlock(9, instructions=[Assignment(arg1, Constant(1, Integer.int32_t()))]),
-            BasicBlock(10, instructions=[Return([arg1])]),
-        ]
+            BasicBlock(10, instructions=[Return([arg1])]),        ]
     )
     task.graph.add_edges_from(
         [
@@ -5024,12 +5022,15 @@ def test_hash_eq_problem(task):
         ]
     )
     PatternIndependentRestructuring().run(task)
+    from decompiler.util.decoration import DecoratedAST
+    DecoratedAST.from_ast(task.syntax_tree).export_plot("/home/eva/Projects/dewolf/AST/z_ast.png")
     assert any(isinstance(node, SwitchNode) for node in task.syntax_tree)
-    arg1_conditions = [
-        node
-        for node in task.syntax_tree.get_condition_nodes_post_order()
-        if node.condition.is_symbol and str(task.syntax_tree.condition_map[node.condition]) == "arg1 == 0x1"
-    ]
-    assert len(arg1_conditions) == 2
-    assert arg1_conditions[0] == arg1_conditions[1]
-    assert hash(arg1_conditions[0]) != hash(arg1_conditions[1])
+    var_2_conditions = []
+    for node in task.syntax_tree.get_condition_nodes_post_order():
+        if not node.condition.is_symbol and node.condition.is_literal and str(task.syntax_tree.condition_map[~node.condition]) in {"var_2 != 0x0"}:
+            node.switch_branches()
+        if node.condition.is_symbol and str(task.syntax_tree.condition_map[node.condition]) in {"var_2 != 0x0"}:
+            var_2_conditions.append(node)
+    assert len(var_2_conditions) == 2
+    assert var_2_conditions[0] == var_2_conditions[1]
+    assert hash(var_2_conditions[0]) != hash(var_2_conditions[1])
