@@ -347,7 +347,7 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
         reachability_graph.remove_reachability_from(removed_edges)
 
         can_insert_case_node = not (
-            reachability_graph.has_path(compare_node, switch_node) and reachability_graph.has_path(switch_node, compare_node)
+            reachability_graph.has_path(compare_node, switch_node) or reachability_graph.has_path(switch_node, compare_node)
         )
         reachability_graph.add_reachability_from(removed_edges)
         return can_insert_case_node
