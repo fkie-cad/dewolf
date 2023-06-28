@@ -179,6 +179,7 @@ class MissingCaseFinderSequence(MissingCaseFinder):
                 case_constant in cases_of_switch_node for case_constant in self._get_case_constants_for_condition(possible_case.condition)
             ):
                 missing_case_finder_intersecting_constants.insert(possible_case)
+                cases_of_switch_node: Set[Constant] = {case.constant for case in switch_node.children}
             else:
                 case_constants_for_possible_case_node = set(self._get_case_constants_for_condition(possible_case.condition))
                 possible_case.update_reaching_condition_for_insertion()
@@ -189,7 +190,9 @@ class MissingCaseFinderSequence(MissingCaseFinder):
                 if self._current_seq_node in self.asforest:
                     self._current_seq_node.clean()
 
-    def __get_case_node_candidates_in_insertion_order(self, case_node_candidates: Set[CaseNodeCandidate], switch: SwitchNode) -> List[CaseNodeCandidate]:
+    def __get_case_node_candidates_in_insertion_order(
+        self, case_node_candidates: Set[CaseNodeCandidate], switch: SwitchNode
+    ) -> List[CaseNodeCandidate]:
         possible_case_of_compare_node = {case.get_head: case for case in case_node_candidates}
         ordered_cases = list()
         for sibling in switch.parent.children:

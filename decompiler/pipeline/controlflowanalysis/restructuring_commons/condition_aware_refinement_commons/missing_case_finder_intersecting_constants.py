@@ -1,4 +1,5 @@
-from typing import List, Optional, Set, Tuple
+from dataclasses import dataclass
+from typing import Generator, Iterable, Iterator, List, Optional, Set, Tuple
 
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.base_class_car import (
     CaseNodeCandidate,
@@ -6,10 +7,22 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder import (
     MissingCaseFinder,
 )
-from decompiler.structures.ast.ast_nodes import CaseNode, FalseNode, SwitchNode, TrueNode
+from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, FalseNode, SwitchNode, TrueNode
 from decompiler.structures.ast.reachability_graph import SiblingReachabilityGraph
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.pseudo import Constant
+
+
+@dataclass
+class IntersectingCaseNodeProperties:
+    case_node: CaseNodeCandidate
+    case_constants: Set[Constant]
+    intersecting_cases: Set[Constant]
+
+    def unique_cases(self) -> Iterator[Constant]:
+        for constant in self.case_constants:
+            if constant not in self.intersecting_cases:
+                yield constant
 
 
 class MissingCaseFinderIntersectingConstants(MissingCaseFinder):
@@ -19,63 +32,105 @@ class MissingCaseFinderIntersectingConstants(MissingCaseFinder):
         self._sibling_reachability_graph: SiblingReachabilityGraph = sibling_reachability
 
     def insert(self, possible_case: CaseNodeCandidate):
+        """
+        Insert the possible case node that has intersection constants.
+
+        - If the possible-case node reaches the switch-node, then the content must be inserted before any other code.
+          Thus, all constants belonging to the new possible case-node must be contained in the switch-node and are the
+          first fallthrough-cases.
+        - If the possible-case node is reached by the switch-node, then the content must be after any other code.
+          Thus, it must contain all constants from a block of fallthrough-cases. But here, it can contain more.
+        - If neither one reaches the other, then it can be insert anywhere, at long as it can be archived by only
+          resorting fallthrough-cases all leading to the same code-execution.
+        """
         cases_of_switch_node = {case.constant for case in self._switch_node.children}
         case_constants_for_possible_case_node = set(self._get_case_constants_for_condition(possible_case.condition))
-        intersection = {constant for constant in case_constants_for_possible_case_node if constant in cases_of_switch_node}
-        if (intersecting_linear_case := self.__get_linear_order_intersection_constants(intersection)) is None:
+        intersection_cases = {constant for constant in case_constants_for_possible_case_node if constant in cases_of_switch_node}
+        possible_case_properties = IntersectingCaseNodeProperties(possible_case, case_constants_for_possible_case_node, intersection_cases)
+        if (intersecting_linear_case := self.__get_linear_order_intersection_constants(intersection_cases)) is None:
             return
-        # Insert content before case-node
         compare_node = possible_case.get_head
+        # Insert content before case-node
         if self._sibling_reachability_graph.reaches(compare_node, self._switch_node):
-            if len(intersection) != len(case_constants_for_possible_case_node):
+            if len(intersection_cases) != len(case_constants_for_possible_case_node):
                 return
-            if (new_case_node := self._get_case_node_for_insertion(intersection, intersecting_linear_case)) is None:
+            if (new_case_node := self._get_case_node_for_insertion(intersection_cases, intersecting_linear_case, 1)) is None:
                 return
             self._add_case_node_to(new_case_node, possible_case)
-
         # Insert content after case-node
         elif self._sibling_reachability_graph.reaches(self._switch_node, compare_node):
-            if len(intersecting_linear_case) != len(intersection):
+            if len(intersecting_linear_case) != len(intersection_cases):
                 return
-            possible_case.update_reaching_condition_for_insertion()
-            if len(intersection) == len(case_constants_for_possible_case_node):
-                new_seq = self.asforest._add_sequence_node_before(intersecting_linear_case[-1].child)
-                self.asforest._remove_edge(possible_case.node.parent, possible_case.node)
-                self.asforest._add_edge(new_seq, possible_case.node)
-            else:
-                remaining_cases = list(sorted(case_constants_for_possible_case_node - intersection, key=lambda const: const.value))
-                self._new_case_nodes_for(possible_case.node, self._switch_node, remaining_cases)
-                intersecting_linear_case[-1].break_case = False
+            self._add_case_behind(intersecting_linear_case, possible_case_properties)
         else:
-            # TODO
-            return
+            # The switch and possible case-node do not reach each other.
+            if len(intersection_cases) == len(intersecting_linear_case):
+                self._add_case_behind(intersecting_linear_case, possible_case_properties)
+            elif new_case_node := self._get_case_node_for_insertion(intersection_cases, intersecting_linear_case):
+                self._add_case_node_to(new_case_node, possible_case)
+            else:
+                return
 
         self._sibling_reachability_graph.update_when_inserting_new_case_node(compare_node, self._switch_node)
         compare_node.clean()
 
-    def _get_case_node_for_insertion(self, intersection: Set[Constant], intersecting_linear_case: Tuple[CaseNode]) -> Optional[CaseNode]:
+    def _get_case_node_for_insertion(
+        self, intersection_cases: Set[Constant], intersecting_linear_case: Tuple[CaseNode], bound: Optional[int] = None
+    ) -> Optional[CaseNode]:
         """
         Return the existing case-node where we want to insert the content of the possible-case node.
 
         If insertion is not possible, we return None.
+        - intersection_cases: all constants that are contained in the new case-node and the switch-node
+        - intersecting_linear_case: The list of case-nodes of the switch ending with a break containing the intersecting nodes.
         """
+        if bound is None:
+            bound = len(intersecting_linear_case) + 1
+        number_of_found_common_cases = 0
+        for idx, (common_cases, uncommon_cases) in enumerate(self._split_by_code(intersecting_linear_case, intersection_cases)):
+            number_of_found_common_cases += len(common_cases)
+            if not common_cases or idx + 1 < bound:
+                continue
+            if number_of_found_common_cases != len(intersection_cases):
+                return None
+            old_children_order = [c.child for c in intersecting_linear_case[number_of_found_common_cases - len(common_cases) :]]
+            self.__resort_cases(common_cases + uncommon_cases, old_children_order)
+            return common_cases[-1]
+
+    def _add_case_behind(self, intersecting_linear_case: Tuple[CaseNode], possible_case_properties: IntersectingCaseNodeProperties):
+        possible_case = possible_case_properties.case_node
+        possible_case.update_reaching_condition_for_insertion()
+        if len(possible_case_properties.intersecting_cases) == len(possible_case_properties.case_constants):
+            new_seq = self.asforest._add_sequence_node_before(intersecting_linear_case[-1].child)
+            self.asforest._remove_edge(possible_case.node.parent, possible_case.node)
+            self.asforest._add_edge(new_seq, possible_case.node)
+        else:
+            remaining_cases = list(sorted(possible_case_properties.unique_cases(), key=lambda const: const.value))
+            self._new_case_nodes_for(possible_case.node, self._switch_node, remaining_cases)
+            intersecting_linear_case[-1].break_case = False
+
+    def _split_by_code(
+        self, intersecting_linear_case: Tuple[CaseNode], intersection_cases: Set[Constant]
+    ) -> Iterator[Tuple[List[CaseNode], List[CaseNode]]]:
+        """Split the intersecting linear case by the blocks that contain code, i.e, are non-empty"""
         uncommon_cases: List[CaseNode] = list()
         common_cases: List[CaseNode] = list()
         for case in intersecting_linear_case:
-            if case.constant not in intersection:
+            if case.constant not in intersection_cases:
                 uncommon_cases.append(case)
             else:
                 common_cases.append(case)
             if not case.child.is_empty_code_node:
-                break
-        if len(common_cases) != len(intersection):
-            return None
-        old_children_order = [c.child for c in intersecting_linear_case]
-        for case_node, new_child in zip(common_cases + uncommon_cases, old_children_order):
+                yield common_cases, uncommon_cases
+                common_cases, uncommon_cases = list(), list()
+        if common_cases or uncommon_cases:
+            yield common_cases, uncommon_cases
+
+    def __resort_cases(self, new_case_order: List[CaseNode], old_case_children: List[AbstractSyntaxTreeNode]):
+        for case_node, new_child in zip(new_case_order, old_case_children):
             self.asforest._remove_edge(case_node, case_node.child)
             self.asforest._add_edge(case_node, new_child)
         self._switch_node.sort_cases()
-        return common_cases[-1]
 
     def _add_case_node_to(self, new_case_node: CaseNode, possible_case: CaseNodeCandidate):
         """Add the possible case node into the new case node"""
