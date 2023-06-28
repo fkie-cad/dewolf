@@ -26,8 +26,8 @@ class DeadPathElimination(PipelineStage):
     def run(self, task: DecompilerTask) -> None:
         """Run dead path elimination on the given task object."""
         self._timeout = task.options.getint(f"{self.name}.timeout_satisfiable")
-        self.engine = task.options.getstring("logic-engine.engine")  # choice of z3 or delogic
-        if self.engine == "delogic":
+        engine = task.options.getstring("logic-engine.engine")  # choice of z3 or delogic
+        if engine == "delogic":
             self._logic_converter = DelogicConverter()
         if task.graph.root is None:
             warning(f"[{self.__class__.__name__}] Can not detect dead blocks because the cfg has no head.")

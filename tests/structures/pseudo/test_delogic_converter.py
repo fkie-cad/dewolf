@@ -5,6 +5,7 @@ from decompiler.structures.pseudo.instructions import Branch, Return
 from decompiler.structures.pseudo.logic import BaseConverter
 from decompiler.structures.pseudo.operations import BinaryOperation, Condition, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import Float, Integer, Pointer
+from simplifier.world.nodes import Variable as WorldVariable
 
 var_a = Variable("a", Integer.int32_t())
 var_b = Variable("b", Integer.int32_t())
@@ -22,8 +23,6 @@ def test_unsupported(converter):
     with pytest.raises(ValueError):
         converter.convert(Return([Variable("x")]))
     with pytest.raises(ValueError):
-        converter.convert(UnaryOperation(OperationType.dereference, [Variable("x")]))
-    with pytest.raises(ValueError):
         converter.convert(UnaryOperation(OperationType.address, [Variable("x")]))
 
 
@@ -38,15 +37,16 @@ def test_constant(converter):
 @pytest.mark.parametrize(
     "to_parse, output",
     [
-        (Variable("x", Integer.int32_t(), ssa_label=0), "x@32"),
-        (Variable("x", Integer.int32_t(), ssa_label=1), "x@32"),
-        (Variable("x", Float.float(), ssa_label=1), "x@32"),
+        (Variable("x", Integer.int32_t(), ssa_label=0), "x#0"),
+        (Variable("x", Integer.int32_t(), ssa_label=1), "x#1"),
+        (Variable("x", Integer.int32_t(), ssa_label=None), "x"),
+        (Variable("x", Float.float(), ssa_label=1), "x#1"),
     ],
 )
 def test_variable(converter, to_parse, output):
     """When generating a variable, we can not transpose ssa labels or type information."""
     w = converter._world
-    assert converter.convert(to_parse) == w.from_string(output)
+    assert converter.convert(to_parse) == WorldVariable(w, output, 32)
 
 
 @pytest.mark.parametrize(
@@ -60,6 +60,18 @@ def test_variable(converter, to_parse, output):
 def test_unary_operation(converter, to_parse, output):
     w = converter._world
     assert converter.convert(to_parse) == w.from_string(output)
+
+
+@pytest.mark.parametrize(
+    "to_parse, output",
+    [
+        (UnaryOperation(OperationType.dereference, [Variable("x", Integer.int32_t(), ssa_label=1)]), "*(x#1)"),
+        (UnaryOperation(OperationType.dereference, [Variable("x", Integer.int32_t(), ssa_label=None)]), "*(x)"),
+    ],
+)
+def test_unary_dereference(converter, to_parse, output):
+    w = converter._world
+    assert converter.convert(to_parse) == WorldVariable(w, output, 32)
 
 
 @pytest.mark.parametrize(

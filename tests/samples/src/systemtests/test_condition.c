@@ -153,6 +153,247 @@ int test6()
     return 0;
 }
 
+int test6b()
+{
+    int week;
+    printf("Enter week number (1-7): ");
+    scanf("%d", &week);
+
+
+    if(week != 1)
+    {
+    	if(week != 2)
+    	{
+    	    if(week != 3)
+	    {
+	        if(week != 4)
+		{
+		    if(week != 5)
+		    {
+		    	if(week != 6)
+			{
+		    	    if(week != 7)
+			    {
+		    		printf("Invalid Input! Please enter week number between 1-7.");
+			    }
+			    else
+			    {
+			    	printf("Sunday");
+			    }
+			}
+			else
+			{
+			    printf("Saturday");
+			}
+		    }
+		    else
+		    {
+			printf("Friday");
+		    }
+		}
+		else
+		{
+		    printf("Thursday");
+		}
+	    }
+	    else
+	    {
+	        printf("Wednesday");
+	    }
+    	}
+    	else
+    	{
+    	    printf("Tuesday");
+    	}
+    }
+    else
+    {
+        printf("Monday");
+    }
+
+    return 0;
+}
+
+int test6c()
+{
+    int week;
+    printf("Enter week number (1-7): ");
+    scanf("%d", &week);
+
+
+    if(week == 1)
+    {
+        printf("Monday");
+    }
+    else if(week != 2)
+    {
+        if(week != 3)
+        {
+            if(week == 4)
+            {
+                printf("Thursday");
+            }
+            else if(week != 5)
+            {
+                if(week == 6)
+                {
+                    printf("Saturday");
+                }
+                else if(week != 7)
+                {
+                    printf("Invalid Input! Please enter week number between 1-7.");
+                }
+                else
+                {
+                    printf("Sunday");
+                }
+            }
+            else
+            {
+                printf("Friday");
+            }
+        }
+        else
+        {
+            printf("Wednesday");
+        }
+    }
+    else
+    {
+    	printf("Tuesday");
+    }
+
+    return 0;
+}
+
+int test6d()
+{
+    int week;
+    printf("Enter week number (1-7): ");
+    scanf("%d", &week);
+
+
+    if(week == 1)
+    {
+        printf("Monday");
+    }
+    else if(week != 2)
+    {
+        if(week != 3)
+        {
+            if(week == 4)
+            {
+                printf("Thursday");
+            }
+            else if(week != 5)
+            {
+                if(week == 6)
+                {
+                    printf("Saturday");
+                }
+                else if(week != 7)
+                {
+                    printf("Invalid Input! Please enter week number between 1-7.");
+                }
+                else
+                {
+                    printf("Sunday");
+                }
+            }
+            else
+            {
+                printf("Friday");
+            }
+        }
+        else
+        {
+            printf("Wednesday");
+        }
+    }
+
+    return 0;
+}
+
+int test6e()
+{
+    int week;
+    printf("Enter week number (1-7): ");
+    scanf("%d", &week);
+
+
+    if(week == 1)
+    {
+        printf("Monday");
+    }
+    else if(week != 2)
+    {
+        if(week == 3)
+        {
+            printf("Wednesday");
+        }
+        else if(week == 4)
+        {
+	    printf("Thursday");
+        }
+        else if(week == 5)
+        {
+	    printf("Friday");
+        }
+        else if(week == 6)
+        {
+    	    printf("Saturday");
+        }
+        else if(week == 7)
+        {
+	    printf("Sunday");
+        }
+        else
+        {
+	    printf("Invalid Input! Please enter week number between 1-7.");
+        }    
+    }
+
+    return 0;
+}
+
+int test6f()
+{
+    int week;
+    printf("Enter week number (1-7): ");
+    scanf("%d", &week);
+
+
+    if(week != 2)
+    {
+        if(week == 3)
+        {
+            printf("Wednesday");
+        }
+        else if(week == 4)
+        {
+	    printf("Thursday");
+        }
+        else if(week == 5)
+        {
+	    printf("Friday");
+        }
+        else if(week == 6)
+        {
+    	    printf("Saturday");
+        }
+        else if(week == 7)
+        {
+	    printf("Sunday");
+        }
+        else
+        {
+	    printf("Invalid Input! Please enter week number between 1-7.");
+        }    
+    }
+
+    return 0;
+}
+
 int test7()
 {
     int side1, side2, side3;

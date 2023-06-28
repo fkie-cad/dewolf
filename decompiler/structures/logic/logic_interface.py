@@ -235,10 +235,10 @@ class ConditionInterface(LogicInterface, ABC, Generic[CONTEXT]):
         """Replaces each symbol by the condition of the condition map."""
 
     def get_complexity(self, condition_map: Dict[LogicInterface, Condition]) -> int:
-        """ Returns the complexity of a logic condition"""
+        """Returns the complexity of a logic condition"""
         complexity_sum = 0
         for literal in self.get_literals():
-            if literal.is_negation: 
+            if literal.is_negation:
                 complexity_sum += condition_map[~literal].complexity
             else:
                 complexity_sum += condition_map[literal].complexity

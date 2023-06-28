@@ -504,9 +504,9 @@ class TestCustomLogicCondition:
                 False,
             ),
             (
-                    (world := World()).bitwise_and(b_x(1, world), b_x(2, world), b_x(3, world)),
-                    (world := World()).bitwise_and(b_x(1, world), b_x(3, world), b_x(2, world)),
-                    True,
+                (world := World()).bitwise_and(b_x(1, world), b_x(2, world), b_x(3, world)),
+                (world := World()).bitwise_and(b_x(1, world), b_x(3, world), b_x(2, world)),
+                True,
             ),
             (
                 (world := World()).bitwise_and(b_x(1, world), b_x(2, world), b_x(2, world)),

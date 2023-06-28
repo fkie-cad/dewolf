@@ -22,8 +22,6 @@ def test_unsupported(converter):
     with pytest.raises(ValueError):
         converter.convert(Return([Variable("x")]))
     with pytest.raises(ValueError):
-        converter.convert(UnaryOperation(OperationType.dereference, [Variable("x")]))
-    with pytest.raises(ValueError):
         converter.convert(UnaryOperation(OperationType.address, [Variable("x")]))
 
 
@@ -36,15 +34,22 @@ def test_constant(converter):
 
 def test_variable(converter):
     """When generating a variable, we can not transpose ssa labels or type information."""
-    assert converter.convert(Variable("x", Integer.int32_t(), ssa_label=0)) == BitVec("x", 32, ctx=converter.context)
-    assert converter.convert(Variable("x", Integer.int32_t(), ssa_label=1)) == BitVec("x", 32, ctx=converter.context)
-    assert converter.convert(Variable("x", Float.float(), ssa_label=1)) == BitVec("x", 32, ctx=converter.context)
+    assert converter.convert(Variable("x", Integer.int32_t(), ssa_label=0)) == BitVec("x#0", 32, ctx=converter.context)
+    assert converter.convert(Variable("x", Integer.int32_t(), ssa_label=1)) == BitVec("x#1", 32, ctx=converter.context)
+    assert converter.convert(Variable("x", Integer.int32_t(), ssa_label=None)) == BitVec("x", 32, ctx=converter.context)
+    assert converter.convert(Variable("x", Float.float(), ssa_label=1)) == BitVec("x#1", 32, ctx=converter.context)
 
 
 def test_unary_operation(converter):
     assert converter.convert(UnaryOperation(OperationType.negate, [var_x.copy()])) == -BitVec("x", 32, ctx=converter.context)
     assert converter.convert(UnaryOperation(OperationType.logical_not, [Variable("x", Integer(1))])) == ~BitVec(
         "x", 1, ctx=converter.context
+    )
+    assert converter.convert(UnaryOperation(OperationType.dereference, [Variable("x", Integer.int32_t(), ssa_label=0)])) == BitVec(
+        "*(x#0)", 32, ctx=converter.context
+    )
+    assert converter.convert(UnaryOperation(OperationType.dereference, [Variable("x", Integer.int32_t(), ssa_label=None)])) == BitVec(
+        "*(x)", 32, ctx=converter.context
     )
 
 
