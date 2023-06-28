@@ -169,12 +169,10 @@ class MissingCaseFinderSequence(MissingCaseFinder):
         """
         switch_node = self._switch_node_of_expression[expression]
         cases_of_switch_node: Set[Constant] = {case.constant for case in switch_node.children}
-        # case_constants_for_node: Dict[AbstractSyntaxTreeNode, Set[Constant]] = dict()
         missing_case_finder_intersecting_constants = MissingCaseFinderIntersectingConstants(
             self.asforest, switch_node, sibling_reachability_graph
         )
-        # TODO: order may be important!!!
-        for possible_case in case_node_candidates:
+        for possible_case in self.__get_case_node_candidates_in_insertion_order(case_node_candidates, switch_node):
             if not self._can_insert_case_node(possible_case, switch_node, sibling_reachability_graph):
                 continue
             if any(
@@ -190,6 +188,16 @@ class MissingCaseFinderSequence(MissingCaseFinder):
                 cases_of_switch_node.update(case_constants_for_possible_case_node)
                 if self._current_seq_node in self.asforest:
                     self._current_seq_node.clean()
+
+    def __get_case_node_candidates_in_insertion_order(self, case_node_candidates: Set[CaseNodeCandidate], switch: SwitchNode) -> List[CaseNodeCandidate]:
+        possible_case_of_compare_node = {case.get_head: case for case in case_node_candidates}
+        ordered_cases = list()
+        for sibling in switch.parent.children:
+            if sibling in possible_case_of_compare_node:
+                ordered_cases.append(possible_case_of_compare_node[sibling])
+            if sibling == switch:
+                ordered_cases = ordered_cases[::-1]
+        return ordered_cases
 
     @staticmethod
     def _can_insert_case_node(

@@ -46,26 +46,19 @@ class MissingCaseFinderIntersectingConstants(MissingCaseFinder):
                 remaining_cases = list(sorted(case_constants_for_possible_case_node - intersection, key=lambda const: const.value))
                 self._new_case_nodes_for(possible_case.node, self._switch_node, remaining_cases)
                 intersecting_linear_case[-1].break_case = False
+        else:
+            # TODO
+            return
+
+        self._sibling_reachability_graph.update_when_inserting_new_case_node(compare_node, self._switch_node)
         compare_node.clean()
 
-    def _add_case_node_to(self, new_case_node: CaseNode, possible_case: CaseNodeCandidate):
-        """Add the possible case node into the new case node"""
-        possible_case.update_reaching_condition_for_insertion()
-        self.asforest._remove_edge(possible_case.node.parent, possible_case.node)
-        if (empty_child := new_case_node.child).is_empty_code_node:
-            self.asforest._add_edge(new_case_node, possible_case.node)
-            reachable_from = self.asforest._code_node_reachability_graph.reachable_from(empty_child)
-            reaching = self.asforest._code_node_reachability_graph.reaching(empty_child)
-            for descendant in possible_case.node.get_descendant_code_nodes():
-                self.asforest._code_node_reachability_graph.add_reachability_from((descendant, r) for r in reachable_from)
-                self.asforest._code_node_reachability_graph.add_reachability_from((r, descendant) for r in reaching)
-            self.asforest._remove_node(empty_child)
-        else:
-            new_seq = self.asforest._add_sequence_node_before(new_case_node.child)
-            self.asforest._add_edge(new_seq, possible_case.node)
-
     def _get_case_node_for_insertion(self, intersection: Set[Constant], intersecting_linear_case: Tuple[CaseNode]) -> Optional[CaseNode]:
-        """TODO"""
+        """
+        Return the existing case-node where we want to insert the content of the possible-case node.
+
+        If insertion is not possible, we return None.
+        """
         uncommon_cases: List[CaseNode] = list()
         common_cases: List[CaseNode] = list()
         for case in intersecting_linear_case:
@@ -83,6 +76,22 @@ class MissingCaseFinderIntersectingConstants(MissingCaseFinder):
             self.asforest._add_edge(case_node, new_child)
         self._switch_node.sort_cases()
         return common_cases[-1]
+
+    def _add_case_node_to(self, new_case_node: CaseNode, possible_case: CaseNodeCandidate):
+        """Add the possible case node into the new case node"""
+        possible_case.update_reaching_condition_for_insertion()
+        self.asforest._remove_edge(possible_case.node.parent, possible_case.node)
+        if (empty_child := new_case_node.child).is_empty_code_node:
+            self.asforest._add_edge(new_case_node, possible_case.node)
+            reachable_from = self.asforest._code_node_reachability_graph.reachable_from(empty_child)
+            reaching = self.asforest._code_node_reachability_graph.reaching(empty_child)
+            for descendant in possible_case.node.get_descendant_code_nodes():
+                self.asforest._code_node_reachability_graph.add_reachability_from((descendant, r) for r in reachable_from)
+                self.asforest._code_node_reachability_graph.add_reachability_from((r, descendant) for r in reaching)
+            self.asforest._remove_node(empty_child)
+        else:
+            new_seq = self.asforest._add_sequence_node_before(new_case_node.child)
+            self.asforest._add_edge(new_seq, possible_case.node)
 
     def __get_linear_order_intersection_constants(self, case_constants: Set[Constant]) -> Optional[Tuple[CaseNode]]:
         """

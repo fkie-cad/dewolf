@@ -419,7 +419,6 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
             case.reaching_condition = condition_for_constant[case.constant]
         return fallthrough_cases
 
-    #  TODO: I am here!!!
     def _get_linear_order_for(
         self,
         cross_nodes: List[CaseNode],
@@ -535,7 +534,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         """
         Remove one of two case candidates if they have the same condition.
 
-        Since they were not combined before, they can not be combined and we do not know which to pick.
+        Since they were not combined before, they can not be combined, and we do not know which to pick.
         """
         for switch_candidate in switch_candidates:
             considered_conditions = set()

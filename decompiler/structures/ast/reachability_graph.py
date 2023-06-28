@@ -198,6 +198,7 @@ class ReachabilityGraph:
                 if self.reaches(node1, node2):
                     self._code_node_reachability_graph.remove_edge(node1, node2)
 
+
 class SiblingReachabilityGraph:
     """Graph representation of the reaches attribute of a set of AST-nodes."""
 
@@ -352,6 +353,7 @@ class SiblingReachabilityGraph:
     def reaches(self, node_1, node_2) -> bool:
         """Checks whether node_1 reaches node_2"""
         return (node_1, node_2) in self._case_node_reachability_graph.edges
+
 
 class CaseDependencyGraph(SiblingReachabilityGraph):
     """Graph representation of the reaches attribute of a set of AST-nodes using only the necessary edges."""
