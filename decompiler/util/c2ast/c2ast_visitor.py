@@ -1,5 +1,5 @@
-from typing import Dict, Union, Any
 from enum import Enum, auto
+from typing import Any, Dict, Union
 
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, VirtualRootNode
 from decompiler.structures.ast.condition_symbol import ConditionHandler
@@ -15,6 +15,7 @@ from decompiler.structures.pseudo import (
     Constant,
     Continue,
     CustomType,
+    Expression,
     Float,
     FunctionSymbol,
     Instruction,
@@ -27,7 +28,6 @@ from decompiler.structures.pseudo import (
     TypeParser,
     UnaryOperation,
     Variable,
-    Expression,
 )
 from pycparser import c_ast
 from pycparser.c_ast import NodeVisitor

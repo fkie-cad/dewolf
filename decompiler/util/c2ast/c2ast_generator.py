@@ -6,7 +6,7 @@ sys.path.append(".") # for decompiler package imports
 from c2ast_visitor import PyCNodeVisitor
 from decompiler.task import DecompilerTask
 from pycparser import c_parser, parse_file
-from pycparser.c_ast import FileAST, FuncDef, Typedef, Decl
+from pycparser.c_ast import Decl, FileAST, FuncDef, Typedef
 
 FAKE_LIBC_INCLUDE = "-I" + os.path.dirname(__file__) + "/" + "fake_libc_include"
 
