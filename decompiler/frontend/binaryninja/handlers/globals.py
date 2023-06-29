@@ -69,11 +69,13 @@ class GlobalHandler(Handler):
 
 
     def _lift_constant_type(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None) -> StringSymbol:
-        """Lift constant data type (bninja only uses strings) into code"""
-        string = str(variable.value)[2:-1].rstrip('\\x00') # we want to keep escaped control chars (\n), therefore we take the raw string representation of bytes and purge b""
-        return StringSymbol(f'"{string}"', variable.address, vartype=Pointer(Integer.char(), view.address_size * BYTE_SIZE))
-
+        """Lift constant data type (bninja only uses strings) into code""" # jump table ist auch constant
+        if str(variable).find("char const") != -1:
+            string = str(variable.value)[2:-1].rstrip('\\x00') # we want to keep escaped control chars (\n), therefore we take the raw string representation of bytes and purge b""
+            return StringSymbol(f'"{string}"', variable.address, vartype=Pointer(Integer.char(), view.address_size * BYTE_SIZE))
+        return StringSymbol(f"&{variable.name}" if variable.name else GLOBAL_VARIABLE_PREFIX + f"{variable.address:x}", variable.address) # Else
     
+
     def _lift_pointer_type(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None):
         """Lift pointer as:
             1. Function pointer: If bninja already knows it's a function pointer.
