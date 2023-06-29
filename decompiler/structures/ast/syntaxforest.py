@@ -376,7 +376,6 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         assert isinstance(parent, SeqNode), "The parent of all switches must be a Sequence node."
         self._add_node(new_switch_node := self.factory.create_switch_node(combinable_switch_nodes[0].expression))
         self._add_edge(parent, new_switch_node)
-        # python decompile.py ../../Downloads/test_condition_for_eva test17 --debug
         self._code_node_reachability_graph.remove_reachability_between(combinable_switch_nodes)
         for switch_node in combinable_switch_nodes:
             for case in switch_node.cases:

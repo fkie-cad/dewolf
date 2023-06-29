@@ -200,7 +200,12 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
 
         return None
 
-    def _clean_up_reachability(self, possible_switch_node: SwitchNodeCandidate, sibling_reachability):
+    def _clean_up_reachability(self, possible_switch_node: SwitchNodeCandidate, sibling_reachability: SiblingReachability):
+        """
+        If two possible switch-cases reach each other, but they have no common possible cases, then we can remove the reachability.
+
+        In these cases, the order is irrelevant and if one is executed the other will not be executed.
+        """
         for candidate_1, candidate_2 in permutations(possible_switch_node.cases, 2):
             if sibling_reachability.reaches(candidate_1.node, candidate_2.node) and not (
                 set(self.asforest.switch_node_handler.get_constants_for(candidate_1.condition))
@@ -364,7 +369,6 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         :param case_node: The case node where we want to update the reaching condition.
         :param considered_conditions: The conditions (literals) that are already fulfilled when we reach the given case node.
         """
-        # literals_of_case_node = set(case_node.reaching_condition.get_literals())
         constant_of_case_node_literal = {
             const: literal
             for literal, const in self.asforest.switch_node_handler.get_literal_and_constant_for(case_node.reaching_condition)
@@ -373,7 +377,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
 
         for constant, literal in considered_conditions.items():
             if constant in constant_of_case_node_literal:
-                del constant_of_case_node_literal[constant]
+                constant_of_case_node_literal.pop(constant)
             else:
                 exception_condition &= ~literal
         case_node.reaching_condition = (
@@ -406,13 +410,14 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         Given a case node whose reaching condition is a disjunction of literals, we create one case node for each literal and return
         the list of new case nodes.
         """
-        condition_for_constant: Dict[Constant, LogicCondition] = {
-            c: l for l, c in self.asforest.switch_node_handler.get_literal_and_constant_for(case.reaching_condition)
-        }
-        if None in condition_for_constant:
-            raise ValueError(
-                f"The case node should have a reaching-condition that is a disjunction of literals, but it has the clause {condition_for_constant[None]}."
-            )
+        condition_for_constant: Dict[Constant, LogicCondition] = dict()
+        for l, c in self.asforest.switch_node_handler.get_literal_and_constant_for(case.reaching_condition):
+            if c is None:
+                raise ValueError(
+                    f"The case node should have a reaching-condition that is a disjunction of literals, but it has the clause {l}."
+                )
+            else:
+                condition_for_constant[c] = l
         sorted_constants: List[Constant] = sorted(condition_for_constant, key=lambda constant: constant.value)
         fallthrough_cases = self.asforest.split_case_node(case, sorted_constants)
         for case in fallthrough_cases:

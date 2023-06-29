@@ -50,29 +50,36 @@ class MissingCaseFinderIntersectingConstants(MissingCaseFinder):
         if (intersecting_linear_case := self.__get_linear_order_intersection_constants(intersection_cases)) is None:
             return
         compare_node = possible_case.get_head
-        # Insert content before case-node
         if self._sibling_reachability_graph.reaches(compare_node, self._switch_node):
-            if len(intersection_cases) != len(case_constants_for_possible_case_node):
+            if not self._add_case_before(intersecting_linear_case, possible_case_properties):
                 return
-            if (new_case_node := self._get_case_node_for_insertion(intersection_cases, intersecting_linear_case, 1)) is None:
-                return
-            self._add_case_node_to(new_case_node, possible_case)
-        # Insert content after case-node
         elif self._sibling_reachability_graph.reaches(self._switch_node, compare_node):
-            if len(intersecting_linear_case) != len(intersection_cases):
+            if not self._add_case_after(intersecting_linear_case, possible_case_properties):
                 return
-            self._add_case_behind(intersecting_linear_case, possible_case_properties)
         else:
-            # The switch and possible case-node do not reach each other.
-            if len(intersection_cases) == len(intersecting_linear_case):
-                self._add_case_behind(intersecting_linear_case, possible_case_properties)
-            elif new_case_node := self._get_case_node_for_insertion(intersection_cases, intersecting_linear_case):
-                self._add_case_node_to(new_case_node, possible_case)
-            else:
-                return
+            if not self._add_case_after(intersecting_linear_case, possible_case_properties):
+                if new_case_node := self._get_case_node_for_insertion(intersection_cases, intersecting_linear_case):
+                    self._add_case_node_to(new_case_node, possible_case)
+                else:
+                    return
 
         self._sibling_reachability_graph.update_when_inserting_new_case_node(compare_node, self._switch_node)
         compare_node.clean()
+
+    def _add_case_before(self, intersecting_linear_case: Tuple[CaseNode], possible_case_properties: IntersectingCaseNodeProperties) -> bool:
+        """
+        Insert the possible case node before the first code that is executed in the given linear-case order, if possible.
+
+        - all case-constants of the new case node must be contained in the linear-case order
+        - they all must be contained before any code is executed
+        """
+        if len(possible_case_properties.intersecting_cases) != len(possible_case_properties.case_constants):
+            return False
+        new_case_node = self._get_case_node_for_insertion(possible_case_properties.intersecting_cases, intersecting_linear_case, 1)
+        if new_case_node is None:
+            return False
+        self._add_case_node_to(new_case_node, possible_case_properties.case_node)
+        return True
 
     def _get_case_node_for_insertion(
         self, intersection_cases: Set[Constant], intersecting_linear_case: Tuple[CaseNode], bound: Optional[int] = None
@@ -97,7 +104,15 @@ class MissingCaseFinderIntersectingConstants(MissingCaseFinder):
             self.__resort_cases(common_cases + uncommon_cases, old_children_order)
             return common_cases[-1]
 
-    def _add_case_behind(self, intersecting_linear_case: Tuple[CaseNode], possible_case_properties: IntersectingCaseNodeProperties):
+    def _add_case_after(self, intersecting_linear_case: Tuple[CaseNode], possible_case_properties: IntersectingCaseNodeProperties) -> bool:
+        """
+        Insert the possible case node after the last code that is executed in the given linear-case order, if possible.
+
+        - all case-constants of the linear-case order must be contained in the constants of the new case node
+        - if the new case-node has more constants, we add more cases, otherwise, we write the contend in the last code-node.
+        """
+        if len(intersecting_linear_case) != len(possible_case_properties.intersecting_cases):
+            return False
         possible_case = possible_case_properties.case_node
         possible_case.update_reaching_condition_for_insertion()
         if len(possible_case_properties.intersecting_cases) == len(possible_case_properties.case_constants):
@@ -108,6 +123,7 @@ class MissingCaseFinderIntersectingConstants(MissingCaseFinder):
             remaining_cases = list(sorted(possible_case_properties.unique_cases(), key=lambda const: const.value))
             self._new_case_nodes_for(possible_case.node, self._switch_node, remaining_cases)
             intersecting_linear_case[-1].break_case = False
+        return True
 
     def _split_by_code(
         self, intersecting_linear_case: Tuple[CaseNode], intersection_cases: Set[Constant]
@@ -127,6 +143,7 @@ class MissingCaseFinderIntersectingConstants(MissingCaseFinder):
             yield common_cases, uncommon_cases
 
     def __resort_cases(self, new_case_order: List[CaseNode], old_case_children: List[AbstractSyntaxTreeNode]):
+        """Resort the cases according to the new order by switching the case-node-children whose reachability is correct."""
         for case_node, new_child in zip(new_case_order, old_case_children):
             self.asforest._remove_edge(case_node, case_node.child)
             self.asforest._add_edge(case_node, new_child)
