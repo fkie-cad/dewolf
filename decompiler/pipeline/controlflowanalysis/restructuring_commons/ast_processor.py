@@ -154,6 +154,8 @@ class AcyclicProcessor(Processor):
         more aggressively and sorting break nodes to the begin resp. end of a sequence node if possible.
         """
         self.asforest.remove_empty_nodes(self.asforest.current_root)
+        self._remove_redundant_reaching_conditions_from_condition_nodes(self.asforest.current_root)
+        self.asforest.clean_up(self.asforest.current_root)
         self._combine_nodes_with_same_reaching_conditions()
         self._simplify_reaching_conditions()
         self.asforest.clean_up(self.asforest.current_root)
@@ -183,6 +185,22 @@ class AcyclicProcessor(Processor):
         self._sort_sequence_node_children_while_over_do_while()
 
         self.asforest.clean_up(self.asforest.current_root)
+
+    def _remove_redundant_reaching_conditions_from_condition_nodes(self, root: AbstractSyntaxTreeNode):
+        self._move_sequence_node_reaching_conditions_downward(root)
+        for cond_node in self.asforest.get_condition_nodes_post_order(root):
+            cond_node.clean()
+            if not cond_node.reaching_condition.is_true:
+                if cond_node.false_branch is None and (~cond_node.condition | cond_node.reaching_condition).remove_redundancy(self.asforest.condition_handler).is_true:
+                    cond_node.reaching_condition = LogicCondition.initialize_true(cond_node.reaching_condition.context)
+
+    def _move_sequence_node_reaching_conditions_downward(self, root: AbstractSyntaxTreeNode):
+        """Move the reaching-condition of switch-nodes to the children nodes."""
+        for seq_node in self.asforest.get_sequence_nodes_topological_order(root):
+            if not seq_node.reaching_condition.is_true:
+                for child in seq_node.children:
+                    child.reaching_condition &= seq_node.reaching_condition
+                seq_node.reaching_condition = LogicCondition.initialize_true(seq_node.reaching_condition.context)
 
     def _simplify_reaching_conditions(self) -> None:
         """
