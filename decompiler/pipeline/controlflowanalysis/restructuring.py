@@ -9,13 +9,14 @@ from typing import List, Optional
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.acyclic_restructuring import AcyclicRegionRestructurer
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.cyclic_restructuring import CyclicRegionStructurer
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.empty_basic_block_remover import EmptyBasicBlockRemover
-from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
+from decompiler.pipeline.controlflowanalysis.restructuring_options import LoopBreakOptions, RestructuringOptions
 from decompiler.pipeline.stage import PipelineStage
-from decompiler.structures.ast.ast_nodes import CaseNode, SwitchNode
+from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, SeqNode, SwitchNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.graphs.classifiedgraph import EdgeProperty
 from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock, TransitionCFG
+from decompiler.structures.pseudo import Assignment, Constant, Integer, Variable
 from decompiler.task import DecompilerTask
 
 
@@ -111,6 +112,8 @@ class PatternIndependentRestructuring(PipelineStage):
                 self.options.allow_nested_switch is False and self._is_nested_switch(switch_node)
             ):
                 self.asforest.replace_switch_by_conditions(switch_node)
+            elif self.options.loop_break_strategy == LoopBreakOptions.structural_variable:
+                self._handle_loop_breaks(switch_node)
         self.asforest.clean_up(self.t_cfg.root.ast)
 
     @staticmethod
@@ -122,3 +125,21 @@ class PatternIndependentRestructuring(PipelineStage):
             if isinstance(current_node, CaseNode):
                 return True
         return False
+
+    def _handle_loop_breaks(self, switch_node: SwitchNode):
+        found_loop_interruption = False
+        break_variable = Variable("loop_break", Integer.int32_t())
+        true_const = Constant(1, Integer.int32_t())
+        for code_node in switch_node.get_descendant_code_nodes_interrupting_ancestor_loop():
+            if code_node.does_end_with_break:
+                found_loop_interruption = True
+                code_node.instructions = code_node.instructions[:-1] + [Assignment(break_variable, true_const), code_node.instructions[-1]]
+                if self.__is_last_instruction_of_case(code_node):
+                    code_node.instructions = code_node.instructions[:-1]
+        if found_loop_interruption:
+            self.asforest.resolve_loop_breaks_in_switch(switch_node, break_variable)
+
+    def __is_last_instruction_of_case(self, code_node: CodeNode):
+        return isinstance(code_node.parent, CaseNode) or (
+            isinstance(seq := code_node.parent, SeqNode) and code_node is seq.children[-1] and isinstance(seq.parent, CaseNode)
+        )

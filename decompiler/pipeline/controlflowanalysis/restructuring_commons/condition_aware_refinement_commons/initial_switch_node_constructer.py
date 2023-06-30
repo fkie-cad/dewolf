@@ -8,6 +8,7 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
     BaseClassConditionAwareRefinement,
     CaseNodeCandidate,
 )
+from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, CodeNode, ConditionNode, SeqNode, SwitchNode, TrueNode
 from decompiler.structures.ast.reachability_graph import CaseDependencyGraph, LinearOrderDependency, SiblingReachability
 from decompiler.structures.ast.switch_node_handler import ExpressionUsages
@@ -33,9 +34,9 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
     """Class that constructs switch nodes."""
 
     @classmethod
-    def construct(cls, asforest: AbstractSyntaxForest):
+    def construct(cls, asforest: AbstractSyntaxForest, options: RestructuringOptions):
         """Constructs initial switch nodes if possible."""
-        initial_switch_constructor = cls(asforest)
+        initial_switch_constructor = cls(asforest, options)
         for cond_node in asforest.get_condition_nodes_post_order(asforest.current_root):
             initial_switch_constructor._extract_case_nodes_from_nested_condition(cond_node)
         for seq_node in asforest.get_sequence_nodes_post_order(asforest.current_root):
@@ -191,7 +192,10 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         - Note: Cases can not end with a loop-break statement
         """
         possible_conditions: List[Tuple[ExpressionUsages, LogicCondition]] = list()
-        if (possible_case_condition := ast_node.get_possible_case_candidate_condition()) is not None:
+        # TODO: case candidate!!
+        if (
+            possible_case_condition := ast_node.get_possible_case_candidate_condition()
+        ) is not None and self._contains_no_violating_loop_break(ast_node):
             possible_conditions = list(self._get_constant_equality_check_expressions_and_conditions(possible_case_condition))
 
         if len(possible_conditions) == 1:
