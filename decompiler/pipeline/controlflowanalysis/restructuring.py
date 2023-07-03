@@ -127,17 +127,20 @@ class PatternIndependentRestructuring(PipelineStage):
         return False
 
     def _handle_loop_breaks(self, switch_node: SwitchNode):
-        found_loop_interruption = False
+        """Introduce the structural-variable for the loop-breaks in switch-cases."""
         break_variable = Variable("loop_break", Integer.int32_t())
-        true_const = Constant(1, Integer.int32_t())
-        for code_node in switch_node.get_descendant_code_nodes_interrupting_ancestor_loop():
-            if code_node.does_end_with_break:
-                found_loop_interruption = True
-                code_node.instructions = code_node.instructions[:-1] + [Assignment(break_variable, true_const), code_node.instructions[-1]]
-                if self.__is_last_instruction_of_case(code_node):
-                    code_node.instructions = code_node.instructions[:-1]
-        if found_loop_interruption:
-            self.asforest.resolve_loop_breaks_in_switch(switch_node, break_variable)
+        loop_breaks = [node for node in switch_node.get_descendant_code_nodes_interrupting_ancestor_loop() if node.does_end_with_break]
+        if not loop_breaks:
+            return
+        for code_node in loop_breaks:
+            code_node.instructions = self.__insert_strutural_assignment(code_node, break_variable)
+            if self.__is_last_instruction_of_case(code_node):
+                code_node.instructions = code_node.instructions[:-1]
+        self.asforest.resolve_loop_breaks_in_switch(switch_node, break_variable)
+
+    def __insert_strutural_assignment(self, code_node: CodeNode, break_variable: Variable):
+        """Insert the assignment break_variable = 1."""
+        return code_node.instructions[:-1] + [Assignment(break_variable, Constant(1, Integer.int32_t())), code_node.instructions[-1]]
 
     def __is_last_instruction_of_case(self, code_node: CodeNode):
         return isinstance(code_node.parent, CaseNode) or (
