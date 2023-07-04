@@ -1033,6 +1033,35 @@ int test18()
 
 }
 
+int test18_b()
+{
+    int week;
+    //Non sequential case constants
+    
+    /* Input week number from user */
+    printf("Enter week number(1-7): ");
+    scanf("%d", &week);
+    
+    switch(week)
+    {
+        case 1: 
+            printf("Monday");
+            // break;
+            week +=500 ;
+        case 12: 
+            printf("Tuesday");
+            break;
+        case 500: 
+            printf("Friday");
+            break;
+        default: 
+            printf("Invalid input! Please enter week number between 1-7.");
+    }
+    printf("the number is %d", week);
+    return 0;
+
+}
+
 int test19()
 {
     int week;

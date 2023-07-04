@@ -1,9 +1,9 @@
 from dataclasses import dataclass, field
-from typing import Iterator, Optional, Tuple
+from typing import Dict, Iterator, Optional, Set, Tuple
 
-from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, SwitchNode
+from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, FalseNode, SwitchNode, TrueNode
 from decompiler.structures.ast.condition_symbol import ConditionHandler
-from decompiler.structures.ast.switch_node_handler import ExpressionUsages
+from decompiler.structures.ast.switch_node_handler import ExpressionUsages, SwitchNodeHandler
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition, PseudoLogicCondition
 from decompiler.structures.pseudo import Condition, Constant, Expression, OperationType
@@ -20,7 +20,7 @@ class CaseNodeCandidate:
 
     node: AbstractSyntaxTreeNode
     expression: Optional[ExpressionUsages]
-    condition: LogicCondition = field(compare=False)
+    condition: LogicCondition
 
     def construct_case_node(self, expression: Expression) -> CaseNode:
         """Construct Case node for itself with the given switch expression."""
@@ -37,6 +37,22 @@ class CaseNodeCandidate:
 
     def __hash__(self) -> int:
         return hash(self.node)
+
+    @property
+    def get_head(self):
+        """
+        Return the condition-node, if the case-node is a branch, else the node itself.
+
+        This is the node that is a sibling of the switch resp. the child of the sequence node we currently consider.
+        """
+        if isinstance(self.node.parent, (TrueNode, FalseNode)):
+            return self.node.parent.parent
+        return self.node
+
+    def update_reaching_condition_for_insertion(self):
+        if isinstance(self.node.parent, (TrueNode, FalseNode)):
+            self.node.reaching_condition &= self.node.parent.branch_condition
+        self.node.reaching_condition.substitute_by_true(self.condition)
 
 
 class BaseClassConditionAwareRefinement:
