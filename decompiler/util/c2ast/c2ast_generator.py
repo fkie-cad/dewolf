@@ -3,12 +3,13 @@ import sys
 
 sys.path.append(".") # for decompiler package imports (if started from repo root)
 
+import tarfile
+from tempfile import TemporaryDirectory
+
 from c2ast_visitor import PyCNodeVisitor
 from decompiler.task import DecompilerTask
 from pycparser import c_parser, parse_file
 from pycparser.c_ast import Decl, FileAST, FuncDef
-import tarfile
-from tempfile import TemporaryDirectory
 
 FAKE_LIBC_ZIP= os.path.dirname(__file__) + "/fake_libc_include.tar.gz"
 
