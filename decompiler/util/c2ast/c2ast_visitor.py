@@ -1,4 +1,3 @@
-from enum import Enum, auto
 from typing import Any, Dict, Union
 
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, VirtualRootNode
@@ -42,7 +41,7 @@ OPERATIONS_COMPOUND: dict[str, OperationType] = {
 }
 
 """
-C Unary Operations:
+C Unary Operations used by PyCParser:
     - Increment: ++x, x++
     - Decrement: --x, x--
     - Address: &x
@@ -52,9 +51,7 @@ C Unary Operations:
     - Complement (one): ~x
     - Negation: !x
     - Sizeof: sizeof(x)
-    - Cast: (type) x <== not used by PyCParser (will generate a Cast Node, hopefully?)
 """
-
 OPERATIONS_UNARY: dict[str, OperationType] = {
     "p++": OperationType.plus,
     "++": OperationType.plus,
@@ -69,10 +66,12 @@ OPERATIONS_UNARY: dict[str, OperationType] = {
     "sizeof": OperationType.sizeof
 }
 
+LOGIC_CONDITION_OPERATIONS = [OperationType.logical_and, OperationType.logical_or]
+
 def _resolve_constant(type: Type, value: str) -> Constant:
     """Resolve PyCAST constant:
         - the value will always be a string (e.G. 'int', 'float'... JUST WHY)
-        - the type is already converted by the TypeParser
+        - the type is already converted by the TypeParser (e.G. native or CustomType)
     """
     realValue = "Not_resolved"
 
@@ -95,19 +94,20 @@ def _resolve_constant(type: Type, value: str) -> Constant:
 
 
 def _combine_logic_conditions(condA: LogicCondition, condB: LogicCondition, operation: OperationType) -> LogicCondition:
+    """Combine two LogicConditions with a given OperationType"""
     match(operation):
         case OperationType.logical_and:
             return condA & condB
         case OperationType.logical_or:
             return condA | condB
         case _:
-            raise ValueError(f"OperationType {operation} not supported")
+            raise ValueError(f"OperationType {operation} not supported for LogicConditions")
 
 
 class PyCNodeVisitor(NodeVisitor):
     """Visitor for nodes from PyCParser.
         - should only be used for one method of the PyCParserAST, therefore an caller should start calling visit with an `FuncDef` node
-        - after visiting an DeWolf AST will be available for use
+        - after visiting an DeWolf-AST will be available for use
 
         PyCParser NodeVisitor notes:
         - visitor methods are called by there respective class after the `visit_` identifier (by `NodeVisitor.visit`)
@@ -125,60 +125,59 @@ class PyCNodeVisitor(NodeVisitor):
         self._declared_variables: Dict[str, Variable] = {}
         self._typedefs: Dict[str, Type] = {}
 
-        # Temp variables 
-        self._switch_condition: Expression = None # Needed because no parent reference + case needs switch statement
+        self._switch_condition: Expression = None # Needed because no parent reference for nodes + case needs switch statement
 
 
     def _resolve_condition(self, cond: Any) -> Condition:
         """Resolve/Repair visited C conditions so they work with Logic"""
         if isinstance(cond, Condition):
             return cond
-        if isinstance(cond, Constant): # if(true/false/0/1.../42.069)
-            return Condition(OperationType.not_equal, [cond, Constant(0)]) # maybe a better representation?
-        if isinstance(cond, UnaryOperation): # if(!var)
-            return Condition(OperationType.equal, [cond.operands[0], Constant(0)])
+        if isinstance(cond, Constant): # if(true/false/0/1.../N) used
+            return Condition(OperationType.not_equal, [cond, Constant(0)])
         if isinstance(cond, Variable): # if(var)
-            return Condition(OperationType.not_equal, [cond, Constant(0)]) # maybe a better representation?
-        raise ValueError(f"No resolving for fake condition with type {type(cond)}")
+            return Condition(OperationType.not_equal, [cond, Constant(0)])
+        if isinstance(cond, UnaryOperation): # if(!var/~var/&var...)
+            return Condition(OperationType.equal, [cond.operands[0], Constant(0)])
+        raise ValueError(f"No resolving handler for {type(cond)}")
 
 
     def _get_symbol_for_condition(self, cond: Any) -> LogicCondition:
-        """Resolve into real condition + return symbol it receives"""
+        """Resolve into real condition + return LogicSymbol it receives"""
         return self._condition_handler.add_condition(self._resolve_condition(cond))
 
 
     def _resolve_binary_operation(self, cond: BinaryOperation):
-        """Recursively resolve a given BinaryOperation into a statement of condition symbols (e.G. x1 & x2)"""
-        operands = []
+        """Recursively resolve a given BinaryOperation into a statement of LogicConditions (first Conditions) e.G. x1 & x2 & x3"""
+        operands = [] # will always hold left/right side of the BinaryOperation in index 0 and 1
         for expr in cond:
             if isinstance(expr, BinaryOperation):
                 operands.append(self._resolve_binary_operation(expr))
             else:
                 operands.append(expr)
 
-        # Case missing: both variables
-
-        # 1. If all expressions, make a new condition and return the symbol
+        # 1. If both expressions, make a new condition (or two separated ones) and return the LogicCondition
         if all(isinstance(operand, Expression) for operand in operands):
+            if cond.operation in LOGIC_CONDITION_OPERATIONS:
+                return _combine_logic_conditions(self._get_symbol_for_condition(operands[0]), self._get_symbol_for_condition(operands[1]), cond.operation)
             newCond = Condition(cond.operation, operands)
-            symbol = self._condition_handler.add_condition(newCond)
+            symbol = self._get_symbol_for_condition(newCond)
             return symbol
-        # 2. If only one is a symbol, the other one must be convertible to a symbol
+        # 2. If only one is a LogicCondition, the other one must be a convertible Expression
         if isinstance(operands[0], Expression):
             operands[0] = self._get_symbol_for_condition(operands[0])
         elif isinstance(operands[1], Expression):
             operands[1] = self._get_symbol_for_condition(operands[1])
-        # 3. If both symbols, combine symbols to new one
+        # 3. If both are LogicCondition, combine them into a new one
         if all(isinstance(operand, LogicCondition) for operand in operands):
             return _combine_logic_conditions(operands[0], operands[1], cond.operation)
         raise ValueError("What just happened?")
 
     
     def _resolve_condition_and_get_logic_condition(self, cond: Any) -> LogicCondition:
-        """Resolve condition + add into condition handler + return symbol"""
-        if isinstance(cond, BinaryOperation):
+        """Resolve condition + add into condition handler + return LogicCondition"""
+        if isinstance(cond, BinaryOperation): # BinaryOperations (can be nested) must be recursively corrected into Conditions
             return self._resolve_binary_operation(cond)
-        return self._condition_handler.add_condition(self._resolve_condition(cond))
+        return self._condition_handler.add_condition(self._resolve_condition(cond)) 
 
 
     def _merge_instructions_and_nodes(self, stmts: list[Union[AbstractSyntaxTreeNode, Instruction]], parent: AbstractSyntaxTreeNode): # fertig
@@ -194,29 +193,29 @@ class PyCNodeVisitor(NodeVisitor):
                 continue
             if isinstance(stmt, AbstractSyntaxTreeNode):
                 if len(instructions) > 0:
-                    codeNode = self._ast.factory.create_code_node([instr for instr in instructions]) # real copy
+                    codeNode = self._ast.factory.create_code_node([instr for instr in instructions]) # Real copy of list needed
                     self._ast._add_node(codeNode)
                     instructions.clear()
                     self._ast._add_edge(parent, codeNode)
                 self._ast._add_edge(parent, stmt)
 
         if len(instructions) > 0:
-            codeNode = self._ast.factory.create_code_node([instr for instr in instructions]) # real copy
+            codeNode = self._ast.factory.create_code_node([instr for instr in instructions])
             self._ast._add_node(codeNode)
             self._ast._add_edge(parent, codeNode)
 
 
-    def visit_ArrayDecl(self, node: c_ast.ArrayDecl): # To do
-        """Visit array declaration. Properties: [type*, dim*, dim_quals]"""
-        return None
+    def visit_ArrayDecl(self, node: c_ast.ArrayDecl):
+        """Visit array declaration. Not supported"""
+        raise ValueError(f"visitor for '{type(node)}' is not supported")
 
 
-    def visit_ArrayRef(self, node: c_ast.ArrayRef): # To do
-        """Visit array reference. Properties: [name*, subscript*]"""
-        return None
+    def visit_ArrayRef(self, node: c_ast.ArrayRef):
+        """Visit array reference. Not supported"""
+        raise ValueError(f"visitor for '{type(node)}' is not supported")
     
 
-    def visit_Assignment(self, node: c_ast.Assignment): # fertig
+    def visit_Assignment(self, node: c_ast.Assignment):
         """Visit assignment. Properties: [op, lvalue*, rvalue*]"""
         left = self.visit(node.lvalue)
         right = self.visit(node.rvalue)
@@ -232,17 +231,17 @@ class PyCNodeVisitor(NodeVisitor):
         raise ValueError(f"visitor for '{type(node)}' is not supported")
 
 
-    def visit_BinaryOp(self, node: c_ast.BinaryOp): # fertig
+    def visit_BinaryOp(self, node: c_ast.BinaryOp):
         """Visit binary operation. Properties: [op, left*, right*]"""
         return BinaryOperation(OPERATIONS[node.op], [self.visit(node.left), self.visit(node.right)])
 
 
-    def visit_Break(self, _: c_ast.Break): # fertig
+    def visit_Break(self, _: c_ast.Break):
         """Visit break node. Properties: []"""
         return Break()
 
 
-    def visit_Case(self, node: c_ast.Case): # fertig
+    def visit_Case(self, node: c_ast.Case):
         """Visit case node. Properties: [expr*, stmts**]"""
         stmts = [self.visit(stmt) for stmt in node.stmts] if node.stmts else []
         caseNode = self._ast.factory.create_case_node(self._switch_condition, self.visit(node.expr), break_case=any(isinstance(item, Break) for item in stmts))
@@ -253,12 +252,12 @@ class PyCNodeVisitor(NodeVisitor):
         return caseNode
 
 
-    def visit_Cast(self, node: c_ast.Cast): # fertig 
+    def visit_Cast(self, node: c_ast.Cast):
         """Visit cast. Properties: [to_type*, expr*]"""
         return UnaryOperation(OperationType.cast, [self.visit(node.expr)], self.visit(node.to_type))
 
 
-    def visit_Compound(self, node: c_ast.Compound): # fertig
+    def visit_Compound(self, node: c_ast.Compound):
         """Visit compound (Block of instructions). Properties: [block_items**]"""
         seqNode = self._ast.factory.create_seq_node()
         self._ast._add_node(seqNode)
@@ -272,42 +271,42 @@ class PyCNodeVisitor(NodeVisitor):
         raise ValueError(f"visitor for '{type(node)}' is not supported")
 
 
-    def visit_Constant(self, node: c_ast.Constant): # fertig
+    def visit_Constant(self, node: c_ast.Constant):
         """Visit constant. Properties: [type, value]"""
         return _resolve_constant(TypeParser().parse(node.type), node.value)
 
 
-    def visit_Continue(self, _: c_ast.Continue): # fertig
+    def visit_Continue(self, _: c_ast.Continue):
         """Visit continue. Properties: []"""
         return Continue()
 
 
-    def visit_Decl(self, node: c_ast.Decl): # fertig
+    def visit_Decl(self, node: c_ast.Decl):
         """Visit declaration. Properties: [name, quals, align, storage, funcspec, type*, init*, bitsize*]""" 
         var = Variable(node.name, self.visit(node.type))
         self._declared_variables[node.name] = var
 
-        if node.init:
+        if node.init: # If declaration is also an assignment we return it
             return Assignment(var, self.visit(node.init))
         
         return None
 
 
-    def visit_DeclList(self, node: c_ast.DeclList): # fertig
+    def visit_DeclList(self, node: c_ast.DeclList):
         """Visit list of declarations. Properties: [decls**]"""
         return [self.visit(delc) for delc in node.decls]
 
 
-    def visit_Default(self, node: c_ast.Default): # to do Switch Condition into case
+    def visit_Default(self, node: c_ast.Default):
         """Visit default node. Properties: [stmts**]"""
         stmts = [self.visit(stmt) for stmt in node.stmts] if node.stmts else []
-        defaultNode = self._ast.factory.create_case_node(self._switch_condition, "default" , break_case=any(isinstance(item, Break) for item in stmts)) # Fix condition switch
+        defaultNode = self._ast.factory.create_case_node(self._switch_condition, "default" , break_case=any(isinstance(item, Break) for item in stmts))
         self._ast._add_node(defaultNode)
         self._merge_instructions_and_nodes(stmts, defaultNode)
         return defaultNode
 
 
-    def visit_DoWhile(self, node: c_ast.DoWhile): # Fertig
+    def visit_DoWhile(self, node: c_ast.DoWhile):
         """Visit do while node. Properties: [cond*, stmt*]""" 
         doWhileNode = self._ast.factory.create_do_while_loop_node(self._resolve_condition_and_get_logic_condition(self.visit(node.cond)))
         self._ast._add_node(doWhileNode)
@@ -320,7 +319,7 @@ class PyCNodeVisitor(NodeVisitor):
         raise ValueError(f"visitor for '{type(node)}' is not supported")
 
 
-    def visit_EmptyStatement(self, node: c_ast.EmptyStatement): # fertig
+    def visit_EmptyStatement(self, node: c_ast.EmptyStatement):
         """Visit empty statement (;). Properties: []"""
         return None
 
@@ -350,35 +349,39 @@ class PyCNodeVisitor(NodeVisitor):
         raise ValueError("visitor only works for specified methods")
 
 
-    def visit_For(self, node: c_ast.For): # fertig, washed
+    def visit_For(self, node: c_ast.For): # Does NOT support multiple declarations, will only take first one and ignore other ones
         """Visit for loop. Properties: [init*, cond*, next*, stmt*]"""
-        decl = self.visit(node.init) if node.init else None # always a list if at least one item, else None
-        cond = self.visit(node.cond) if node.cond else Constant(0, Integer.uint32_t()) # Empty conditions are allowed, we need to fix this manually
-        modi = self.visit(node.next) if node.next else None # Will be a instruction (if one modification) or a list if more then one or None (WHYY)
+        decl = self.visit(node.init) if node.init else None # can be an item, list or nothing
+        cond = self.visit(node.cond) if node.cond else Constant(1, Integer.uint32_t()) # can be a condition or nothing, fix empty conditions manually
+        modif = self.visit(node.next) if node.next else None # can be an item, list or nothing
 
-        if isinstance(modi, Instruction):
-            modi = [modi]
+        # The typing random as hell, sometimes it returns nothing, sometimes a list, sometimes one single item...
+        if isinstance(modif, Instruction):
+            modif = [modif]
+        
+        if isinstance(decl, Instruction):
+            decl = [decl]
 
         loop_decl = decl.pop() if decl else None
-        loop_modi = modi.pop() if modi else None
+        loop_modi = modif.pop() if modif else None
 
         loopNode = self._ast.factory.create_for_loop_node(loop_decl, self._resolve_condition_and_get_logic_condition(cond), loop_modi)
         self._ast._add_node(loopNode)
         body = self.visit(node.stmt)
         self._ast._add_edge(loopNode, body)
-        if modi: # If more then one modification, append them at body; No guarantee that modification is same variable as init
-            self._merge_instructions_and_nodes(modi, body)
+        if modif: # If more then one modification, append them at body; No guarantee that modification is same variable as init
+            self._merge_instructions_and_nodes(modif, body)
         return loopNode
 
 
-    def visit_FuncCall(self, node: c_ast.FuncCall): # To do
+    def visit_FuncCall(self, node: c_ast.FuncCall):
         """Visit function call. Properties: [name*, args*]"""
         return Assignment(ListOperation([]), Call(FunctionSymbol(self.visit(node.name), 0), self.visit(node.args)))
 
 
     def visit_FuncDecl(self, node: c_ast.FuncDecl):
         """Visit function declaration. Properties: [args*, type*]"""
-        self._function_params = self.visit(node.args)
+        self._function_params = self.visit(node.args) if node.args else None
         self._return_type = self.visit(node.type)
         return None # This visitor only supports visiting one function, therefore there can be only one declaration
 
@@ -387,9 +390,9 @@ class PyCNodeVisitor(NodeVisitor):
         """Visit function definition + body. Properties: [decl*, param_decls*, body*]"""
         self.visit(node.decl)
         self._ast._add_edge(self._ast.root, self.visit(node.body))
-        self._ast.clean_up() # Clean up empty seq nodes etc.
-        self._ast.condition_map = self._condition_handler.get_condition_map() # lazy conditionmap update
-        return None # Same as above 
+        self._ast.clean_up()
+        self._ast.condition_map = self._condition_handler.get_condition_map() # lazy condition map update from condition handler
+        return None
 
 
     def visit_Goto(self, node: c_ast.Goto):
@@ -397,25 +400,26 @@ class PyCNodeVisitor(NodeVisitor):
         raise ValueError(f"visitor for '{type(node)}' is not supported")
 
 
-    def visit_ID(self, node: c_ast.ID): # fertig
+    def visit_ID(self, node: c_ast.ID):
         """Visit variable usage (which was already declared). Properties: [name]"""
-        return self._declared_variables.get(node.name, node.name) # If defined return variable, if not, return name (string)
+        return self._declared_variables.get(node.name, node.name) # If defined return variable, if not, return name (string) used for example by calls
 
 
-    def visit_IdentifierType(self, node: c_ast.IdentifierType): # Names can be a list with signed stuff (signed char)
+    def visit_IdentifierType(self, node: c_ast.IdentifierType):
         """Visit built in types or typedefs. Properties: [names]"""
-        return TypeParser().parse(*node.names)
+        return TypeParser().parse(" ".join(node.names))
 
 
-    def visit_If(self, node: c_ast.If): # fertig
+    def visit_If(self, node: c_ast.If):
         """Visit if node. Properties: [cond*, iftrue*, iffalse*]"""
         ifNode = self._ast.factory.create_condition_node(self._resolve_condition_and_get_logic_condition(self.visit(node.cond)))
         self._ast._add_node(ifNode)
 
-        childs = [(node.iftrue, self._ast.factory.create_true_node()), (node.iffalse, self._ast.factory.create_false_node())]
-        childs = [x for x in childs if x[0] is not None] # remove empty node tuple
+        # Both branches need the exact same code, therefore we put them into tuples and iterate over them creating the needed DeWolf Nodes
+        subNodes = [(node.iftrue, self._ast.factory.create_true_node()), (node.iffalse, self._ast.factory.create_false_node())]
+        subNodes = [x for x in subNodes if x[0] is not None] # remove empty node tuple
 
-        for pyCBranchNode, DeWolfBranch in childs:
+        for pyCBranchNode, DeWolfBranch in subNodes:
             self._ast._add_node(DeWolfBranch)
             self._ast._add_edge(ifNode, DeWolfBranch)
             body = self.visit(pyCBranchNode)
@@ -437,11 +441,11 @@ class PyCNodeVisitor(NodeVisitor):
         raise ValueError(f"visitor for '{type(node)}' is not supported")
 
 
-    def visit_NamedInitializer(self, node): # ???
+    def visit_NamedInitializer(self, node):
         raise ValueError(f"visitor for '{type(node)}' is not supported")
 
 
-    def visit_ParamList(self, node: c_ast.ParamList): # fertig
+    def visit_ParamList(self, node: c_ast.ParamList):
         """Visit function params. Properties: [params**]"""
         return [self.visit(param) for param in node.params]
 
@@ -451,12 +455,12 @@ class PyCNodeVisitor(NodeVisitor):
         raise ValueError(f"visitor for '{type(node)}' is not supported")
 
 
-    def visit_PtrDecl(self, node: c_ast.PtrDecl): # fertig
+    def visit_PtrDecl(self, node: c_ast.PtrDecl):
         """Visit pointer declaration. Properties: [quals, type*]"""
         return Pointer(self.visit(node.type))
 
 
-    def visit_Return(self, node: c_ast.Return): # fertig
+    def visit_Return(self, node: c_ast.Return):
         """Visit return statement. Properties: [expr*]"""
         codeNode = self._ast.factory.create_code_node([Return([self.visit(node.expr)])])
         self._ast._add_node(codeNode)
@@ -478,37 +482,37 @@ class PyCNodeVisitor(NodeVisitor):
         raise ValueError(f"visitor for '{type(node)}' is not supported")
 
 
-    def visit_Switch(self, node: c_ast.Switch): # fertig, condition, 
+    def visit_Switch(self, node: c_ast.Switch): 
         """Visit switch node. Properties: [cond*, stmt*]"""
         switchNode = self._ast.factory.create_switch_node(self._resolve_condition(self.visit(node.cond)))
         self._ast._add_node(switchNode)
-        if body := self.visit(node.stmt): # Body will always be a SeqNode (CompoundNode) (which has only case nodes als childs) or nothing
+        if body := self.visit(node.stmt): # Body will always be a SeqNode (.visit(CompoundNode)) of CaseNodes, therefore we purge the SeqNode and directly point to CaseNodes
             [self._ast._add_edge(switchNode, child) for child in body.children]
             self._ast._remove_node(body)
         return switchNode
 
 
-    def visit_TernaryOp(self, node: c_ast.TernaryOp): # to do
+    def visit_TernaryOp(self, node: c_ast.TernaryOp):
         """Visit ternary operation (short if). Not supported"""
         raise ValueError(f"visitor for '{type(node)}' is not supported")
 
 
-    def visit_TypeDecl(self, node: c_ast.TypeDecl): # fertig
+    def visit_TypeDecl(self, node: c_ast.TypeDecl):
         """Visit type declaration. Properties: [declname, quals, align, type*]"""
         return self.visit(node.type)
 
 
-    def visit_Typedef(self, node: c_ast.Typedef): # fertig
+    def visit_Typedef(self, node: c_ast.Typedef):
         """Visit typedef. Properties: [name, quals, storage, type*]"""
         self._typedefs[node.name] = self.visit(node.type)
 
 
-    def visit_Typename(self, node: c_ast.Typename): # fertig
+    def visit_Typename(self, node: c_ast.Typename):
         """Visit type name (in casts). Properties: [name, quals, align, type*]"""
         return self.visit(node.type)
 
 
-    def visit_UnaryOp(self, node: c_ast.UnaryOp): # fertig
+    def visit_UnaryOp(self, node: c_ast.UnaryOp):
         """Visit unary operation. Properties: [op, expr*]"""
         variable: Variable = self.visit(node.expr)
         if node.op.startswith("p"): # pre/post increment (++x, x++)
