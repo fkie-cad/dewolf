@@ -6,9 +6,11 @@ sys.path.append(".") # for decompiler package imports (if started from repo root
 from c2ast_visitor import PyCNodeVisitor
 from decompiler.task import DecompilerTask
 from pycparser import c_parser, parse_file
-from pycparser.c_ast import Decl, FileAST, FuncDef, Typedef
+from pycparser.c_ast import Decl, FileAST, FuncDef
+import tarfile
+from tempfile import TemporaryDirectory
 
-FAKE_LIBC_INCLUDE = "-I" + os.path.dirname(__file__) + "/" + "fake_libc_include"
+FAKE_LIBC_ZIP= os.path.dirname(__file__) + "/fake_libc_include.tar.gz"
 
 
 class C2DeWolfASTGenerator:
@@ -51,7 +53,9 @@ class C2DeWolfASTGenerator:
 
     def generateFromFile(self, file: str, method: str) -> DecompilerTask:
         """Generate DeWolf-AST from a given file with methodname"""
-        pycAst = parse_file(file, use_cpp=True, cpp_args=FAKE_LIBC_INCLUDE)
+        with tarfile.open(FAKE_LIBC_ZIP, "r:gz") as tgz, TemporaryDirectory() as dir:
+            tgz.extractall(dir)
+            pycAst = parse_file(file, use_cpp=True, cpp_args="-I" + dir + "/fake_libc_include")
         return self._convertToDeWolfAst(self._getSubAstForFunction(pycAst, method))
 
 
@@ -76,7 +80,7 @@ unsigned long global_addr_add() {
 """
 
 if __name__ == '__main__':
-    task = C2DeWolfASTGenerator().generateFromString(CODE, "global_addr_add")
-    #task = C2DeWolfASTGenerator().generateFromFile("/home/neoquix/Git-Repos/_DeWolfTesting/main.c", "main")
+    #task = C2DeWolfASTGenerator().generateFromString(CODE, "global_addr_add")
+    task = C2DeWolfASTGenerator().generateFromFile("/home/neoquix/Git-Repos/_DeWolfTesting/main.c", "main")
     DecoratedAST.from_ast(task._ast).export_plot("/tmp/AST.png")
     DecoratedAST.print_ascii(task._ast)
