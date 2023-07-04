@@ -3,16 +3,12 @@ from itertools import combinations
 from typing import List, Tuple, Union
 
 import pytest
-
 from decompiler.pipeline.controlflowanalysis.restructuring import PatternIndependentRestructuring
 from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, SeqNode, SwitchNode, WhileLoopNode
-from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, \
-    UnconditionalEdge
-from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
-from decompiler.structures.pseudo.expressions import Expression
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
+from decompiler.structures.pseudo.expressions import Constant, Expression, FunctionSymbol, ImportedFunctionSymbol, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Break, Continue, IndirectBranch, Return
-from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, \
-    UnaryOperation
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer, Type, UnknownType
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
@@ -4738,6 +4734,7 @@ def test_break_contained_in_switch_add_case_default(task):
     assert isinstance(case3.child, CodeNode) and case3.child.instructions == vertices[7].instructions
     assert isinstance(case4.child, CodeNode) and case4.child.instructions == vertices[9].instructions
 
+
 def test_break_contained_in_switch_add_case_structural_variable(task):
     """Test with adding the case and using a structural variable."""
     arg1_1, vertices = __graph_loop_break_in_switch(task)
@@ -4917,6 +4914,7 @@ def test_break_contained_in_switch_structural_variable(task):
     )
     assert isinstance(break_node := loop_break_cond.true_branch_child, CodeNode) and break_node.instructions == [Break()]
 
+
 def test_insert_before_existing_case(task):
     """
       Test 7_b
@@ -5092,6 +5090,7 @@ def test_insert_before_existing_case(task):
     assert isinstance(case7.child, CodeNode) and case7.child.instructions == vertices[2].instructions
     assert isinstance(default.child, CodeNode) and default.child.instructions == vertices[5].instructions
 
+
 def test_insert_after_existing_case(task):
     """
           test_18
@@ -5177,8 +5176,10 @@ def test_insert_after_existing_case(task):
             ),
             BasicBlock(8, [Branch(Condition(OperationType.equal, [var_0_2, Constant(12, Integer(32, True))], CustomType("bool", 1)))]),
             BasicBlock(9, [Assignment(ListOperation([]), print_call("Tuesday", 5))]),
-        ])
-    task.graph.add_edges_from([
+        ]
+    )
+    task.graph.add_edges_from(
+        [
             TrueCase(vertices[0], vertices[1]),
             FalseCase(vertices[0], vertices[2]),
             UnconditionalEdge(vertices[1], vertices[3]),
@@ -5197,21 +5198,17 @@ def test_insert_after_existing_case(task):
     PatternIndependentRestructuring().run(task)
 
     assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 4
-    assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[
-                                                                                               :-1]
+    assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
     assert isinstance(cond := seq_node.children[2], ConditionNode) and cond.false_branch is None
     assert isinstance(seq_node.children[3], CodeNode) and seq_node.children[3].instructions == vertices[5].instructions
 
     # switch node:
     assert switch.expression == var_0_2 and len(switch.children) == 3
-    assert isinstance(case1 := switch.cases[0], CaseNode) and case1.constant == Constant(1, Integer(32,
-                                                                                                    True)) and case1.break_case is False
-    assert isinstance(case2 := switch.cases[1], CaseNode) and case2.constant == Constant(12, Integer(32,
-                                                                                                     True)) and case2.break_case is True
+    assert isinstance(case1 := switch.cases[0], CaseNode) and case1.constant == Constant(1, Integer(32, True)) and case1.break_case is False
+    assert isinstance(case2 := switch.cases[1], CaseNode) and case2.constant == Constant(12, Integer(32, True)) and case2.break_case is True
     assert (
-            isinstance(case3 := switch.cases[2], CaseNode) and case3.constant == Constant(500, Integer(32,
-                                                                                                       True)) and case3.break_case is True
+        isinstance(case3 := switch.cases[2], CaseNode) and case3.constant == Constant(500, Integer(32, True)) and case3.break_case is True
     )
 
     # children of cases
@@ -5223,9 +5220,9 @@ def test_insert_after_existing_case(task):
     assert cond.condition.is_conjunction and len(operands := cond.condition.operands) == 2
     for op in operands:
         assert (
-                op.is_negation
-                and op.operands[0].is_symbol
-                and task.syntax_tree.condition_map[op.operands[0]]
-                in {vertices[4].instructions[-1].condition, vertices[7].instructions[-1].condition}
+            op.is_negation
+            and op.operands[0].is_symbol
+            and task.syntax_tree.condition_map[op.operands[0]]
+            in {vertices[4].instructions[-1].condition, vertices[7].instructions[-1].condition}
         )
     assert isinstance(cn := cond.true_branch_child, CodeNode) and cn.instructions == vertices[3].instructions

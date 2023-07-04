@@ -20,8 +20,7 @@ from decompiler.structures.ast.switch_node_handler import SwitchNodeHandler
 from decompiler.structures.ast.syntaxgraph import AbstractSyntaxInterface
 from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock
 from decompiler.structures.logic.logic_condition import LogicCondition
-from decompiler.structures.pseudo import Assignment, Break, Condition, Constant, Expression, Instruction, Integer, \
-    OperationType, Variable
+from decompiler.structures.pseudo import Assignment, Break, Condition, Constant, Expression, Instruction, Integer, OperationType, Variable
 
 
 class AbstractSyntaxForest(AbstractSyntaxInterface):

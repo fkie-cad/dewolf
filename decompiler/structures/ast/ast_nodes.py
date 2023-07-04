@@ -178,7 +178,6 @@ class AbstractSyntaxTreeNode(BaseAbstractSyntaxTreeNode, ABC):
 
     def get_possible_case_candidate_condition(self) -> Optional[LogicCondition]:
         """Returns the reaching condition of a node if it is a possible case node of a switch node."""
-        # if not self.reaching_condition.is_true and not self._has_descendant_code_node_breaking_ancestor_loop():
         if not self.reaching_condition.is_true:
             return self.reaching_condition
         return None
@@ -555,7 +554,6 @@ class ConditionNode(AbstractSyntaxTreeNode):
     def get_possible_case_candidate_condition(self) -> Optional[LogicCondition]:
         """Returns the reaching condition of a node if it is a possible case node of a switch node."""
         self.clean()
-        # if self.false_branch is None and not self._has_descendant_code_node_breaking_ancestor_loop():
         if self.false_branch is None:
             return self.reaching_condition & self.condition
         return super().get_possible_case_candidate_condition()

@@ -7,6 +7,7 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder import (
     MissingCaseFinder,
 )
+from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, FalseNode, SwitchNode, TrueNode
 from decompiler.structures.ast.reachability_graph import SiblingReachabilityGraph
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
@@ -26,8 +27,14 @@ class IntersectingCaseNodeProperties:
 
 
 class MissingCaseFinderIntersectingConstants(MissingCaseFinder):
-    def __init__(self, asforest: AbstractSyntaxForest, switch_node: SwitchNode, sibling_reachability: SiblingReachabilityGraph):
-        super().__init__(asforest)
+    def __init__(
+        self,
+        asforest: AbstractSyntaxForest,
+        options: RestructuringOptions,
+        switch_node: SwitchNode,
+        sibling_reachability: SiblingReachabilityGraph,
+    ):
+        super().__init__(asforest, options)
         self._switch_node: SwitchNode = switch_node
         self._sibling_reachability_graph: SiblingReachabilityGraph = sibling_reachability
 

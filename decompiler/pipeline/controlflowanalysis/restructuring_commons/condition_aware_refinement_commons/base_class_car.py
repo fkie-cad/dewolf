@@ -2,8 +2,7 @@ from dataclasses import dataclass
 from typing import Iterator, Optional, Tuple
 
 from decompiler.pipeline.controlflowanalysis.restructuring_options import LoopBreakOptions, RestructuringOptions
-from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, SwitchNode
-from decompiler.structures.ast.ast_nodes import FalseNode, TrueNode
+from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, FalseNode, SwitchNode, TrueNode
 from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
@@ -151,6 +150,5 @@ class BaseClassConditionAwareRefinement:
     def _contains_no_violating_loop_break(self, ast_node: AbstractSyntaxTreeNode) -> bool:
         """Check whether is violates the loop-break property."""
         return (
-            self.options.loop_break_strategy == LoopBreakOptions.structural_variable
-            or not ast_node._has_descendant_code_node_breaking_ancestor_loop()
-        )
+            not ast_node.is_break_node and self.options.loop_break_strategy == LoopBreakOptions.structural_variable
+        ) or not ast_node._has_descendant_code_node_breaking_ancestor_loop()

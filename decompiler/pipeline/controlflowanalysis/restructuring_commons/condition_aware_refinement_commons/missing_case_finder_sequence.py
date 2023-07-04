@@ -11,8 +11,7 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
     MissingCaseFinderIntersectingConstants,
 )
 from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
-from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, ConditionNode, FalseNode, SeqNode, SwitchNode, \
-    TrueNode
+from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, ConditionNode, FalseNode, SeqNode, SwitchNode, TrueNode
 from decompiler.structures.ast.reachability_graph import SiblingReachabilityGraph
 from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
@@ -135,7 +134,7 @@ class MissingCaseFinderSequence(MissingCaseFinder):
 
             elif isinstance(child, ConditionNode):
                 for branch in child.children:
-                    if not self._contains_no_violating_loop_break(branch) and (
+                    if self._contains_no_violating_loop_break(branch) and (
                         candidate := self._find_switch_expression_and_case_condition_for(branch.branch_condition)
                     ):
                         expression, case_condition = candidate
@@ -171,7 +170,7 @@ class MissingCaseFinderSequence(MissingCaseFinder):
         switch_node = self._switch_node_of_expression[expression]
         cases_of_switch_node: Set[Constant] = {case.constant for case in switch_node.children}
         missing_case_finder_intersecting_constants = MissingCaseFinderIntersectingConstants(
-            self.asforest, switch_node, sibling_reachability_graph
+            self.asforest, self.options, switch_node, sibling_reachability_graph
         )
         for possible_case in self.__get_case_node_candidates_in_insertion_order(case_node_candidates, switch_node):
             if not self._can_insert_case_node(possible_case, switch_node, sibling_reachability_graph):

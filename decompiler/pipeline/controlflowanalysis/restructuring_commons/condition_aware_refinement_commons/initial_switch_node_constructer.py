@@ -192,7 +192,6 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         - Note: Cases can not end with a loop-break statement
         """
         possible_conditions: List[Tuple[ExpressionUsages, LogicCondition]] = list()
-        # TODO: case candidate!!
         if (
             possible_case_condition := ast_node.get_possible_case_candidate_condition()
         ) is not None and self._contains_no_violating_loop_break(ast_node):
