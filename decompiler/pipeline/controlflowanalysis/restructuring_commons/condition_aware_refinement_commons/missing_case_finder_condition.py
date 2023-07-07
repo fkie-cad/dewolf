@@ -3,6 +3,7 @@ from typing import Optional, Set
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder import (
     MissingCaseFinder,
 )
+from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
 from decompiler.structures.ast.ast_nodes import ConditionNode, SwitchNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.pseudo import Constant
@@ -17,9 +18,9 @@ class MissingCaseFinderCondition(MissingCaseFinder):
     """
 
     @classmethod
-    def find(cls, asforest: AbstractSyntaxForest):
+    def find(cls, asforest: AbstractSyntaxForest, options: RestructuringOptions):
         """Try to find missing cases that are branches of condition nodes."""
-        missing_case_finder = cls(asforest)
+        missing_case_finder = cls(asforest, options)
         for condition_node in asforest.get_condition_nodes_post_order(asforest.current_root):
             if new_case_constants := missing_case_finder._can_insert_missing_case_node(condition_node):
                 missing_case_finder._insert_case_node(
@@ -47,7 +48,7 @@ class MissingCaseFinderCondition(MissingCaseFinder):
         possible_case_node = condition_node.false_branch_child
         case_condition = condition_node.false_branch.branch_condition
 
-        if not switch_node.reaching_condition.is_true or possible_case_node._has_descendant_code_node_breaking_ancestor_loop():
+        if not switch_node.reaching_condition.is_true or not self._contains_no_violating_loop_break(possible_case_node):
             return None
 
         expression_usage = self._get_const_eq_check_expression_of_disjunction(case_condition)

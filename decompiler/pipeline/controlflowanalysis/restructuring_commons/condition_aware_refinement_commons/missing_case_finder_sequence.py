@@ -1,4 +1,3 @@
-import logging
 from collections import defaultdict
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple, Union
 
@@ -11,7 +10,8 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder_intersecting_constants import (
     MissingCaseFinderIntersectingConstants,
 )
-from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, ConditionNode, FalseNode, SeqNode, SwitchNode, TrueNode
+from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
+from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, ConditionNode, FalseNode, SeqNode, SwitchNode, TrueNode
 from decompiler.structures.ast.reachability_graph import SiblingReachabilityGraph
 from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
@@ -27,24 +27,24 @@ class MissingCaseFinderSequence(MissingCaseFinder):
     for a case-node candidate.
     """
 
-    def __init__(self, asforest: AbstractSyntaxForest):
+    def __init__(self, asforest: AbstractSyntaxForest, options: RestructuringOptions):
         """
         self.asforest: The asforst where we try to construct switch nodes
         self._current_seq_node: The seq_node which we consider to find missing cases.
         self._switch_node_of_expression: a dictionary that maps to each expression the corresponding switch node.
         """
-        super().__init__(asforest)
+        super().__init__(asforest, options)
         self._current_seq_node: Optional[SeqNode] = None
         self._switch_node_of_expression: Dict[ExpressionUsages, SwitchNode] = dict()
 
     @classmethod
-    def find(cls, asforest: AbstractSyntaxForest):
+    def find(cls, asforest: AbstractSyntaxForest, options: RestructuringOptions):
         """
         Try to find missing cases that are children of sequence nodes.
 
         - switch node of interest are switch nodes that have no default case since these are the switches where we can add cases.
         """
-        missing_case_finder = cls(asforest)
+        missing_case_finder = cls(asforest, options)
         for seq_node in asforest.get_sequence_nodes_post_order(asforest.current_root):
             missing_case_finder._current_seq_node = seq_node
 
@@ -126,7 +126,7 @@ class MissingCaseFinderSequence(MissingCaseFinder):
         for child in self._current_seq_node.children:
             if (
                 not child.reaching_condition.is_true
-                and not child._has_descendant_code_node_breaking_ancestor_loop()
+                and self._contains_no_violating_loop_break(child)
                 and (candidate := self._find_switch_expression_and_case_condition_for(child.reaching_condition))
             ):
                 expression, case_condition = candidate
@@ -134,7 +134,7 @@ class MissingCaseFinderSequence(MissingCaseFinder):
 
             elif isinstance(child, ConditionNode):
                 for branch in child.children:
-                    if not branch._has_descendant_code_node_breaking_ancestor_loop() and (
+                    if self._contains_no_violating_loop_break(branch) and (
                         candidate := self._find_switch_expression_and_case_condition_for(branch.branch_condition)
                     ):
                         expression, case_condition = candidate
@@ -170,7 +170,7 @@ class MissingCaseFinderSequence(MissingCaseFinder):
         switch_node = self._switch_node_of_expression[expression]
         cases_of_switch_node: Set[Constant] = {case.constant for case in switch_node.children}
         missing_case_finder_intersecting_constants = MissingCaseFinderIntersectingConstants(
-            self.asforest, switch_node, sibling_reachability_graph
+            self.asforest, self.options, switch_node, sibling_reachability_graph
         )
         for possible_case in self.__get_case_node_candidates_in_insertion_order(case_node_candidates, switch_node):
             if not self._can_insert_case_node(possible_case, switch_node, sibling_reachability_graph):
@@ -245,6 +245,8 @@ class MissingCaseFinderSequence(MissingCaseFinder):
         """
         default_case_candidates: Set[CaseNodeCandidate] = set()
         for node in ast_nodes:
+            if not self._contains_no_violating_loop_break(node):
+                continue
             if isinstance(node, ConditionNode):
                 reaching_condition_as_z3 = self._convert_to_z3_condition(node.reaching_condition)
                 for child in node.children:
