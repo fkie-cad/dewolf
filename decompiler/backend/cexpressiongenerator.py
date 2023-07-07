@@ -6,8 +6,6 @@ from decompiler.structures import pseudo as expressions
 from decompiler.structures.pseudo import Float, FunctionTypeDef, Integer, OperationType, Pointer, StringSymbol, Type
 from decompiler.structures.pseudo import instructions as instructions
 from decompiler.structures.pseudo import operations as operations
-from decompiler.structures.pseudo.operations import StructMemberAccess
-from decompiler.structures.pseudo.typing import StructureType
 from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInterface
 
 

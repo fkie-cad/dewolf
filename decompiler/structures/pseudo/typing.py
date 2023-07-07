@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, replace
-from typing import Dict, Tuple
+from dataclasses import dataclass, replace
+from typing import Tuple
 
 
 @dataclass(frozen=True, order=True)
@@ -215,33 +215,6 @@ class FunctionTypeDef(Type):
     def __str__(self) -> str:
         """Return an anonymous string representation such as void*(int, int, char*)."""
         return f"{self.return_type}({', '.join(str(x) for x in self.parameters)})"
-
-
-@dataclass(frozen=True, order=True)
-class StructureMemberType(Type):
-    """Class representing a member of a struct type."""
-
-    # TODO check subclassing and this size field
-    name: str
-    offset: int
-    type: Type
-    size = 0
-
-    def __str__(self) -> str:
-        return f"{self.name}"
-
-
-@dataclass(frozen=True, order=True)
-class StructureType(Type):
-    """Class representing a struct type."""
-
-    # TODO check subclassing and this size field
-    tag_name: str
-    members: Dict[int, StructureMemberType] = field(compare=False)
-    size = 0
-
-    def __str__(self) -> str:
-        return f"{self.tag_name}"
 
 
 @dataclass(frozen=True, order=True)

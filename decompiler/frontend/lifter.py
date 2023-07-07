@@ -22,6 +22,9 @@ class ObserverLifter(Lifter):
 
     HANDLERS: Dict[Type[T], Callable[[T], V]] = {}
 
+    def __init__(self):
+        self.complex_types = {}
+
     def lift(self, expression: T, **kwargs) -> V:
         """Lift the given expression based on the registered handlers."""
         handler = self.HANDLERS.get(expression.__class__, self.lift_unknown)

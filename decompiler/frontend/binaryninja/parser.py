@@ -46,6 +46,7 @@ class BinaryninjaParser(Parser):
         for basic_block in function.medium_level_il.ssa_form:
             self._add_basic_block_edges(cfg, index_to_BasicBlock, basic_block)
         self._report_lifter_errors()
+        self._lifter.complex_types.pretty_print()
         return cfg
 
     def _recover_switch_edge_cases(self, edge: BasicBlockEdge, lookup_table: dict):

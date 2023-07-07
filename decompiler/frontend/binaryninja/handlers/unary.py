@@ -16,7 +16,7 @@ from decompiler.structures.pseudo import (
     UnaryOperation,
 )
 from decompiler.structures.pseudo.operations import StructMemberAccess
-from decompiler.structures.pseudo.typing import StructureType
+from decompiler.structures.pseudo.complextypes import Struct
 
 
 class UnaryOperationHandler(Handler):
@@ -55,7 +55,7 @@ class UnaryOperationHandler(Handler):
         self, operation: Union[mediumlevelil.MediumLevelILLoad, mediumlevelil.MediumLevelILLoadSsa], **kwargs
     ) -> Union[GlobalVariable, UnaryOperation]:
         """Lift load operation which is used both to model dereference operation and global variable read."""
-        load_operand : UnaryOperation = self._lifter.lift(operation.src, parent=operation)
+        load_operand: UnaryOperation = self._lifter.lift(operation.src, parent=operation)
         if load_operand and isinstance(global_variable := load_operand, GlobalVariable):
             global_variable.ssa_label = operation.ssa_memory_version
             return global_variable
@@ -101,9 +101,11 @@ class UnaryOperationHandler(Handler):
         # TODO But it is not the same as vartype
         struct_variable = self._lifter.lift(instruction.src)
         struct_ptr: Pointer = self._lifter.lift(instruction.src.expr_type)
-        struct_type: StructureType = struct_ptr.type
-        struct_member_name = struct_type.members.get(instruction.offset).name
-        return StructMemberAccess(src=struct_variable, vartype=struct_ptr, operands=[struct_variable], offset=instruction.offset, member_name=struct_member_name)
+        struct_type: Struct = struct_ptr.type
+        struct_member_name = struct_type.get_member_by_offset(instruction.offset).name
+        return StructMemberAccess(
+            src=struct_variable, vartype=struct_ptr, operands=[struct_variable], offset=instruction.offset, member_name=struct_member_name
+        )
 
     def _lift_ftrunc(self, instruction: mediumlevelil.MediumLevelILFtrunc, **kwargs) -> UnaryOperation:
         """Lift a MLIL_FTRUNC operation."""

@@ -1,6 +1,7 @@
 import logging
+from typing import Union
 
-from binaryninja import BinaryView
+from binaryninja import BinaryView, StructureVariant
 from binaryninja.types import (
     ArrayType,
     BoolType,
@@ -20,7 +21,9 @@ from binaryninja.types import (
 from decompiler.frontend.lifter import Handler
 
 from decompiler.structures.pseudo import CustomType, Float, FunctionTypeDef, Integer, Pointer, UnknownType, Variable
-from decompiler.structures.pseudo.typing import StructureType as PseudoStructureType, StructureMemberType as PseudoStructureMember
+from decompiler.structures.pseudo.complextypes import ComplexTypeMember, ComplexTypeName
+from decompiler.structures.pseudo.complextypes import Struct, Union as Union_
+
 
 
 class TypeHandler(Handler):
@@ -54,26 +57,59 @@ class TypeHandler(Handler):
         """Lift custom types such as structs as a custom type."""
         # TODO split lifting custom from lifting namedtypereferencetype
         view: BinaryView = self._lifter.bv
-        if (defined_type:= view.get_type_by_name(custom.name)):
+        if isinstance(custom, NamedTypeReferenceType) and (defined_type := view.get_type_by_name(custom.name)):
             return self._lifter.lift(defined_type, **kwargs)
         return CustomType(str(custom), custom.width * self.BYTE_SIZE)
 
-    def lift_struct(self, struct: StructureType, **kwargs) -> PseudoStructureType:
+    # def lift_union(self, union):
+    #     logging.error("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+    #     return CustomType(str(union), union.width * self.BYTE_SIZE)
+
+    def lift_struct(self, struct: StructureType, name=None, incomplete=False, **kwargs) -> Union[Struct, ComplexTypeName]:
         """Lift struct type."""
         # TODO better way to get the name
         # TODO type width?
-        struct_name = struct.get_string().split(" ")[1]
-        # members_dict = {m.offset: self.lift_struct_member(m) for m in struct.members}
-        members_dict = {}
+        if name:
+            struct_name = name
+        else:
+            struct_name = self._get_data_type_name(struct)
+        lifted_struct = None
+        if struct.type == StructureVariant.StructStructureType:
+            lifted_struct = Struct(0, struct_name, {})
+        elif struct.type == StructureVariant.UnionStructureType:
+            lifted_struct = Union_(0, struct_name, [])
+        else:
+            raise RuntimeError(f"Unk struct type {struct.type.name}")
         for m in struct.members:
-            members_dict[m.offset] = self.lift_struct_member(m)
-        return PseudoStructureType(tag_name=struct_name, members=members_dict, size=0)
+            member = self.lift_struct_member(m, struct_name)
+            lifted_struct.add_member(member)
+        self._lifter.complex_types.add(lifted_struct)
+        logging.error(lifted_struct.declaration())
+        return lifted_struct
 
-    def lift_struct_member(self, member: StructureMember) -> PseudoStructureMember:
-        # TODO handle the case when struct member is a pointer on the same struct
-        if isinstance(member.type, PointerType) and (isinstance(member.type.target, StructureType) or isinstance(member.type.target, NamedTypeReferenceType)):
-            return CustomType("SomeStructTemp", size=0)
-        return PseudoStructureMember(name=member.name, offset=member.offset, type=self._lifter.lift(member.type), size=0)
+    def _get_data_type_name(self, struct: StructureType):
+        string = struct.get_string()
+        if "struct" in string:
+            return struct.get_string().split(" ")[1]
+        return string
+
+    def lift_struct_member(self, member: StructureMember, parent_struct_name: str = None) -> ComplexTypeMember:
+        member_type = None
+
+        # handle the case when struct member is a pointer on the same struct
+        if (
+            isinstance(member.type, PointerType)
+            and (isinstance(member.type.target, StructureType) or isinstance(member.type.target, NamedTypeReferenceType))
+            and member.type.target.name.__str__() == parent_struct_name
+        ):
+            member_struct_name = member.type.target.name.__str__()
+            member_type = Pointer(ComplexTypeName(0, member_struct_name))
+
+        else:
+            # logging.error(f"Parent: {parent_struct_name}")
+            # logging.error(f"Member {member}")
+            member_type = self._lifter.lift(member.type, name=member.name)
+        return ComplexTypeMember(0, name=member.name, offset=member.offset, type=member_type)
 
     def lift_void(self, _, **kwargs) -> CustomType:
         """Lift the void-type (should only be used as function return type)."""
