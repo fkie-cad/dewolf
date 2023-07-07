@@ -15,8 +15,8 @@ from decompiler.structures.pseudo import (
     Pointer,
     UnaryOperation,
 )
-from decompiler.structures.pseudo.operations import StructMemberAccess
 from decompiler.structures.pseudo.complextypes import Struct
+from decompiler.structures.pseudo.operations import StructMemberAccess
 
 
 class UnaryOperationHandler(Handler):

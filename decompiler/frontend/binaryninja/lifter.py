@@ -6,8 +6,8 @@ from binaryninja import BinaryView, MediumLevelILInstruction, Type
 from decompiler.frontend.lifter import ObserverLifter
 from decompiler.structures.pseudo import DataflowObject, Tag, UnknownExpression, UnknownType
 
-from .handlers import HANDLERS
 from ...structures.pseudo.complextypes import ComplexTypeMap
+from .handlers import HANDLERS
 
 
 class BinaryninjaLifter(ObserverLifter):
