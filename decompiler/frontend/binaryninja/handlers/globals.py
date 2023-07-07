@@ -55,7 +55,7 @@ class GlobalHandler(Handler):
         self._lifter.HANDLERS.update({DataVariable: self.lift_global_variable})
 
     def lift_global_variable(self, variable: DataVariable, view: BinaryView, 
-        parent: Optional[MediumLevelILInstruction] = None, caller_addr: int = 0, **kwargs
+        parent: Optional[MediumLevelILInstruction] = None, caller_addr: int = None, **kwargs
     ) -> Union[Symbol, UnaryOperation, GlobalVariable, StringSymbol]:
         """Lift global variables via datavariable type. Check bninja error case + recursive datavariable first"""
         if not self._addr_in_section(view, variable.address):
@@ -188,7 +188,7 @@ class GlobalHandler(Handler):
             case _:
                 raise ValueError("Width not supported for reading bytes")
 
-        while (byte := read()) != 0x00:
+        while (byte := read()) is not None and byte != 0x00:
             if byte > 127:
                 return None
             raw_bytes.append(byte)
