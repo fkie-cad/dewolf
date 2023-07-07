@@ -188,7 +188,7 @@ class GlobalHandler(Handler):
             case _:
                 raise ValueError("Width not supported for reading bytes")
 
-        while (byte := read()) != 0x00:
+        while (byte := read()) is not None and byte != 0x00:
             if byte > 127:
                 return None
             raw_bytes.append(byte)
