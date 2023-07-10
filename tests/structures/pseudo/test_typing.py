@@ -2,6 +2,7 @@
 import pytest
 from decompiler.structures.pseudo.typing import CustomType, Float, Integer, Pointer, TypeParser
 
+SIZEOF_BOOL = 8
 
 def test_representation():
     """Test the text representation of various types."""
@@ -54,7 +55,7 @@ def test_resize():
     assert Float.float().resize(64) == Float.double()
     assert Integer.uint8_t() + Integer.int16_t() == Integer(24, signed=False)
     assert CustomType.void() + CustomType.void() == CustomType.void()
-    assert CustomType.bool().size + Float.float().size == CustomType("bool", 33).size
+    assert CustomType.bool().size + Float.float().size == CustomType("bool", 32 + SIZEOF_BOOL).size
 
 
 def test_is_bool():
@@ -62,8 +63,10 @@ def test_is_bool():
     assert CustomType.bool().is_boolean
     assert not CustomType.void().is_boolean
     assert not Integer.int32_t().is_boolean
-    assert Integer.int32_t().resize(1).is_boolean
 
+def test_bool_size():
+    """Test if bool has the correct size"""
+    assert CustomType.bool().size == SIZEOF_BOOL
 
 def test_type_parser():
     """Test the type parser to support basic type guessing."""

@@ -15,7 +15,7 @@ class Type(ABC):
     @property
     def is_boolean(self) -> bool:
         """Check whether the given value is a boolean."""
-        return self.size == 1
+        return str(self) == "bool"
 
     def copy(self, **kwargs) -> Type:
         """Generate a copy of the current type."""
@@ -191,7 +191,7 @@ class CustomType(Type):
     @classmethod
     def bool(cls) -> CustomType:
         """Return a boolean type representing either TRUE or FALSE."""
-        return cls("bool", 1)
+        return cls("bool", 8) # BN bool has size 8
 
     @classmethod
     def void(cls) -> CustomType:
