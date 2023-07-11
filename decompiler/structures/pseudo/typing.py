@@ -6,6 +6,10 @@ from dataclasses import dataclass, replace
 from typing import Tuple
 
 
+class Variable:
+    pass
+
+
 @dataclass(frozen=True, order=True)
 class Type(ABC):
     """Base interface for all type classes."""
@@ -205,6 +209,16 @@ class CustomType(Type):
     def copy(self, **kwargs) -> CustomType:
         """Generate a copy of the current custom type."""
         return CustomType(self.text, self.size)
+
+
+@dataclass(frozen=True, order=True)
+class FunctionTypeDef(Type):
+    return_type: Type
+    parameters: Tuple[Variable, ...]
+
+    def __str__(self) -> str:
+        """Return an anonymous string representation such as void*(int, int, char*)."""
+        return f"{self.return_type}({', '.join(str(x) for x in self.parameters)})"
 
 
 class TypeParser:

@@ -17,7 +17,7 @@ from binaryninja.types import (
     WideCharType,
 )
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import CustomType, Float, Integer, Pointer, UnknownType, Variable
+from decompiler.structures.pseudo import CustomType, Float, FunctionTypeDef, Integer, Pointer, UnknownType, Variable
 
 
 class TypeHandler(Handler):
@@ -37,6 +37,7 @@ class TypeHandler(Handler):
                 NamedTypeReferenceType: self.lift_custom,
                 StructureType: self.lift_custom,
                 FunctionParameter: self.lift_function_parameter,
+                FunctionType: self.lift_function_type,
                 EnumerationType: self.lift_custom,
                 type(None): self.lift_none,
             }
@@ -78,3 +79,11 @@ class TypeHandler(Handler):
     def lift_function_parameter(self, parameter: FunctionParameter, **kwargs) -> Variable:
         """Omit the location information and lift a parameter as its basic type."""
         return Variable(parameter.name, self._lifter.lift(parameter.type))
+        
+    def lift_function_type(self, function_type: FunctionType, **kwargs) -> FunctionTypeDef:
+        """Lift an anonymous function signature such as void*(int, long)."""
+        return FunctionTypeDef(
+            function_type.width * self.BYTE_SIZE,
+            self._lifter.lift(function_type.return_value),
+            tuple(self._lifter.lift(param) for param in function_type.parameters),
+        )
