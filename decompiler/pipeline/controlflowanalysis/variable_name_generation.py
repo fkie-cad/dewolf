@@ -104,7 +104,8 @@ class HungarianScheme(RenamingScheme):
     }
 
     custom_var_names = {
-        "tmp_": "Tmp"
+        "tmp_": "Tmp",
+        "loop_break": "LoopBreak"
     }
 
     def __init__(self, task: DecompilerTask) -> None:

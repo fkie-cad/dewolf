@@ -94,7 +94,7 @@ class AcyclicRegionRestructurer:
         ConditionBasedRefinement.refine(self.asforest)
         acyclic_processor.preprocess_condition_aware_refinement()
         if self.options.reconstruct_switch:
-            ConditionAwareRefinement.refine(self.asforest)
+            ConditionAwareRefinement.refine(self.asforest, self.options)
         acyclic_processor.postprocess_condition_refinement()
         root = self.asforest.current_root
         self.asforest.remove_current_root()
