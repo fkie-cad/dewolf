@@ -79,7 +79,7 @@ class TypeHandler(Handler):
     def lift_function_parameter(self, parameter: FunctionParameter, **kwargs) -> Variable:
         """Omit the location information and lift a parameter as its basic type."""
         return Variable(parameter.name, self._lifter.lift(parameter.type))
-        
+
     def lift_function_type(self, function_type: FunctionType, **kwargs) -> FunctionTypeDef:
         """Lift an anonymous function signature such as void*(int, long)."""
         return FunctionTypeDef(
