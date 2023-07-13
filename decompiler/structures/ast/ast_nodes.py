@@ -567,12 +567,7 @@ class ConditionNode(AbstractSyntaxTreeNode):
             self.condition &= self.reaching_condition
             self.condition.remove_redundancy(condition_handler)
             self.reaching_condition = LogicCondition.initialize_true(self.reaching_condition.context)
-            return
         super().simplify_reaching_condition(condition_handler)
-        # if self.true_branch.branch_condition.does_imply(self.reaching_condition):
-        #     pass
-        # elif self.false_branch.branch_condition.does_imply(self.reaching_condition):
-        #     pass
 
     def switch_branches(self):
         """Switch the true-branch and false-branch, this includes negating the condition."""
