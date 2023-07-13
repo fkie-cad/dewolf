@@ -6,7 +6,7 @@ import pytest
 from decompiler.pipeline.controlflowanalysis.restructuring import PatternIndependentRestructuring
 from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, SeqNode, SwitchNode, WhileLoopNode
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
-from decompiler.structures.pseudo.expressions import Constant, Expression, FunctionSymbol, ImportedFunctionSymbol, Variable, StringSymbol
+from decompiler.structures.pseudo.expressions import Constant, Expression, FunctionSymbol, ImportedFunctionSymbol, StringSymbol, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Break, Continue, IndirectBranch, Return
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer, Type, UnknownType
@@ -5295,7 +5295,7 @@ def test_nested_cases_unnecessary_condition_all_irrelevant(task):
     assert isinstance(case1 := switch.cases[0], CaseNode) and case1.constant == Constant(1, Integer(32, True)) and case1.break_case is False
     assert isinstance(case2 := switch.cases[1], CaseNode) and case2.constant == Constant(12, Integer(32, True)) and case2.break_case is True
     assert (
-            isinstance(case3 := switch.cases[2], CaseNode) and case3.constant == Constant(500, Integer(32, True)) and case3.break_case is True
+        isinstance(case3 := switch.cases[2], CaseNode) and case3.constant == Constant(500, Integer(32, True)) and case3.break_case is True
     )
     assert isinstance(default := switch.default, CaseNode)
 
@@ -5304,7 +5304,6 @@ def test_nested_cases_unnecessary_condition_all_irrelevant(task):
     assert isinstance(case2.child, CodeNode) and case2.child.instructions == vertices[8].instructions
     assert isinstance(case3.child, CodeNode) and case3.child.instructions == vertices[1].instructions
     assert isinstance(default.child, CodeNode) and default.child.instructions == vertices[5].instructions
-
 
 
 def test_nested_cases_unnecessary_condition_not_all_irrelevant(task):
@@ -5410,50 +5409,53 @@ def test_nested_cases_unnecessary_condition_not_all_irrelevant(task):
 
     assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 4
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
-    assert isinstance(cond:= seq_node.children[1], ConditionNode)
+    assert isinstance(cond := seq_node.children[1], ConditionNode)
     assert isinstance(switch := seq_node.children[2], SwitchNode)
     assert isinstance(seq_node.children[3], CodeNode) and seq_node.children[3].instructions == vertices[20].instructions
 
     # condition node:
-    assert cond.condition.is_conjunction and {task._ast.condition_map[l] for l in cond.condition.operands} == {vertices[0].instructions[-1].condition, vertices[1].instructions[0].condition}
+    assert cond.condition.is_conjunction and {task._ast.condition_map[l] for l in cond.condition.operands} == {
+        vertices[0].instructions[-1].condition,
+        vertices[1].instructions[0].condition,
+    }
     assert cond.false_branch is None and isinstance(cn := cond.true_branch_child, CodeNode) and cn.instructions == vertices[3].instructions
 
     # switch node:
     assert switch.expression == var_0 and len(switch.children) == 7
     assert (
-            isinstance(case1 := switch.cases[0], CaseNode)
-            and case1.constant == Constant(1, Integer(32, signed=True))
-            and case1.break_case is True
+        isinstance(case1 := switch.cases[0], CaseNode)
+        and case1.constant == Constant(1, Integer(32, signed=True))
+        and case1.break_case is True
     )
     assert (
-            isinstance(case2 := switch.cases[1], CaseNode)
-            and case2.constant == Constant(2, Integer(32, signed=True))
-            and case2.break_case is True
+        isinstance(case2 := switch.cases[1], CaseNode)
+        and case2.constant == Constant(2, Integer(32, signed=True))
+        and case2.break_case is True
     )
     assert (
-            isinstance(case3 := switch.cases[2], CaseNode)
-            and case3.constant == Constant(3, Integer(32, signed=True))
-            and case3.break_case is True
+        isinstance(case3 := switch.cases[2], CaseNode)
+        and case3.constant == Constant(3, Integer(32, signed=True))
+        and case3.break_case is True
     )
     assert (
-            isinstance(case4 := switch.cases[3], CaseNode)
-            and case4.constant == Constant(4, Integer(32, signed=True))
-            and case4.break_case is True
+        isinstance(case4 := switch.cases[3], CaseNode)
+        and case4.constant == Constant(4, Integer(32, signed=True))
+        and case4.break_case is True
     )
     assert (
-            isinstance(case5 := switch.cases[4], CaseNode)
-            and case5.constant == Constant(5, Integer(32, signed=True))
-            and case5.break_case is True
+        isinstance(case5 := switch.cases[4], CaseNode)
+        and case5.constant == Constant(5, Integer(32, signed=True))
+        and case5.break_case is True
     )
     assert (
-            isinstance(case6 := switch.cases[5], CaseNode)
-            and case6.constant == Constant(6, Integer(32, signed=True))
-            and case6.break_case is True
+        isinstance(case6 := switch.cases[5], CaseNode)
+        and case6.constant == Constant(6, Integer(32, signed=True))
+        and case6.break_case is True
     )
     assert (
-            isinstance(case7 := switch.cases[6], CaseNode)
-            and case7.constant == Constant(7, Integer(32, signed=True))
-            and case7.break_case is True
+        isinstance(case7 := switch.cases[6], CaseNode)
+        and case7.constant == Constant(7, Integer(32, signed=True))
+        and case7.break_case is True
     )
 
     # children of cases

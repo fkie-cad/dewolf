@@ -191,7 +191,10 @@ class AcyclicProcessor(Processor):
         for cond_node in self.asforest.get_condition_nodes_post_order(root):
             cond_node.clean()
             if not cond_node.reaching_condition.is_true:
-                if cond_node.false_branch is None and (~cond_node.condition | cond_node.reaching_condition).remove_redundancy(self.asforest.condition_handler).is_true:
+                if (
+                    cond_node.false_branch is None
+                    and (~cond_node.condition | cond_node.reaching_condition).remove_redundancy(self.asforest.condition_handler).is_true
+                ):
                     cond_node.reaching_condition = LogicCondition.initialize_true(cond_node.reaching_condition.context)
 
     def _move_sequence_node_reaching_conditions_downward(self, root: AbstractSyntaxTreeNode):
