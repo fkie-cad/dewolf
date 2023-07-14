@@ -62,7 +62,7 @@ class AssignmentHandler(Handler):
         e.g. eax.ah = x <=> eax = (eax & 0xffff00ff) + (x << 2)
         """
         if assignment.offset == 0 and self._lifter.is_omitting_masks:
-            destination: UnaryOperation = self._lift_contraction(assignment, is_aliased=is_aliased, parent=assignment)
+            destination = self._lift_contraction(assignment, is_aliased=is_aliased, parent=assignment)
             value = self._lifter.lift(assignment.src)
         else:
             destination = self._lifter.lift(assignment.dest, is_aliased=is_aliased, parent=assignment)
