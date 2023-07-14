@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional, Set, Iterable
+from typing import Dict, Iterable, Optional, Set
 
 from decompiler.structures.logic.logic_condition import LogicCondition, PseudoLogicCondition
 from decompiler.structures.pseudo import Condition

@@ -226,21 +226,22 @@ class Z3LogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         return self
 
     @classmethod
-    def get_logic_condition(cls, pseudo_condition: PseudoZ3LogicCondition, condition_handler: ConditionHandler) -> Optional[LOGICCLASS]:
-        if pseudo_condition.is_true or pseudo_condition.is_false:
-            return cls(pseudo_condition._condition)
+    def get_logic_condition(cls, real_condition: PseudoZ3LogicCondition, condition_handler: ConditionHandler) -> Optional[LOGICCLASS]:
+        """Generate a symbol condition given the real-condition together with the condition handler."""
+        if real_condition.is_true or real_condition.is_false:
+            return cls(real_condition._condition)
         replacement_to_symbol = list()
         for symbol in condition_handler:
             replacement_to_symbol.append((condition_handler.get_z3_condition_of(symbol)._condition, symbol._condition))
             replacement_to_symbol.append(
                 (
-                    pseudo_condition.z3.simplify_z3_condition(Not(condition_handler.get_z3_condition_of(symbol)._condition)),
-                    pseudo_condition.z3.simplify_z3_condition(Not(symbol._condition)),
+                    real_condition.z3.simplify_z3_condition(Not(condition_handler.get_z3_condition_of(symbol)._condition)),
+                    real_condition.z3.simplify_z3_condition(Not(symbol._condition)),
                 )
             )
 
-        condition = substitute(pseudo_condition._condition, replacement_to_symbol)
-        if pseudo_condition.z3.all_literals_are_symbols(condition):
+        condition = substitute(real_condition._condition, replacement_to_symbol)
+        if real_condition.z3.all_literals_are_symbols(condition):
             return cls(condition)
 
     def serialize(self) -> str:
