@@ -64,14 +64,6 @@ class AssignmentHandler(Handler):
         if assignment.offset == 0 and self._lifter.is_omitting_masks:
             destination: UnaryOperation = self._lift_contraction(assignment, is_aliased=is_aliased, parent=assignment)
             value = self._lifter.lift(assignment.src)
-            destination = UnaryOperation(
-                destination.operation, 
-                destination.operands, 
-                value.type, destination.writes_memory, 
-                destination.contraction, 
-                destination.tags, 
-                destination.array_info
-            )
         else:
             destination = self._lifter.lift(assignment.dest, is_aliased=is_aliased, parent=assignment)
             value = self._lift_masked_operand(assignment)
