@@ -192,10 +192,9 @@ class SwitchNodeHandler:
         assert isinstance(ssa_condition, Condition), f"{ssa_condition} must be of type Condition!"
         ssa_condition = ssa_condition.negate() if ssa_condition.operation == OperationType.not_equal else ssa_condition
         try:
-            z3_condition = self._z3_converter.convert(ssa_condition)
+            return self._z3_converter.convert(ssa_condition)
         except ValueError:
             return None
-        return z3_condition
 
     @staticmethod
     def __is_equivalent(cond1: BoolRef, cond2: BoolRef):
