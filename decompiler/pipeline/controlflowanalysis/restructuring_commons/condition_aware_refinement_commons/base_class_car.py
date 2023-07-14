@@ -1,7 +1,8 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Iterator, Optional, Tuple
 
-from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, SwitchNode
+from decompiler.pipeline.controlflowanalysis.restructuring_options import LoopBreakOptions, RestructuringOptions
+from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, FalseNode, SwitchNode, TrueNode
 from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
@@ -20,7 +21,7 @@ class CaseNodeCandidate:
 
     node: AbstractSyntaxTreeNode
     expression: Optional[ExpressionUsages]
-    condition: LogicCondition = field(compare=False)
+    condition: LogicCondition
 
     def construct_case_node(self, expression: Expression) -> CaseNode:
         """Construct Case node for itself with the given switch expression."""
@@ -38,13 +39,30 @@ class CaseNodeCandidate:
     def __hash__(self) -> int:
         return hash(self.node)
 
+    @property
+    def get_head(self):
+        """
+        Return the condition-node, if the case-node is a branch, else the node itself.
+
+        This is the node that is a sibling of the switch resp. the child of the sequence node we currently consider.
+        """
+        if isinstance(self.node.parent, (TrueNode, FalseNode)):
+            return self.node.parent.parent
+        return self.node
+
+    def update_reaching_condition_for_insertion(self):
+        if isinstance(self.node.parent, (TrueNode, FalseNode)):
+            self.node.reaching_condition &= self.node.parent.branch_condition
+        self.node.reaching_condition.substitute_by_true(self.condition)
+
 
 class BaseClassConditionAwareRefinement:
     """Base Class in charge of logic and condition related things we need during the condition aware refinement."""
 
-    def __init__(self, asforest: AbstractSyntaxForest):
+    def __init__(self, asforest: AbstractSyntaxForest, options: RestructuringOptions):
         self.asforest: AbstractSyntaxForest = asforest
         self.condition_handler: ConditionHandler = asforest.condition_handler
+        self.options: RestructuringOptions = options
 
     def _get_constant_equality_check_expressions_and_conditions(
         self, condition: LogicCondition
@@ -128,3 +146,9 @@ class BaseClassConditionAwareRefinement:
             if not case_condition.does_imply(cmp_condition):
                 return False
         return True
+
+    def _contains_no_violating_loop_break(self, ast_node: AbstractSyntaxTreeNode) -> bool:
+        """Check whether is violates the loop-break property."""
+        return (
+            not ast_node.is_break_node and self.options.loop_break_strategy == LoopBreakOptions.structural_variable
+        ) or not ast_node._has_descendant_code_node_breaking_ancestor_loop()

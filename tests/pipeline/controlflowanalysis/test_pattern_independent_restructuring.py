@@ -4936,7 +4936,7 @@ def test_extract_return(task):
 
 def test_hash_eq_problem(task):
     """
-    Hash and eq are not the same, therefore we have to be careful wich one we want:
+    Hash and eq are not the same, therefore we have to be careful which one we want:
 
     - eq: Same condition node in sense of same condition
     - hash: same node in the graph
@@ -5024,11 +5024,16 @@ def test_hash_eq_problem(task):
     )
     PatternIndependentRestructuring().run(task)
     assert any(isinstance(node, SwitchNode) for node in task.syntax_tree)
-    arg1_conditions = [
-        node
-        for node in task.syntax_tree.get_condition_nodes_post_order()
-        if node.condition.is_symbol and str(task.syntax_tree.condition_map[node.condition]) == "arg1 == 0x1"
-    ]
-    assert len(arg1_conditions) == 2
-    assert arg1_conditions[0] == arg1_conditions[1]
-    assert hash(arg1_conditions[0]) != hash(arg1_conditions[1])
+    var_2_conditions = []
+    for node in task.syntax_tree.get_condition_nodes_post_order():
+        if (
+            not node.condition.is_symbol
+            and node.condition.is_literal
+            and str(task.syntax_tree.condition_map[~node.condition]) in {"var_2 != 0x0"}
+        ):
+            node.switch_branches()
+        if node.condition.is_symbol and str(task.syntax_tree.condition_map[node.condition]) in {"var_2 != 0x0"}:
+            var_2_conditions.append(node)
+    assert len(var_2_conditions) == 2
+    assert var_2_conditions[0] == var_2_conditions[1]
+    assert hash(var_2_conditions[0]) != hash(var_2_conditions[1])

@@ -6,8 +6,8 @@ import pytest
 from decompiler.pipeline.controlflowanalysis.restructuring import PatternIndependentRestructuring
 from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, SeqNode, SwitchNode, WhileLoopNode
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
-from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
-from decompiler.structures.pseudo.instructions import Assignment, Branch, Break, IndirectBranch, Return
+from decompiler.structures.pseudo.expressions import Constant, Expression, FunctionSymbol, ImportedFunctionSymbol, Variable
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Break, Continue, IndirectBranch, Return
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer, Type, UnknownType
 from decompiler.task import DecompilerTask
@@ -68,7 +68,7 @@ def print_call64(function_const: int, const: int, memory: int) -> Call:
     )
 
 
-def scanf_call(var_1: Variable, constant: Union[int, str], memory: int) -> Call:
+def scanf_call(var_1: Expression, constant: Union[int, str], memory: int) -> Call:
     return Call(
         imp_function_symbol("__isoc99_scanf"),
         [Constant(constant, Integer(32, True)), var_1],
@@ -4004,7 +4004,7 @@ def test_fallthrough_reaching_problem(task):
 
 
 def test_only_one_occurrence_of_each_case(task):
-    """Make sure that each case is only added once to a switch node."""
+    """Insert cases that already occur."""
     var_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
     var_1 = Variable(
         "var_1", Pointer(Integer(32, True), 32), None, False, Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
@@ -4078,12 +4078,18 @@ def test_only_one_occurrence_of_each_case(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 4
+    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode) and len(switch.cases) == 7
-    assert isinstance(case1 := switch.cases[0], CaseNode) and case1.constant.value == 1 and isinstance(case1.child, ConditionNode)
+    assert isinstance(case1 := switch.cases[0], CaseNode) and case1.constant.value == 1 and isinstance(case1_seq := case1.child, SeqNode)
     assert all(case1.constant != case2.constant for case1, case2 in combinations(switch.cases, 2))
-    assert isinstance(seq_node.children[2], ConditionNode)
+    assert len(case1_seq.children) == 3
+    assert isinstance(cn := case1_seq.children[0], ConditionNode) and cn.false_branch is None
+    assert isinstance(tb := cn.true_branch_child, CodeNode) and tb.instructions == vertices[3].instructions
+    assert isinstance(cn := case1_seq.children[1], ConditionNode) and cn.false_branch is None
+    assert isinstance(tb := cn.true_branch_child, CodeNode) and tb.instructions == vertices[17].instructions
+    assert isinstance(cn := case1_seq.children[2], CodeNode) and cn.instructions == vertices[5].instructions
+    assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[18].instructions
 
 
 def test_case_0_different_condition(task):
@@ -4560,9 +4566,10 @@ def test_break_contained_in_switch_initial(task):
     )
 
 
-def test_break_contained_in_switch_add_case(task):
+def __graph_loop_break_in_switch(task):
     """
-        Check that we check for breaks when adding case nodes to the switch node:
+    test_switch test_0
+    Check that we check for breaks when adding case nodes to the switch node:
      +-------------------------------------------------------------------------------------------------------------------+
       |                                                                                                                   |
       |                                  +----------------------------------------+                                       |
@@ -4623,8 +4630,6 @@ def test_break_contained_in_switch_add_case(task):
                                          +-----------------------------------------------------------------------------+
     """
     arg1_1 = Variable("arg1", Integer(32, True), None, False, Variable("arg1", Integer(32, True), 1, False, None))
-    arg1_2 = Variable("arg1", Integer(32, True), None, False, Variable("arg1", Integer(32, True), 2, False, None))
-    arg1_3 = Variable("arg1", Integer(32, True), None, False, Variable("arg1", Integer(32, True), 2, False, None))
     arg2 = Variable("arg2", Integer(32, True), None, False, Variable("arg2", Integer(32, True), 0, False, None))
     arg2_2 = Variable("arg2", Integer(32, True), None, False, Variable("var_10", Integer(32, True), 2, False, None))
     arg2_3 = Variable("arg2", Integer(32, True), None, False, Variable("var_10", Integer(32, True), 3, False, None))
@@ -4677,7 +4682,14 @@ def test_break_contained_in_switch_add_case(task):
             UnconditionalEdge(vertices[11], vertices[10]),
         ]
     )
+    return arg1_1, vertices
 
+
+def test_break_contained_in_switch_add_case_default(task):
+    """Test with not adding the case"""
+    arg1_1, vertices = __graph_loop_break_in_switch(task)
+    task.options = Options()
+    task.options.update({"pattern-independent-restructuring.loop_break_switch": "None"})
     PatternIndependentRestructuring().run(task)
 
     assert isinstance(seq_node := task.syntax_tree.root, SeqNode) and len(seq_node.children) == 3
@@ -4721,3 +4733,496 @@ def test_break_contained_in_switch_add_case(task):
     assert isinstance(case2.child, CodeNode) and case2.child.instructions == vertices[6].instructions
     assert isinstance(case3.child, CodeNode) and case3.child.instructions == vertices[7].instructions
     assert isinstance(case4.child, CodeNode) and case4.child.instructions == vertices[9].instructions
+
+
+def test_break_contained_in_switch_add_case_structural_variable(task):
+    """Test with adding the case and using a structural variable."""
+    arg1_1, vertices = __graph_loop_break_in_switch(task)
+    PatternIndependentRestructuring().run(task)
+
+    assert isinstance(seq_node := task.syntax_tree.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions
+    assert isinstance(loop_node := seq_node.children[1], WhileLoopNode)
+    assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[4].instructions
+
+    # Loop:
+    assert isinstance(body := loop_node.body, SeqNode) and len(body.children) == 4
+    assert loop_node.condition.is_literal
+    if loop_node.condition.is_symbol:
+        assert task.syntax_tree.condition_map[loop_node.condition] == vertices[1].instructions[0].condition
+    else:
+        assert task.syntax_tree.condition_map[~loop_node.condition] == vertices[1].instructions[0].condition.negate()
+
+    break_variable = Variable("loop_break", Integer.int32_t())
+    assert isinstance(loop_break_init := body.children[0], CodeNode) and loop_break_init.instructions == [
+        Assignment(break_variable, Constant(0, Integer.int32_t()))
+    ]
+    assert isinstance(switch := body.children[1], SwitchNode)
+    assert isinstance(loop_break_cond := body.children[2], ConditionNode) and loop_break_cond.false_branch is None
+    assert isinstance(body.children[3], CodeNode) and body.children[3].instructions == vertices[10].instructions
+
+    # switch:
+    assert switch.expression == arg1_1 and len(switch.children) == 5
+    assert isinstance(case1 := switch.cases[0], CaseNode) and case1.constant == Constant(1, Integer.int32_t()) and case1.break_case is True
+    assert isinstance(case2 := switch.cases[1], CaseNode) and case2.constant == Constant(2, Integer.int32_t()) and case2.break_case is False
+    assert isinstance(case3 := switch.cases[2], CaseNode) and case3.constant == Constant(4, Integer.int32_t()) and case3.break_case is True
+    assert isinstance(case4 := switch.cases[3], CaseNode) and case4.constant == Constant(3, Integer.int32_t()) and case4.break_case is True
+    assert isinstance(case5 := switch.cases[4], CaseNode) and case5.constant == Constant(5, Integer.int32_t()) and case5.break_case is True
+
+    assert isinstance(case1.child, CodeNode) and case1.child.instructions == vertices[5].instructions
+    assert isinstance(case2.child, CodeNode) and case2.child.instructions == vertices[6].instructions
+    assert isinstance(case3.child, CodeNode) and case3.child.instructions == vertices[7].instructions
+    assert isinstance(case4.child, CodeNode) and case4.child.instructions == vertices[9].instructions
+    assert isinstance(case_seq := case5.child, SeqNode) and len(case_seq.children) == 2
+
+    # case 5
+    assert isinstance(break_cond := case_seq.children[0], ConditionNode) and break_cond.false_branch is None
+    assert isinstance(cn_5 := case_seq.children[1], CodeNode) and cn_5.instructions == vertices[11].instructions
+    assert task.syntax_tree.condition_map[break_cond.condition] == vertices[8].instructions[0].condition
+    assert isinstance(break_node := break_cond.true_branch_child, CodeNode) and break_node.instructions == [
+        Assignment(break_variable, Constant(1, Integer.int32_t())),
+        Break(),
+    ]
+
+    # break-condition:
+    assert task.syntax_tree.condition_map[loop_break_cond.condition] == Condition(
+        OperationType.equal, [break_variable, Constant(1, Integer.int32_t())]
+    )
+    assert isinstance(break_node := loop_break_cond.true_branch_child, CodeNode) and break_node.instructions == [Break()]
+
+
+def test_break_contained_in_switch_structural_variable(task):
+    """
+    test_switch test0_b
+    """
+    arg1_1 = Variable("arg1", Integer(32, True), None, False, Variable("arg1", Integer(32, True), 1, False, None))
+    arg2 = Variable("arg2", Integer(32, True), None, False, Variable("arg2", Integer(32, True), 0, False, None))
+    arg2_2 = Variable("arg2", Integer(32, True), None, False, Variable("var_10", Integer(32, True), 2, False, None))
+    arg2_3 = Variable("arg2", Integer(32, True), None, False, Variable("var_10", Integer(32, True), 3, False, None))
+    var_0_1 = Variable("var_0", Integer(32, True), None, True, Variable("arg2", Integer(32, True), 1, True, None))
+    var_0_2 = Variable("var_0", Integer(32, True), None, True, Variable("arg2", Integer(32, True), 2, True, None))
+    task.graph.add_nodes_from(
+        vertices := [
+            BasicBlock(0, [Assignment(var_0_1, arg2), Assignment(arg2_2, Constant(0, Integer.int32_t()))]),
+            BasicBlock(
+                1, [Branch(Condition(OperationType.less_or_equal, [arg2_2, Constant(9, Integer.int32_t())], CustomType("bool", 1)))]
+            ),
+            BasicBlock(2, [Branch(Condition(OperationType.greater_us, [arg1_1, Constant(7, Integer.int32_t())], CustomType("bool", 1)))]),
+            BasicBlock(3, [IndirectBranch(arg1_1)]),  # 5
+            BasicBlock(4, [Assignment(ListOperation([]), print_call("return final value", 3)), Return(ListOperation([var_0_1]))]),  # 6
+            BasicBlock(
+                5,
+                [
+                    Assignment(ListOperation([]), print_call("Number not between 1 and 5", 5)),
+                    Branch(Condition(OperationType.less_or_equal, [arg1_1, Constant(5, Integer.int32_t())], CustomType("bool", 1))),
+                ],
+            ),  # 7
+            BasicBlock(6, [Assignment(ListOperation([]), print_call("You chose the 1", 3))]),  # 8
+            BasicBlock(7, [Assignment(ListOperation([]), print_call("You chose the prime number 2", 4))]),  # 9
+            BasicBlock(8, [Assignment(ListOperation([]), print_call("You chose an even number", 5))]),  # 10
+            BasicBlock(9, [Assignment(ListOperation([]), print_call("both numbers are 5", 9))]),  # 11
+            BasicBlock(10, [Assignment(ListOperation([]), print_call("Another prime", 7))]),  # 12
+            BasicBlock(11, [Assignment(ListOperation([]), print_call("The 7 is a prime", 7))]),  # 13
+            BasicBlock(12, [Assignment(arg1_1, BinaryOperation(OperationType.plus, [arg1_1, Constant(0, Integer.int32_t())]))]),  # 14
+            BasicBlock(13, [Assignment(arg1_1, BinaryOperation(OperationType.minus, [arg1_1, Constant(0, Integer.int32_t())]))]),  # 15
+            BasicBlock(
+                14,
+                [
+                    Assignment(var_0_2, BinaryOperation(OperationType.plus, [var_0_1, arg2_2])),
+                    Assignment(arg2_3, BinaryOperation(OperationType.plus, [arg2_2, Constant(0, Integer.int32_t())])),
+                ],
+            ),  # 16
+        ]
+    )
+    task.graph.add_edges_from(
+        [
+            UnconditionalEdge(vertices[0], vertices[1]),
+            TrueCase(vertices[1], vertices[2]),
+            FalseCase(vertices[1], vertices[4]),
+            FalseCase(vertices[2], vertices[3]),
+            TrueCase(vertices[2], vertices[5]),
+            SwitchCase(vertices[3], vertices[5], [Constant(0, Integer(32, signed=True)), Constant(6, Integer(32, signed=True))]),
+            SwitchCase(vertices[3], vertices[6], [Constant(1, Integer(32, signed=True))]),
+            SwitchCase(vertices[3], vertices[7], [Constant(2, Integer(32, signed=True))]),
+            SwitchCase(vertices[3], vertices[8], [Constant(4, Integer(32, signed=True))]),
+            SwitchCase(vertices[3], vertices[9], [Constant(5, Integer(32, signed=True))]),
+            SwitchCase(vertices[3], vertices[10], [Constant(3, Integer(32, signed=True))]),
+            SwitchCase(vertices[3], vertices[11], [Constant(7, Integer(32, signed=True))]),
+            TrueCase(vertices[5], vertices[12]),
+            FalseCase(vertices[5], vertices[13]),
+            UnconditionalEdge(vertices[6], vertices[14]),
+            UnconditionalEdge(vertices[7], vertices[8]),
+            UnconditionalEdge(vertices[8], vertices[14]),
+            UnconditionalEdge(vertices[9], vertices[4]),
+            UnconditionalEdge(vertices[10], vertices[14]),
+            UnconditionalEdge(vertices[11], vertices[4]),
+            UnconditionalEdge(vertices[12], vertices[14]),
+            UnconditionalEdge(vertices[13], vertices[14]),
+            UnconditionalEdge(vertices[14], vertices[1]),
+        ]
+    )
+    PatternIndependentRestructuring().run(task)
+
+    assert isinstance(seq_node := task.syntax_tree.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions
+    assert isinstance(loop_node := seq_node.children[1], WhileLoopNode)
+    assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[4].instructions
+
+    # Loop:
+    assert isinstance(body := loop_node.body, SeqNode) and len(body.children) == 4
+    assert loop_node.condition.is_literal
+    if loop_node.condition.is_symbol:
+        assert task.syntax_tree.condition_map[loop_node.condition] == vertices[1].instructions[0].condition
+    else:
+        assert task.syntax_tree.condition_map[~loop_node.condition] == vertices[1].instructions[0].condition.negate()
+
+    break_variable = Variable("loop_break", Integer.int32_t())
+    assert isinstance(loop_break_init := body.children[0], CodeNode) and loop_break_init.instructions == [
+        Assignment(break_variable, Constant(0, Integer.int32_t()))
+    ]
+    assert isinstance(switch := body.children[1], SwitchNode)
+    assert isinstance(loop_break_cond := body.children[2], ConditionNode) and loop_break_cond.false_branch is None
+    assert isinstance(continue_cond := body.children[3], ConditionNode) and continue_cond.false_branch is None
+    assert isinstance(code_14 := continue_cond.true_branch_child, CodeNode) and code_14.instructions == vertices[14].instructions + [
+        Continue()
+    ]
+
+    # switch:
+    assert switch.expression == arg1_1 and len(switch.children) == 7
+    assert isinstance(case1 := switch.cases[0], CaseNode) and case1.constant == Constant(1, Integer.int32_t()) and case1.break_case is True
+    assert isinstance(case2 := switch.cases[1], CaseNode) and case2.constant == Constant(2, Integer.int32_t()) and case2.break_case is False
+    assert isinstance(case3 := switch.cases[2], CaseNode) and case3.constant == Constant(4, Integer.int32_t()) and case3.break_case is True
+    assert isinstance(case4 := switch.cases[3], CaseNode) and case4.constant == Constant(3, Integer.int32_t()) and case4.break_case is True
+    assert isinstance(case5 := switch.cases[4], CaseNode) and case5.constant == Constant(5, Integer.int32_t()) and case5.break_case is True
+    assert isinstance(case6 := switch.cases[5], CaseNode) and case6.constant == Constant(7, Integer.int32_t()) and case5.break_case is True
+    assert isinstance(default := switch.default, CaseNode) and isinstance(default.child, SeqNode)
+
+    assert isinstance(case1.child, CodeNode) and case1.child.instructions == vertices[6].instructions
+    assert isinstance(case2.child, CodeNode) and case2.child.instructions == vertices[7].instructions
+    assert isinstance(case3.child, CodeNode) and case3.child.instructions == vertices[8].instructions
+    assert isinstance(case4.child, CodeNode) and case4.child.instructions == vertices[10].instructions
+    assert isinstance(case5.child, CodeNode) and case5.child.instructions == vertices[9].instructions + [
+        Assignment(break_variable, Constant(1, Integer.int32_t()))
+    ]
+    assert isinstance(case6.child, CodeNode) and case6.child.instructions == vertices[11].instructions + [
+        Assignment(break_variable, Constant(1, Integer.int32_t()))
+    ]
+
+    # break-condition:
+    assert task.syntax_tree.condition_map[loop_break_cond.condition] == Condition(
+        OperationType.equal, [break_variable, Constant(1, Integer.int32_t())]
+    )
+    assert isinstance(break_node := loop_break_cond.true_branch_child, CodeNode) and break_node.instructions == [Break()]
+
+
+def test_insert_before_existing_case(task):
+    """
+      Test 7_b
+                                       +------------------------------------+
+                                       |                 0.                 |
+                                       | printf("Enter week number(1-7): ") |
+                                       |   __isoc99_scanf("%d", &(var_0))   |
+                                    +- |         if(var_0 == 0x1f4)         |
+                                    |  +------------------------------------+
+                                    |    |
+                                    |    |
+                                    |    v
+                                    |  +------------------------------------+
+                                    |  |                 2.                 |
+                                    |  |         if(var_0 > 0x1f4)          | -------------------------------------------------------------------+
+                                    |  +------------------------------------+                                                                    |
+                                    |    |                                                                                                       |
+                                    |    |                                                                                                       |
+                                    |    v                                                                                                       |
+            +--------------------+  |  +------------------------------------+                                                                    |
+            |         8.         |  |  |                 5.                 |                                                                    |
+         +- | if(var_0 == 0x190) | <+- |          if(var_0 > 0x22)          |                                                                    |
+         |  +--------------------+  |  +------------------------------------+                                                                    |
+         |    |                     |    |                                                                                                       |
+         |    |                     |    |                                                                                                       |
+         |    v                     |    v                                                                                                       |
+         |  +--------------------+  |  +------------------------------------+      +--------------------+                                        |
+         |  |        10.         |  |  |                 9.                 |      |        20.         |                                        |
+         |  | printf("Thursday") |  |  |          if(var_0 < 0x0)           |  +-> |  printf("Sunday")  | ----------------------------------+    |
+         |  +--------------------+  |  +------------------------------------+  |   +--------------------+                                   |    |
+         |    |                     |    |                                     |                                                            |    |
+         |    |                     |    |                                     |                                                            |    |
+         |    v                     |    v                                     |                                                            |    |
+         |  +--------------------+  |  +------------------------------------+  |   +--------------------+                                   |    |
+         |  |         3.         |  |  |                13.                 |  |   |        19.         |                                   |    |
+         |  |  printf("Friday")  | <+  |         if(var_0 u> 0x22)          |  |   | printf("Saturday") | -----------------------------+    |    |
+         |  +--------------------+     +------------------------------------+  |   +--------------------+                              |    |    |
+         |    |                          |                                     |     ^                                                 |    |    |
+         |    |                          |                                     |     |                                                 |    |    |
+         |    |                          v                                     |     |                                                 |    |    |
+         |    |                        +----------------------------------------------------------------+     +---------------------+  |    |    |
+         |    |                        |                                                                |     |         18.         |  |    |    |
+         |    |                        |                                                                | --> | printf("Wednesday") |  |    |    |
+         |    |                        |                                                                |     +---------------------+  |    |    |
+         |    |                        |                              15.                               |       |                      |    |    |
+         |    |                        |                           jmp var_0                            |       |                      |    |    |
+         |    |                        |                                                                |       |                      |    |    |
+         |    |                        |                                                                |       |                      |    |    |
+         |    |                     +- |                                                                |       |                      |    |    |
+         |    |                     |  +----------------------------------------------------------------+       |                      |    |    |
+         |    |                     |    |                                           |                          |                      |    |    |
+         |    |                     |    |                                           |                          |                      |    |    |
+         |    |                     |    v                                           v                          |                      |    |    |
+         |    |                     |  +------------------------------------+      +--------------------+       |                      |    |    |
+         |    |                     |  |                16.                 |      |        17.         |       |                      |    |    |
+         |    |                     |  |          printf("Monday")          |      | printf("Tuesday")  |       |                      |    |    |
+         |    |                     |  +------------------------------------+      +--------------------+       |                      |    |    |
+         |    |                     |    |                                           |                          |                      |    |    |
+    +----+----+---------------------+    |                                           |                          |                      |    |    |
+    |    |    |                          v                                           v                          v                      |    |    |
+    |    |    |                        +--------------------------------------------------------------------------------------------+  |    |    |
+    |    |    +----------------------> |                                                                                            | <+    |    |
+    |    |                             |                                             6.                                             |       |    |
+    |    |                             |                                         return 0x0                                         |       |    |
+    |    |                             |                                                                                            | <-----+    |
+    |    |                             +--------------------------------------------------------------------------------------------+            |
+    |    |                               ^                                                                                                       |
+    |    |                               |                                                                                                       |
+    |    |                               |                                                                                                       |
+    |    |                             +----------------------------------------------------------------+                                        |
+    |    |                             |                               7.                               |                                        |
+    |    +---------------------------> | printf("Invalid input! Please enter week number between 1-7.") | <--------------------------------------+
+    |                                  +----------------------------------------------------------------+
+    |                                    ^
+    +------------------------------------+
+    """
+    var_0_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
+    var_0_2 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 2, True, None))
+    task.graph.add_nodes_from(
+        vertices := [
+            BasicBlock(
+                0,
+                [
+                    Assignment(ListOperation([]), print_call("Enter week number(1-7): ", 1)),
+                    Assignment(
+                        ListOperation([]),
+                        scanf_call(
+                            UnaryOperation(OperationType.address, [var_0_0], Pointer(Integer(32, True), 32), None, False), 134524965, 2
+                        ),
+                    ),
+                    Branch(Condition(OperationType.equal, [var_0_2, Constant(500, Integer(32, True))], CustomType("bool", 1))),
+                ],
+            ),
+            BasicBlock(2, [Branch(Condition(OperationType.greater, [var_0_2, Constant(500, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(3, [Assignment(ListOperation([]), print_call("Friday", 3))]),
+            BasicBlock(5, [Branch(Condition(OperationType.greater, [var_0_2, Constant(34, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(6, [Return(ListOperation([Constant(0, Integer(32, True))]))]),
+            BasicBlock(7, [Assignment(ListOperation([]), print_call("Invalid input! Please enter week number between 1-7.", 11))]),
+            BasicBlock(8, [Branch(Condition(OperationType.equal, [var_0_2, Constant(400, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(9, [Branch(Condition(OperationType.less, [var_0_2, Constant(0, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(10, [Assignment(ListOperation([]), print_call("Thursday", 7))]),
+            BasicBlock(
+                13, [Branch(Condition(OperationType.greater_us, [var_0_2, Constant(34, Integer(32, True))], CustomType("bool", 1)))]
+            ),
+            BasicBlock(15, [IndirectBranch(var_0_2)]),
+            BasicBlock(16, [Assignment(ListOperation([]), print_call("Monday", 4))]),
+            BasicBlock(17, [Assignment(ListOperation([]), print_call("Tuesday", 5))]),
+            BasicBlock(18, [Assignment(ListOperation([]), print_call("Wednesday", 6))]),
+            BasicBlock(19, [Assignment(ListOperation([]), print_call("Saturday", 8))]),
+            BasicBlock(20, [Assignment(ListOperation([]), print_call("Sunday", 9))]),
+        ]
+    )
+    task.graph.add_edges_from(
+        [
+            TrueCase(vertices[0], vertices[2]),
+            FalseCase(vertices[0], vertices[1]),
+            TrueCase(vertices[1], vertices[5]),
+            FalseCase(vertices[1], vertices[3]),
+            UnconditionalEdge(vertices[2], vertices[4]),
+            TrueCase(vertices[3], vertices[6]),
+            FalseCase(vertices[3], vertices[7]),
+            UnconditionalEdge(vertices[5], vertices[4]),
+            TrueCase(vertices[6], vertices[8]),
+            FalseCase(vertices[6], vertices[5]),
+            TrueCase(vertices[7], vertices[5]),
+            FalseCase(vertices[7], vertices[9]),
+            UnconditionalEdge(vertices[8], vertices[2]),
+            TrueCase(vertices[9], vertices[5]),
+            FalseCase(vertices[9], vertices[10]),
+            SwitchCase(vertices[10], vertices[5], [Constant(i) for i in range(1, 34) if i not in {6, 9, 12}]),
+            SwitchCase(vertices[10], vertices[11], [Constant(0, Integer(32, True))]),
+            SwitchCase(vertices[10], vertices[12], [Constant(12, Integer(32, True))]),
+            SwitchCase(vertices[10], vertices[13], [Constant(34, Integer(32, True))]),
+            SwitchCase(vertices[10], vertices[14], [Constant(6, Integer(32, True))]),
+            SwitchCase(vertices[10], vertices[15], [Constant(9, Integer(32, True))]),
+            UnconditionalEdge(vertices[11], vertices[4]),
+            UnconditionalEdge(vertices[12], vertices[4]),
+            UnconditionalEdge(vertices[13], vertices[4]),
+            UnconditionalEdge(vertices[14], vertices[4]),
+            UnconditionalEdge(vertices[15], vertices[4]),
+        ]
+    )
+
+    PatternIndependentRestructuring().run(task)
+
+    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
+    assert isinstance(switch := seq_node.children[1], SwitchNode)
+    assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[4].instructions
+
+    # switch node:
+    assert switch.expression == var_0_2 and len(switch.children) == 8
+    assert isinstance(case1 := switch.cases[0], CaseNode) and case1.constant == Constant(0, Integer(32, True)) and case1.break_case is True
+    assert isinstance(case2 := switch.cases[1], CaseNode) and case2.constant == Constant(6, Integer(32, True)) and case2.break_case is True
+    assert isinstance(case3 := switch.cases[2], CaseNode) and case3.constant == Constant(9, Integer(32, True)) and case3.break_case is True
+    assert isinstance(case4 := switch.cases[3], CaseNode) and case4.constant == Constant(12, Integer(32, True)) and case4.break_case is True
+    assert isinstance(case5 := switch.cases[4], CaseNode) and case5.constant == Constant(34, Integer(32, True)) and case5.break_case is True
+    assert (
+        isinstance(case6 := switch.cases[5], CaseNode) and case6.constant == Constant(400, Integer(32, True)) and case6.break_case is False
+    )
+    assert (
+        isinstance(case7 := switch.cases[6], CaseNode) and case7.constant == Constant(500, Integer(32, True)) and case7.break_case is True
+    )
+    assert isinstance(default := switch.default, CaseNode) and default.constant == "default" and default.break_case is False
+
+    # children of cases
+    assert isinstance(case1.child, CodeNode) and case1.child.instructions == vertices[11].instructions
+    assert isinstance(case2.child, CodeNode) and case2.child.instructions == vertices[14].instructions
+    assert isinstance(case3.child, CodeNode) and case3.child.instructions == vertices[15].instructions
+    assert isinstance(case4.child, CodeNode) and case4.child.instructions == vertices[12].instructions
+    assert isinstance(case5.child, CodeNode) and case5.child.instructions == vertices[13].instructions
+    assert isinstance(case6.child, CodeNode) and case6.child.instructions == vertices[8].instructions
+    assert isinstance(case7.child, CodeNode) and case7.child.instructions == vertices[2].instructions
+    assert isinstance(default.child, CodeNode) and default.child.instructions == vertices[5].instructions
+
+
+def test_insert_after_existing_case(task):
+    """
+          test_18
+                                                                           +-----------------------------------------------+
+                                                                           |                                               |
+       +----------------------------------------------------------------+  |  +------------------------------------+       |
+       |                                                                |  |  |                 0.                 |       |
+       |                               1.                               |  |  | printf("Enter week number(1-7): ") |       |
+       |                        printf("Friday")                        |  |  |   __isoc99_scanf("%d", &(var_0))   |       |
+       |                                                                | <+- |         if(var_0 == 0x1f4)         |       |
+       +----------------------------------------------------------------+  |  +------------------------------------+       |
+         |                                                                 |    |                                          |
+         |                                                                 |    |                                          |
+         v                                                                 |    v                                          |
+       +----------------------------------------------------------------+  |  +------------------------------------+       |
+       |                               3.                               |  |  |                 2.                 |       |
+    +> | printf("Invalid input! Please enter week number between 1-7.") | <+  |         if(var_0 > 0x1f4)          | -+    |
+    |  +----------------------------------------------------------------+     +------------------------------------+  |    |
+    |    |                                                                      |                                     |    |
+    |    |                                                                      |                                     |    |
+    |    |                                                                      v                                     |    |
+    |    |                                                                    +------------------------------------+  |  +------------------+
+    |    |                                                                    |                 5.                 |  |  |        8.        |
+    |    |                                                                    |          if(var_0 == 0x1)          | -+> | if(var_0 == 0xc) |
+    |    |                                                                    +------------------------------------+  |  +------------------+
+    |    |                                                                      |                                     |    |
+    |    |                                                                      |                                     |    |
+    |    |                                                                      v                                     |    |
+    |    |                                                                    +------------------------------------+  |    |
+    |    |                                                                    |                 7.                 |  |    |
+    |    |                                                                    |          printf("Monday")          |  |    |
+    |    |                                                                    |       var_0 = var_0 + 0x1f4        |  |    |
+    |    |                                                                    +------------------------------------+  |    |
+    |    |                                                                      |                                     |    |
+    |    |                                                                      |                                     |    |
+    |    |                                                                      v                                     |    |
+    |    |                                                                    +------------------------------------+  |    |
+    |    |                                                                    |                 9.                 |  |    |
+    |    |                                                                    |         printf("Tuesday")          | <+----+
+    |    |                                                                    +------------------------------------+  |
+    |    |                                                                      |                                     |
+    |    |                                                                      |                                     |
+    |    |                                                                      v                                     |
+    |    |                                                                    +------------------------------------+  |
+    |    |                                                                    |                 6.                 |  |
+    |    |                                                                    | printf("the number is %d", var_0)  |  |
+    |    +------------------------------------------------------------------> |             return 0x0             |  |
+    |                                                                         +------------------------------------+  |
+    |                                                                                                                 |
+    +-----------------------------------------------------------------------------------------------------------------+
+    """
+    var_0_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
+    var_0_2 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 2, True, None))
+    var_0_5 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 5, True, None))
+    task.graph.add_nodes_from(
+        vertices := [
+            BasicBlock(
+                0,
+                [
+                    Assignment(ListOperation([]), print_call("Enter week number(1-7): ", 1)),
+                    Assignment(
+                        ListOperation([]),
+                        scanf_call(
+                            UnaryOperation(OperationType.address, [var_0_0], Pointer(Integer(32, True), 32), None, False), 134524965, 2
+                        ),
+                    ),
+                    Branch(Condition(OperationType.equal, [var_0_2, Constant(500, Integer(32, True))], CustomType("bool", 1))),
+                ],
+            ),
+            BasicBlock(1, [Assignment(ListOperation([]), print_call("Friday", 3))]),
+            BasicBlock(2, [Branch(Condition(OperationType.greater, [var_0_2, Constant(500, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(3, [Assignment(ListOperation([]), print_call("Invalid input! Please enter week number between 1-7.", 11))]),
+            BasicBlock(5, [Branch(Condition(OperationType.equal, [var_0_2, Constant(1, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(6, [Return(ListOperation([Constant(0, Integer(32, True))]))]),
+            BasicBlock(
+                7,
+                [
+                    Assignment(ListOperation([]), print_call("Monday", 4)),
+                    Assignment(
+                        var_0_5, BinaryOperation(OperationType.plus, [var_0_2, Constant(500, Integer(32, True))], Integer(32, True))
+                    ),
+                ],
+            ),
+            BasicBlock(8, [Branch(Condition(OperationType.equal, [var_0_2, Constant(12, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(9, [Assignment(ListOperation([]), print_call("Tuesday", 5))]),
+        ]
+    )
+    task.graph.add_edges_from(
+        [
+            TrueCase(vertices[0], vertices[1]),
+            FalseCase(vertices[0], vertices[2]),
+            UnconditionalEdge(vertices[1], vertices[3]),
+            TrueCase(vertices[2], vertices[3]),
+            FalseCase(vertices[2], vertices[4]),
+            UnconditionalEdge(vertices[3], vertices[5]),
+            TrueCase(vertices[4], vertices[6]),
+            FalseCase(vertices[4], vertices[7]),
+            UnconditionalEdge(vertices[6], vertices[8]),
+            TrueCase(vertices[7], vertices[8]),
+            FalseCase(vertices[7], vertices[3]),
+            UnconditionalEdge(vertices[8], vertices[5]),
+        ]
+    )
+
+    PatternIndependentRestructuring().run(task)
+
+    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 4
+    assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
+    assert isinstance(switch := seq_node.children[1], SwitchNode)
+    assert isinstance(cond := seq_node.children[2], ConditionNode) and cond.false_branch is None
+    assert isinstance(seq_node.children[3], CodeNode) and seq_node.children[3].instructions == vertices[5].instructions
+
+    # switch node:
+    assert switch.expression == var_0_2 and len(switch.children) == 3
+    assert isinstance(case1 := switch.cases[0], CaseNode) and case1.constant == Constant(1, Integer(32, True)) and case1.break_case is False
+    assert isinstance(case2 := switch.cases[1], CaseNode) and case2.constant == Constant(12, Integer(32, True)) and case2.break_case is True
+    assert (
+        isinstance(case3 := switch.cases[2], CaseNode) and case3.constant == Constant(500, Integer(32, True)) and case3.break_case is True
+    )
+
+    # children of cases
+    assert isinstance(case1.child, CodeNode) and case1.child.instructions == vertices[6].instructions
+    assert isinstance(case2.child, CodeNode) and case2.child.instructions == vertices[8].instructions
+    assert isinstance(case3.child, CodeNode) and case3.child.instructions == vertices[1].instructions
+
+    # condition node
+    assert cond.condition.is_conjunction and len(operands := cond.condition.operands) == 2
+    for op in operands:
+        assert (
+            op.is_negation
+            and op.operands[0].is_symbol
+            and task.syntax_tree.condition_map[op.operands[0]]
+            in {vertices[4].instructions[-1].condition, vertices[7].instructions[-1].condition}
+        )
+    assert isinstance(cn := cond.true_branch_child, CodeNode) and cn.instructions == vertices[3].instructions

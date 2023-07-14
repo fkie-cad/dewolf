@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterator, List, Optional, Set, Tuple
+from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple
 
 from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.structures.logic.logic_condition import LogicCondition
@@ -82,6 +82,16 @@ class SwitchNodeHandler:
         """Check whether the given condition is a potential switch case, and if return the corresponding constant."""
         if (case_node_property := self._get_case_node_property_of(condition)) is not None:
             return case_node_property.constant
+
+    def get_literal_and_constant_for(self, condition: LogicCondition) -> Iterable[LogicCondition, Constant]:
+        """Get the constant for each literal of the given condition."""
+        for literal in condition.get_literals():
+            yield literal, self.get_potential_switch_constant(literal)
+
+    def get_constants_for(self, condition: LogicCondition) -> Iterable[Constant]:
+        """Get the constant for each literal of the given condition."""
+        for literal in condition.get_literals():
+            yield self.get_potential_switch_constant(literal)
 
     def _get_case_node_property_of(self, condition: LogicCondition) -> Optional[CaseNodeProperties]:
         """Return the case-property of a given literal."""
