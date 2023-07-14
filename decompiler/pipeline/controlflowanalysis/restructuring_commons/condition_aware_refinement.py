@@ -20,6 +20,7 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.switch_extractor import (
     SwitchExtractor,
 )
+from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 
 
@@ -34,11 +35,11 @@ class ConditionAwareRefinement(BaseClassConditionAwareRefinement):
     ]
 
     @classmethod
-    def refine(cls, asforest: AbstractSyntaxForest):
-        condition_aware_refinement = cls(asforest)
+    def refine(cls, asforest: AbstractSyntaxForest, options: RestructuringOptions):
+        condition_aware_refinement = cls(asforest, options)
         for stage in condition_aware_refinement.REFINEMENT_PIPELINE:
             asforest.clean_up(asforest.current_root)
-            stage(asforest)
+            stage(asforest, options)
             condition_aware_refinement._remove_redundant_reaching_condition_from_switch_nodes()
         asforest.clean_up(asforest.current_root)
 

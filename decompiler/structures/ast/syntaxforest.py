@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from itertools import product
 from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
 
@@ -21,8 +20,7 @@ from decompiler.structures.ast.switch_node_handler import SwitchNodeHandler
 from decompiler.structures.ast.syntaxgraph import AbstractSyntaxInterface
 from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock
 from decompiler.structures.logic.logic_condition import LogicCondition
-from decompiler.structures.pseudo import Break, Condition, Constant, Expression, Instruction, OperationType, Variable
-from decompiler.util.insertion_ordered_set import InsertionOrderedSet
+from decompiler.structures.pseudo import Assignment, Break, Condition, Constant, Expression, Instruction, Integer, OperationType, Variable
 
 
 class AbstractSyntaxForest(AbstractSyntaxInterface):
@@ -172,6 +170,7 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
             parent.parent.clean()
 
     def add_reachability(self, reaching_node: AbstractSyntaxTreeNode, reachable_node: AbstractSyntaxTreeNode) -> None:
+        """Add reachability between all code nodes in the subtree of reaching_node and all code nodes in the subtree of reachable node."""
         descendant_code_node_of_cross_node = reachable_node.get_descendant_code_nodes()
         for descendant_node in reaching_node.get_descendant_code_nodes():
             self._code_node_reachability_graph.add_reachability_from(
@@ -506,3 +505,21 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         new_condition_node = self.__add_condition_before_nodes(case_condition, case_node)
         self._add_edge(true_branch, new_condition_node)
         true_branch._sorted_children = (new_condition_node,) + true_branch._sorted_children
+
+    def resolve_loop_breaks_in_switch(self, switch: SwitchNode, variable: Variable):
+        """Add the conditions and initialization for removing loop-breaks in the given switch."""
+        new_seq_node = self._add_sequence_node_before(switch)
+        initialization = self.add_code_node([Assignment(variable, Constant(0, Integer.int32_t()))])
+        break_node = self.add_code_node([Break()])
+        symbol = self.condition_handler.add_condition(Condition(OperationType.equal, [variable, Constant(1, Integer.int32_t())]))
+        break_condition = self._add_condition_node_with(symbol, break_node)
+        self._add_edges_from(((new_seq_node, initialization), (new_seq_node, break_condition)))
+        descendant_code_nodes = set(switch.get_descendant_code_nodes())
+        for code_node in descendant_code_nodes:
+            for reaching in (r for r in self._code_node_reachability_graph.reaching(code_node) if r not in descendant_code_nodes):
+                self._code_node_reachability_graph.add_reachability(reaching, initialization)
+            for reachable in (r for r in self._code_node_reachability_graph.reachable_from(code_node) if r not in descendant_code_nodes):
+                self._code_node_reachability_graph.add_reachability(break_node, reachable)
+            self._code_node_reachability_graph.add_reachability(initialization, code_node)
+            self._code_node_reachability_graph.add_reachability(code_node, break_node)
+        self.clean_up(new_seq_node.parent)

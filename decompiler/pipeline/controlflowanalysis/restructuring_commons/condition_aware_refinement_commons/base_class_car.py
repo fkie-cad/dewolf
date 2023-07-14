@@ -1,9 +1,10 @@
-from dataclasses import dataclass, field
-from typing import Dict, Iterator, Optional, Set, Tuple
+from dataclasses import dataclass
+from typing import Iterator, Optional, Tuple
 
+from decompiler.pipeline.controlflowanalysis.restructuring_options import LoopBreakOptions, RestructuringOptions
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, FalseNode, SwitchNode, TrueNode
 from decompiler.structures.ast.condition_symbol import ConditionHandler
-from decompiler.structures.ast.switch_node_handler import ExpressionUsages, SwitchNodeHandler
+from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition, PseudoLogicCondition
 from decompiler.structures.pseudo import Condition, Constant, Expression, OperationType
@@ -58,9 +59,10 @@ class CaseNodeCandidate:
 class BaseClassConditionAwareRefinement:
     """Base Class in charge of logic and condition related things we need during the condition aware refinement."""
 
-    def __init__(self, asforest: AbstractSyntaxForest):
+    def __init__(self, asforest: AbstractSyntaxForest, options: RestructuringOptions):
         self.asforest: AbstractSyntaxForest = asforest
         self.condition_handler: ConditionHandler = asforest.condition_handler
+        self.options: RestructuringOptions = options
 
     def _get_constant_equality_check_expressions_and_conditions(
         self, condition: LogicCondition
@@ -144,3 +146,9 @@ class BaseClassConditionAwareRefinement:
             if not case_condition.does_imply(cmp_condition):
                 return False
         return True
+
+    def _contains_no_violating_loop_break(self, ast_node: AbstractSyntaxTreeNode) -> bool:
+        """Check whether is violates the loop-break property."""
+        return (
+            not ast_node.is_break_node and self.options.loop_break_strategy == LoopBreakOptions.structural_variable
+        ) or not ast_node._has_descendant_code_node_breaking_ancestor_loop()

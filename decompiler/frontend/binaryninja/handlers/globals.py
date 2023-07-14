@@ -55,7 +55,7 @@ class GlobalHandler(Handler):
         self._lifter.HANDLERS.update({DataVariable: self.lift_global_variable})
 
     def lift_global_variable(self, variable: DataVariable, view: BinaryView, 
-        parent: Optional[MediumLevelILInstruction] = None, caller_addr: int = 0, **kwargs
+        parent: Optional[MediumLevelILInstruction] = None, caller_addr: int = None, **kwargs
     ) -> Union[Symbol, UnaryOperation, GlobalVariable, StringSymbol]:
         """Lift global variables via datavariable type. Check bninja error case + recursive datavariable first"""
         if not self._addr_in_section(view, variable.address):
@@ -69,11 +69,13 @@ class GlobalHandler(Handler):
 
 
     def _lift_constant_type(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None) -> StringSymbol:
-        """Lift constant data type (bninja only uses strings) into code"""
-        string = str(variable.value)[2:-1].rstrip('\\x00') # we want to keep escaped control chars (\n), therefore we take the raw string representation of bytes and purge b""
-        return StringSymbol(f'"{string}"', variable.address, vartype=Pointer(Integer.char(), view.address_size * BYTE_SIZE))
-
+        """Lift constant data type (bninja only uses strings) into code""" # jump table ist auch constant
+        if str(variable).find("char const") != -1:
+            string = str(variable.value)[2:-1].rstrip('\\x00') # we want to keep escaped control chars (\n), therefore we take the raw string representation of bytes and purge b""
+            return StringSymbol(f'"{string}"', variable.address, vartype=Pointer(Integer.char(), view.address_size * BYTE_SIZE))
+        return StringSymbol(f"&{variable.name}" if variable.name else GLOBAL_VARIABLE_PREFIX + f"{variable.address:x}", variable.address) # Else
     
+
     def _lift_pointer_type(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None):
         """Lift pointer as:
             1. Function pointer: If bninja already knows it's a function pointer.
@@ -188,7 +190,7 @@ class GlobalHandler(Handler):
             case _:
                 raise ValueError("Width not supported for reading bytes")
 
-        while (byte := read()) != 0x00:
+        while (byte := read()) is not None and byte != 0x00:
             if byte > 127:
                 return None
             raw_bytes.append(byte)
