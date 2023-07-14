@@ -53,7 +53,7 @@ class CallHandler(Handler):
                 [self._lifter.lift(parameter, parent=call) for parameter in call.params],
                 vartype=dest.type.copy(),
                 writes_memory=call.output_dest_memory if ssa else None,
-                meta_data={"param_names": self._lift_syscall_parameter_names(call), "is_tailcall": isinstance(call, Tailcall)},
+                meta_data={"param_names": self._lift_syscall_parameter_names(call)}
             ),
         )
 
