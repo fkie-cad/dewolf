@@ -218,7 +218,7 @@ class FunctionTypeDef(Type):
 
     def __str__(self) -> str:
         """Return an anonymous string representation such as void*(int, int, char*)."""
-        return f"{self.return_type}({', '.join(str(x) for x in self.parameters)})"
+        return f"{self.return_type}({', '.join(str(x.type) for x in self.parameters)})"
 
 
 class TypeParser:

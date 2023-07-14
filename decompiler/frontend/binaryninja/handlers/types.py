@@ -6,7 +6,6 @@ from binaryninja.types import (
     CharType,
     EnumerationType,
     FloatType,
-    FunctionParameter,
     FunctionType,
     IntegerType,
     NamedTypeReferenceType,
@@ -36,7 +35,6 @@ class TypeHandler(Handler):
                 WideCharType: self.lift_custom,
                 NamedTypeReferenceType: self.lift_custom,
                 StructureType: self.lift_custom,
-                FunctionParameter: self.lift_function_parameter,
                 FunctionType: self.lift_function_type,
                 EnumerationType: self.lift_custom,
                 type(None): self.lift_none,
@@ -75,10 +73,6 @@ class TypeHandler(Handler):
     def lift_array(self, array: ArrayType, **kwargs) -> Pointer:
         """Lift an array as a pointer of the given type, omitting the size information."""
         return Pointer(self._lifter.lift(array.element_type))
-
-    def lift_function_parameter(self, parameter: FunctionParameter, **kwargs) -> Variable:
-        """Omit the location information and lift a parameter as its basic type."""
-        return Variable(parameter.name, self._lifter.lift(parameter.type))
 
     def lift_function_type(self, function_type: FunctionType, **kwargs) -> FunctionTypeDef:
         """Lift an anonymous function signature such as void*(int, long)."""

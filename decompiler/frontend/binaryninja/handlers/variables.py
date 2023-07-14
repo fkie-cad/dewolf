@@ -25,7 +25,7 @@ class VariableHandler(Handler):
             {
                 bVariable: self.lift_variable,
                 SSAVariable: self.lift_variable_ssa,
-                FunctionParameter: self.lift_variable,
+                FunctionParameter: self.lift_function_parameter,
                 MediumLevelILVar: self.lift_variable_operation,
                 MediumLevelILVarSsa: self.lift_variable_operation_ssa,
                 MediumLevelILVarSplitSsa: self.lift_register_pair,
@@ -42,6 +42,10 @@ class VariableHandler(Handler):
         return Variable(
             variable.name, self._lifter.lift(variable.type), ssa_label=parent.ssa_memory_version if parent else 0, is_aliased=is_aliased
         )
+
+    def lift_function_parameter(self, variable: FunctionParameter) -> Variable:
+        """Lift a function parameter variable used by function declaration and function pointers"""
+        return Variable(variable.name, self._lifter.lift(variable.type))
 
     def lift_variable_ssa(self, variable: SSAVariable, is_aliased: bool = False, **kwargs) -> Variable:
         """Lift the given ssa variable by its name and its current version."""
