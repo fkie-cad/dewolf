@@ -180,9 +180,8 @@ class SwitchNodeHandler:
             if zero_case_condition.ssa_usages != ssa_usages:
                 continue
             if ssa_condition is None:
-                ssa_condition = self.__get_z3_condition(ExpressionUsages(condition, tuple_ssa_usages))
-                if ssa_condition is None:
-                    continue
+                if (ssa_condition := self.__get_z3_condition(ExpressionUsages(condition, tuple_ssa_usages))) is None:
+                    return None
             zero_case_z3_condition = zero_case_condition.z3_condition
             if self.__is_equivalent(ssa_condition, zero_case_z3_condition):
                 return expression_usage, Constant(0, expression_usage.expression.type)
