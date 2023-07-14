@@ -4,7 +4,7 @@ from typing import Optional
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, SwitchCase
 from decompiler.structures.maps import DefMap, UseMap
-from decompiler.structures.pseudo.expressions import Expression, Variable
+from decompiler.structures.pseudo.expressions import Expression, GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, IndirectBranch, Instruction
 from decompiler.structures.pseudo.operations import Condition, OperationType, UnaryOperation
 from decompiler.task import DecompilerTask
@@ -112,7 +112,7 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
             switch_instruction.expression.requirements[0] if switch_instruction.expression.requirements else switch_instruction.expression
         )
         for variable in self._backwardslice(traced_variable):
-            if self._is_bounds_checked(variable):
+            if self._is_bounds_checked(variable) or isinstance(variable, GlobalVariable):
                 return variable
         raise ValueError("No switch variable candidate found.")
 
