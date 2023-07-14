@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional, Set
+from typing import Dict, Optional, Set, Iterable
 
 from decompiler.structures.logic.logic_condition import LogicCondition, PseudoLogicCondition
 from decompiler.structures.pseudo import Condition
@@ -46,6 +46,10 @@ class ConditionHandler:
         """Returns the number of elements in the condition map."""
         return len(self._condition_map)
 
+    def __iter__(self) -> Iterable[LogicCondition]:
+        """Iterate over all symbols"""
+        yield from self._condition_map
+
     @property
     def logic_context(self):
         """Return the utilized logic context."""
@@ -78,6 +82,10 @@ class ConditionHandler:
     def get_z3_condition_map(self) -> Dict[LogicCondition, PseudoLogicCondition]:
         """Return the z3-condition map that maps symbols to z3-conditions."""
         return dict((symbol, condition_symbol.z3_condition) for symbol, condition_symbol in self._condition_map.items())
+
+    def get_reverse_z3_condition_map(self) -> Dict[PseudoLogicCondition, LogicCondition]:
+        """Return the reverse z3-condition map that maps z3-conditions to symbols."""
+        return dict((condition_symbol.z3_condition, symbol) for symbol, condition_symbol in self._condition_map.items())
 
     def update_z3_condition_of(self, symbol: LogicCondition, condition: Condition):
         """Change the z3-condition of the given symbol according to the given condition."""

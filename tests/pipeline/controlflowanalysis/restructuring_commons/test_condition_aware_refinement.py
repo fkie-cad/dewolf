@@ -2655,12 +2655,11 @@ def test_no_switch_ssa_variable_wrong(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 5
+    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 4
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
-    assert any(isinstance(switch := n, SwitchNode) for n in seq_node.children[1:4])
-    assert any(isinstance(friday_case := n, ConditionNode) and not friday_case.condition.is_conjunction for n in seq_node.children[1:4])
-    assert any(isinstance(default_case := n, ConditionNode) and default_case.condition.is_conjunction for n in seq_node.children[1:4])
-    assert isinstance(seq_node.children[4], CodeNode) and seq_node.children[4].instructions == vertices[11].instructions
+    assert isinstance(friday_case := seq_node.children[1], ConditionNode) and friday_case.condition.is_literal
+    assert isinstance(switch_cond := seq_node.children[2], ConditionNode)
+    assert isinstance(seq_node.children[3], CodeNode) and seq_node.children[3].instructions == vertices[11].instructions
 
     # friday case
     assert task._ast.condition_map[~friday_case.condition] == vertices[0].instructions[-1].condition
@@ -2672,17 +2671,22 @@ def test_no_switch_ssa_variable_wrong(task):
     assert isinstance(friday.true_branch_child, CodeNode) and friday.false_branch is None
     assert friday.true_branch_child.instructions == vertices[4].instructions
 
-    # default case
-    assert isinstance(default_case.true_branch_child, CodeNode) and default_case.false_branch is None
-    assert default_case.true_branch_child.instructions == vertices[5].instructions
+    # switch_condition:
+    assert switch_cond.false_branch is None and isinstance(switch := switch_cond.true_branch_child, SwitchNode)
+    assert switch_cond.condition.is_disjunction and len(switch_cond.condition.operands) == 2
+    assert {task._ast.condition_map[op] for op in switch_cond.condition.operands} == {
+        vertices[0].instructions[-1].condition,
+        vertices[2].instructions[-1].condition,
+    }
 
     # switch
-    assert switch.expression == var_0_1 and len(switch.children) == 5
+    assert switch.expression == var_0_1 and len(switch.children) == 6
     assert isinstance(case1 := switch.cases[0], CaseNode) and case1.constant == Constant(1, Integer(32)) and case1.break_case is True
     assert isinstance(case2 := switch.cases[1], CaseNode) and case2.constant == Constant(6, Integer(32)) and case2.break_case is True
     assert isinstance(case3 := switch.cases[2], CaseNode) and case3.constant == Constant(9, Integer(32)) and case3.break_case is True
     assert isinstance(case4 := switch.cases[3], CaseNode) and case4.constant == Constant(12, Integer(32)) and case4.break_case is True
     assert isinstance(case5 := switch.cases[4], CaseNode) and case5.constant == Constant(34, Integer(32)) and case5.break_case is True
+    assert isinstance(default := switch.default, CaseNode)
 
     # children of cases
     assert isinstance(case1.child, CodeNode) and case1.child.instructions == vertices[6].instructions
@@ -2690,6 +2694,7 @@ def test_no_switch_ssa_variable_wrong(task):
     assert isinstance(case3.child, CodeNode) and case3.child.instructions == vertices[10].instructions
     assert isinstance(case4.child, CodeNode) and case4.child.instructions == vertices[7].instructions
     assert isinstance(case5.child, CodeNode) and case5.child.instructions == vertices[8].instructions
+    assert isinstance(default.child, CodeNode) and default.child.instructions == vertices[5].instructions
 
 
 @pytest.mark.skip("Not implemented yet.")
@@ -4361,6 +4366,10 @@ def test_switch_test_no_default(task):
         )
         current_condition_node = current_condition_node.false_branch_child
     assert current_condition_node is None
+
+
+def test_default_disjunction_is_not_true(task):
+    """test_switch test19"""
 
 
 def test_break_contained_in_switch_initial(task):

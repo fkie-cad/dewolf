@@ -230,10 +230,20 @@ class MissingCaseFinderSequence(MissingCaseFinder):
                 self.condition_handler.logic_context,
             )
             for default_candidate in possible_default_cases:
-                if self._can_insert_default_case(default_candidate, switch_node, reachability_graph, case_conditions_of_switch):
+                if self._can_insert_default_case(default_candidate, switch_node, reachability_graph):
+                    default_z3_condition = self._convert_to_z3_condition(default_candidate.condition)
+                    if not (case_conditions_of_switch & default_z3_condition).is_false:
+                        continue
+                    disjunction = LogicCondition.get_logic_condition(
+                        case_conditions_of_switch | default_z3_condition, self.condition_handler
+                    )
+                    if len(disjunction) > len(default_candidate.condition):
+                        continue
                     self.asforest.add_default_case(default_candidate.node, switch_node)
                     possible_default_cases.remove(default_candidate)
                     reachability_graph.update_when_inserting_new_case_node(default_candidate.node, switch_node)
+                    if not disjunction.is_true:
+                        switch_node.reaching_condition &= disjunction
                     break
 
     def _get_possible_default_cases_candidates(self, ast_nodes: Tuple[AbstractSyntaxTreeNode]) -> Set[CaseNodeCandidate]:
@@ -248,37 +258,30 @@ class MissingCaseFinderSequence(MissingCaseFinder):
             if not self._contains_no_violating_loop_break(node):
                 continue
             if isinstance(node, ConditionNode):
-                reaching_condition_as_z3 = self._convert_to_z3_condition(node.reaching_condition)
                 for child in node.children:
-                    default_case_candidates.add(self._get_default_candidate_for_branch(child, reaching_condition_as_z3))
+                    default_case_candidates.add(self._get_default_candidate_for_branch(child, node.reaching_condition))
             elif not isinstance(node, SwitchNode):
-                default_case_candidates.add(CaseNodeCandidate(node, None, self._convert_to_z3_condition(node.reaching_condition)))
+                default_case_candidates.add(CaseNodeCandidate(node, None, node.reaching_condition))
 
         return {node for node in default_case_candidates if not node.condition.is_true}
 
     def _get_default_candidate_for_branch(
-        self, branch: Union[TrueNode, FalseNode], reaching_condition_as_z3: PseudoLogicCondition
+        self, branch: Union[TrueNode, FalseNode], reaching_condition: PseudoLogicCondition
     ) -> CaseNodeCandidate:
         """Return the default node candidate for the given branch of the condition node."""
         branch_condition = branch.branch_condition
-        return CaseNodeCandidate(
-            branch.child, None, reaching_condition_as_z3 & self._convert_to_z3_condition(branch.child.reaching_condition & branch_condition)
-        )
+        return CaseNodeCandidate(branch.child, None, reaching_condition & branch.child.reaching_condition & branch_condition)
 
     @staticmethod
     def _can_insert_default_case(
-        default_candidate: CaseNodeCandidate,
-        switch_node: SwitchNode,
-        reachability_graph: SiblingReachabilityGraph,
-        case_conditions: PseudoLogicCondition,
+        default_candidate: CaseNodeCandidate, switch_node: SwitchNode, reachability_graph: SiblingReachabilityGraph
     ) -> bool:
         """Check whether we can insert the given default case candidate to the given switch node."""
         seq_node_child = default_candidate.get_head
-        if reachability_graph.has_path(seq_node_child, switch_node, no_edge=True) or reachability_graph.has_path(
-            switch_node, seq_node_child, no_edge=True
-        ):
-            return False
-        return (case_conditions | default_candidate.condition).is_true and (case_conditions & default_candidate.condition).is_false
+        return not (
+            reachability_graph.has_path(seq_node_child, switch_node, no_edge=True)
+            or reachability_graph.has_path(switch_node, seq_node_child, no_edge=True)
+        )
 
     @staticmethod
     def _repeating_cases(combinable_switch_nodes: List[SwitchNode]) -> bool:

@@ -203,14 +203,14 @@ class Z3Implementation:
             assert is_true(condition) or is_false(condition), f"The condition {condition} does not consist of literals."
 
     @staticmethod
-    def all_literals_contained_in_set(condition: BoolRef, set_of_literals: Set[Bool]) -> bool:
+    def all_literals_are_symbols(condition: BoolRef) -> bool:
         """Check for a cnf-formula whether all literals or their negation are symbols of the given set of literals."""
         if is_true(condition) or is_false(condition):
             return True
         try:
-            return all(
-                [literal in set_of_literals or literal.arg(0) in set_of_literals for literal in Z3Implementation.get_literals(condition)]
-            )
+            for _ in Z3Implementation.get_literals(condition):
+                pass
+            return True
         except AssertionError:
             return False
 
