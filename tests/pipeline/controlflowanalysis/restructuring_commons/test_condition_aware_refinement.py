@@ -3309,69 +3309,76 @@ def test_too_nested(task):
     PatternIndependentRestructuring().run(task)
 
     # initial part
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 12
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(cond_node := seq_node.children[1], ConditionNode)
-    assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[3].instructions
+    assert all(
+        isinstance(child, ConditionNode) and child.false_branch is None and isinstance(child.true_branch_child, CodeNode)
+        for child in seq_node.children[2:11]
+    )
+    assert isinstance(seq_node.children[11], CodeNode) and seq_node.children[11].instructions == vertices[3].instructions
 
     # condition node
     if (cond := cond_node.condition).is_symbol:
         default_branch = cond_node.true_branch_child
-        seq_branch = cond_node.false_branch_child
+        switch_branch = cond_node.false_branch_child
         assert task._ast.condition_map[cond] == vertices[0].instructions[-1].condition
     else:
         default_branch = cond_node.false_branch_child
-        seq_branch = cond_node.true_branch_child
+        switch_branch = cond_node.true_branch_child
         assert task._ast.condition_map[~cond] == vertices[0].instructions[-1].condition
 
     # default branch
     assert isinstance(default_branch, CodeNode) and default_branch.instructions == vertices[1].instructions
+    # before_switch branch
+    assert isinstance(switch_branch, CodeNode) and switch_branch.instructions == vertices[2].instructions[:-1]
 
-    # sequence branch
-    assert isinstance(seq_branch, SeqNode) and len(children := seq_branch.children) == 10
-    assert isinstance(seq_branch.children[0], CodeNode) and seq_branch.children[0].instructions == vertices[2].instructions[:-1]
-    assert all(
-        isinstance(child, ConditionNode) and child.false_branch is None and isinstance(child.true_branch_child, CodeNode)
-        for child in seq_branch.children[1:]
+    # all switch-cases
+    assert seq_node.children[2].true_branch_child.instructions == vertices[4].instructions
+    assert task._ast.condition_map[seq_node.children[2].condition] == Condition(
+        OperationType.equal, [var_1_1, Constant(0, Integer(32, True))]
     )
-
-    assert children[1].true_branch_child.instructions == vertices[4].instructions
-    assert task._ast.condition_map[children[1].condition] == Condition(OperationType.equal, [var_1_1, Constant(0, Integer(32, True))])
-    assert children[2].true_branch_child.instructions == vertices[5].instructions
-    assert task._ast.condition_map[children[2].condition] == Condition(OperationType.equal, [var_1_1, Constant(1, Integer(32, True))])
-    assert children[3].true_branch_child.instructions == vertices[12].instructions
-    assert task._ast.condition_map[children[3].condition] == Condition(OperationType.equal, [var_1_1, Constant(5, Integer(32, True))])
-    assert children[4].true_branch_child.instructions == vertices[7].instructions
-    assert task._ast.condition_map[children[4].condition] == Condition(OperationType.equal, [var_1_1, Constant(3, Integer(32, True))])
-    assert children[5].true_branch_child.instructions == vertices[11].instructions
-    assert children[5].condition.is_disjunction and len(arguments := children[5].condition.operands) == 2
+    assert seq_node.children[3].true_branch_child.instructions == vertices[5].instructions
+    assert task._ast.condition_map[seq_node.children[3].condition] == Condition(
+        OperationType.equal, [var_1_1, Constant(1, Integer(32, True))]
+    )
+    assert seq_node.children[4].true_branch_child.instructions == vertices[12].instructions
+    assert task._ast.condition_map[seq_node.children[4].condition] == Condition(
+        OperationType.equal, [var_1_1, Constant(5, Integer(32, True))]
+    )
+    assert seq_node.children[5].true_branch_child.instructions == vertices[7].instructions
+    assert task._ast.condition_map[seq_node.children[5].condition] == Condition(
+        OperationType.equal, [var_1_1, Constant(3, Integer(32, True))]
+    )
+    assert seq_node.children[6].true_branch_child.instructions == vertices[11].instructions
+    assert seq_node.children[6].condition.is_disjunction and len(arguments := seq_node.children[6].condition.operands) == 2
     assert {task._ast.condition_map[arg] for arg in arguments} == {
         Condition(OperationType.equal, [var_1_1, Constant(0, Integer(32, True))]),
         Condition(OperationType.equal, [var_1_1, Constant(1, Integer(32, True))]),
     }
-    assert children[6].true_branch_child.instructions == vertices[8].instructions
-    assert children[6].condition.is_disjunction and len(arguments := children[6].condition.operands) == 2
+    assert seq_node.children[7].true_branch_child.instructions == vertices[8].instructions
+    assert seq_node.children[7].condition.is_disjunction and len(arguments := seq_node.children[7].condition.operands) == 2
     assert {task._ast.condition_map[arg] for arg in arguments} == {
         Condition(OperationType.equal, [var_1_1, Constant(3, Integer(32, True))]),
         Condition(OperationType.equal, [var_1_1, Constant(4, Integer(32, True))]),
     }
-    assert children[7].true_branch_child.instructions == vertices[6].instructions
-    assert children[7].condition.is_disjunction and len(arguments := children[7].condition.operands) == 3
+    assert seq_node.children[8].true_branch_child.instructions == vertices[6].instructions
+    assert seq_node.children[8].condition.is_disjunction and len(arguments := seq_node.children[8].condition.operands) == 3
     assert {task._ast.condition_map[arg] for arg in arguments} == {
         Condition(OperationType.equal, [var_1_1, Constant(0, Integer(32, True))]),
         Condition(OperationType.equal, [var_1_1, Constant(1, Integer(32, True))]),
         Condition(OperationType.equal, [var_1_1, Constant(2, Integer(32, True))]),
     }
-    assert children[8].true_branch_child.instructions == vertices[9].instructions
-    assert children[8].condition.is_disjunction and len(arguments := children[8].condition.operands) == 4
+    assert seq_node.children[9].true_branch_child.instructions == vertices[9].instructions
+    assert seq_node.children[9].condition.is_disjunction and len(arguments := seq_node.children[9].condition.operands) == 4
     assert {task._ast.condition_map[arg] for arg in arguments} == {
         Condition(OperationType.equal, [var_1_1, Constant(0, Integer(32, True))]),
         Condition(OperationType.equal, [var_1_1, Constant(1, Integer(32, True))]),
         Condition(OperationType.equal, [var_1_1, Constant(2, Integer(32, True))]),
         Condition(OperationType.equal, [var_1_1, Constant(6, Integer(32, True))]),
     }
-    assert children[9].true_branch_child.instructions == vertices[10].instructions
-    assert children[9].condition.is_disjunction and len(arguments := children[9].condition.operands) == 5
+    assert seq_node.children[10].true_branch_child.instructions == vertices[10].instructions
+    assert seq_node.children[10].condition.is_disjunction and len(arguments := seq_node.children[10].condition.operands) == 5
     assert {task._ast.condition_map[arg] for arg in arguments} == {
         Condition(OperationType.equal, [var_1_1, Constant(0, Integer(32, True))]),
         Condition(OperationType.equal, [var_1_1, Constant(1, Integer(32, True))]),
@@ -5306,7 +5313,7 @@ def test_nested_cases_unnecessary_condition_all_irrelevant(task):
     assert isinstance(default.child, CodeNode) and default.child.instructions == vertices[5].instructions
 
 
-def test_nested_cases_unnecessary_condition_not_all_irrelevant(task):
+def test_nested_cases_unnecessary_condition_not_all_irrelevant_2(task):
     """Test condition test 17"""
     var_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 3, True, None))
     arg1 = Variable("arg1", Integer(32, True), None, True, Variable("arg1", Integer(32, True), 0, True, None))
