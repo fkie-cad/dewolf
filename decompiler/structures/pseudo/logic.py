@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Generic, TypeVar, Union
 
 from .expressions import Constant, Expression, Variable
-from .instructions import Branch, GenericBranch
+from .instructions import Branch
 from .operations import Condition, Operation, OperationType, UnaryOperation
 
 T = TypeVar("T")

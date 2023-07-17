@@ -134,7 +134,7 @@ class Integer(Type):
 class Float(Integer):
     """Class representing the type of a floating point number as defined in IEEE 754."""
 
-    SIZE_TYPES = {16: "half", 32: "float", 64: "double", 80: "long double", 128: "quadruple", 256: "octuple"}
+    SIZE_TYPES = {8: "quarter", 16: "half", 32: "float", 64: "double", 80: "long double", 128: "quadruple", 256: "octuple"}
 
     def __init__(self, size: int, signed=True):
         """Create a new float type with the given size."""

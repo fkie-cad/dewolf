@@ -180,18 +180,21 @@ class SwitchNodeHandler:
             if zero_case_condition.ssa_usages != ssa_usages:
                 continue
             if ssa_condition is None:
-                ssa_condition = self.__get_z3_condition(ExpressionUsages(condition, tuple_ssa_usages))
+                if (ssa_condition := self.__get_z3_condition(ExpressionUsages(condition, tuple_ssa_usages))) is None:
+                    return None
             zero_case_z3_condition = zero_case_condition.z3_condition
             if self.__is_equivalent(ssa_condition, zero_case_z3_condition):
                 return expression_usage, Constant(0, expression_usage.expression.type)
 
-    def __get_z3_condition(self, expression_usage: ExpressionUsages) -> BoolRef:
-        """Get z3-condition of the expression usage in SSA-form"""
+    def __get_z3_condition(self, expression_usage: ExpressionUsages) -> Optional[BoolRef]:
+        """Get z3-condition of the expression usage in SSA-form if there is one"""
         ssa_condition = self.__get_ssa_expression(expression_usage)
         assert isinstance(ssa_condition, Condition), f"{ssa_condition} must be of type Condition!"
         ssa_condition = ssa_condition.negate() if ssa_condition.operation == OperationType.not_equal else ssa_condition
-        z3_condition = self._z3_converter.convert(ssa_condition)
-        return z3_condition
+        try:
+            return self._z3_converter.convert(ssa_condition)
+        except ValueError:
+            return None
 
     @staticmethod
     def __is_equivalent(cond1: BoolRef, cond2: BoolRef):
