@@ -82,7 +82,7 @@ class TypeHandler(Handler):
             member = self.lift_struct_member(m, struct_name)
             lifted_struct.add_member(member)
         self._lifter.complex_types.add(lifted_struct)
-        logging.error(lifted_struct.declaration())
+        # logging.error(lifted_struct.declaration())
         return lifted_struct
 
     def _get_data_type_name(self, struct: StructureType):

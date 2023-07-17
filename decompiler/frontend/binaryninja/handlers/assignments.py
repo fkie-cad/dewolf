@@ -3,6 +3,7 @@ import logging
 from functools import partial
 from typing import Union
 
+import binaryninja
 from binaryninja import mediumlevelil
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import (
@@ -17,6 +18,7 @@ from decompiler.structures.pseudo import (
     RegisterPair,
     UnaryOperation,
 )
+from decompiler.structures.pseudo.complextypes import ComplexType, Struct
 from decompiler.structures.pseudo.operations import StructMemberAccess
 
 
@@ -56,16 +58,29 @@ class AssignmentHandler(Handler):
     def lift_set_field(self, assignment: mediumlevelil.MediumLevelILSetVarField, is_aliased=False, **kwargs) -> Assignment:
         """
         Lift an instruction writing to a subset of the given value.
-
-        In case of lower register (offset 0) lift as contraction
-        e.g. eax.al = .... <=> (char)eax  ....
-
-        In case higher registers use masking
-        e.g. eax.ah = x <=> eax = (eax & 0xffff00ff) + (x << 2)
+        case 1: writing into struct member: book.title = value
+                lift as struct_member(book, title, writes_memory) = value
+        case 2: writing into lower register part (offset 0): eax.al = value
+                lift as contraction (char) eax = value
+        case 3: writing into higher register part: eax.ah = value
+                lift using bit masking eax = (eax & 0xffff00ff) + (value << 2)
         """
-        if assignment.offset == 0 and self._lifter.is_omitting_masks:
+        # case 1 (struct):
+        if isinstance(assignment.dest.type, binaryninja.NamedTypeReferenceType):
+            struct_variable = self._lifter.lift(assignment.dest, is_aliased=True, parent=assignment)
+            destination = StructMemberAccess(
+                src=struct_variable,
+                offset=assignment.offset,
+                member_name=struct_variable.type.get_member_by_offset(assignment.offset).name,
+                operands=[struct_variable],
+                writes_memory=assignment.ssa_memory_version,
+            )
+            value = self._lifter.lift(assignment.src)
+        # case 2 (contraction):
+        elif assignment.offset == 0 and self._lifter.is_omitting_masks:
             destination = self._lift_contraction(assignment, is_aliased=is_aliased, parent=assignment)
             value = self._lifter.lift(assignment.src)
+        # case 3 (bit masking):
         else:
             destination = self._lifter.lift(assignment.dest, is_aliased=is_aliased, parent=assignment)
             value = self._lift_masked_operand(assignment)
@@ -74,9 +89,21 @@ class AssignmentHandler(Handler):
     def lift_get_field(self, instruction: mediumlevelil.MediumLevelILVarField, is_aliased=False, **kwargs) -> Operation:
         """
         Lift an instruction accessing a field from the outside.
-        e.g. x = eax.ah <=> x = eax & 0x0000ff00
+
+        case 1: struct member read access e.g. (x = )book.title
+                lift as (x = ) struct_member(book, title)
+        case 2: accessing register portion e.g. (x = )eax.ah
+                lift as (x = ) eax & 0x0000ff00
+        (x = ) <- for the sake of example, only rhs expression is lifted here.
         """
         source = self._lifter.lift(instruction.src, is_aliased=is_aliased, parent=instruction)
+        if isinstance(source.type, Struct):
+            return StructMemberAccess(
+                src=source,
+                offset=instruction.offset,
+                member_name=source.type.get_member_by_offset(instruction.offset).name,
+                operands=[source],
+            )
         cast_type = source.type.resize(instruction.size * self.BYTE_SIZE)
         if instruction.offset:
             return BinaryOperation(

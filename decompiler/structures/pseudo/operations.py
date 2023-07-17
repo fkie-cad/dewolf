@@ -395,10 +395,12 @@ class StructMemberAccess(Operation):
         self.writes_memory = writes_memory
 
     def __str__(self):
-        return f"{self.struct_variable}->{self.member_name}"
-        # if isinstance(self.src.type, Pointer):
-        #     return f"{self.src}->{self.member_name}"
-        # return f"{self.src}.{self.member_name}"
+        # use -> when accessing member via a pointer to a struct
+        # use . when accessing struct member directly
+        # e.g. &book->title or book.title
+        if isinstance(self.struct_variable.type, Pointer):
+            return f"{self.struct_variable}->{self.member_name}"
+        return f"{self.struct_variable}.{self.member_name}"
 
     def substitute(self, replacee: Expression, replacement: Expression) -> None:
         if isinstance(replacee, Variable) and replacee == self.struct_variable and isinstance(replacement, Variable):
