@@ -275,6 +275,8 @@ class PseudoZ3LogicCondition(PseudoLogicInterface, Z3LogicCondition, Generic[LOG
 
     @classmethod
     def initialize_from_conditions_or(cls, conditions: List[Condition], context: Context) -> PseudoLOGICCLASS:
+        if not conditions:
+            return cls.initialize_false(context)
         or_conditions = []
         for cond in conditions:
             or_conditions.append(Z3Implementation.get_z3_condition_of(cond, context))
