@@ -5,11 +5,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, replace
 from typing import Tuple
 
-
-class Variable:
-    pass
-
-
 @dataclass(frozen=True, order=True)
 class Type(ABC):
     """Base interface for all type classes."""
@@ -214,11 +209,11 @@ class CustomType(Type):
 @dataclass(frozen=True, order=True)
 class FunctionTypeDef(Type):
     return_type: Type
-    parameters: Tuple[Variable, ...]
+    parameters: Tuple[Type, ...]
 
     def __str__(self) -> str:
         """Return an anonymous string representation such as void*(int, int, char*)."""
-        return f"{self.return_type}({', '.join(str(x.type) for x in self.parameters)})"
+        return f"{self.return_type}({', '.join(str(x) for x in self.parameters)})"
 
 
 class TypeParser:

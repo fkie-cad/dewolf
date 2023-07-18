@@ -79,5 +79,5 @@ class TypeHandler(Handler):
         return FunctionTypeDef(
             function_type.width * self.BYTE_SIZE,
             self._lifter.lift(function_type.return_value),
-            tuple(self._lifter.lift(param) for param in function_type.parameters),
+            tuple(self._lifter.lift(param.type) for param in function_type.parameters),
         )
