@@ -1,8 +1,9 @@
 import operator
+from collections import defaultdict
 from dataclasses import dataclass
 from functools import reduce
 from itertools import chain, combinations, permutations
-from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple
+from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple, DefaultDict
 
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.base_class_car import (
     BaseClassConditionAwareRefinement,
@@ -10,7 +11,8 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
 )
 from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, CodeNode, ConditionNode, SeqNode, SwitchNode, TrueNode
-from decompiler.structures.ast.reachability_graph import CaseDependencyGraph, LinearOrderDependency, SiblingReachability
+from decompiler.structures.ast.reachability_graph import CaseDependencyGraph, LinearOrderDependency, SiblingReachability, \
+    SiblingReachabilityGraph
 from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition
@@ -181,7 +183,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
                         case_candidate.expression.expression, InsertionOrderedSet([case_candidate])
                     )
 
-        self._remove_case_candidates_with_same_condition(switch_candidate_for.values())
+        self._remove_case_candidates_with_same_condition(switch_candidate_for.values(), seq_node)
         return list(switch_candidate_for.values())
 
     def _get_possible_case_candidate_for(self, ast_node: AbstractSyntaxTreeNode) -> Optional[CaseNodeCandidate]:
@@ -533,25 +535,37 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         :param switch_node_candidate: The switch node candidate that we want to place.
         :param sibling_reachability: The reachability of all children of the sequence node.
         """
+        # TODO Why not deleting some nodes to still get the switch? If only one is the problem???
         copy_sibling_reachability = sibling_reachability.copy()
         new_node = SwitchNode(switch_node_candidate.expression, LogicCondition.generate_new_context())
         copy_sibling_reachability.merge_siblings_to(new_node, [case_candidate.node for case_candidate in switch_node_candidate.cases])
         return copy_sibling_reachability.sorted_nodes() is not None
 
-    @staticmethod
-    def _remove_case_candidates_with_same_condition(switch_candidates: Iterable[SwitchNodeCandidate]) -> None:
+    def _remove_case_candidates_with_same_condition(self, switch_candidates: Iterable[SwitchNodeCandidate], seq_node: SeqNode) -> None:
         """
         Remove one of two case candidates if they have the same condition.
 
         Since they were not combined before, they can not be combined, and we do not know which to pick.
         """
+        # TODO: not optimal, but a first version
+        sibling_reachability = self.asforest.get_sibling_reachability_of_children_of(seq_node)
+        reachability_graph = SiblingReachabilityGraph(sibling_reachability)
         for switch_candidate in switch_candidates:
-            considered_conditions = set()
-            for case_candidate in list(switch_candidate.cases):
-                if case_candidate.condition in considered_conditions:
-                    switch_candidate.cases.remove(case_candidate)
-                else:
-                    considered_conditions.add(case_candidate.condition)
+            multiple_cases_of_condition = InitialSwitchNodeConstructor.__get_conditions_with_multiple_cases(switch_candidate)
+            copy_sibling_reachability = sibling_reachability.copy()
+            tmp = SwitchNode(switch_candidate.expression, LogicCondition.generate_new_context())
+            copy_sibling_reachability.merge_siblings_to(tmp, [candidate.node for candidate in switch_candidate.cases if not any(candidate in multiple_case for multiple_case in multiple_cases_of_condition.values())])
+            #  TODO
+
+
+
+
+    @staticmethod
+    def __get_conditions_with_multiple_cases(switch_candidate: SwitchNodeCandidate):
+        cases_of_condition: DefaultDict[LogicCondition, Set[CaseNodeCandidate]] = defaultdict(set)
+        for case_candidate in switch_candidate.cases:
+            cases_of_condition[case_candidate.condition].add(case_candidate)
+        return {condition: cases for condition, cases in cases_of_condition.items() if len(cases) > 1}
 
     def _clean_up_reaching_conditions(self, switch_node: SwitchNode) -> None:
         """
