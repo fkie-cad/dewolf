@@ -193,7 +193,7 @@ class ReachabilityGraph:
 
     def remove_reachability_between(self, ast_nodes: Iterable[AbstractSyntaxTreeNode]):
         descendant_sets: List[Set[CodeNode]] = [set(node.get_descendant_code_nodes()) for node in ast_nodes]
-        for descendant_set_1, descendant_set_2 in permutations(descendant_sets):
+        for descendant_set_1, descendant_set_2 in permutations(descendant_sets, 2):
             for node1, node2 in product(descendant_set_1, descendant_set_2):
                 if self.reaches(node1, node2):
                     self._code_node_reachability_graph.remove_edge(node1, node2)
