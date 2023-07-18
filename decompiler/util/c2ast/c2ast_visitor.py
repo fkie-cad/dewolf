@@ -27,17 +27,57 @@ from decompiler.structures.pseudo import (
     TypeParser,
     UnaryOperation,
     Variable,
+    Operation,
 )
 from pycparser import c_ast
 from pycparser.c_ast import NodeVisitor
 
-OPERATIONS: dict[str, OperationType] = {v: k for k, v in SHORTHANDS.items()} # reverse dict to get from a string to DeWolf Operation
-OPERATIONS_COMPOUND: dict[str, OperationType] = {
-    "+=": OperationType.plus,
-    "-=": OperationType.minus,
-    "*=": OperationType.multiply,
-    "/=": OperationType.divide,
-    ">>=": OperationType.right_rotate,
+BINARY_OPERATIONS: dict[str, OperationType]= {
+    "-": OperationType.minus,
+    "f-": OperationType.minus_float,
+    "+": OperationType.plus,
+    "f+": OperationType.plus_float,
+    "<<": OperationType.left_shift,
+    ">>": OperationType.right_shift,
+    "u>>": OperationType.right_shift_us,
+    "l_rot": OperationType.left_rotate,
+    "r_rot": OperationType.right_rotate,
+    "r_rot_carry": OperationType.right_rotate_carry,
+    "l_rot_carry": OperationType.left_rotate_carry,
+    "*": OperationType.multiply,
+    "u*": OperationType.multiply_us,
+    "f*": OperationType.multiply_float,
+    "/": OperationType.divide,
+    "u/": OperationType.divide_us,
+    "f/": OperationType.divide_float,
+    "%": OperationType.modulo,
+    "u%": OperationType.modulo_us,
+    "**": OperationType.power,
+    "|": OperationType.bitwise_or,
+    "&": OperationType.bitwise_and,
+    "^": OperationType.bitwise_xor,
+    "~": OperationType.bitwise_not,
+    "||": OperationType.logical_or,
+    "&&": OperationType.logical_and,
+    "!": OperationType.logical_not,
+    "==": OperationType.equal,
+    "!=": OperationType.not_equal,
+    "<": OperationType.less,
+    "u<": OperationType.less_us,
+    ">": OperationType.greater,
+    "u>": OperationType.greater_us,
+    "<=": OperationType.less_or_equal,
+    "u<=": OperationType.less_or_equal_us,
+    ">=": OperationType.greater_or_equal,
+    "u>=": OperationType.greater_or_equal_us,
+    "cast": OperationType.cast,
+    "point": OperationType.pointer,
+    "low": OperationType.low,
+    "?": OperationType.ternary,
+    "func": OperationType.call,
+    "->": OperationType.field,
+    "list": OperationType.list_op,
+    "adc": OperationType.adc,
 }
 
 """
@@ -50,7 +90,7 @@ C Unary Operations used by PyCParser:
     - Negative: -x
     - Complement (one): ~x
     - Negation: !x
-    - Sizeof: sizeof(x)
+    - Sizeof: sizeof(x) <= not supported
 """
 OPERATIONS_UNARY: dict[str, OperationType] = {
     "p++": OperationType.plus,
@@ -63,7 +103,15 @@ OPERATIONS_UNARY: dict[str, OperationType] = {
     "-": OperationType.minus,
     "~": OperationType.negate,
     "!": OperationType.logical_not,
-    "sizeof": OperationType.sizeof
+}
+
+
+OPERATIONS_COMPOUND: dict[str, OperationType] = {
+    "+=": OperationType.plus,
+    "-=": OperationType.minus,
+    "*=": OperationType.multiply,
+    "/=": OperationType.divide,
+    ">>=": OperationType.right_rotate,
 }
 
 LOGIC_CONDITION_OPERATIONS = [OperationType.logical_and, OperationType.logical_or]
@@ -122,7 +170,9 @@ class PyCNodeVisitor(NodeVisitor):
         self._function_params: list[Variable] = []
         self._return_type = None
 
-        self._declared_variables: Dict[str, Variable] = {}
+        self._declared_variables: Dict[str, Expression] = {
+            "true" : Constant(1)
+        }
         self._typedefs: Dict[str, Type] = {}
 
         self._switch_condition: Expression = None # Needed because no parent reference for nodes + case needs switch statement
@@ -134,10 +184,13 @@ class PyCNodeVisitor(NodeVisitor):
             return cond
         if isinstance(cond, Constant): # if(true/false/0/1.../N) used
             return Condition(OperationType.not_equal, [cond, Constant(0)])
-        if isinstance(cond, Variable): # if(var)
-            return Condition(OperationType.not_equal, [cond, Constant(0)])
         if isinstance(cond, UnaryOperation): # if(!var/~var/&var...)
-            return Condition(OperationType.equal, [cond.operands[0], Constant(0)])
+            if cond.operation == OperationType.negate:
+                return Condition(OperationType.equal, [cond.operands[0], Constant(0)])
+            else:
+                return Condition(OperationType.equal, [cond, Constant(0)])
+        if isinstance(cond, (Condition, Operation)): # if(var)
+            return Condition(OperationType.not_equal, [cond, Constant(0)])
         raise ValueError(f"No resolving handler for {type(cond)}")
 
 
@@ -233,7 +286,7 @@ class PyCNodeVisitor(NodeVisitor):
 
     def visit_BinaryOp(self, node: c_ast.BinaryOp):
         """Visit binary operation. Properties: [op, left*, right*]"""
-        return BinaryOperation(OPERATIONS[node.op], [self.visit(node.left), self.visit(node.right)])
+        return BinaryOperation(BINARY_OPERATIONS[node.op], [self.visit(node.left), self.visit(node.right)])
 
 
     def visit_Break(self, _: c_ast.Break):
@@ -376,7 +429,8 @@ class PyCNodeVisitor(NodeVisitor):
 
     def visit_FuncCall(self, node: c_ast.FuncCall):
         """Visit function call. Properties: [name*, args*]"""
-        return Assignment(ListOperation([]), Call(FunctionSymbol(self.visit(node.name), 0), self.visit(node.args)))
+        return Assignment(ListOperation([]), Call(FunctionSymbol(self.visit(node.name), 0), self.visit(node.args) if node.args else []))
+        return Call(FunctionSymbol(self.visit(node.name), 0), self.visit(node.args) if node.args else [])
 
 
     def visit_FuncDecl(self, node: c_ast.FuncDecl):

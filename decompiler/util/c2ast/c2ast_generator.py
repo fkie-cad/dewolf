@@ -70,18 +70,62 @@ class C2DeWolfASTGenerator:
 from decompiler.util.decoration import DecoratedAST
 
 CODE = r"""
-extern unsigned int a = 0x0;
-extern unsigned int b = 0x0;
-
-unsigned long global_addr_add() {
-    unsigned long ulVar2;
-    ulVar2 = _add(&a, &b);
-    return ulVar2;
+int sub_10b2c() {
+    unsigned int uiVar15;
+    int iVar14;
+    sub_10caf("eax: ");
+    iVar14 = data_12000;
+    sub_10cc7(iVar14);
+    sub_10caf(data_10dcb);
+    sub_10caf("ebx: ");
+    iVar14 = data_12004;
+    sub_10cc7(iVar14);
+    sub_10caf(data_10dcb);
+    sub_10caf("ecx: ");
+    iVar14 = data_12008;
+    sub_10cc7(iVar14);
+    sub_10caf(data_10dcb);
+    sub_10caf("edx: ");
+    iVar14 = data_1200c;
+    sub_10cc7(iVar14);
+    sub_10caf(data_10dcd);
+    sub_10caf("esi: ");
+    iVar14 = data_12010;
+    sub_10cc7(iVar14);
+    sub_10caf(data_10dcb);
+    sub_10caf("edi: ");
+    iVar14 = data_12014;
+    sub_10cc7(iVar14);
+    sub_10caf(data_10dcb);
+    sub_10caf("esp: ");
+    iVar14 = data_12018;
+    sub_10cc7(iVar14);
+    sub_10caf(data_10dcb);
+    sub_10caf("ebp: ");
+    iVar14 = data_1201c;
+    sub_10cc7(iVar14);
+    sub_10caf(data_10dcd);
+    sub_10caf("idt: ");
+    uiVar15 = (unsigned short)data_12020;
+    sub_10cc7(uiVar15);
+    sub_10caf(data_10dcb);
+    iVar14 = data_12022;
+    sub_10cc7(iVar14);
+    sub_10caf(data_10dcd);
+    sub_10caf("gdt: ");
+    uiVar15 = (unsigned short)data_12026;
+    sub_10cc7(uiVar15);
+    sub_10caf(data_10dcb);
+    iVar14 = data_12028;
+    sub_10cc7(iVar14);
+    iVar14 = sub_10caf(data_10dcd);
+    return iVar14;
 }
+
 """
 
 if __name__ == '__main__':
-    #task = C2DeWolfASTGenerator().generateFromString(CODE, "global_addr_add")
-    task = C2DeWolfASTGenerator().generateFromFile("/home/neoquix/Git-Repos/_DeWolfTesting/main.c", "main")
+    task = C2DeWolfASTGenerator().generateFromString(CODE, "sub_10b2c")
+    #task = C2DeWolfASTGenerator().generateFromFile("/home/neoquix/Git-Repos/_DeWolfTesting/main.c", "main")
     DecoratedAST.from_ast(task._ast).export_plot("/tmp/AST.png")
     DecoratedAST.print_ascii(task._ast)

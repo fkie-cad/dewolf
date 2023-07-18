@@ -73,7 +73,6 @@ class OperationType(Enum):
     field = auto()
     list_op = auto()
     adc = auto()
-    sizeof = auto
 
 
 # For pretty-printing and debug
@@ -128,7 +127,6 @@ SHORTHANDS = {
     OperationType.field: "->",
     OperationType.list_op: "list",
     OperationType.adc: "adc",
-    OperationType.sizeof: "sizeof"
 }
 
 UNSIGNED_OPERATIONS = {
