@@ -178,7 +178,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
                     switch_candidate_for[case_candidate.expression].cases.add(case_candidate)
                 else:
                     switch_candidate_for[case_candidate.expression] = SwitchNodeCandidate(
-                        case_candidate.expression.expression, {case_candidate}
+                        case_candidate.expression.expression, InsertionOrderedSet([case_candidate])
                     )
 
         self._remove_case_candidates_with_same_condition(switch_candidate_for.values())
