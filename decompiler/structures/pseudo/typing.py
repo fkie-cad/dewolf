@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, replace
 from typing import Tuple
 
+
 @dataclass(frozen=True, order=True)
 class Type(ABC):
     """Base interface for all type classes."""
