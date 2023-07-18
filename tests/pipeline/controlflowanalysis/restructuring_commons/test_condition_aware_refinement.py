@@ -2024,6 +2024,97 @@ def test_switch_only_if_else(task):
     assert isinstance(default.child, CodeNode) and default.child.instructions == vertices[7].instructions
 
 
+def test_switch_find_case_in_condition(task):
+    """test_condition test6d"""
+    var_0_2 = Variable("var_0", Pointer(Integer(32, True), 32), None, False, Variable("var_10", Integer(32, True), 0, True, None))
+    var_0_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
+    task.graph.add_nodes_from(
+        vertices := [
+            BasicBlock(
+                0,
+                [
+                    Assignment(ListOperation([]), print_call("Enter week number(1-7): ", 1)),
+                    Assignment(
+                        ListOperation([]),
+                        scanf_call(UnaryOperation(OperationType.address, [var_0_0], Pointer(Integer(32, True), 32), None, False), "%d", 2),
+                    ),
+                    Branch(Condition(OperationType.not_equal, [var_0_2, Constant(1, Integer(32, True))], CustomType("bool", 1))),
+                ],
+            ),
+            BasicBlock(1, [Branch(Condition(OperationType.equal, [var_0_2, Constant(2, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(2, [Assignment(ListOperation([]), print_call("Monday", 3))]),
+            BasicBlock(4, [Branch(Condition(OperationType.equal, [var_0_2, Constant(3, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(5, [Return(ListOperation([Constant(0, Integer(32, True))]))]),
+            BasicBlock(6, [Assignment(ListOperation([]), print_call("Wednesday", 6))]),
+            BasicBlock(7, [Branch(Condition(OperationType.not_equal, [var_0_2, Constant(4, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(8, [Branch(Condition(OperationType.equal, [var_0_2, Constant(5, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(9, [Assignment(ListOperation([]), print_call("Thursday", 8))]),
+            BasicBlock(10, [Assignment(ListOperation([]), print_call("Friday", 9))]),
+            BasicBlock(11, [Branch(Condition(OperationType.not_equal, [var_0_2, Constant(6, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(12, [Branch(Condition(OperationType.equal, [var_0_2, Constant(7, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(13, [Assignment(ListOperation([]), print_call("Saturday", 11))]),
+            BasicBlock(14, [Assignment(ListOperation([]), print_call("Sunday", 13))]),
+            BasicBlock(15, [Assignment(ListOperation([]), print_call("Invalid input! Please enter week number between 1-7.", 14))]),
+        ]
+    )
+    task.graph.add_edges_from(
+        [
+            TrueCase(vertices[0], vertices[1]),
+            FalseCase(vertices[0], vertices[2]),
+            TrueCase(vertices[1], vertices[4]),
+            FalseCase(vertices[1], vertices[3]),
+            UnconditionalEdge(vertices[2], vertices[4]),
+            TrueCase(vertices[3], vertices[5]),
+            FalseCase(vertices[3], vertices[6]),
+            UnconditionalEdge(vertices[5], vertices[4]),
+            TrueCase(vertices[6], vertices[7]),
+            FalseCase(vertices[6], vertices[8]),
+            TrueCase(vertices[7], vertices[9]),
+            FalseCase(vertices[7], vertices[10]),
+            UnconditionalEdge(vertices[8], vertices[4]),
+            UnconditionalEdge(vertices[9], vertices[4]),
+            TrueCase(vertices[10], vertices[11]),
+            FalseCase(vertices[10], vertices[12]),
+            TrueCase(vertices[11], vertices[13]),
+            FalseCase(vertices[11], vertices[14]),
+            UnconditionalEdge(vertices[12], vertices[4]),
+            UnconditionalEdge(vertices[13], vertices[4]),
+            UnconditionalEdge(vertices[14], vertices[4]),
+        ]
+    )
+
+    PatternIndependentRestructuring().run(task)
+
+    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
+    assert isinstance(switch_cond := seq_node.children[1], ConditionNode)
+    assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[4].instructions
+
+    # switch condition:
+    assert switch_cond.false_branch is None and isinstance(switch := switch_cond.true_branch_child, SwitchNode)
+    assert switch_cond.condition.is_literal and not switch_cond.condition.is_symbol
+    assert task._ast.condition_map[~switch_cond.condition] == vertices[1].instructions[-1].condition
+
+    # switch node:
+    assert switch.expression == var_0_2 and len(switch.children) == 7
+    assert isinstance(case1 := switch.cases[0], CaseNode) and case1.constant == Constant(1, Integer(32, True)) and case1.break_case is True
+    assert isinstance(case3 := switch.cases[1], CaseNode) and case3.constant == Constant(3, Integer(32, True)) and case3.break_case is True
+    assert isinstance(case4 := switch.cases[2], CaseNode) and case4.constant == Constant(4, Integer(32, True)) and case4.break_case is True
+    assert isinstance(case5 := switch.cases[3], CaseNode) and case5.constant == Constant(5, Integer(32, True)) and case5.break_case is True
+    assert isinstance(case6 := switch.cases[4], CaseNode) and case6.constant == Constant(6, Integer(32, True)) and case6.break_case is True
+    assert isinstance(case7 := switch.cases[5], CaseNode) and case7.constant == Constant(7, Integer(32, True)) and case7.break_case is True
+    assert isinstance(default := switch.default, CaseNode) and default.constant == "default" and default.break_case is False
+
+    # children of cases
+    assert isinstance(case1.child, CodeNode) and case1.child.instructions == vertices[2].instructions
+    assert isinstance(case3.child, CodeNode) and case3.child.instructions == vertices[5].instructions
+    assert isinstance(case4.child, CodeNode) and case4.child.instructions == vertices[8].instructions
+    assert isinstance(case5.child, CodeNode) and case5.child.instructions == vertices[9].instructions
+    assert isinstance(case6.child, CodeNode) and case6.child.instructions == vertices[12].instructions
+    assert isinstance(case7.child, CodeNode) and case7.child.instructions == vertices[13].instructions
+    assert isinstance(default.child, CodeNode) and default.child.instructions == vertices[14].instructions
+
+
 def test_two_entries_to_one_case(task):
     """
         test_switch test14b
