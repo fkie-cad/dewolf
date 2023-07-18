@@ -458,6 +458,14 @@ def test10():
     run_array_access_detection(input_cfg)
     assert graphs_equal(input_cfg, output_cfg)
 
+def test11():
+    """Test array-access-detection when array type is bool
+    -> RuntimeError: Unexpected size 1
+    """
+    input_cfg, output_cfg = graphs_test11()
+    run_array_access_detection(input_cfg)
+    assert graphs_equal(input_cfg, output_cfg)
+
 
 def graphs_test1():
     cfg = ControlFlowGraph()
@@ -2027,6 +2035,56 @@ def graphs_test10():
                         ],
                         array_info=ArrayInfo(base, index, True),
                     ),
+                    Constant(10),
+                )
+            ],
+        )
+    )
+    return cfg, out_cfg
+
+def graphs_test11():
+    bl = CustomType.bool()
+    cfg = ControlFlowGraph()
+    cfg.add_node(
+        BasicBlock(
+            0,
+            [
+                Assignment(
+                    UnaryOperation(
+                        OperationType.dereference,
+                        [
+                            BinaryOperation(
+                                OperationType.plus,
+                                [
+                                    base := Variable("arg1", Pointer(bl, 32), 0, False),
+                                    index := Variable("var_11", Integer.int64_t())
+                                ],
+                            ),
+                        ],
+                    ),
+                    Constant(10),
+                )
+            ],
+        )
+    )
+    out_cfg = ControlFlowGraph()
+    out_cfg.add_node(
+        BasicBlock(
+            0,
+            [
+                Assignment(
+                    UnaryOperation(
+                        OperationType.dereference,
+                        [
+                            BinaryOperation(
+                                OperationType.plus,
+                                [
+                                    Variable("arg1", Pointer(bl, 32), 0, False),
+                                    Variable("var_11", Integer.int64_t())
+                                ],
+                            ),
+                        ],
+                    array_info=ArrayInfo(base, index, True)),
                     Constant(10),
                 )
             ],

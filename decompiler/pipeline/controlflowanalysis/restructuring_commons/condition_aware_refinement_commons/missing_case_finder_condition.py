@@ -6,6 +6,7 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
 from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
 from decompiler.structures.ast.ast_nodes import ConditionNode, SwitchNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
+from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import Constant
 
 
@@ -48,7 +49,7 @@ class MissingCaseFinderCondition(MissingCaseFinder):
         possible_case_node = condition_node.false_branch_child
         case_condition = condition_node.false_branch.branch_condition
 
-        if not switch_node.reaching_condition.is_true or not self._contains_no_violating_loop_break(possible_case_node):
+        if not self.__reachable_in_switch(case_condition, switch_node) or not self._contains_no_violating_loop_break(possible_case_node):
             return None
 
         expression_usage = self._get_const_eq_check_expression_of_disjunction(case_condition)
@@ -62,3 +63,10 @@ class MissingCaseFinderCondition(MissingCaseFinder):
         new_case_constants = set(self._get_case_constants_for_condition(case_condition))
         if all(case.constant not in new_case_constants for case in switch_node.cases):
             return new_case_constants
+
+    def __reachable_in_switch(self, case_condition: LogicCondition, switch_node: SwitchNode):
+        if switch_node.reaching_condition.is_true:
+            return True
+        z3_switch_reaching_condition = self._convert_to_z3_condition(switch_node.reaching_condition)
+        z3_case_condition = self._convert_to_z3_condition(case_condition)
+        return z3_case_condition.does_imply(z3_switch_reaching_condition)
