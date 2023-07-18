@@ -3,6 +3,7 @@ from typing import Optional, Union
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.base_class_car import (
     BaseClassConditionAwareRefinement,
 )
+from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
 from decompiler.structures.ast.ast_nodes import ConditionNode, FalseNode, SeqNode, TrueNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 
@@ -10,20 +11,20 @@ from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 class SwitchExtractor(BaseClassConditionAwareRefinement):
     """Extract switch nodes from condition nodes if the condition node is irrelevant for the switch node."""
 
-    def __init__(self, asforest: AbstractSyntaxForest):
+    def __init__(self, asforest: AbstractSyntaxForest, options: RestructuringOptions):
         """
         self.current_cond_node: The condition node which we consider to extract switch nodes.
         """
-        super().__init__(asforest)
+        super().__init__(asforest, options)
         self._current_cond_node: Optional[ConditionNode] = None
 
     @classmethod
-    def extract(cls, asforest: AbstractSyntaxForest):
+    def extract(cls, asforest: AbstractSyntaxForest, options: RestructuringOptions):
         """
         Extract switch nodes from condition nodes, i.e., if a switch node is a branch of a condition node whose condition is redundant for
         the switch node, we extract it from the condition node.
         """
-        switch_extractor = cls(asforest)
+        switch_extractor = cls(asforest, options)
         for condition_node in asforest.get_condition_nodes_post_order(asforest.current_root):
             switch_extractor._current_cond_node = condition_node
             switch_extractor._extract_switches_from_condition()
