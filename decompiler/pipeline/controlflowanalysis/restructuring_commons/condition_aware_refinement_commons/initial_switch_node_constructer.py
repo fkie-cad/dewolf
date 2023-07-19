@@ -153,10 +153,9 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         """
         for possible_switch_node in self._get_possible_switch_nodes_for(seq_node):
             sibling_reachability = self.asforest.get_sibling_reachability_of_children_of(seq_node)
-            self._clean_up_reachability(possible_switch_node, sibling_reachability)
+            self._process_switch_node(possible_switch_node, sibling_reachability)
+
             if len(possible_switch_node.cases) > 1:
-                self._remove_too_nested_cases(possible_switch_node, sibling_reachability)
-            if len(possible_switch_node.cases) > 1 and self._can_place_switch_node(possible_switch_node, sibling_reachability):
                 switch_cases = list(possible_switch_node.construct_switch_cases())
                 switch_node = self.asforest.create_switch_node_with(possible_switch_node.expression, switch_cases)
                 case_dependency = CaseDependencyGraph.construct_case_dependency_for(
@@ -171,7 +170,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         Return a list of all possible switch candidates for the given sequence node.
 
         A switch candidate is a node whose reaching condition (for condition nodes combination of condition and reaching condition)
-        is an disjunction of a conjunction of comparisons with the switch-expression and an arbitrary condition, that can be empty.
+        is a disjunction of a conjunction of comparisons with the switch-expression and an arbitrary condition, that can be empty.
         """
         switch_candidate_for: Dict[ExpressionUsages, SwitchNodeCandidate] = dict()
         for child in seq_node.children:
@@ -182,9 +181,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
                     switch_candidate_for[case_candidate.expression] = SwitchNodeCandidate(
                         case_candidate.expression.expression, InsertionOrderedSet([case_candidate])
                     )
-
-        self._remove_case_candidates_with_same_condition(switch_candidate_for.values(), seq_node)
-        return list(switch_candidate_for.values())
+        return list(candidate for candidate in switch_candidate_for.values() if len(candidate.cases) > 1)
 
     def _get_possible_case_candidate_for(self, ast_node: AbstractSyntaxTreeNode) -> Optional[CaseNodeCandidate]:
         """
@@ -206,6 +203,25 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
 
         return None
 
+    def _process_switch_node(self, possible_switch_node: SwitchNodeCandidate, sibling_reachability: SiblingReachability):
+        """
+        Process the possible switch node such that we can insert it a switch-node, if possible.
+
+        1. clean-up reachability, i.e., remove reachability between case-nodes that are not reachable from each other due to their condition
+        2. remove case-candidates with the exact same constants, leaving the once that are most suitable (consider reachability)
+        3. remove too nested cases, i.e., we do not want to insert too many conditions into the switch-cases
+        4. Check whether we can place the switch-node and delete cases in order to make it insertable.
+        """
+        self._clean_up_reachability(possible_switch_node, sibling_reachability)
+        self._initialize_not_same_switch_nodes(possible_switch_node, sibling_reachability)
+        self._remove_case_candidates_with_same_condition(possible_switch_node, sibling_reachability)
+
+        if len(possible_switch_node.cases) < 1:
+            return
+        self._remove_too_nested_cases(possible_switch_node, sibling_reachability)
+        if len(possible_switch_node.cases) < 1:
+            self._can_place_switch_node(possible_switch_node, sibling_reachability)
+
     def _clean_up_reachability(self, possible_switch_node: SwitchNodeCandidate, sibling_reachability: SiblingReachability):
         """
         If two possible switch-cases reach each other, but they have no common possible cases, then we can remove the reachability.
@@ -219,6 +235,14 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
             ):
                 self.asforest._code_node_reachability_graph.remove_reachability_between([candidate_1.node, candidate_2.node])
                 sibling_reachability.remove_reachability_between([candidate_1.node, candidate_2.node])
+
+    def _initialize_not_same_switch_nodes(self, possible_switch_node: SwitchNodeCandidate, sibling_reachability: SiblingReachability):
+        """We do not care about siblings that are no code-nodes and reach all cases or are reached by all cases."""
+        for node in sibling_reachability.sorted_nodes():
+            if node in possible_switch_node:
+                continue
+            if sibling_reachability.reachable_siblings_of(node) or not sibling_reachability.siblings_reaching(node):
+                sibling_reachability.remove_sibling(node)
 
     def _update_reaching_condition_for_case_node_children(self, switch_node: SwitchNode):
         """
@@ -541,20 +565,18 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         copy_sibling_reachability.merge_siblings_to(new_node, [case_candidate.node for case_candidate in switch_node_candidate.cases])
         return copy_sibling_reachability.sorted_nodes() is not None
 
-    def _remove_case_candidates_with_same_condition(self, switch_candidates: Iterable[SwitchNodeCandidate], seq_node: SeqNode) -> None:
+    def _remove_case_candidates_with_same_condition(self, possible_switch_node: SwitchNodeCandidate, sibling_reachability: SiblingReachability) -> None:
         """
         Remove one of two case candidates if they have the same condition.
 
         Since they were not combined before, they can not be combined, and we do not know which to pick.
         """
         # TODO: not optimal, but a first version
-        sibling_reachability = self.asforest.get_sibling_reachability_of_children_of(seq_node)
         reachability_graph = SiblingReachabilityGraph(sibling_reachability)
-        for switch_candidate in switch_candidates:
-            multiple_cases_of_condition = InitialSwitchNodeConstructor.__get_conditions_with_multiple_cases(switch_candidate)
-            copy_sibling_reachability = sibling_reachability.copy()
-            tmp = SwitchNode(switch_candidate.expression, LogicCondition.generate_new_context())
-            copy_sibling_reachability.merge_siblings_to(tmp, [candidate.node for candidate in switch_candidate.cases if not any(candidate in multiple_case for multiple_case in multiple_cases_of_condition.values())])
+        multiple_cases_of_condition = InitialSwitchNodeConstructor.__get_conditions_with_multiple_cases(possible_switch_node)
+        copy_sibling_reachability = sibling_reachability.copy()
+        tmp = SwitchNode(possible_switch_node.expression, LogicCondition.generate_new_context())
+        copy_sibling_reachability.merge_siblings_to(tmp, [candidate.node for candidate in possible_switch_node.cases if not any(candidate in multiple_case for multiple_case in multiple_cases_of_condition.values())])
             #  TODO
 
 

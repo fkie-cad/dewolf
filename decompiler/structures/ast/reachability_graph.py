@@ -306,7 +306,7 @@ class SiblingReachabilityGraph:
         """
         Returns a list of all cross nodes of the reachability graph that are contained in the given set of AST-nodes.
 
-        -> A cross node is a node where the in-degree or out-degree is larger then one.
+        -> A cross node is a node where the in-degree or out-degree is larger than one.
         """
         return [case for case in considered_nodes if self.in_degree(case) > 1 or self.out_degree(case) > 1]
 
