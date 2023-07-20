@@ -208,21 +208,9 @@ class CustomType(Type):
 
 
 @dataclass(frozen=True, order=True)
-class Parameter(Type):
-    """Class representing a function parameter combining type and identifier."""
-
-    name: str
-    type: Type
-
-    def __str__(self) -> str:
-        """Return an anonymous string representation such as void*(int, int, char*)."""
-        return f"{self.type} {self.name}" if self.name else str(self.type)
-
-
-@dataclass(frozen=True, order=True)
 class FunctionTypeDef(Type):
     return_type: Type
-    parameters: Tuple[Parameter, ...]
+    parameters: Tuple[Type, ...]
 
     def __str__(self) -> str:
         """Return an anonymous string representation such as void*(int, int, char*)."""

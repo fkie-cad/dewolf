@@ -6,7 +6,6 @@ from binaryninja.types import (
     CharType,
     EnumerationType,
     FloatType,
-    FunctionParameter,
     FunctionType,
     IntegerType,
     NamedTypeReferenceType,
@@ -17,7 +16,7 @@ from binaryninja.types import (
     WideCharType,
 )
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import CustomType, Float, FunctionTypeDef, Integer, Parameter, Pointer, UnknownType
+from decompiler.structures.pseudo import CustomType, Float, FunctionTypeDef, Integer, Pointer, UnknownType, Variable
 
 
 class TypeHandler(Handler):
@@ -36,7 +35,6 @@ class TypeHandler(Handler):
                 WideCharType: self.lift_custom,
                 NamedTypeReferenceType: self.lift_custom,
                 StructureType: self.lift_custom,
-                FunctionParameter: self.lift_function_parameter,
                 FunctionType: self.lift_function_type,
                 EnumerationType: self.lift_custom,
                 type(None): self.lift_none,
@@ -76,14 +74,10 @@ class TypeHandler(Handler):
         """Lift an array as a pointer of the given type, omitting the size information."""
         return Pointer(self._lifter.lift(array.element_type))
 
-    def lift_function_parameter(self, parameter: FunctionParameter, **kwargs) -> Parameter:
-        """Omit the location information and lift a parameter as its basic type."""
-        return Parameter(parameter.type.width * self.BYTE_SIZE, parameter.name, self._lifter.lift(parameter.type))
-
     def lift_function_type(self, function_type: FunctionType, **kwargs) -> FunctionTypeDef:
         """Lift an anonymous function signature such as void*(int, long)."""
         return FunctionTypeDef(
             function_type.width * self.BYTE_SIZE,
             self._lifter.lift(function_type.return_value),
-            tuple(self._lifter.lift(param) for param in function_type.parameters),
+            tuple(self._lifter.lift(param.type) for param in function_type.parameters),
         )

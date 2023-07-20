@@ -13,6 +13,7 @@ from decompiler.structures.pseudo import (
     GlobalVariable,
     Operation,
     OperationType,
+    Pointer,
     UnaryOperation,
     Variable,
 )
@@ -134,4 +135,6 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
             for requirement in operation.requirements:
                 if isinstance(requirement, GlobalVariable):
                     requirement.unsubscript()
+        if isinstance(variable.type, Pointer) and isinstance(variable.initial_value, int):
+            return hex(variable.initial_value)
         return str(variable.initial_value)
