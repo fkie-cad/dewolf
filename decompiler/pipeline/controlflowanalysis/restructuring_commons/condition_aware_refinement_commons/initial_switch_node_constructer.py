@@ -238,7 +238,20 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
 
     def _initialize_not_same_switch_nodes(self, possible_switch_node: SwitchNodeCandidate, sibling_reachability: SiblingReachability):
         """We do not care about siblings that are no code-nodes and reach all cases or are reached by all cases."""
+        # TODO: Find a way to construct the conflict graph
+        # maximal independent set is wanted
+        reaching_node: DefaultDict[AbstractSyntaxTreeNode, Set[AbstractSyntaxTreeNode]] = defaultdict(set)
+        reachable_from_node: Dict[AbstractSyntaxTreeNode, Set[AbstractSyntaxTreeNode]] = dict()
+        for node in reversed(sibling_reachability.sorted_nodes()):
+            reachable_from_node[node] = set().union(*(reachable_from_node[succ].union({succ}) for succ in sibling_reachability.reachable_siblings_of(node)))
+        for node, reachable_nodes in reachable_from_node.items():
+            for reaching in reachable_nodes:
+                reaching_node[reaching].add(node)
+
+        
         for node in sibling_reachability.sorted_nodes():
+            pass
+
             if node in possible_switch_node:
                 continue
             if sibling_reachability.reachable_siblings_of(node) or not sibling_reachability.siblings_reaching(node):
