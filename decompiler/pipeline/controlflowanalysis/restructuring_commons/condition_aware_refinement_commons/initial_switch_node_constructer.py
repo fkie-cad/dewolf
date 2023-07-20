@@ -15,6 +15,7 @@ from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import Break, Constant, Expression
+from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 
 
 @dataclass
@@ -22,7 +23,7 @@ class SwitchNodeCandidate:
     """Class for possible Switch nodes."""
 
     expression: Expression
-    cases: Set[CaseNodeCandidate]
+    cases: InsertionOrderedSet[CaseNodeCandidate]
 
     def construct_switch_cases(self) -> Iterator[Tuple[CaseNode, AbstractSyntaxTreeNode]]:
         """Construct Switch-case for itself."""
@@ -177,7 +178,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
                     switch_candidate_for[case_candidate.expression].cases.add(case_candidate)
                 else:
                     switch_candidate_for[case_candidate.expression] = SwitchNodeCandidate(
-                        case_candidate.expression.expression, {case_candidate}
+                        case_candidate.expression.expression, InsertionOrderedSet([case_candidate])
                     )
 
         self._remove_case_candidates_with_same_condition(switch_candidate_for.values())
