@@ -15,6 +15,7 @@ from decompiler.structures.pseudo import (
     OperationType,
     UnaryOperation,
     Variable,
+    Pointer
 )
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask
@@ -134,6 +135,6 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
             for requirement in operation.requirements:
                 if isinstance(requirement, GlobalVariable):
                     requirement.unsubscript()
-        if str(variable.type) == 'void *' and isinstance(variable.initial_value, int):
+        if isinstance(variable.type, Pointer) and isinstance(variable.initial_value, int):
             return hex(variable.initial_value)
         return str(variable.initial_value)
