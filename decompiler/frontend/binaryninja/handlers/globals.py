@@ -135,9 +135,11 @@ class GlobalHandler(Handler):
 
 
     def _get_unknown_value(self, addr: int, view: BinaryView, caller_addr: int = 0):
-        """Return symbol, datavariable, string or raw bytes at given address."""
+        """Return symbol, datavariable, address, string or raw bytes at given address."""
         if datavariable := view.get_data_var_at(addr):
             return self._lifter.lift(datavariable, view=view, caller_addr=caller_addr), datavariable.type
+        if not self._addr_in_section(view, addr):
+            return addr, Type.pointer(view.arch, Type.void())
         if (data := self._get_different_string_types_at(addr, view)) and data[0] is not None:
             data, type = data[0], Type.pointer(view.arch, data[1])
         else:

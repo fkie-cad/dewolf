@@ -183,7 +183,7 @@ class MissingCaseFinderSequence(MissingCaseFinder):
             else:
                 case_constants_for_possible_case_node = set(self._get_case_constants_for_condition(possible_case.condition))
                 possible_case.update_reaching_condition_for_insertion()
-                sibling_reachability_graph.update_when_inserting_new_case_node(possible_case.node, switch_node)
+                sibling_reachability_graph.update_when_inserting_new_case_node(possible_case.get_head, switch_node)
                 self.asforest._code_node_reachability_graph.remove_reachability_between([possible_case.node, switch_node])
                 self._insert_case_node(possible_case.node, case_constants_for_possible_case_node, switch_node)
                 cases_of_switch_node.update(case_constants_for_possible_case_node)
