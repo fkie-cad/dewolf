@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from itertools import product
-from typing import TYPE_CHECKING, Dict, Generic, Iterator, List, Sequence, Set, Tuple, TypeVar
+from typing import TYPE_CHECKING, Dict, Generic, Iterator, List, Optional, Sequence, Set, Tuple, TypeVar
 
 import decompiler.structures.pseudo as pseudo
 from decompiler.structures.logic.logic_interface import ConditionInterface, PseudoLogicInterface
@@ -295,57 +295,55 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
             return self
         assert isinstance(self._condition, Operation), "We only remove redundancy for operations"
 
-        real_condition, compared_expressions = self._replace_symbols_by_real_conditions(condition_handler)
+        real_condition = self._replace_symbols_by_real_conditions(condition_handler)
 
         self.context.free_world_condition(real_condition._variable)
         real_condition.simplify()
 
-        self._replace_real_conditions_by_symbols(real_condition, compared_expressions, condition_handler)
+        self.get_logic_condition(real_condition, condition_handler)
 
         self.context.replace(self._condition, real_condition._condition)
         self.context.cleanup()
         return self
 
-    def _replace_real_conditions_by_symbols(
-        self,
-        real_condition: PseudoCustomLogicCondition,
-        compared_expressions: Dict[Variable, pseudo.Expression],
-        condition_handler: ConditionHandler,
-    ):
-        """Replace all clauses of the given real-condition by symbols."""
+    @classmethod
+    def get_logic_condition(cls, real_condition: PseudoCustomLogicCondition, condition_handler: ConditionHandler) -> Optional[CustomLogicCondition]:
+        """Generate a symbol condition given the real-condition together with the condition handler."""
+        context = real_condition.context
         non_logic_operands = {
             node
-            for node in self.context.iter_postorder(real_condition._variable)
+            for node in context.iter_postorder(real_condition._variable)
             if isinstance(node, Operation) and not isinstance(node, (BitwiseOr, BitwiseAnd, BitwiseNegate))
         }
-        replacement_dict = {
-            real_cond._condition: symbol._condition
-            for symbol, real_cond in condition_handler.get_z3_condition_map().items()
-            if any(operand in compared_expressions for operand in real_cond._condition.operands)
-        }
+        replacement_dict = dict()
+        expression_of_variables: Dict[Variable, pseudo.Expression] = dict()
+        for symbol in condition_handler:
+            replacement_dict[condition_handler.get_z3_condition_of(symbol)._condition] =symbol._condition
+            for operand in [op for op in condition_handler.get_condition_of(symbol) if not isinstance(op, pseudo.Constant)]:
+                expression_of_variables[context.variable(real_condition._variable_name_for(operand))] = operand
+
         for operand in non_logic_operands:
             negated_operand = operand.copy_tree().negate()
             for condition, symbol in replacement_dict.items():
                 if World.compare(condition, operand):
-                    self.context.replace(operand, symbol)
+                    context.replace(operand, symbol)
                     break
                 if World.compare(condition, negated_operand):
-                    self.context.replace(operand, self.context.bitwise_negate(symbol))
+                    context.replace(operand, context.bitwise_negate(symbol))
                     break
             else:
                 new_operands = list()
                 for op in operand.operands:
-                    if op in compared_expressions:
-                        new_operands.append(compared_expressions[op])
+                    if op in expression_of_variables:
+                        new_operands.append(expression_of_variables[op])
                     else:
                         assert isinstance(op, Constant), f"The operand must be a Constant"
                         new_operands.append(pseudo.Constant(op.signed, pseudo.Integer(op.size, signed=True)))
-                condition_symbol = condition_handler.add_condition(Condition(self.OPERAND_MAPPING[operand.SYMBOL], new_operands))
-                self.context.replace(operand, condition_symbol._condition)
+                condition_symbol = condition_handler.add_condition(Condition(real_condition.OPERAND_MAPPING[operand.SYMBOL], new_operands))
+                context.replace(operand, condition_symbol._condition)
+        return cls(real_condition._variable)
 
-    def _replace_symbols_by_real_conditions(
-        self, condition_handler: ConditionHandler
-    ) -> Tuple[PseudoCustomLogicCondition, Dict[Variable, pseudo.Expression]]:
+    def _replace_symbols_by_real_conditions(self, condition_handler: ConditionHandler) -> PseudoCustomLogicCondition:
         """
         Return the real condition where the symbols are replaced by the conditions of the condition handler
         as well as a mapping between the replaced symbols and the corresponding pseudo-expression.
@@ -353,14 +351,9 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         copied_condition = PseudoCustomLogicCondition(self._condition)
         self.context.free_world_condition(copied_condition._variable)
         condition_nodes = set(self.context.iter_postorder(copied_condition._variable))
-        compared_expressions: Dict[Variable, pseudo.Expression] = dict()
         for symbol in self.get_symbols():
-            pseudo_condition: Condition = condition_handler.get_condition_of(symbol)
-            for operand in pseudo_condition.operands:
-                if not isinstance(operand, pseudo.Constant):
-                    compared_expressions[self.context.variable(self._variable_name_for(operand))] = operand
             self._replace_symbol(symbol, condition_handler, condition_nodes)
-        return copied_condition, compared_expressions
+        return copied_condition
 
     def _replace_symbol(self, symbol: CustomLogicCondition, condition_handler: ConditionHandler, condition_nodes: Set[WorldObject]):
         """

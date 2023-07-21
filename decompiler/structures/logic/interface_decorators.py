@@ -3,7 +3,7 @@ from typing import Callable
 
 
 def ensure_cnf(method: Callable):
-    """Decorate to ensure the the formula is in cnf-form and simplified after applying the method."""
+    """Decorate to ensure that the formula is in cnf-form and simplified after applying the method."""
 
     @wraps(method)
     def wrapper(self, *args, **kwargs):
