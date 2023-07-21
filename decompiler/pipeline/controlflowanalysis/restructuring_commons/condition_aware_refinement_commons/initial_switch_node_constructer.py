@@ -2,8 +2,8 @@ import operator
 from collections import defaultdict
 from dataclasses import dataclass
 from functools import reduce
-from itertools import chain, combinations, permutations
-from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple, DefaultDict
+from itertools import chain, combinations, permutations, product
+from typing import DefaultDict, Dict, Iterable, Iterator, List, Optional, Set, Tuple
 
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.base_class_car import (
     BaseClassConditionAwareRefinement,
@@ -11,13 +11,18 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
 )
 from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, CodeNode, ConditionNode, SeqNode, SwitchNode, TrueNode
-from decompiler.structures.ast.reachability_graph import CaseDependencyGraph, LinearOrderDependency, SiblingReachability, \
-    SiblingReachabilityGraph
+from decompiler.structures.ast.reachability_graph import (
+    CaseDependencyGraph,
+    LinearOrderDependency,
+    SiblingReachability,
+    SiblingReachabilityGraph,
+)
 from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import Break, Constant, Expression
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
+from networkx import Graph, contracted_nodes, relabel_nodes
 
 
 @dataclass
@@ -155,7 +160,8 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
             sibling_reachability = self.asforest.get_sibling_reachability_of_children_of(seq_node)
             self._process_switch_node(possible_switch_node, sibling_reachability)
 
-            if len(possible_switch_node.cases) > 1:
+            # TODO: also do it after removeing to nested nodes.
+            if len(possible_switch_node.cases) > 1 and self._can_place_switch_node(possible_switch_node, sibling_reachability):
                 switch_cases = list(possible_switch_node.construct_switch_cases())
                 switch_node = self.asforest.create_switch_node_with(possible_switch_node.expression, switch_cases)
                 case_dependency = CaseDependencyGraph.construct_case_dependency_for(
@@ -214,13 +220,10 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         """
         self._clean_up_reachability(possible_switch_node, sibling_reachability)
         self._initialize_not_same_switch_nodes(possible_switch_node, sibling_reachability)
-        self._remove_case_candidates_with_same_condition(possible_switch_node, sibling_reachability)
 
-        if len(possible_switch_node.cases) < 1:
+        if len(possible_switch_node.cases) <= 1:
             return
         self._remove_too_nested_cases(possible_switch_node, sibling_reachability)
-        if len(possible_switch_node.cases) < 1:
-            self._can_place_switch_node(possible_switch_node, sibling_reachability)
 
     def _clean_up_reachability(self, possible_switch_node: SwitchNodeCandidate, sibling_reachability: SiblingReachability):
         """
@@ -238,24 +241,83 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
 
     def _initialize_not_same_switch_nodes(self, possible_switch_node: SwitchNodeCandidate, sibling_reachability: SiblingReachability):
         """We do not care about siblings that are no code-nodes and reach all cases or are reached by all cases."""
-        # TODO: Find a way to construct the conflict graph
-        # maximal independent set is wanted
-        reaching_node: DefaultDict[AbstractSyntaxTreeNode, Set[AbstractSyntaxTreeNode]] = defaultdict(set)
-        reachable_from_node: Dict[AbstractSyntaxTreeNode, Set[AbstractSyntaxTreeNode]] = dict()
-        for node in reversed(sibling_reachability.sorted_nodes()):
-            reachable_from_node[node] = set().union(*(reachable_from_node[succ].union({succ}) for succ in sibling_reachability.reachable_siblings_of(node)))
-        for node, reachable_nodes in reachable_from_node.items():
-            for reaching in reachable_nodes:
-                reaching_node[reaching].add(node)
+        sorted_siblings = sibling_reachability.sorted_nodes()
+        cases_with_same_condition: Dict[LogicCondition, Set[CaseNodeCandidate]] = self.__get_conditions_with_multiple_cases(
+            possible_switch_node
+        )
+        if not cases_with_same_condition and self._can_place_switch_node(possible_switch_node, sibling_reachability):
+            return
+        transitive_closure = sibling_reachability.transitive_closure()
+        interfering_cases = self.__generate_interfering_case_nodes(possible_switch_node, sorted_siblings, transitive_closure)
+        self.__remove_duplicated_conditions(
+            cases_with_same_condition, interfering_cases, possible_switch_node, sibling_reachability, transitive_closure
+        )
 
-        
-        for node in sibling_reachability.sorted_nodes():
-            pass
+        switch_nodes = self.__get_switch_nodes(interfering_cases)
+        possible_switch_node.cases = switch_nodes
 
-            if node in possible_switch_node:
-                continue
-            if sibling_reachability.reachable_siblings_of(node) or not sibling_reachability.siblings_reaching(node):
-                sibling_reachability.remove_sibling(node)
+    def __generate_interfering_case_nodes(self, possible_switch_node, sorted_siblings, transitive_closure):
+        switch_cases = {case.node: case for case in possible_switch_node.cases}
+        interfering_cases = Graph()
+        interfering_cases.add_nodes_from(switch_cases.values())
+        for node in self.__get_non_case_nodes(sorted_siblings, switch_cases):
+            before_cases = [switch_cases[reaching] for reaching in transitive_closure.siblings_reaching(node) if reaching in switch_cases]
+            after_cases = [
+                switch_cases[reachable] for reachable in transitive_closure.reachable_siblings_of(node) if reachable in switch_cases
+            ]
+            if before_cases and after_cases:
+                interfering_cases.add_edges_from(product(before_cases, after_cases))
+        return interfering_cases
+
+    def __get_non_case_nodes(self, siblings: Tuple[AbstractSyntaxTreeNode], switch_cases: Dict[AbstractSyntaxTreeNode, CaseNodeCandidate]):
+        for sibling in siblings:
+            if sibling not in switch_cases:
+                yield sibling
+
+    def __remove_duplicated_conditions(
+        self, cases_with_same_condition, interfering_cases, possible_switch_node, sibling_reachability, transitive_closure
+    ):
+        for condition, same_condition_cases in cases_with_same_condition.items():
+            non_interfering_cases = [
+                (case1, case2)
+                for case1, case2 in combinations(same_condition_cases, 2)
+                if not interfering_cases.has_edge(case1.node, case2.node)
+            ]
+            while non_interfering_cases:
+                case1, case2 = non_interfering_cases.pop()
+                if case1 not in possible_switch_node.cases or case2 not in possible_switch_node.cases:
+                    continue
+                if sibling_reachability.can_group_siblings([case1.node, case2.node]):
+                    cond_node = self.asforest.create_condition_node_with(condition, [case1.node, case2.node], [])
+                    sibling_reachability.merge_siblings_to(cond_node, [case1.node, case2.node])
+                    transitive_closure.merge_siblings_to(cond_node, [case1.node, case2.node])
+                    contracted_nodes(interfering_cases, case1, case2, copy=False)
+                    relabel_nodes(interfering_cases, {case1: cond_node}, copy=False)
+                    possible_switch_node.cases.remove(case1)
+                    possible_switch_node.cases.remove(case2)
+                    possible_switch_node.cases.add(CaseNodeCandidate(cond_node, case1.expression, condition))
+                else:
+                    # TODO: not done yet -> check when to use CaseNodeCandidate and when to use ASTNode!!!
+                    before_cases1 = [
+                        reaching for reaching in transitive_closure.siblings_reaching(case1.node) if reaching in interfering_cases
+                    ]
+                    after_cases2 = [
+                        reachable for reachable in transitive_closure.reachable_siblings_of(case2.node) if reachable in interfering_cases
+                    ]
+                    if len(before_cases1) > len(after_cases2):
+                        before_cases2 = [
+                            reaching for reaching in transitive_closure.siblings_reaching(case2.node) if reaching in interfering_cases
+                        ]
+                        possible_switch_node.cases.remove(case2.node)
+                        interfering_cases.add_edges_from(product(before_cases2, after_cases2))
+                    else:
+                        after_cases1 = [
+                            reachable
+                            for reachable in transitive_closure.reachable_siblings_of(case1.node)
+                            if reachable in interfering_cases
+                        ]
+                        possible_switch_node.cases.remove(case1.node)
+                        interfering_cases.add_edges_from(product(before_cases1, after_cases1))
 
     def _update_reaching_condition_for_case_node_children(self, switch_node: SwitchNode):
         """
@@ -573,27 +635,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         :param sibling_reachability: The reachability of all children of the sequence node.
         """
         # TODO Why not deleting some nodes to still get the switch? If only one is the problem???
-        copy_sibling_reachability = sibling_reachability.copy()
-        new_node = SwitchNode(switch_node_candidate.expression, LogicCondition.generate_new_context())
-        copy_sibling_reachability.merge_siblings_to(new_node, [case_candidate.node for case_candidate in switch_node_candidate.cases])
-        return copy_sibling_reachability.sorted_nodes() is not None
-
-    def _remove_case_candidates_with_same_condition(self, possible_switch_node: SwitchNodeCandidate, sibling_reachability: SiblingReachability) -> None:
-        """
-        Remove one of two case candidates if they have the same condition.
-
-        Since they were not combined before, they can not be combined, and we do not know which to pick.
-        """
-        # TODO: not optimal, but a first version
-        reachability_graph = SiblingReachabilityGraph(sibling_reachability)
-        multiple_cases_of_condition = InitialSwitchNodeConstructor.__get_conditions_with_multiple_cases(possible_switch_node)
-        copy_sibling_reachability = sibling_reachability.copy()
-        tmp = SwitchNode(possible_switch_node.expression, LogicCondition.generate_new_context())
-        copy_sibling_reachability.merge_siblings_to(tmp, [candidate.node for candidate in possible_switch_node.cases if not any(candidate in multiple_case for multiple_case in multiple_cases_of_condition.values())])
-            #  TODO
-
-
-
+        return sibling_reachability.can_group_siblings([case.node for case in switch_node_candidate.cases])
 
     @staticmethod
     def __get_conditions_with_multiple_cases(switch_candidate: SwitchNodeCandidate):
@@ -622,3 +664,19 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         current_node = second_case_node
         while (current_node := current_node.parent) != cond_node:
             yield current_node.reaching_condition
+
+    def __get_switch_nodes(self, interfering_cases):
+        degree_map = {node: degree for node, degree in interfering_cases.degree()}
+        final_case_nodes = InsertionOrderedSet()
+        while interfering_cases:
+            case = min(degree_map, key=lambda x: degree_map[x])
+            final_case_nodes.add(case)
+            for neighbor in list(interfering_cases.neighbors(case)):
+                for n in interfering_cases.neighbors(neighbor):
+                    degree_map[n] -= 1
+                interfering_cases.remove_node(neighbor)
+                del degree_map[neighbor]
+
+            interfering_cases.remove_node(case)
+            del degree_map[case]
+        return final_case_nodes

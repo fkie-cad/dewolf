@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Set, Tuple
 
 from decompiler.structures.pseudo.expressions import Constant
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
-from networkx import DiGraph, NetworkXUnfeasible, has_path, topological_sort, weakly_connected_components
+from networkx import DiGraph, NetworkXUnfeasible, has_path, topological_sort, transitive_closure, weakly_connected_components
 
 if TYPE_CHECKING:
     from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, CodeNode, SwitchNode
@@ -101,6 +101,14 @@ class SiblingReachability:
             return tuple(topological_sort(self._sibling_reachability_graph))
         except NetworkXUnfeasible:
             return None
+
+    def transitive_closure(self):
+        return SiblingReachability(transitive_closure(self._sibling_reachability_graph))
+
+    def can_group_siblings(self, grouping_siblings: List[AbstractSyntaxTreeNode]):
+        copy_sibling_reachability = self.copy()
+        copy_sibling_reachability.merge_siblings_to("X", grouping_siblings)
+        return copy_sibling_reachability.sorted_nodes() is not None
 
 
 class ReachabilityGraph:
