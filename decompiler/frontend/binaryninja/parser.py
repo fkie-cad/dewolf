@@ -1,6 +1,6 @@
 """Implements the parser for the binaryninja frontend."""
-from logging import debug, info, warning
-from typing import Dict, Iterator, List
+from logging import info, warning
+from typing import Dict, Iterator, List, Tuple
 
 from binaryninja import (
     BasicBlockEdge,
@@ -17,6 +17,7 @@ from decompiler.frontend.lifter import Lifter
 from decompiler.frontend.parser import Parser
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, IndirectEdge, SwitchCase, TrueCase, UnconditionalEdge
 from decompiler.structures.pseudo import Constant, Instruction
+from decompiler.structures.pseudo.complextypes import ComplexTypeMap
 
 
 class BinaryninjaParser(Parser):
@@ -36,7 +37,7 @@ class BinaryninjaParser(Parser):
         self._unlifted_instructions: List[MediumLevelILInstruction] = []
         self._report_threshold = int(report_threshold)
 
-    def parse(self, function: Function) -> ControlFlowGraph:
+    def parse(self, function: Function) -> Tuple[ControlFlowGraph, ComplexTypeMap]:
         """Generate a cfg from the given function."""
         cfg = ControlFlowGraph()
         index_to_BasicBlock = dict()
@@ -45,9 +46,9 @@ class BinaryninjaParser(Parser):
             cfg.add_node(index_to_BasicBlock[basic_block.index])
         for basic_block in function.medium_level_il.ssa_form:
             self._add_basic_block_edges(cfg, index_to_BasicBlock, basic_block)
+        complex_types = self._lifter.complex_types
         self._report_lifter_errors()
-        self._lifter.complex_types.pretty_print()
-        return cfg
+        return cfg, complex_types
 
     def _recover_switch_edge_cases(self, edge: BasicBlockEdge, lookup_table: dict):
         """

@@ -18,6 +18,7 @@ from decompiler.structures.pseudo import (
     UnaryOperation,
     Variable,
 )
+from decompiler.structures.pseudo.operations import StructMemberAccess
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask
 from decompiler.util.serialization.bytes_serializer import convert_bytes
@@ -42,6 +43,9 @@ class LocalDeclarationGenerator(BaseAstDataflowObjectVisitor):
     def visit_assignment(self, instruction: Assignment):
         """Remember all defined variables."""
         self._variables.update(instruction.definitions)
+        # TODO is there a better way? Should structs be in assignment definitions?
+        if isinstance(instruction.destination, StructMemberAccess):
+            self._variables.update([instruction.destination.struct_variable])
 
     def visit_loop_node(self, node: LoopNode):
         """Visit the given loop node, taking node of the loop declaration."""
@@ -68,7 +72,6 @@ class LocalDeclarationGenerator(BaseAstDataflowObjectVisitor):
         for variable in sorted(self._variables, key=lambda x: str(x)):
             if not isinstance(variable, GlobalVariable) and variable.name not in param_names:
                 variable_type_mapping[variable.type].append(variable)
-
         for variable_type, variables in sorted(variable_type_mapping.items(), key=lambda x: str(x)):
             for chunked_variables in self._chunks(variables, self._vars_per_line):
                 yield CExpressionGenerator.format_variables_declaration(

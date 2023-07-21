@@ -2,7 +2,7 @@ import logging
 from abc import ABC
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from decompiler.structures.pseudo.typing import Type
 
@@ -29,10 +29,12 @@ class ComplexTypeMember(ComplexType):
     @param name: name of the struct member
     @param offset: offset of the member within the struct
     @param type: datatype of the member
+    @param value: initial value of the member, enums only
     """
     name: str
     offset: int
     type: Type
+    value: Optional[int] = None
 
     def __str__(self) -> str:
         return f"{self.name}"
@@ -61,8 +63,8 @@ class Struct(ComplexType):
         return self.members.get(offset)
 
     def declaration(self):
-        members = ",\n\t".join(x.declaration() for x in self.members.values())
-        return f"{self.type_specifier.value} {{\n\t{members}\n}} {self.name};"
+        members = ";\n\t".join(x.declaration() for x in self.members.values())+";"
+        return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}};"
 
 
 @dataclass(frozen=True, order=True)
@@ -77,8 +79,24 @@ class Union(ComplexType):
         self.members.append(ComplexTypeMember(name, 0, type_))
 
     def declaration(self):
-        members = ",\n\t".join(x.declaration() for x in self.members)
-        return f"{self.type_specifier.value} {{\n\t{members}\n}}  {self.name} ;"
+        members = ";\n\t".join(x.declaration() for x in self.members)
+        return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}};"
+
+
+@dataclass(frozen=True, order=True)
+class Enum(ComplexType):
+    members: Dict[int, ComplexTypeMember] = field(compare=False)
+    type_specifier = ComplexTypeSpecifier.ENUM
+
+    def add_member(self, member: ComplexTypeMember):
+        self.members[member.value] = member
+
+    def get_name_by_value(self, value: int) -> str:
+        return self.members.get(value).name
+        
+    def declaration(self):
+        members = ",\n\t".join(f"{x.name} = {x.value}" for x in self.members.values())
+        return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}};"
 
 
 @dataclass(frozen=True, order=True)
@@ -107,3 +125,6 @@ class ComplexTypeMap:
     def pretty_print(self):
         for t in self._name_to_type_map.values():
             logging.error(t.declaration())
+
+    def declarations(self) -> str:
+        return "\n".join(t.declaration() for t in self._name_to_type_map.values())
