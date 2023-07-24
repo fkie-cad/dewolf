@@ -66,7 +66,10 @@ class AssignmentHandler(Handler):
                 lift using bit masking eax = (eax & 0xffff00ff) + (value << 2)
         """
         # case 1 (struct):
-        if isinstance(assignment.dest.type, binaryninja.NamedTypeReferenceType):
+        dest_type = self._lifter.lift(assignment.dest.type)
+        if isinstance(assignment.dest.type, binaryninja.NamedTypeReferenceType) and not (
+            isinstance(dest_type, Pointer) and isinstance(dest_type.type, Integer)
+        ):
             struct_variable = self._lifter.lift(assignment.dest, is_aliased=True, parent=assignment)
             destination = StructMemberAccess(
                 src=struct_variable,
