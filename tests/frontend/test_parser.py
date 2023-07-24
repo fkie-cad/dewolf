@@ -189,7 +189,7 @@ def parser():
 def test_trivial(parser):
     """Function with a single empty basic block."""
     function = MockFunction([MockBlock(0, [])])
-    cfg = parser.parse(function)
+    cfg, _ = parser.parse(function)
     assert len(cfg.nodes) == 1
     assert len(list(cfg.instructions)) == 0
     assert len(cfg.edges) == 0
@@ -204,7 +204,7 @@ def test_chain(parser):
             MockBlock(2, []),
         ]
     )
-    cfg = parser.parse(function)
+    cfg, _ = parser.parse(function)
     assert [v.name for v in cfg.nodes] == [0, 1, 2]
     assert [(edge.source.name, edge.sink.name) for edge in cfg.edges] == [(0, 1), (1, 2)]
     assert len(list(cfg.instructions)) == 0
@@ -221,7 +221,7 @@ def test_branch(parser):
             MockBlock(3, []),
         ]
     )
-    cfg = parser.parse(function)
+    cfg, _ = parser.parse(function)
     assert [v.name for v in cfg.nodes] == [0, 1, 2, 3]
     assert [(edge.source.address, edge.sink.address) for edge in cfg.edges] == [(0, 1), (0, 2), (1, 3), (2, 3)]
     assert len(list(cfg.instructions)) == 0
@@ -250,7 +250,7 @@ def test_switch(parser):
             MockBlock(4, []),
         ]
     )
-    cfg = parser.parse(function)
+    cfg, _ = parser.parse(function)
     assert [v.name for v in cfg.nodes] == [0, 1, 2, 3, 4]
     assert [(edge.source.name, edge.sink.name) for edge in cfg.edges] == [(0, 1), (0, 2), (0, 3), (1, 4), (2, 4), (3, 4)]
     assert [getattr(edge, "cases", None) for edge in cfg.edges] == [
@@ -274,7 +274,7 @@ def test_loop(parser):
             MockBlock(3, []),
         ]
     )
-    cfg = parser.parse(function)
+    cfg, _ = parser.parse(function)
     assert [v.name for v in cfg.nodes] == [0, 1, 2, 3]
     assert [(edge.source.address, edge.sink.address) for edge in cfg.edges] == [(0, 1), (1, 2), (2, 1), (2, 3)]
     assert len(list(cfg.instructions)) == 0
