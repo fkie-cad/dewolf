@@ -378,7 +378,7 @@ class UnaryOperation(Operation):
         return visitor.visit_unary_operation(self)
 
 
-class StructMemberAccess(Operation):
+class StructMemberAccess(UnaryOperation):
     def __init__(
         self,
         src: Expression,
@@ -388,11 +388,10 @@ class StructMemberAccess(Operation):
         vartype: Type = UnknownType(),
         writes_memory: Optional[int] = None,
     ):
-        super().__init__(OperationType.struct_member, operands, vartype)
+        super().__init__(OperationType.struct_member, operands, vartype, writes_memory=writes_memory)
         self.struct_variable = src
         self.member_offset = offset
         self.member_name = member_name
-        self.writes_memory = writes_memory
 
     def __str__(self):
         # use -> when accessing member via a pointer to a struct
