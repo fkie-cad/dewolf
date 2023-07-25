@@ -6,6 +6,7 @@ from decompiler.structures import pseudo as expressions
 from decompiler.structures.pseudo import Float, FunctionTypeDef, Integer, OperationType, Pointer, StringSymbol, Type
 from decompiler.structures.pseudo import instructions as instructions
 from decompiler.structures.pseudo import operations as operations
+from decompiler.structures.pseudo.operations import StructMemberAccess
 from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInterface
 
 
@@ -181,6 +182,10 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
 
     def visit_unary_operation(self, op: operations.UnaryOperation) -> str:
         """Return a string representation of the given unary operation (e.g. !a or &a)."""
+        if isinstance(op, StructMemberAccess):
+            if isinstance(op.struct_variable.type, Pointer):
+                return f"{self.visit(op.struct_variable)}->{op.member_name}"
+            return f"{self.visit(op.struct_variable)}.{op.member_name}"
         operand = self._visit_bracketed(op.operand) if self._has_lower_precedence(op.operand, op) else self.visit(op.operand)
         if op.operation == OperationType.cast and op.contraction:
             return f"({int(op.type.size / 8)}: ){operand}"

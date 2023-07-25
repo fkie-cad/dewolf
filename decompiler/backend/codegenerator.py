@@ -30,9 +30,7 @@ class CodeGenerator:
         for task in tasks:
             if run_cleanup and not task.failed:
                 task.syntax_tree.clean_up()
-            # TODO change this in task
-            if task._complex_types:
-                string_blocks.append("\n"+task._complex_types.declarations())
+            string_blocks.append(task.complex_types.declarations())
             string_blocks.append(self.generate_function(task))
         return "\n\n".join(string_blocks)
 

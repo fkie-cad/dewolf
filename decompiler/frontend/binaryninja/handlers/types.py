@@ -58,9 +58,12 @@ class TypeHandler(Handler):
         return CustomType(str(custom), custom.width * self.BYTE_SIZE)
 
     def lift_named_type_reference_type(self, custom: NamedTypeReferenceType, **kwargs) -> Union[Type, CustomType]:
-        """Lift a special type that binary ninja uses as placeholder for references on complex types like structs, unions, etc.
-        Binja does not attach complex types to expressions, but this type instead that barely holds infos about name of the
-        corresponding complex type.
+        """Lift a special type that binary ninja uses as placeholder for references on complex types like structs, unions, etc. as well
+        as user-defined types. E.g.
+        typedef PVOID HANDLE;
+        causes HANDLE to be NamedTypeReferenceType, despite the fact that it is actually a void pointer.
+        Binja does not attach named types to expressions, but this type instead that barely holds infos about name of the
+        corresponding complex type. #TODO is it a case for typedefs also?
         We try to retrieve the original complex type from binary view using this placeholder type, and lift it correspondingly.
         """
         view: BinaryView = self._lifter.bv
