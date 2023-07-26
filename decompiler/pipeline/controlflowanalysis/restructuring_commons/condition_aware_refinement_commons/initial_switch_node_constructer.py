@@ -5,24 +5,19 @@ from functools import reduce
 from itertools import combinations, permutations, product
 from typing import DefaultDict, Dict, Iterable, Iterator, List, Optional, Set, Tuple
 
-from networkx import Graph
-
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.base_class_car import (
     BaseClassConditionAwareRefinement,
     CaseNodeCandidate,
 )
 from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, CodeNode, ConditionNode, SeqNode, SwitchNode, TrueNode
-from decompiler.structures.ast.reachability_graph import (
-    CaseDependencyGraph,
-    LinearOrderDependency,
-    SiblingReachability,
-)
+from decompiler.structures.ast.reachability_graph import CaseDependencyGraph, LinearOrderDependency, SiblingReachability
 from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import Constant, Expression
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
+from networkx import Graph
 
 
 @dataclass
@@ -195,7 +190,7 @@ class SwitchNodeProcessor:
             interfering_cases.remove_node(case)
             del degree_map[case]
 
-    def _remove_too_nested_cases(self) -> Iterable[AbstractSyntaxTreeNode]:
+    def _remove_too_nested_cases(self) -> None:
         """
         Check whether the cases are too nested. If this is the case, then we remove the cases that cause this problem.
 
@@ -209,7 +204,6 @@ class SwitchNodeProcessor:
         )
         for cross_node in case_dependency_graph.get_too_nested_cases():
             self.switch_candidate.cases.remove(cross_node)
-            yield cross_node
 
     def _can_place_switch_node(self) -> bool:
         """Check whether we can construct a switch node for the switch node candidate."""
@@ -336,10 +330,10 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         """
         switch_node_processor = SwitchNodeProcessor(self.asforest)
         for possible_switch_node in self._get_possible_switch_nodes_for(seq_node):
-            sibling_reachability = self.asforest.get_sibling_reachability_of_children_of(seq_node)
             if switch_node_processor.process(possible_switch_node, seq_node) is False:
                 continue
 
+            sibling_reachability = self.asforest.get_sibling_reachability_of_children_of(seq_node)
             switch_cases = list(possible_switch_node.construct_switch_cases())
             switch_node = self.asforest.create_switch_node_with(possible_switch_node.expression, switch_cases)
             case_dependency = CaseDependencyGraph.construct_case_dependency_for(self.asforest.children(switch_node), sibling_reachability)

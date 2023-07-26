@@ -3400,14 +3400,12 @@ def test_too_nested(task):
     PatternIndependentRestructuring().run(task)
 
     # initial part
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 12
+    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 5
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(cond_node := seq_node.children[1], ConditionNode)
-    assert all(
-        isinstance(child, ConditionNode) and child.false_branch is None and isinstance(child.true_branch_child, CodeNode)
-        for child in seq_node.children[2:11]
-    )
-    assert isinstance(seq_node.children[11], CodeNode) and seq_node.children[11].instructions == vertices[3].instructions
+    assert isinstance(switch1 := seq_node.children[2], SwitchNode)
+    assert isinstance(switch2 := seq_node.children[3], SwitchNode)
+    assert isinstance(seq_node.children[4], CodeNode) and seq_node.children[4].instructions == vertices[3].instructions
 
     # condition node
     if (cond := cond_node.condition).is_symbol:
@@ -3424,59 +3422,45 @@ def test_too_nested(task):
     # before_switch branch
     assert isinstance(switch_branch, CodeNode) and switch_branch.instructions == vertices[2].instructions[:-1]
 
-    # all switch-cases
-    assert seq_node.children[2].true_branch_child.instructions == vertices[4].instructions
-    assert task._ast.condition_map[seq_node.children[2].condition] == Condition(
-        OperationType.equal, [var_1_1, Constant(0, Integer(32, True))]
+    # switch1
+    assert switch1.expression == var_1_1 and len(switch1.children) == 5
+    assert isinstance(case1 := switch1.cases[0], CaseNode) and case1.constant == Constant(0, Integer(32, True)) and case1.break_case
+    assert isinstance(case2 := switch1.cases[1], CaseNode) and case2.constant == Constant(1, Integer(32, True)) and case2.break_case
+    assert (
+        isinstance(case3 := switch1.cases[2], CaseNode) and case3.constant == Constant(3, Integer(32, True)) and case3.break_case is False
     )
-    assert seq_node.children[3].true_branch_child.instructions == vertices[5].instructions
-    assert task._ast.condition_map[seq_node.children[3].condition] == Condition(
-        OperationType.equal, [var_1_1, Constant(1, Integer(32, True))]
+    assert isinstance(case4 := switch1.cases[3], CaseNode) and case4.constant == Constant(4, Integer(32, True)) and case4.break_case
+    assert isinstance(case5 := switch1.cases[4], CaseNode) and case5.constant == Constant(5, Integer(32, True)) and case5.break_case
+
+    # children of cases
+    assert isinstance(case1.child, CodeNode) and case1.child.instructions == vertices[4].instructions
+    assert isinstance(case2.child, CodeNode) and case2.child.instructions == vertices[5].instructions
+    assert isinstance(case3.child, CodeNode) and case3.child.instructions == vertices[7].instructions
+    assert isinstance(case4.child, CodeNode) and case4.child.instructions == vertices[8].instructions
+    assert isinstance(case5.child, CodeNode) and case5.child.instructions == vertices[12].instructions
+
+    # switch2
+    assert switch2.expression == var_1_1 and len(switch2.children) == 5
+    assert (
+        isinstance(case1 := switch2.cases[0], CaseNode) and case1.constant == Constant(0, Integer(32, True)) and case1.break_case is False
     )
-    assert seq_node.children[4].true_branch_child.instructions == vertices[12].instructions
-    assert task._ast.condition_map[seq_node.children[4].condition] == Condition(
-        OperationType.equal, [var_1_1, Constant(5, Integer(32, True))]
+    assert (
+        isinstance(case2 := switch2.cases[1], CaseNode) and case2.constant == Constant(1, Integer(32, True)) and case2.break_case is False
     )
-    assert seq_node.children[5].true_branch_child.instructions == vertices[7].instructions
-    assert task._ast.condition_map[seq_node.children[5].condition] == Condition(
-        OperationType.equal, [var_1_1, Constant(3, Integer(32, True))]
+    assert (
+        isinstance(case3 := switch2.cases[2], CaseNode) and case3.constant == Constant(2, Integer(32, True)) and case3.break_case is False
     )
-    assert seq_node.children[6].true_branch_child.instructions == vertices[11].instructions
-    assert seq_node.children[6].condition.is_disjunction and len(arguments := seq_node.children[6].condition.operands) == 2
-    assert {task._ast.condition_map[arg] for arg in arguments} == {
-        Condition(OperationType.equal, [var_1_1, Constant(0, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(1, Integer(32, True))]),
-    }
-    assert seq_node.children[7].true_branch_child.instructions == vertices[8].instructions
-    assert seq_node.children[7].condition.is_disjunction and len(arguments := seq_node.children[7].condition.operands) == 2
-    assert {task._ast.condition_map[arg] for arg in arguments} == {
-        Condition(OperationType.equal, [var_1_1, Constant(3, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(4, Integer(32, True))]),
-    }
-    assert seq_node.children[8].true_branch_child.instructions == vertices[6].instructions
-    assert seq_node.children[8].condition.is_disjunction and len(arguments := seq_node.children[8].condition.operands) == 3
-    assert {task._ast.condition_map[arg] for arg in arguments} == {
-        Condition(OperationType.equal, [var_1_1, Constant(0, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(1, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(2, Integer(32, True))]),
-    }
-    assert seq_node.children[9].true_branch_child.instructions == vertices[9].instructions
-    assert seq_node.children[9].condition.is_disjunction and len(arguments := seq_node.children[9].condition.operands) == 4
-    assert {task._ast.condition_map[arg] for arg in arguments} == {
-        Condition(OperationType.equal, [var_1_1, Constant(0, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(1, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(2, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(6, Integer(32, True))]),
-    }
-    assert seq_node.children[10].true_branch_child.instructions == vertices[10].instructions
-    assert seq_node.children[10].condition.is_disjunction and len(arguments := seq_node.children[10].condition.operands) == 5
-    assert {task._ast.condition_map[arg] for arg in arguments} == {
-        Condition(OperationType.equal, [var_1_1, Constant(0, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(1, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(2, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(5, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(6, Integer(32, True))]),
-    }
+    assert (
+        isinstance(case4 := switch2.cases[3], CaseNode) and case4.constant == Constant(6, Integer(32, True)) and case4.break_case is False
+    )
+    assert isinstance(case5 := switch2.cases[4], CaseNode) and case5.constant == Constant(5, Integer(32, True)) and case5.break_case
+
+    # children of cases
+    assert isinstance(case1.child, CodeNode) and case1.child.instructions == []
+    assert isinstance(case2.child, CodeNode) and case2.child.instructions == vertices[11].instructions
+    assert isinstance(case3.child, CodeNode) and case3.child.instructions == vertices[6].instructions
+    assert isinstance(case4.child, CodeNode) and case4.child.instructions == vertices[9].instructions
+    assert isinstance(case5.child, CodeNode) and case5.child.instructions == vertices[10].instructions
 
 
 def test_combine_switch_nodes(task):
