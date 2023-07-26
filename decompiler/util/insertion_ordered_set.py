@@ -15,6 +15,9 @@ class InsertionOrderedSet(dict, Generic[T], MutableSet):
     def __iter__(self) -> Iterator[T]:
         yield from self.keys()
 
+    def __len__(self) -> int:
+        return len(self.keys())
+
     def update(self, *args: Iterable[T], **kwargs: Dict[str, Any]):  # type: ignore
         # Type checking ignored as we cannot satisfy the dict.update signature.
         if kwargs:

@@ -102,10 +102,11 @@ class SiblingReachability:
         except NetworkXUnfeasible:
             return None
 
-    def transitive_closure(self):
+    def transitive_closure(self) -> SiblingReachability:
         return SiblingReachability(transitive_closure(self._sibling_reachability_graph))
 
     def can_group_siblings(self, grouping_siblings: List[AbstractSyntaxTreeNode]):
+        """Check whether the given siblings can be grouped into one node."""
         copy_sibling_reachability = self.copy()
         copy_sibling_reachability.merge_siblings_to("X", grouping_siblings)
         return copy_sibling_reachability.sorted_nodes() is not None
