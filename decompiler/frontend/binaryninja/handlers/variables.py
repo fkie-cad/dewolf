@@ -57,11 +57,11 @@ class VariableHandler(Handler):
 
     def lift_variable_operation(self, variable: MediumLevelILVar, **kwargs) -> Variable:
         """Lift the given MediumLevelILVar operation."""
-        return self._lifter.lift(variable.src, parent=variable)
+        return self._lifter.lift(variable.var, parent=variable)
 
     def lift_variable_operation_ssa(self, variable: MediumLevelILVar, **kwargs) -> Variable:
         """Lift the given MediumLevelILVar_ssa operation."""
-        return self._lifter.lift(variable.src, parent=variable)
+        return self._lifter.lift(variable.var, parent=variable)
 
     def lift_register_pair(self, pair: MediumLevelILVarSplitSsa, **kwargs) -> RegisterPair:
         """Lift register pair expression (e.g. eax:edx)."""
