@@ -95,13 +95,10 @@ class MissingCaseFinderSequence(MissingCaseFinder):
 
         :param switch_nodes: A list of switch nodes we want to combine.
         """
-        #  TODO What if only some of them are combinable???
         sibling_reachability = self.asforest.get_sibling_reachability_of_children_of(self._current_seq_node)
         # The switch cases are all different, thus which switch comes first is irrelevant for the switch-nodes, but maybe not for the other children
         sibling_reachability.remove_reachability_between(switch_nodes)
-        new_node = self.asforest.factory.create_switch_node(switch_nodes[0].expression)
-        sibling_reachability.merge_siblings_to(new_node, switch_nodes)
-        return sibling_reachability.sorted_nodes() is not None
+        return sibling_reachability.can_group_siblings(switch_nodes)
 
     def _add_missing_cases(self) -> None:
         """
