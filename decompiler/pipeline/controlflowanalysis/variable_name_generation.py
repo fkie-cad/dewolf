@@ -145,7 +145,7 @@ class HungarianScheme(RenamingScheme):
             else:
                 return ""
         if isinstance(var_type, (Integer, Float)):
-            sign = "" if var_type.is_signed else "u"
+            sign = "u" if isinstance(var_type, Integer) and not var_type.is_signed else ""
             prefix = self.type_prefix[type(var_type)].get(var_type.size, "unk")
             return f"{sign}{prefix}"
         return ""
