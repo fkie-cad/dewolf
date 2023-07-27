@@ -180,7 +180,7 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
             and isinstance(target_operand, expressions.Constant)
             and (
                 (isinstance(target_operand.type, Float) and self._use_increment_float)
-                or ((isinstance(target_operand.type, Integer) and not isinstance(target_operand.type, Float)) and self._use_increment_int)
+                or (isinstance(target_operand.type, Integer) and self._use_increment_int)
             )
             and (target_operand.value == 0x1 or target_operand.value == -0x1)
         )
