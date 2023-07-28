@@ -18,7 +18,7 @@ from decompiler.structures.pseudo import (
     RegisterPair,
     UnaryOperation,
 )
-from decompiler.structures.pseudo.complextypes import ComplexType, Struct
+from decompiler.structures.pseudo.complextypes import Struct, Union as _Union
 from decompiler.structures.pseudo.operations import StructMemberAccess
 
 
@@ -100,11 +100,18 @@ class AssignmentHandler(Handler):
         (x = ) <- for the sake of example, only rhs expression is lifted here.
         """
         source = self._lifter.lift(instruction.src, is_aliased=is_aliased, parent=instruction)
-        if isinstance(source.type, Struct):
+        # TODO move struct/union part to separate function
+        parent = kwargs.get("parent", None)
+        parent_type = None
+        if parent:
+            parent_type = self._lifter.lift(parent.dest.type)
+        if isinstance(source.type, Struct) or isinstance(source.type, _Union):
             return StructMemberAccess(
                 src=source,
                 offset=instruction.offset,
-                member_name=source.type.get_member_by_offset(instruction.offset).name,
+                member_name=source.type.get_member_by_offset(instruction.offset).name
+                if isinstance(source.type, Struct)
+                else source.type.get_member_by_type(parent_type),
                 operands=[source],
             )
         cast_type = source.type.resize(instruction.size * self.BYTE_SIZE)

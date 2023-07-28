@@ -1,5 +1,6 @@
 import logging
-from typing import Union
+from abc import abstractmethod
+from typing import Union, Optional
 
 from binaryninja import BinaryView, StructureVariant
 from binaryninja.types import (
@@ -67,15 +68,16 @@ class TypeHandler(Handler):
         We try to retrieve the original complex type from binary view using this placeholder type, and lift it correspondingly.
         """
         view: BinaryView = self._lifter.bv
-        if defined_type := view.get_type_by_name(custom.name):         # actually should always be the case
-            return self._lifter.lift(defined_type, **kwargs)
+        if defined_type := view.get_type_by_name(custom.name):  # actually should always be the case
+            return self._lifter.lift(defined_type, name=str(custom.name))
         logging.warning(f"NamedTypeReferenceType {custom} was not found in binary view types.")
         return CustomType(str(custom), custom.width * self.BYTE_SIZE)
 
-    def lift_enum(self, binja_enum: EnumerationType, **kwargs) -> Enum:
+    def lift_enum(self, binja_enum: EnumerationType, name: str = None, **kwargs) -> Enum:
         """Lift enum type."""
         # TODO better way to get enum name
-        enum = Enum(0, binja_enum.get_string().split("enum ")[1], {})
+        enum_name = name if name else self._get_data_type_name(binja_enum, keyword="enum")
+        enum = Enum(0, enum_name, {})
         for member in binja_enum.members:
             enum.add_member(self._lifter.lift(member))
         self._lifter.complex_types.add(enum)
@@ -83,38 +85,41 @@ class TypeHandler(Handler):
 
     def lift_enum_member(self, enum_member: EnumerationMember, **kwargs) -> ComplexTypeMember:
         """Lift enum member type."""
-        # TODO enum constant type is always int in Binja
         return ComplexTypeMember(size=0, name=enum_member.name, offset=-1, type=Integer(32), value=self._lifter.lift(enum_member.value))
 
-    def lift_struct(self, struct: StructureType, name=None, **kwargs) -> Union[Struct, ComplexTypeName]:
+    def lift_struct(self, struct: StructureType, name: str = None, **kwargs) -> Union[Struct, ComplexTypeName]:
         """Lift struct or union type."""
-        # TODO better way to get the name
-        # TODO type width for size?
-        if name:
-            struct_name = name
-        else:
-            struct_name = self._get_data_type_name(struct)
         if struct.type == StructureVariant.StructStructureType:
-            lifted_struct = Struct(0, struct_name, {})
+            type_name = name if name else self._get_data_type_name(struct, keyword="struct")
+            lifted_struct = Struct(struct.width * self.BYTE_SIZE, type_name, {})
         elif struct.type == StructureVariant.UnionStructureType:
-            lifted_struct = Union_(0, struct_name, [])
+            type_name = name if name else self._get_data_type_name(struct, keyword="union")
+            lifted_struct = Union_(struct.width * self.BYTE_SIZE, type_name, [])
         else:
             raise RuntimeError(f"Unknown struct type {struct.type.name}")
-        for m in struct.members:
-            member = self.lift_struct_member(m, struct_name)
-            lifted_struct.add_member(member)
+        for member in struct.members:
+            lifted_struct.add_member(self.lift_struct_member(member, type_name))
         self._lifter.complex_types.add(lifted_struct)
-        # logging.error(lifted_struct.declaration())
         return lifted_struct
 
-    def _get_data_type_name(self, struct: StructureType):
-        string = struct.get_string()
-        if "struct" in string:
-            return struct.get_string().split(" ")[1]
+    @abstractmethod
+    def _get_data_type_name(self, complex_type: Union[StructureType, EnumerationType], keyword: str):
+        string = complex_type.get_string()
+        if keyword in string:
+            return complex_type.get_string().split(keyword)[1]
         return string
 
     def lift_struct_member(self, member: StructureMember, parent_struct_name: str = None) -> ComplexTypeMember:
         # handle the case when struct member is a pointer on the same struct
+        if structPtr := self._get_member_pointer_on_the_parent_struct(member, parent_struct_name):
+            return structPtr
+        else:
+            # if member is an embedded struct/union, the name is already available
+            member_type = self._lifter.lift(member.type, name=member.name)
+        return ComplexTypeMember(0, name=member.name, offset=member.offset, type=member_type)
+
+    @abstractmethod
+    def _get_member_pointer_on_the_parent_struct(self, member: StructureMember, parent_struct_name: str) -> ComplexTypeMember:
         if (
             isinstance(member.type, PointerType)
             and (isinstance(member.type.target, StructureType) or isinstance(member.type.target, NamedTypeReferenceType))
@@ -122,11 +127,7 @@ class TypeHandler(Handler):
         ):
             member_struct_name = member.type.target.name.__str__()
             member_type = Pointer(ComplexTypeName(0, member_struct_name))
-
-        else:
-            # if member is an embedded struct/union, the name is already available
-            member_type = self._lifter.lift(member.type, name=member.name)
-        return ComplexTypeMember(0, name=member.name, offset=member.offset, type=member_type)
+            return ComplexTypeMember(0, name=member.name, offset=member.offset, type=member_type)
 
     def lift_void(self, _, **kwargs) -> CustomType:
         """Lift the void-type (should only be used as function return type)."""

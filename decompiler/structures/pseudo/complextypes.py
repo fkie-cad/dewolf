@@ -1,5 +1,4 @@
 import logging
-from abc import ABC
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional
@@ -49,7 +48,6 @@ class ComplexTypeMember(ComplexType):
 class Struct(ComplexType):
     """Class representing a struct type."""
 
-    # TODO size/width field
     members: Dict[int, ComplexTypeMember] = field(compare=False)
     type_specifier: ComplexTypeSpecifier = ComplexTypeSpecifier.STRUCT
 
@@ -81,6 +79,12 @@ class Union(ComplexType):
     def declaration(self):
         members = ";\n\t".join(x.declaration() for x in self.members)
         return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}};"
+
+    def get_member_by_type(self, _type: Type) -> ComplexTypeMember:
+        """Retrieve member of union by its type."""
+        for member in self.members:
+            if member.type == _type:
+                return member
 
 
 @dataclass(frozen=True, order=True)
