@@ -7,6 +7,7 @@ from binaryninja import (
     BranchType,
     Function,
     MediumLevelILBasicBlock,
+    MediumLevelILConstPtr,
     MediumLevelILInstruction,
     MediumLevelILJumpTo,
     MediumLevelILOperation,
@@ -16,6 +17,7 @@ from binaryninja import (
     Variable,
     VariableSourceType,
 )
+from binaryninja.variable import ConstantPointerRegisterValue
 from decompiler.frontend.binaryninja.lifter import BinaryninjaLifter
 from decompiler.frontend.binaryninja.parser import BinaryninjaParser
 from decompiler.structures.graphs.cfg import BasicBlockEdgeCondition
@@ -51,9 +53,9 @@ class MockBlock(MediumLevelILBasicBlock):
         return self._index
 
     @property
-    def outgoing_edges(self) -> Iterator[MockEdge]:
-        """Ierate all outgoing edges."""
-        return iter(self._edges)
+    def outgoing_edges(self) -> List[MockEdge]:
+        """List all outgoing edges."""
+        return list(self._edges)
 
     def __iter__(self) -> Iterator[MediumLevelILInstruction]:
         """Iterate all instructions in the BasicBlock."""
@@ -147,6 +149,35 @@ class MockSwitch:
         MediumLevelILJumpTo.dest = MockVariable(MockPossibleValues(mapping))
         MediumLevelILJumpTo.ssa_memory_version = 0
         MediumLevelILJumpTo.function = None
+
+
+class MockConstantPointerRegistserValue(ConstantPointerRegisterValue):
+    """Mock object representing a binaryninja ConstantPointerRegisterValue."""
+
+    def __init__(self, value: int):
+        """Create a new ConstantPointerRegisterValue for testing purposes only."""
+        self.__class__ = ConstantPointerRegisterValue
+        ConstantPointerRegisterValue.value = value
+        ConstantPointerRegisterValue.type = RegisterValueType.ConstantPointerValue
+
+
+class MockConstPtr(MediumLevelILConstPtr):
+    """Mock object representing a binaryninja MediumLevelILConstPtr."""
+
+    def __init__(self, value: int):
+        """Create a new MockConstPtr for testing purposes only."""
+        self.__class__ = MediumLevelILConstPtr
+        object.__setattr__(self, "function", MockFunction([]))
+        MediumLevelILConstPtr.value = MockConstantPointerRegistserValue(value)
+
+
+class MockFixedJump(MediumLevelILJumpTo):
+    """Mock object representing a constant jump."""
+
+    def __init__(self, address: int):
+        """Create new MediumLevelILJumpTo object"""
+        self.__class__ = MediumLevelILJumpTo
+        MediumLevelILJumpTo.dest = MockConstPtr(address)
 
 
 @pytest.fixture
@@ -246,3 +277,18 @@ def test_loop(parser):
     assert [v.name for v in cfg.nodes] == [0, 1, 2, 3]
     assert [(edge.source.address, edge.sink.address) for edge in cfg.edges] == [(0, 1), (1, 2), (2, 1), (2, 3)]
     assert len(list(cfg.instructions)) == 0
+
+
+def test_convert_indirect_edge_to_unconditional(parser):
+    """Unconditional jump to constant address."""
+    function = MockFunction(
+        [
+            block := MockBlock(0, [edge := MockEdge(0, 42, BranchType.IndirectBranch)], instructions=[MockFixedJump(42)]),
+            MockBlock(42, []),
+        ]
+    )
+    assert parser._can_convert_single_outedge_to_unconditional(block)
+    # cfg = parser.parse(function) # need to mock everything the lifter needs...
+    # assert [v.name for v in cfg.nodes] == [0, 1, 2, 3]
+    # assert [(edge.source.address, edge.sink.address) for edge in cfg.edges] == [(0, 1), (1, 2), (2, 1), (2, 3)]
+    # assert len(list(cfg.instructions)) == 0

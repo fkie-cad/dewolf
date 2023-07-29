@@ -64,7 +64,7 @@ class BinaryninjaParser(Parser):
         """
         Check if last block instruction is of type `jmp const ptr`
         """
-        if len(block.outgoing_edges) != 1:
+        if len(block.outgoing_edges) != 1 or not len(block):
             return False
         out_edge = block.outgoing_edges[0]
         jmp_instr = block[-1]
