@@ -289,7 +289,7 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         """Return a string representation of a mem phi instruction. Only included for completeness."""
         return f"{instr}"
 
-    def _get_integer_literal_value(self, literal: expressions.Constant) -> Union[float, int]:
+    def _get_integer_literal_value(self, literal: expressions.Constant) -> int:
         """
         Return the right integer value for the given type, assuming that the
         re-compilation host has the same sizes as the decompilation host.
