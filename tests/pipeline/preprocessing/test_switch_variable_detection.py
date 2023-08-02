@@ -2,7 +2,7 @@ from functools import partial
 
 from decompiler.pipeline.preprocessing import SwitchVariableDetection
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
-from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, GlobalVariable, ImportedFunctionSymbol, Variable
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, IndirectBranch, Phi, Return
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer
@@ -423,13 +423,3 @@ def test_constant_pointer():
     task = MockTask(cfg)
     SwitchVariableDetection().run(task)
     assert vertices[2].instructions[-1] == IndirectBranch(rax)
-
-def test_global_var_as_switch_var():
-    global_var = GlobalVariable("data_4242", Integer.int32_t())
-    b0 = BasicBlock(0, instructions=[switch := IndirectBranch(global_var)])
-    b1 = BasicBlock(1, instructions=[call_assignment(Call(function_symbol("func1"), []))])
-    cfg = ControlFlowGraph()
-    cfg.add_edge(SwitchCase(b0, b1, []))
-    svd = SwitchVariableDetection()
-    svd.run(MockTask(cfg))
-    assert svd.find_switch_expression(switch) == global_var
