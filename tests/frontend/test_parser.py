@@ -84,7 +84,7 @@ class MockView:
         pass
 
     def get_tags_at(self, _):
-        """Do not lift tags."""
+        """Do not lift tags. Needed to lift mock instructions that do not set .function to None"""
         return list()
 
     def get_data_var_at(self, _):
@@ -175,18 +175,22 @@ class MockSwitch:
 
 
 class MockConstPtr(MediumLevelILConstPtr):
-    """Mock object representing a binaryninja MediumLevelILConstPtr."""
+    """
+    Mock object representing a binaryninja MediumLevelILConstPtr.
+    """
 
     def __init__(self, value: int):
         """Create a new MockConstPtr for testing purposes only."""
         self.__class__ = MediumLevelILConstPtr
-        object.__setattr__(self, "function", MockFunction([]))
+        object.__setattr__(self, "function", MockFunction([])) # need .function.view to lift 
         object.__setattr__(self, "instr", Mock())
         MediumLevelILConstPtr.constant = value
 
 
 class MockFixedJump:
-    """Mock object representing a constant jump."""
+    """
+    Mock object representing a constant jump.
+    """
 
     def __init__(self, address: int):
         """Create new MediumLevelILJumpTo object"""

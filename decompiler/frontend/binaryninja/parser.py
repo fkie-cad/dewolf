@@ -39,7 +39,6 @@ class BinaryninjaParser(Parser):
         cfg = ControlFlowGraph()
         index_to_BasicBlock = dict()
         for basic_block in function.medium_level_il.ssa_form:
-            # print("lifting block", basic_block.index)
             index_to_BasicBlock[basic_block.index] = BasicBlock(basic_block.index, instructions=list(self._lift_instructions(basic_block)))
             cfg.add_node(index_to_BasicBlock[basic_block.index])
         for basic_block in function.medium_level_il.ssa_form:
@@ -50,13 +49,8 @@ class BinaryninjaParser(Parser):
     def _add_basic_block_edges(self, cfg: ControlFlowGraph, vertices: dict, basic_block: MediumLevelILBasicBlock) -> None:
         """Add all outgoing edges of the given basic block to the given cfg."""
         if self._can_convert_single_outedge_to_unconditional(basic_block):
-            # print("!!!!", basic_block.index)
-            # print("last instruction", v:=vertices[basic_block.index][-1])
-            # print("requ", "\n".join([f"{s}{type(s)}" for s in v.requirements ]))
-            # print("subexp ", [ s for s in v.subexpressions() ])
-            # print("VERTEX", vertices[basic_block.index])
             vertices[basic_block.index].remove_instruction(-1)  # change block condition by removing last jump instruction
-            # add unconditional edge
+            # add unconditional edge:
             edge = basic_block.outgoing_edges[0]
             cfg.add_edge(UnconditionalEdge(vertices[edge.source.index], vertices[edge.target.index]))
         # check if the block ends with a switch statement
@@ -90,7 +84,7 @@ class BinaryninjaParser(Parser):
 
     def _craft_lookup_table(self, block: MediumLevelILBasicBlock) -> Dict[int, List[Constant]]:
         """
-        Build a lookup table for use in SwitchCase edge cases.
+        Build a lookup table for use in SwitchCase edges.
         """
         return {edge.target.source_block.start: [Constant(i)] for i, edge in enumerate(block.outgoing_edges)}
 
