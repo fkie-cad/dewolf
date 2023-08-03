@@ -5,7 +5,7 @@ import logging
 from typing import List, Optional, Union
 
 from binaryninja import BinaryView, Function
-from binaryninja import load as BinaryNinja_load
+from binaryninja import load as bload
 from binaryninja.types import SymbolType
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.pseudo.expressions import Variable
@@ -112,9 +112,8 @@ class BinaryninjaFrontend(Frontend):
     @classmethod
     def from_path(cls, path: str, options: Options):
         """Create a frontend object by invoking binaryninja on the given sample."""
-        file_options = {"analysis.limits.maxFunctionSize": options.getint("binaryninja.max_function_size"), 
-        "analysis.mode": "full"}
-        if (bv := BinaryNinja_load(path, options=file_options)) is not None:
+        file_options = {"analysis.limits.maxFunctionSize": options.getint("binaryninja.max_function_size")}
+        if (bv := bload(path, options=file_options)) is not None:
             return cls(bv)
         raise RuntimeError("Failed to create binary view")
 
