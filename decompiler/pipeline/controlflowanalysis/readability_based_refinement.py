@@ -455,9 +455,8 @@ class ReadabilityBasedRefinement(PipelineStage):
     """
     The ReadabilityBasedRefinement makes various transformations to improve readability based on the AST.
     Currently implemented transformations:
-        1. while-loop to for-loop transformation
-        2. for-loop variable renaming (e.g i, j, k, ...)
-        3. while-loop variable renaming (e.g. counter, counter1, ...)
+        1. remove guarded do while loops
+        2. while-loop to for-loop transformation
 
     The AST is cleaned up before the first transformation and after every while- to for-loop transformation.
     """
@@ -466,14 +465,5 @@ class ReadabilityBasedRefinement(PipelineStage):
 
     def run(self, task: DecompilerTask):
         task.syntax_tree.clean_up()
-
         remove_guarded_do_while(task.syntax_tree)
-
         WhileLoopReplacer(task.syntax_tree, task.options).run()
-
-        variableNames = task.options.getlist("readability-based-refinement.for_loop_variable_names", fallback=[])
-        if variableNames:
-            ForLoopVariableRenamer(task.syntax_tree, variableNames).rename()
-
-        if task.options.getboolean("readability-based-refinement.rename_while_loop_variables"):
-            WhileLoopVariableRenamer(task.syntax_tree).rename()
