@@ -74,6 +74,8 @@ class CallHandler(Handler):
     @staticmethod
     def _lift_call_parameter_names(instruction: mediumlevelil.MediumLevelILCall) -> List[str]:
         """Lift parameter names of call from type string of instruction.dest.expr_type"""
+        if instruction.dest.expr_type is None:
+            return []
         clean_type_string_of_parameters = instruction.dest.expr_type.get_string_after_name().strip("()")
         return [type_parameter.rsplit(" ", 1)[-1] for type_parameter in clean_type_string_of_parameters.split(",")]
 
