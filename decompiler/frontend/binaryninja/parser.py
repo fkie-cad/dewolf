@@ -30,8 +30,6 @@ class BinaryninjaParser(Parser):
         """Generate a cfg from the given function."""
         cfg = ControlFlowGraph()
         index_to_BasicBlock = dict()
-        if function.medium_level_il is None or function.medium_level_il.ssa_form is None:
-            raise ValueError(f"Binary Ninja did not provide MLIL for {function.name}")
         for basic_block in function.medium_level_il.ssa_form:
             index_to_BasicBlock[basic_block.index] = BasicBlock(basic_block.index, instructions=list(self._lift_instructions(basic_block)))
             cfg.add_node(index_to_BasicBlock[basic_block.index])

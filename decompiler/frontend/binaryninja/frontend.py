@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from typing import List, Optional, Union
 
-from binaryninja import BinaryView, Function
+from binaryninja import BinaryView, Function, FunctionUpdateType
 from binaryninja import load as bload
 from binaryninja.types import SymbolType
 from decompiler.structures.graphs.cfg import ControlFlowGraph
@@ -18,6 +18,7 @@ from .lifter import BinaryninjaLifter
 from .parser import BinaryninjaParser
 from .tagging import CompilerIdiomsTagging
 
+BNINJA_MAX_ANALYSIS_RELOADS = 1
 
 class FunctionObject:
     """Wrapper class for dealing with Binaryninja Functions"""
@@ -26,6 +27,15 @@ class FunctionObject:
         self._function = function
         self._lifter = BinaryninjaLifter()
         self._name = self._lifter.lift(self._function.symbol).name
+
+    @classmethod
+    def check_function(cls, function: FunctionObject, reload = 0) -> bool:
+        """Check if the function is loaded correctly by binary ninja. Try a reload if possible."""
+        if function._function is None or function._function.mapped_medium_level_il is None or reload < BNINJA_MAX_ANALYSIS_RELOADS:
+            function._function.analysis_skipped = False 
+            function._function.reanalyze()
+            return cls.check_function(function, reload=reload+1) 
+        return True
 
     @classmethod
     def get(cls, bv: BinaryView, identifier: Union[str, Function]) -> FunctionObject:
@@ -125,6 +135,9 @@ class BinaryninjaFrontend(Frontend):
     def create_task(self, function_identifier: Union[str, Function], options: Options) -> DecompilerTask:
         """Create a task from the given function identifier."""
         function = FunctionObject.get(self._bv, function_identifier)
+        if not FunctionObject.check_function(function):
+            logging.error("Binrayninja failed to provide Medium Level IL")
+            raise ValueError(f"No Medium Level IL for {function.name} provided")
         tagging = CompilerIdiomsTagging(self._bv, function.function.start, options)
         tagging.run()
         try:
