@@ -43,8 +43,8 @@ class RenamingScheme(ABC):
 
     def __init__(self, task: DecompilerTask) -> None:
         """Collets all needed variables for renaming + filters which should not be renamed"""
-        self._for_loop_names: List[str] = task.options.getlist("readability-based-refinement.for_loop_variable_names", fallback=[])
-        self._rename_while_loops: bool = task.options.getboolean("readability-based-refinement.rename_while_loop_variables")
+        self._for_loop_names: List[str] = task.options.getlist("variable-name-generation.for_loop_variable_names", fallback=[])
+        self._rename_while_loops: bool = task.options.getboolean("variable-name-generation.rename_while_loop_variables")
         collector = VariableCollector()
         collector.visit_ast(task._ast)
         self._ast = task._ast

@@ -2,9 +2,7 @@ from typing import List
 
 import pytest
 from decompiler.pipeline.controlflowanalysis.readability_based_refinement import (
-    ForLoopVariableRenamer,
     ReadabilityBasedRefinement,
-    WhileLoopVariableRenamer,
     _find_continuation_instruction,
     _has_deep_requirement,
     _initialization_reaches_loop_node,
@@ -33,15 +31,11 @@ def logic_cond(name: str, context) -> LogicCondition:
     return LogicCondition.initialize_symbol(name, context)
 
 
-def _generate_options(empty_loops: bool = False, hide_decl: bool = False, rename_for: bool = True, rename_while: bool = True, \
-    max_condition: int = 100, max_modification: int = 100, force_for_loops: bool = False, blacklist : List[str] = []) -> Options:
+def _generate_options(empty_loops: bool = False, hide_decl: bool = False, max_condition: int = 100, max_modification: int = 100, \
+    force_for_loops: bool = False, blacklist : List[str] = []) -> Options:
     options = Options()
     options.set("readability-based-refinement.keep_empty_for_loops", empty_loops)
     options.set("readability-based-refinement.hide_non_initializing_declaration", hide_decl)
-    if rename_for:
-        names = ["i", "j", "k", "l", "m", "n"]
-        options.set("readability-based-refinement.for_loop_variable_names", names)
-    options.set("readability-based-refinement.rename_while_loop_variables", rename_while)
     options.set("readability-based-refinement.max_condition_complexity_for_loop_recovery", max_condition)
     options.set("readability-based-refinement.max_modification_complexity_for_loop_recovery", max_modification)
     options.set("readability-based-refinement.force_for_loops", force_for_loops)
@@ -364,37 +358,6 @@ def ast_call_init() -> AbstractSyntaxTree:
         [
             Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Variable("b")])),
             Assignment(Variable("b"), BinaryOperation(OperationType.plus, [Variable("b"), Constant(1)])),
-        ]
-    )
-    ast._add_node(loop_node)
-    ast._add_edges_from(((root, code_node), (root, loop_node), (loop_node, loop_node_body)))
-    ast._code_node_reachability_graph.add_reachability(code_node, loop_node_body)
-    root._sorted_children = (code_node, loop_node)
-    return ast
-
-
-@pytest.fixture
-def ast_call_for_loop() -> AbstractSyntaxTree:
-    """
-    a = 5;
-    while(b = foo; b <= 5; b++){
-        a++;
-    }
-    """
-    true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
-    ast = AbstractSyntaxTree(
-        root := SeqNode(true_value),
-        condition_map={logic_cond("x1", context): Condition(OperationType.less_or_equal, [Variable("b"), Constant(5)])},
-    )
-    code_node = ast._add_code_node(
-        instructions=[
-            Assignment(Variable("a"), Constant(5)),
-        ]
-    )
-    loop_node = ast.factory.create_for_loop_node(Assignment(ListOperation([Variable("b")]), Call(ImportedFunctionSymbol("foo", 0), [])), logic_cond("x1", context), Assignment(Variable("b"), BinaryOperation(OperationType.plus, [Variable("b"), Constant(1)])))
-    loop_node_body = ast._add_code_node(
-        [
-            Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Variable("1")])),
         ]
     )
     ast._add_node(loop_node)
@@ -2001,38 +1964,3 @@ class TestReadabilityUtils:
         inner_while = condition_node.false_branch_child
 
         assert _initialization_reaches_loop_node(init_code_node, inner_while) is False
-
-    def test_for_loop_variable_generation(self):
-        renamer = ForLoopVariableRenamer(
-            AbstractSyntaxTree(SeqNode(LogicCondition.initialize_true(LogicCondition.generate_new_context())), {}),
-            ["i", "j", "k", "l", "m", "n"]
-        )
-        assert [renamer._get_variable_name() for _ in range(14)] == [
-            "i",
-            "j",
-            "k",
-            "l",
-            "m",
-            "n",
-            "i1",
-            "j1",
-            "k1",
-            "l1",
-            "m1",
-            "n1",
-            "i2",
-            "j2",
-        ]
-
-    def test_while_loop_variable_generation(self):
-        renamer = WhileLoopVariableRenamer(
-            AbstractSyntaxTree(SeqNode(LogicCondition.initialize_true(LogicCondition.generate_new_context())), {})
-        )
-        assert [renamer._get_variable_name() for _ in range(5)] == ["counter", "counter1", "counter2", "counter3", "counter4"]
-
-    def test_declaration_listop(self, ast_call_for_loop):
-        """Test renaming with ListOperation as Declaration"""
-        ForLoopVariableRenamer(ast_call_for_loop, ["i"]).rename()
-        for node in ast_call_for_loop:
-            if isinstance(node, ForLoopNode):
-                assert node.declaration.destination.operands[0].name == "i"
