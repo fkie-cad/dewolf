@@ -3,12 +3,12 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import List, Optional, Set
 
+from decompiler.pipeline.controlflowanalysis.readability_based_refinement import ForLoopVariableRenamer, WhileLoopVariableRenamer
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.pseudo import CustomType, Float, GlobalVariable, Integer, Pointer, Type, Variable
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask
 
-from decompiler.pipeline.controlflowanalysis.readability_based_refinement import WhileLoopVariableRenamer, ForLoopVariableRenamer
 
 def _get_var_counter(var_name: str) -> Optional[str]:
     """Return the counter of a given variable name, if any is present."""
