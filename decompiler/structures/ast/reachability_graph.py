@@ -1,7 +1,7 @@
 """Module to handle the reaches attribute using graphs."""
 from __future__ import annotations
 
-from itertools import chain, permutations
+from itertools import chain, permutations, product
 from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Set, Tuple
 
 from decompiler.structures.pseudo.expressions import Constant
@@ -82,8 +82,18 @@ class SiblingReachability:
             self._sibling_reachability_graph.add_node(node)
 
     def _add_first_node_reaches_second(self, first_node: AbstractSyntaxTreeNode, second_node: AbstractSyntaxTreeNode):
-        """Adds and edge such that the first node reaches the second AST node afterwards."""
+        """Adds and edge such that the first node reaches the second AST node afterward."""
         self._sibling_reachability_graph.add_edge(first_node, second_node)
+
+    def remove_reachability_between(self, nodes: List[AbstractSyntaxTreeNode]):
+        """Remove the reachability between the given set of nodes"""
+        for node1, node2 in permutations(nodes, 2):
+            if self._sibling_reachability_graph.has_edge(node1, node2):
+                self._sibling_reachability_graph.remove_edge(node1, node2)
+
+    def reaches(self, node_1, node_2) -> bool:
+        """Checks whether node_1 reaches node_2"""
+        return (node_1, node_2) in self._sibling_reachability_graph.edges
 
     def sorted_nodes(self) -> Optional[Tuple[AbstractSyntaxTreeNode, ...]]:
         """Sorts the siblings in topological order."""
@@ -180,6 +190,13 @@ class ReachabilityGraph:
     def reaches(self, node_1, node_2) -> bool:
         """Checks whether node_1 reaches node_2"""
         return (node_1, node_2) in self.edges
+
+    def remove_reachability_between(self, ast_nodes: Iterable[AbstractSyntaxTreeNode]):
+        descendant_sets: List[Set[CodeNode]] = [set(node.get_descendant_code_nodes()) for node in ast_nodes]
+        for descendant_set_1, descendant_set_2 in permutations(descendant_sets, 2):
+            for node1, node2 in product(descendant_set_1, descendant_set_2):
+                if self.reaches(node1, node2):
+                    self._code_node_reachability_graph.remove_edge(node1, node2)
 
 
 class SiblingReachabilityGraph:
@@ -332,6 +349,10 @@ class SiblingReachabilityGraph:
             )
 
         return subgraph
+
+    def reaches(self, node_1, node_2) -> bool:
+        """Checks whether node_1 reaches node_2"""
+        return (node_1, node_2) in self._case_node_reachability_graph.edges
 
 
 class CaseDependencyGraph(SiblingReachabilityGraph):

@@ -6,7 +6,7 @@ from decompiler.structures.ast.ast_nodes import CodeNode
 from decompiler.structures.pseudo.expressions import Constant, Expression
 from decompiler.structures.pseudo.instructions import Instruction
 from decompiler.structures.pseudo.operations import BinaryOperation, Operation, OperationType, UnaryOperation
-from decompiler.structures.pseudo.typing import Integer
+from decompiler.structures.pseudo.typing import Float, Integer
 from decompiler.task import DecompilerTask
 
 
@@ -128,13 +128,11 @@ class ExpressionSimplification(PipelineStage):
     @staticmethod
     def negate_expression(expression: Expression) -> Expression:
         """Negate the given expression and return it."""
-        if isinstance(expression, Constant) and expression.value == 0:
-            return expression
-        if isinstance(expression, UnaryOperation) and expression.operation == OperationType.negate:
-            return expression.operand
-        if isinstance(expression, Constant) and isinstance(expression.type, Integer) and expression.type.is_signed:
-            return Constant(-expression.value, expression.type)
-        return UnaryOperation(OperationType.negate, [expression])
+        match expression:
+            case Constant(value=0): return expression
+            case UnaryOperation(operation=OperationType.negate): return expression.operand
+            case Constant(type=Integer(is_signed=True) | Float()): return Constant(-expression.value, expression.type)
+            case _: return UnaryOperation(OperationType.negate, [expression])
 
     @staticmethod
     def get_other_operand(binary_operation: BinaryOperation, expression: Expression) -> Expression:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional, Set
+from typing import Dict, Iterable, Optional, Set
 
 from decompiler.structures.logic.logic_condition import LogicCondition, PseudoLogicCondition
 from decompiler.structures.pseudo import Condition
@@ -29,7 +29,7 @@ class ConditionHandler:
     """Class that handles all the conditions of a transition graph and syntax-forest."""
 
     def __init__(self, condition_map: Optional[Dict[LogicCondition, ConditionSymbol]] = None):
-        """Initialize a new condition handler with an dictionary that maps the symbol to its according ConditionSymbol."""
+        """Initialize a new condition handler with a dictionary that maps the symbol to its according ConditionSymbol."""
         self._condition_map: Dict[LogicCondition, ConditionSymbol] = dict() if condition_map is None else condition_map
         self._symbol_counter = 0
         self._logic_context = next(iter(self._condition_map)).context if self._condition_map else LogicCondition.generate_new_context()
@@ -45,6 +45,10 @@ class ConditionHandler:
     def __len__(self) -> int:
         """Returns the number of elements in the condition map."""
         return len(self._condition_map)
+
+    def __iter__(self) -> Iterable[LogicCondition]:
+        """Iterate over all symbols"""
+        yield from self._condition_map
 
     @property
     def logic_context(self):
@@ -78,6 +82,17 @@ class ConditionHandler:
     def get_z3_condition_map(self) -> Dict[LogicCondition, PseudoLogicCondition]:
         """Return the z3-condition map that maps symbols to z3-conditions."""
         return dict((symbol, condition_symbol.z3_condition) for symbol, condition_symbol in self._condition_map.items())
+
+    def get_reverse_z3_condition_map(self) -> Dict[PseudoLogicCondition, LogicCondition]:
+        """Return the reverse z3-condition map that maps z3-conditions to symbols."""
+        return dict((condition_symbol.z3_condition, symbol) for symbol, condition_symbol in self._condition_map.items())
+
+    def update_z3_condition_of(self, symbol: LogicCondition, condition: Condition):
+        """Change the z3-condition of the given symbol according to the given condition."""
+        assert symbol.is_symbol, "Input must be a symbol!"
+        z3_condition = PseudoLogicCondition.initialize_from_condition(condition, self._logic_context)
+        pseudo_condition = self.get_condition_of(symbol)
+        self._condition_map[symbol] = ConditionSymbol(pseudo_condition, symbol, z3_condition)
 
     def add_condition(self, condition: Condition) -> LogicCondition:
         """Adds a new condition to the condition map and returns the corresponding condition_symbol"""

@@ -11,11 +11,17 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder import (
     MissingCaseFinder,
 )
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder_condition import (
+    MissingCaseFinderCondition,
+)
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder_sequence import (
+    MissingCaseFinderSequence,
+)
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.switch_extractor import (
     SwitchExtractor,
 )
+from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
-from decompiler.structures.logic.logic_condition import LogicCondition
 
 
 class ConditionAwareRefinement(BaseClassConditionAwareRefinement):
@@ -23,21 +29,17 @@ class ConditionAwareRefinement(BaseClassConditionAwareRefinement):
 
     REFINEMENT_PIPELINE = [
         InitialSwitchNodeConstructor.construct,
-        MissingCaseFinder.find_in_condition,
+        MissingCaseFinderCondition.find,
         SwitchExtractor.extract,
-        MissingCaseFinder.find_in_sequence,
+        MissingCaseFinderSequence.find,
     ]
 
-    def __init__(self, asforest: AbstractSyntaxForest):
-        self.asforest = asforest
-        super().__init__(asforest.condition_handler)
-
     @classmethod
-    def refine(cls, asforest: AbstractSyntaxForest):
-        condition_aware_refinement = cls(asforest)
+    def refine(cls, asforest: AbstractSyntaxForest, options: RestructuringOptions):
+        condition_aware_refinement = cls(asforest, options)
         for stage in condition_aware_refinement.REFINEMENT_PIPELINE:
             asforest.clean_up(asforest.current_root)
-            stage(asforest)
+            stage(asforest, options)
             condition_aware_refinement._remove_redundant_reaching_condition_from_switch_nodes()
         asforest.clean_up(asforest.current_root)
 

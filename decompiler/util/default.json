@@ -563,6 +563,24 @@
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
                 "argument_name": "--min_switch_case_number"
+            },
+            {
+                "dest": "pattern-independent-restructuring.loop_break_switch",
+                "default": "structural_variable",
+                "type": "string",
+                "title": "The strategy how to handle loop-breaks in switch-cases",
+                "enum": [
+                    "None",
+                    "structural_variable"
+                ],
+                "enumDescriptions": [
+                    "Not considering cases containing a loop-break",
+                    "adding a structural-variable and a condition to handle loop-breaks in switch-cases"
+                ],
+                "description": "Decides how to handle loop-breaks in switch-cases",
+                "is_hidden_from_gui": true,
+                "is_hidden_from_cli": false,
+                "argument_name": "--loop_break_in_cases"
             }
         ]
     },
@@ -753,6 +771,16 @@
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
                 "argument_name": "--show-stages"
+            },
+            {
+                "dest": "logging.debug-submodules",
+                "default": false,
+                "title": "Debug mode for submodules",
+                "type": "boolean",
+                "description": "Crash on error when error is caused by a submodule (e.g. compiler idioms)",
+                "is_hidden_from_gui": true,
+                "is_hidden_from_cli": false,
+                "argument_name": "--debug-submodules"
             },
             {
                 "dest": "gui.font",

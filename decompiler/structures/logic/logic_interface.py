@@ -221,6 +221,11 @@ class ConditionInterface(LogicInterface, ABC, Generic[CONTEXT]):
           'x1 & x2' if 'x1 = var < 10' and 'x2 = var == 5' to the condition 'x2'.
         """
 
+    @classmethod
+    @abstractmethod
+    def get_logic_condition(cls, real_condition: PseudoLogicInterface, condition_handler: ConditionHandler) -> ConditionInterface:
+        """Generate a symbol condition given the real-condition together with the condition handler."""
+
     @abstractmethod
     def serialize(self) -> str:
         """Serializes a condition as a string"""
@@ -235,10 +240,10 @@ class ConditionInterface(LogicInterface, ABC, Generic[CONTEXT]):
         """Replaces each symbol by the condition of the condition map."""
 
     def get_complexity(self, condition_map: Dict[LogicInterface, Condition]) -> int:
-        """ Returns the complexity of a logic condition"""
+        """Returns the complexity of a logic condition"""
         complexity_sum = 0
         for literal in self.get_literals():
-            if literal.is_negation: 
+            if literal.is_negation:
                 complexity_sum += condition_map[~literal].complexity
             else:
                 complexity_sum += condition_map[literal].complexity

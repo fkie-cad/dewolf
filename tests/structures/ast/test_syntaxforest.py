@@ -406,8 +406,10 @@ def test_generate_from_code_nodes():
             TransitionEdge(vertices[2], vertices[1], LogicCondition.initialize_true(context), EdgeProperty.back),
         ]
     )
+    symbol_x1 = LogicCondition.initialize_symbol("x1", context)
+    pseudo_cond = Condition(OperationType.not_equal, [var("i"), Constant(3)])
     t_cfg.condition_handler = ConditionHandler(
-        {LogicCondition.initialize_symbol("x1", context): Condition(OperationType.not_equal, [var("i"), Constant(3)])}
+        {symbol_x1: ConditionSymbol(pseudo_cond, symbol_x1, PseudoLogicCondition.initialize_from_condition(pseudo_cond, context))}
     )
 
     asforest = AbstractSyntaxForest.generate_from_code_nodes([node.ast for node in vertices], t_cfg.condition_handler)
@@ -421,8 +423,12 @@ def test_generate_from_code_nodes():
 
 def test_construct_initial_ast_for_region():
     context = LogicCondition.generate_new_context()
+    symbol_x1 = LogicCondition.initialize_symbol("x1", context)
+    pseudo_cond = Condition(OperationType.not_equal, [var("i"), Constant(3)])
     asforest = AbstractSyntaxForest(
-        ConditionHandler({LogicCondition.initialize_symbol("x1", context): Condition(OperationType.not_equal, [var("i"), Constant(3)])})
+        ConditionHandler(
+            {symbol_x1: ConditionSymbol(pseudo_cond, symbol_x1, PseudoLogicCondition.initialize_from_condition(pseudo_cond, context))}
+        )
     )
     code_node_0 = asforest.add_code_node([Assignment(var("i"), Constant(0)), Assignment(var("x"), Constant(42))])
     code_node_1 = asforest.add_code_node()
@@ -524,3 +530,42 @@ def test_combine_condition_nodes():
     ) & ~LogicCondition.initialize_symbol("b", asforest.factory.logic_context) & LogicCondition.initialize_symbol(
         "RC", asforest.factory.logic_context
     )
+
+
+def test_combine_switch_nodes():
+    condition_handler = ConditionHandler()
+    asforest = AbstractSyntaxForest(condition_handler)
+    seq_node = asforest.factory.create_seq_node()
+    asforest._add_node(seq_node)
+    switch_expression = var("a")
+
+    asforest._add_nodes_from(switch_nodes := [asforest.factory.create_switch_node(switch_expression) for i in range(3)])
+    asforest._add_edges_from((seq_node, switch_nodes[i]) for i in range(3))
+
+    case_nodes = [asforest.factory.create_case_node(switch_expression, const(i), break_case=True) for i in range(12)]
+    code_nodes = [asforest.add_code_node([Assignment(var("x"), const(i))]) for i in range(12)]
+    for case, code in zip(case_nodes, code_nodes):
+        asforest._add_node(case)
+        asforest._add_edge(case, code)
+
+    for idx in range(4):
+        asforest._add_edge(switch_nodes[0], case_nodes[idx])
+        asforest._add_edge(switch_nodes[1], case_nodes[idx + 4])
+        asforest._add_edge(switch_nodes[2], case_nodes[idx + 8])
+
+    for i, j in [(0, 1), (1, 2), (2, 3)]:
+        asforest._code_node_reachability_graph.add_reachability_from(
+            [(code_nodes[i + offset], code_nodes[j + offset]) for offset in [0, 4, 8]]
+        )
+
+    asforest._code_node_reachability_graph.add_reachability_from(
+        [(node_1, node_2) for node_1 in code_nodes[:4] for node_2 in code_nodes[4:]]
+    )
+    asforest._code_node_reachability_graph.add_reachability_from(
+        [(node_1, node_2) for node_1 in code_nodes[4:8] for node_2 in code_nodes[8:]]
+    )
+
+    assert len(list(asforest.get_switch_nodes_post_order())) == 3
+    asforest.combine_switch_nodes(switch_nodes)
+    assert len(new_switch_nodes := list(asforest.get_switch_nodes_post_order())) == 1
+    assert len(new_switch_nodes[0].cases) == 12

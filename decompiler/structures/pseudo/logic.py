@@ -6,8 +6,8 @@ from enum import Enum
 from typing import Generic, TypeVar, Union
 
 from .expressions import Constant, Expression, Variable
-from .instructions import Branch, GenericBranch
-from .operations import Condition, Operation
+from .instructions import Branch
+from .operations import Condition, Operation, OperationType, UnaryOperation
 
 T = TypeVar("T")
 
@@ -29,6 +29,8 @@ class BaseConverter(ABC, Generic[T]):
             return self._convert_branch(expression)
         if isinstance(expression, Condition):
             return self._convert_condition(expression)
+        if isinstance(expression, UnaryOperation) and expression.operation == OperationType.dereference:
+            return self._convert_variable(Variable(str(expression), expression.type))
         if isinstance(expression, Operation):
             return self._convert_operation(expression)
         raise ValueError(f"Could not convert {expression} into a logic statement.")

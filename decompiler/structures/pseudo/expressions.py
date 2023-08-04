@@ -296,10 +296,11 @@ class Symbol(Constant):
 
 
 class StringSymbol(Symbol):
-    """Represents a global string constant (const char[size])."""
+    """Represents a global string constant (const char[size]). Special chars should be escaped!"""
 
     def __str__(self):
-        return f'"{self._name}"'
+        """Return raw string."""
+        return self._name
 
     def __repr__(self):
         """Return the global string with its address."""

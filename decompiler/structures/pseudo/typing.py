@@ -15,7 +15,7 @@ class Type(ABC):
     @property
     def is_boolean(self) -> bool:
         """Check whether the given value is a boolean."""
-        return self.size == 1
+        return str(self) == "bool"
 
     def copy(self, **kwargs) -> Type:
         """Generate a copy of the current type."""
@@ -131,14 +131,14 @@ class Integer(Type):
 
 
 @dataclass(frozen=True, order=True)
-class Float(Integer):
+class Float(Type):
     """Class representing the type of a floating point number as defined in IEEE 754."""
 
-    SIZE_TYPES = {16: "half", 32: "float", 64: "double", 80: "long double", 128: "quadruple", 256: "octuple"}
+    SIZE_TYPES = {8: "quarter", 16: "half", 32: "float", 64: "double", 80: "long double", 128: "quadruple", 256: "octuple"}
 
-    def __init__(self, size: int, signed=True):
+    def __init__(self, size: int):
         """Create a new float type with the given size."""
-        super().__init__(size, signed)
+        super().__init__(size)
 
     @classmethod
     def float(cls) -> Float:
@@ -191,7 +191,7 @@ class CustomType(Type):
     @classmethod
     def bool(cls) -> CustomType:
         """Return a boolean type representing either TRUE or FALSE."""
-        return cls("bool", 1)
+        return cls("bool", 8) # BN bool has size 8
 
     @classmethod
     def void(cls) -> CustomType:
@@ -208,21 +208,9 @@ class CustomType(Type):
 
 
 @dataclass(frozen=True, order=True)
-class Parameter(Type):
-    """Class representing a function parameter combining type and identifier."""
-
-    name: str
-    type: Type
-
-    def __str__(self) -> str:
-        """Return an anonymous string representation such as void*(int, int, char*)."""
-        return f"{self.type} {self.name}" if self.name else str(self.type)
-
-
-@dataclass(frozen=True, order=True)
 class FunctionTypeDef(Type):
     return_type: Type
-    parameters: Tuple[Parameter, ...]
+    parameters: Tuple[Type, ...]
 
     def __str__(self) -> str:
         """Return an anonymous string representation such as void*(int, int, char*)."""

@@ -39,6 +39,85 @@ int test0(int a, int b)
     return b;
 }
 
+int test0_b(int a, int b)
+{
+    for(int i = 0; i < 10; i++){
+        switch(a){
+            case 1:
+                printf("You chose the 1\n");
+                break;
+            case 2:
+                printf("You chose the prime number 2\n");
+            case 4:
+                printf("You chose an even number\n");
+                break;
+            case 5:
+               printf("both numbers are 5\n");
+               goto L;
+            case 3:
+                printf("Another prime\n");
+                break;
+            case 7:
+                printf("The 7 is a prime");
+                goto L;
+            default:
+                printf("Number not between 1 and 5\n");
+                if(a > 5){
+                    a -= 5;
+                }
+                else{
+                    a += 5;
+                }
+
+        }
+        b += i;
+        printf("b= %d\n", b);
+    }
+    L: printf("final b= %d\n", b);
+    return b;
+}
+
+int test0_c(int a, int b)
+{
+    for(int i = 0; i < 10; i++){
+        switch(a){
+            case 1:
+                printf("You chose the 1\n");
+                break;
+            case 2:
+                printf("You chose the prime number 2\n");
+            case 4:
+                printf("You chose an even number\n");
+                break;
+            case 5:
+               printf("both numbers are 5\n");
+               goto L;
+            case 3:
+                printf("Another prime\n");
+                break;
+            case 7:
+                if(b > 7){
+                    b = b - 7;
+                }
+                printf("The 7 is a prime");
+                goto L;
+            default:
+                printf("Number not between 1 and 5\n");
+                if(a > 5){
+                    a -= 5;
+                }
+                else{
+                    a += 5;
+                }
+
+        }
+        b += i;
+        printf("b= %d\n", b);
+    }
+    L: printf("final b= %d\n", b);
+    return b;
+}
+
 int test1()
 {
     int week;
@@ -946,6 +1025,35 @@ int test18()
         case 500: 
             printf("Friday");
             // break;
+        default: 
+            printf("Invalid input! Please enter week number between 1-7.");
+    }
+    printf("the number is %d", week);
+    return 0;
+
+}
+
+int test18_b()
+{
+    int week;
+    //Non sequential case constants
+    
+    /* Input week number from user */
+    printf("Enter week number(1-7): ");
+    scanf("%d", &week);
+    
+    switch(week)
+    {
+        case 1: 
+            printf("Monday");
+            // break;
+            week +=500 ;
+        case 12: 
+            printf("Tuesday");
+            break;
+        case 500: 
+            printf("Friday");
+            break;
         default: 
             printf("Invalid input! Please enter week number between 1-7.");
     }
