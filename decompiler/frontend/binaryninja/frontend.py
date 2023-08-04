@@ -31,7 +31,7 @@ class FunctionObject:
     @classmethod
     def check_function(cls, function: FunctionObject, reload = 0) -> bool:
         """Check if the function is loaded correctly by binary ninja. Try a reload if possible."""
-        if function._function is None or function._function.mapped_medium_level_il is None or reload < BNINJA_MAX_ANALYSIS_RELOADS:
+        if (function._function is None or function._function.mapped_medium_level_il is None) and reload < BNINJA_MAX_ANALYSIS_RELOADS:
             function._function.analysis_skipped = False 
             function._function.reanalyze()
             return cls.check_function(function, reload=reload+1) 
