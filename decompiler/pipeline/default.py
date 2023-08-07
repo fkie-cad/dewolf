@@ -5,6 +5,7 @@ from decompiler.pipeline.controlflowanalysis import (
     InstructionLengthHandler,
     ReadabilityBasedRefinement,
     VariableNameGeneration,
+    LoopNameGenerator
 )
 from decompiler.pipeline.dataflowanalysis import (
     ArrayAccessDetection,
@@ -41,4 +42,4 @@ CFG_STAGES = [
     EdgePruner,
 ]
 
-AST_STAGES = [ReadabilityBasedRefinement, ExpressionSimplification, InstructionLengthHandler, VariableNameGeneration]
+AST_STAGES = [ReadabilityBasedRefinement, ExpressionSimplification, InstructionLengthHandler, VariableNameGeneration, LoopNameGenerator]

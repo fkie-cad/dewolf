@@ -3,9 +3,16 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import List, Optional, Set
 
-from decompiler.pipeline.controlflowanalysis.readability_based_refinement import ForLoopVariableRenamer, WhileLoopVariableRenamer
 from decompiler.pipeline.stage import PipelineStage
-from decompiler.structures.pseudo import CustomType, Float, GlobalVariable, Integer, Pointer, Type, Variable
+from decompiler.structures.pseudo import (
+    CustomType,
+    Float,
+    GlobalVariable,
+    Integer,
+    Pointer,
+    Type,
+    Variable,
+)
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask
 
@@ -43,8 +50,6 @@ class RenamingScheme(ABC):
 
     def __init__(self, task: DecompilerTask) -> None:
         """Collets all needed variables for renaming + filters which should not be renamed"""
-        self._for_loop_names: List[str] = task.options.getlist("variable-name-generation.for_loop_variable_names", fallback=[])
-        self._rename_while_loops: bool = task.options.getboolean("variable-name-generation.rename_while_loop_variables")
         collector = VariableCollector()
         collector.visit_ast(task._ast)
         self._ast = task._ast
@@ -61,15 +66,10 @@ class RenamingScheme(ABC):
 
 
     def renameVariables(self):
-        """Rename all collected variables."""
+        """Rename all collected variables with a naming scheme."""
         for var in self._variables:
             self._ast.replace_variable_in_subtree(self._ast.root, var, Variable(self.getVariableName(var), var.type))
 
-        if self._rename_while_loops:
-            WhileLoopVariableRenamer(self._ast).rename()
-        
-        if self._for_loop_names:
-            ForLoopVariableRenamer(self._ast, self._for_loop_names).rename()
 
     @abstractmethod
     def getVariableName(self, var: Variable) -> str:
