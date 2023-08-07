@@ -1,7 +1,7 @@
 from typing import List
 
 import pytest
-from decompiler.pipeline.controlflowanalysis.loop_name_generator import LoopNameGenerator, ForLoopVariableRenamer, WhileLoopVariableRenamer
+from decompiler.pipeline.controlflowanalysis.loop_name_generator import ForLoopVariableRenamer, LoopNameGenerator, WhileLoopVariableRenamer
 from decompiler.pipeline.controlflowanalysis.readability_based_refinement import (
     ReadabilityBasedRefinement,
     _initialization_reaches_loop_node,
@@ -21,10 +21,9 @@ from decompiler.structures.pseudo import (
     OperationType,
     Variable,
 )
-from decompiler.structures.pseudo.operations import OperationType, UnaryOperation
+from decompiler.structures.pseudo.operations import ArrayInfo, OperationType, UnaryOperation
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
-from decompiler.structures.pseudo.operations import ArrayInfo, OperationType, UnaryOperation
 
 # Test For/WhileLoop Renamer
 
