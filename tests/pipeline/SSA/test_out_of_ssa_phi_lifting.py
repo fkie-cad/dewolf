@@ -287,6 +287,8 @@ def test_lifting_phi_on_top_1(variable_v, variable_u):
         and isinstance(phi_fct_lifter._cfg.get_edge(node, node), UnconditionalEdge)
         and len(phi_fct_lifter._cfg.edges) == 2
     )
+    # The root of the CFG must be updated by PhiFunctionLifter for the other stages to work
+    assert cfg.root == new_nodes[0]
 
 
 def test_lifting_phi_on_top_2(variable_v, variable_u):
@@ -324,3 +326,5 @@ def test_lifting_phi_on_top_2(variable_v, variable_u):
         and isinstance(phi_fct_lifter._cfg.get_edge(node, node), UnconditionalEdge)
         and len(phi_fct_lifter._cfg.edges) == 2
     )
+    # The root of the CFG must be updated by PhiFunctionLifter for the other stages to work
+    assert cfg.root == new_nodes[0]
