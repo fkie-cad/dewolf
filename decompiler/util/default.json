@@ -345,34 +345,6 @@
                 "argument_name": "--variable-generation-notation"
             },
             {
-                "dest": "variable-name-generation.rename_while_loop_variables",
-                "default": true,
-                "type": "boolean",
-                "title": "Rename while-loop variables",
-                "description": "Rename while-loop counter variables to counter, counter1, ...",
-                "is_hidden_from_gui": false,
-                "is_hidden_from_cli": false,
-                "argument_name": "--rename-while-loop-variables"
-            },
-            {
-                "dest": "variable-name-generation.for_loop_variable_names",
-                "default": [
-                    "i",
-                    "j",
-                    "k",
-                    "l",
-                    "m",
-                    "n"
-                ],
-                "type": "array",
-                "elementType": "string",
-                "title": "Rename for-loop variables",
-                "description": "Rename for-loop variables to values from given list",
-                "is_hidden_from_gui": false,
-                "is_hidden_from_cli": false,
-                "argument_name": "--for-loop-variable-names"
-            },
-            {
                 "dest": "variable-name-generation.variable_name",
                 "default": "Var",
                 "title": "Variable Base Name for hungarian notation",
@@ -411,6 +383,34 @@
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
                 "argument_name": "--variable-generation-counter-separator"
+            },
+            {
+                "dest": "loop-name-generator.rename_while_loop_variables",
+                "default": true,
+                "type": "boolean",
+                "title": "Rename while-loop variables",
+                "description": "Rename while-loop counter variables to counter, counter1, ...",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--rename-while-loop-variables"
+            },
+            {
+                "dest": "loop-name-generator.for_loop_variable_names",
+                "default": [
+                    "i",
+                    "j",
+                    "k",
+                    "l",
+                    "m",
+                    "n"
+                ],
+                "type": "array",
+                "elementType": "string",
+                "title": "Rename for-loop variables",
+                "description": "Rename for-loop variables to values from given list",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--for-loop-variable-names"
             },
             {
                 "dest": "code-generator.max_complexity",
@@ -620,7 +620,8 @@
                     "readability-based-refinement",
                     "expression-simplification",
                     "instruction-length-handler",
-                    "variable-name-generation"
+                    "variable-name-generation",
+                    "loop-name-generator"
                 ],
                 "title": "AST pipeline stages",
                 "type": "array",
