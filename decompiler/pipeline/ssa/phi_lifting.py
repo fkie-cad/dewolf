@@ -33,8 +33,6 @@ class PhiFunctionLifter:
             self._lift_phi_functions_of(basic_block)
             self._remove_phi_instructions_of(basic_block)
 
-        self._cfg.root = self._cfg.get_roots()[0]
-
     def _lift_phi_functions_of(self, basic_block: BasicBlock) -> None:
         """
         This functions lifts the phi-instructions of basic block 'basic_block' to its predecessor blocks.
@@ -56,6 +54,8 @@ class PhiFunctionLifter:
                 new_basic_block = self._insert_basic_block_before(basic_block, new_instructions)
                 if predecessor:
                     self._cfg.substitute_edge(edge, edge.copy(sink=new_basic_block))
+                else:
+                    self._cfg.root = self._cfg.get_roots()[0]
 
             self._update_interference_graph_after_lifting(new_instructions)
 
