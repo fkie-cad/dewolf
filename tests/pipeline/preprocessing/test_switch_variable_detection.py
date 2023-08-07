@@ -2,10 +2,11 @@ from functools import partial
 
 from decompiler.pipeline.preprocessing import SwitchVariableDetection
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
-from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
+from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, GlobalVariable, ImportedFunctionSymbol, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, IndirectBranch, Phi, Return
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer
+from decompiler.util.decoration import DecoratedCFG
 
 arg, eax, ebx = (lambda x, name=name: Variable(name, Integer.int32_t(), ssa_label=x) for name in ["arg", "eax", "ebx"])
 const = lambda value: Constant(value, Integer.int32_t())
@@ -156,10 +157,9 @@ class TestSwitchVariableDetection:
         Check whether we track the switch expression correctly even if it was used in a dedicated condition statement."
 
         This test is based on the output of gcc 9.2.1 on ubuntu switch sample test_switch test8.
-
         +----------+     +------------------------------+
         |          |     |              0.              |
-        |    2.    |     |                              |
+        |    2.    |     |        x = undefined         |
         | foo(0x0) |     |     cond:0#0 = x u< 0x8      |
         |          | <-- |     if(cond:0#0 != 0x0)      |
         +----------+     +------------------------------+
@@ -170,10 +170,10 @@ class TestSwitchVariableDetection:
           |              |              1.              |     |          |
           |              |           y#0 = x            |     |    4.    |
           |              | y#1 = 0xfffff + (y#0 << 0x2) |     | bar(0x2) |
-          |              |           jmp y#1            | ..> |          |
+          |              |           jmp y#1            | --> |          |
           |              +------------------------------+     +----------+
-          |                :                                    |
-          |                :                                    |
+          |                |                                    |
+          |                |                                    |
           |                v                                    |
           |              +------------------------------+       |
           |              |              3.              |       |
@@ -193,6 +193,7 @@ class TestSwitchVariableDetection:
                 start := BasicBlock(
                     0,
                     instructions=[
+                        Assignment(Variable("x"), Variable("undefined")),
                         Assignment(Variable("cond:0", ssa_label=0), Condition(OperationType.less_us, [Variable("x"), Constant(8)])),
                         Branch(Condition(OperationType.not_equal, [Variable("cond:0", ssa_label=0), Constant(0)])),
                     ],
@@ -423,3 +424,29 @@ def test_constant_pointer():
     task = MockTask(cfg)
     SwitchVariableDetection().run(task)
     assert vertices[2].instructions[-1] == IndirectBranch(rax)
+
+
+def test_global_var_as_switch_var():
+    """
+    Allow switching on undefined variable. 
+    +---------------+
+    |      0.       |
+    | jmp data_4242 |
+    +---------------+
+      |
+      |
+      v
+    +---------------+
+    |      1.       |
+    |    func1()    |
+    +---------------+
+    """
+    global_var = GlobalVariable("data_4242", Integer.int32_t())
+    b0 = BasicBlock(0, instructions=[switch := IndirectBranch(global_var)])
+    b1 = BasicBlock(1, instructions=[call_assignment(Call(function_symbol("func1"), []))])
+    cfg = ControlFlowGraph()
+    cfg.add_nodes_from([b0, b1])
+    cfg.add_edge(SwitchCase(b0, b1, []))
+    svd = SwitchVariableDetection()
+    svd.run(MockTask(cfg))
+    assert svd.find_switch_expression(switch) == global_var

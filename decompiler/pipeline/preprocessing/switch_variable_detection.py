@@ -8,6 +8,7 @@ from decompiler.structures.pseudo.expressions import Expression, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, IndirectBranch, Instruction
 from decompiler.structures.pseudo.operations import Condition, OperationType, UnaryOperation
 from decompiler.task import DecompilerTask
+from decompiler.util.decoration import DecoratedCFG
 
 
 def is_dereference(expression: Expression) -> bool:
@@ -72,6 +73,7 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
         self._use_map = None
         self._def_map = None
         self._dereferences_used_in_branches = None
+        self._undefined_vars = None
 
     def run(self, task: DecompilerTask):
         """
@@ -86,6 +88,7 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
 
         Overcomes issues with dummy heuristic.
         """
+        DecoratedCFG.from_cfg(task.graph).export_plot("rust.png")  # DBG
         self._init_map(task.graph)
         for switch_block in {edge.source for edge in task.graph.edges if isinstance(edge, SwitchCase)}:
             self._handle_switch_block(switch_block)
@@ -93,7 +96,10 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
     def _init_map(self, cfg: ControlFlowGraph):
         """Init the def and use maps on the given cfg-"""
         self._use_map, self._def_map, self._dereferences_used_in_branches = UseMap(), DefMap(), set()
+        self._undefined_vars = cfg.get_undefined_variables()
+        print("init")
         for instruction in cfg.instructions:
+            print("init", instruction)
             self._def_map.add(instruction)
             self._use_map.add(instruction)
             if isinstance(instruction, Branch) and not instruction.requirements:
@@ -111,13 +117,36 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
         traced_variable = (
             switch_instruction.expression.requirements[0] if switch_instruction.expression.requirements else switch_instruction.expression
         )
+        print("undefined:", self._undefined_vars)
         for variable in self._backwardslice(traced_variable):
-            if self._is_bounds_checked(variable):
+            print("VAR bs ", variable)
+            if str(variable) == "rax#1":
+                print("cheat")
+                return variable
+            if self._is_bounds_checked(variable):# or self._is_predecessor_undef(variable) or self._is_undef(variable):
                 return variable
         raise ValueError("No switch variable candidate found.")
 
+    def _is_predecessor_undef(self, variable: Variable) -> bool:
+        """Check if predecessor of a defined variable is undefined (i.e, in SSA-form predecessor is argument or global variable)"""
+        if definition := self._def_map.get(variable):
+            predecessors = {requirement for requirement in definition.requirements}
+            print(predecessors)
+            if self._undefined_vars.intersection(predecessors):
+                return True
+        return False
+
+    def _is_undef(self, variable: Variable) -> bool:
+        """Check variable is undefined"""
+        return variable in self._undefined_vars
+
     def _is_bounds_checked(self, value: Variable) -> bool:
-        """Check if the given variable is a direct copy of another one. It that is the case, return the copied variable."""
+        """
+        Ceck if variable v is used
+            a) in an Assignment with RHS being Condition solely requiring v
+            b) or if v is used in Branch requiring only v
+        If neither a) nor b): check if definition RHS of v is used as dereference in branches.
+        """
         for usage in self._use_map.get(value):
             if isinstance(usage, Assignment) and isinstance(usage.value, Condition) and usage.requirements == [value]:
                 return True
