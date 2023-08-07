@@ -10,12 +10,7 @@ from decompiler.pipeline.controlflowanalysis.readability_based_refinement import
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.ast.ast_nodes import LoopNode
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
-from decompiler.structures.pseudo import (
-    Assignment,
-    Expression,
-    Operation,
-    Variable,
-)
+from decompiler.structures.pseudo import Assignment, Expression, Operation, Variable
 from decompiler.task import DecompilerTask
 
 

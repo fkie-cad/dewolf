@@ -3,9 +3,9 @@
 from decompiler.pipeline.controlflowanalysis import (
     ExpressionSimplification,
     InstructionLengthHandler,
+    LoopNameGenerator,
     ReadabilityBasedRefinement,
     VariableNameGeneration,
-    LoopNameGenerator
 )
 from decompiler.pipeline.dataflowanalysis import (
     ArrayAccessDetection,

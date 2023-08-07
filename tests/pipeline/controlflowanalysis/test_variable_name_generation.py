@@ -1,17 +1,9 @@
 import pytest
 from decompiler.backend.codegenerator import CodeGenerator
 from decompiler.pipeline.controlflowanalysis import VariableNameGeneration
-from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
+from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree, CodeNode
 from decompiler.structures.logic.logic_condition import LogicCondition
-from decompiler.structures.pseudo import (
-    Assignment,
-    Constant,
-    CustomType,
-    Float,
-    Integer,
-    Pointer,
-    Variable,
-)
+from decompiler.structures.pseudo import Assignment, Constant, CustomType, Float, Integer, Pointer, Variable
 from decompiler.task import DecompilerTask
 from decompiler.util.decoration import DecoratedCode
 from decompiler.util.options import Options
