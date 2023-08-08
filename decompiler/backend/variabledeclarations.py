@@ -18,7 +18,7 @@ from decompiler.structures.pseudo import (
     UnaryOperation,
     Variable,
 )
-from decompiler.structures.pseudo.operations import StructMemberAccess
+from decompiler.structures.pseudo.operations import MemberAccess
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask
 from decompiler.util.serialization.bytes_serializer import convert_bytes
@@ -54,7 +54,7 @@ class LocalDeclarationGenerator(BaseAstDataflowObjectVisitor):
 
     def visit_unary_operation(self, unary: UnaryOperation):
         """Visit unary operations to remember all variables those memory location was read."""
-        if isinstance(unary, StructMemberAccess):
+        if isinstance(unary, MemberAccess):
             # TODO what if var -> field -> field? Than struct variable is an expression...
             self._variables.add(unary.struct_variable)
         if unary.operation == OperationType.address or unary.operation == OperationType.dereference:

@@ -18,8 +18,9 @@ from decompiler.structures.pseudo import (
     RegisterPair,
     UnaryOperation,
 )
-from decompiler.structures.pseudo.complextypes import Struct, Union as _Union
-from decompiler.structures.pseudo.operations import StructMemberAccess
+from decompiler.structures.pseudo.complextypes import Struct
+from decompiler.structures.pseudo.complextypes import Union as _Union
+from decompiler.structures.pseudo.operations import MemberAccess
 
 
 class AssignmentHandler(Handler):
@@ -71,8 +72,7 @@ class AssignmentHandler(Handler):
             isinstance(dest_type, Pointer) and isinstance(dest_type.type, Integer)
         ):
             struct_variable = self._lifter.lift(assignment.dest, is_aliased=True, parent=assignment)
-            destination = StructMemberAccess(
-                src=struct_variable,
+            destination = MemberAccess(
                 offset=assignment.offset,
                 member_name=struct_variable.type.get_member_by_offset(assignment.offset).name,
                 operands=[struct_variable],
@@ -106,8 +106,7 @@ class AssignmentHandler(Handler):
         if parent:
             parent_type = self._lifter.lift(parent.dest.type)
         if isinstance(source.type, Struct) or isinstance(source.type, _Union):
-            return StructMemberAccess(
-                src=source,
+            return MemberAccess(
                 offset=instruction.offset,
                 member_name=source.type.get_member_by_offset(instruction.offset).name
                 if isinstance(source.type, Struct)
@@ -210,8 +209,7 @@ class AssignmentHandler(Handler):
         """Lift a MLIL_STORE_STRUCT_SSA instruction to pseudo (e.g. object->field = x)."""
         vartype = self._lifter.lift(instruction.dest.expr_type)
         struct_variable = self._lifter.lift(instruction.dest)
-        struct_member_access = StructMemberAccess(
-            src=struct_variable,
+        struct_member_access = MemberAccess(
             member_name=vartype.type.members.get(instruction.offset),
             offset=instruction.offset,
             operands=[struct_variable],

@@ -378,10 +378,9 @@ class UnaryOperation(Operation):
         return visitor.visit_unary_operation(self)
 
 
-class StructMemberAccess(UnaryOperation):
+class MemberAccess(UnaryOperation):
     def __init__(
         self,
-        src: Expression,
         offset: int,
         member_name: str,
         operands: List[Expression],
@@ -389,7 +388,6 @@ class StructMemberAccess(UnaryOperation):
         writes_memory: Optional[int] = None,
     ):
         super().__init__(OperationType.struct_member, operands, vartype, writes_memory=writes_memory)
-        self.struct_variable = src
         self.member_offset = offset
         self.member_name = member_name
 
@@ -401,15 +399,17 @@ class StructMemberAccess(UnaryOperation):
             return f"{self.struct_variable}->{self.member_name}"
         return f"{self.struct_variable}.{self.member_name}"
 
+    @property
+    def struct_variable(self):
+        return self.operand
+
     def substitute(self, replacee: Expression, replacement: Expression) -> None:
         if isinstance(replacee, Variable) and replacee == self.struct_variable and isinstance(replacement, Variable):
-            self.struct_variable = replacement
             self.operands[:] = [replacement]
 
-    def copy(self) -> StructMemberAccess:
+    def copy(self) -> MemberAccess:
         """Copy the current UnaryOperation, copying all operands and the type."""
-        return StructMemberAccess(
-            self.struct_variable,
+        return MemberAccess(
             self.member_offset,
             self.member_name,
             [operand.copy() for operand in self._operands],

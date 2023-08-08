@@ -16,7 +16,7 @@ from decompiler.structures.pseudo import (
     UnaryOperation,
 )
 from decompiler.structures.pseudo.complextypes import Struct
-from decompiler.structures.pseudo.operations import StructMemberAccess
+from decompiler.structures.pseudo.operations import MemberAccess
 
 
 class UnaryOperationHandler(Handler):
@@ -94,7 +94,7 @@ class UnaryOperationHandler(Handler):
             )
         return self.lift_cast(instruction, **kwargs)
 
-    def _lift_load_struct(self, instruction: mediumlevelil.MediumLevelILLoadStruct, **kwargs) -> StructMemberAccess:
+    def _lift_load_struct(self, instruction: mediumlevelil.MediumLevelILLoadStruct, **kwargs) -> MemberAccess:
         """Lift a MLIL_LOAD_STRUCT_SSA (struct member access e.g. var#n->x) instruction."""
         # TODO type of struct variable should be either ptr on struct or struct
         # TODO type of the member hm actually we want member instance to know the struct type.
@@ -103,9 +103,7 @@ class UnaryOperationHandler(Handler):
         struct_ptr: Pointer = self._lifter.lift(instruction.src.expr_type)
         struct_type: Struct = struct_ptr.type
         struct_member_name = struct_type.get_member_by_offset(instruction.offset).name
-        return StructMemberAccess(
-            src=struct_variable, vartype=struct_ptr, operands=[struct_variable], offset=instruction.offset, member_name=struct_member_name
-        )
+        return MemberAccess(vartype=struct_ptr, operands=[struct_variable], offset=instruction.offset, member_name=struct_member_name)
 
     def _lift_ftrunc(self, instruction: mediumlevelil.MediumLevelILFtrunc, **kwargs) -> UnaryOperation:
         """Lift a MLIL_FTRUNC operation."""
