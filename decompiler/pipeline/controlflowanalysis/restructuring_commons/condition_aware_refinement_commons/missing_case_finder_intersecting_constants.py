@@ -65,10 +65,11 @@ class MissingCaseFinderIntersectingConstants(MissingCaseFinder):
                 return
         else:
             if not self._add_case_after(intersecting_linear_case, possible_case_properties):
-                if new_case_node := self._get_case_node_for_insertion(intersection_cases, intersecting_linear_case):
-                    self._add_case_node_to(new_case_node, possible_case)
-                else:
-                    return
+                # TODO: Not sure what we want to du in this case, is it really wanted to add?
+                # if new_case_node := self._get_case_node_for_insertion(intersection_cases, intersecting_linear_case):
+                #     self._add_case_node_to(new_case_node, possible_case)
+                # else:
+                return
 
         self._sibling_reachability_graph.update_when_inserting_new_case_node(compare_node, self._switch_node)
         compare_node.clean()
@@ -82,11 +83,26 @@ class MissingCaseFinderIntersectingConstants(MissingCaseFinder):
         """
         if len(possible_case_properties.intersecting_cases) != len(possible_case_properties.case_constants):
             return False
-        new_case_node = self._get_case_node_for_insertion(possible_case_properties.intersecting_cases, intersecting_linear_case, 1)
+        new_case_node = self._get_case_node_for_insertion_before(possible_case_properties.intersecting_cases, intersecting_linear_case)
         if new_case_node is None:
             return False
         self._add_case_node_to(new_case_node, possible_case_properties.case_node)
         return True
+
+    def _get_case_node_for_insertion_before(self, intersection_cases: Set[Constant], intersecting_linear_case: Tuple[CaseNode]) -> Optional[CaseNode]:
+        """
+        Return the existing case-node where we want to insert the content of the possible-case node.
+
+        The intersecting cases, must be before any code is executed.
+        If insertion is not possible, we return None.
+        - intersection_cases: all constants that are contained in the new case-node and the switch-node
+        - intersecting_linear_case: The list of case-nodes of the switch ending with a break containing the intersecting nodes.
+        """
+        common_cases, uncommon_cases = next(self._split_by_code(intersecting_linear_case, intersection_cases))
+        if len(common_cases) != len(intersection_cases):
+            return None
+        self.__resort_cases(common_cases + uncommon_cases, [c.child for c in intersecting_linear_case])
+        return common_cases[-1]
 
     def _get_case_node_for_insertion(
         self, intersection_cases: Set[Constant], intersecting_linear_case: Tuple[CaseNode], bound: Optional[int] = None
