@@ -64,11 +64,9 @@ class MissingCaseFinderIntersectingConstants(MissingCaseFinder):
             if not self._add_case_after(intersecting_linear_case, possible_case_properties):
                 return
         else:
-            if not self._add_case_after(intersecting_linear_case, possible_case_properties):
-                # TODO: Not sure what we want to du in this case, is it really wanted to add?
-                # if new_case_node := self._get_case_node_for_insertion(intersection_cases, intersecting_linear_case):
-                #     self._add_case_node_to(new_case_node, possible_case)
-                # else:
+            if not self._add_case_after(intersecting_linear_case, possible_case_properties) and not self._add_case_before(
+                intersecting_linear_case, possible_case_properties
+            ):
                 return
 
         self._sibling_reachability_graph.update_when_inserting_new_case_node(compare_node, self._switch_node)
@@ -89,7 +87,9 @@ class MissingCaseFinderIntersectingConstants(MissingCaseFinder):
         self._add_case_node_to(new_case_node, possible_case_properties.case_node)
         return True
 
-    def _get_case_node_for_insertion_before(self, intersection_cases: Set[Constant], intersecting_linear_case: Tuple[CaseNode]) -> Optional[CaseNode]:
+    def _get_case_node_for_insertion_before(
+        self, intersection_cases: Set[Constant], intersecting_linear_case: Tuple[CaseNode]
+    ) -> Optional[CaseNode]:
         """
         Return the existing case-node where we want to insert the content of the possible-case node.
 
@@ -98,34 +98,11 @@ class MissingCaseFinderIntersectingConstants(MissingCaseFinder):
         - intersection_cases: all constants that are contained in the new case-node and the switch-node
         - intersecting_linear_case: The list of case-nodes of the switch ending with a break containing the intersecting nodes.
         """
-        common_cases, uncommon_cases = next(self._split_by_code(intersecting_linear_case, intersection_cases))
+        common_cases, uncommon_cases = self._split_cases_until_first_code(intersecting_linear_case, intersection_cases)
         if len(common_cases) != len(intersection_cases):
             return None
         self.__resort_cases(common_cases + uncommon_cases, [c.child for c in intersecting_linear_case])
         return common_cases[-1]
-
-    def _get_case_node_for_insertion(
-        self, intersection_cases: Set[Constant], intersecting_linear_case: Tuple[CaseNode], bound: Optional[int] = None
-    ) -> Optional[CaseNode]:
-        """
-        Return the existing case-node where we want to insert the content of the possible-case node.
-
-        If insertion is not possible, we return None.
-        - intersection_cases: all constants that are contained in the new case-node and the switch-node
-        - intersecting_linear_case: The list of case-nodes of the switch ending with a break containing the intersecting nodes.
-        """
-        if bound is None:
-            bound = len(intersecting_linear_case) + 1
-        number_of_found_common_cases = 0
-        for idx, (common_cases, uncommon_cases) in enumerate(self._split_by_code(intersecting_linear_case, intersection_cases)):
-            number_of_found_common_cases += len(common_cases)
-            if not common_cases or idx + 1 < bound:
-                continue
-            if number_of_found_common_cases != len(intersection_cases):
-                return None
-            old_children_order = [c.child for c in intersecting_linear_case[number_of_found_common_cases - len(common_cases) :]]
-            self.__resort_cases(common_cases + uncommon_cases, old_children_order)
-            return common_cases[-1]
 
     def _add_case_after(self, intersecting_linear_case: Tuple[CaseNode], possible_case_properties: IntersectingCaseNodeProperties) -> bool:
         """
@@ -148,10 +125,10 @@ class MissingCaseFinderIntersectingConstants(MissingCaseFinder):
             intersecting_linear_case[-1].break_case = False
         return True
 
-    def _split_by_code(
+    def _split_cases_until_first_code(
         self, intersecting_linear_case: Tuple[CaseNode], intersection_cases: Set[Constant]
-    ) -> Iterator[Tuple[List[CaseNode], List[CaseNode]]]:
-        """Split the intersecting linear case by the blocks that contain code, i.e, are non-empty"""
+    ) -> Tuple[List[CaseNode], List[CaseNode]]:
+        """Split the intersecting linear case until the first case-node contains code."""
         uncommon_cases: List[CaseNode] = list()
         common_cases: List[CaseNode] = list()
         for case in intersecting_linear_case:
@@ -160,10 +137,9 @@ class MissingCaseFinderIntersectingConstants(MissingCaseFinder):
             else:
                 common_cases.append(case)
             if not case.child.is_empty_code_node:
-                yield common_cases, uncommon_cases
-                common_cases, uncommon_cases = list(), list()
+                return common_cases, uncommon_cases
         if common_cases or uncommon_cases:
-            yield common_cases, uncommon_cases
+            return common_cases, uncommon_cases
 
     def __resort_cases(self, new_case_order: List[CaseNode], old_case_children: List[AbstractSyntaxTreeNode]):
         """Resort the cases according to the new order by switching the case-node-children whose reachability is correct."""
