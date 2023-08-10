@@ -1,15 +1,16 @@
 """ Tests for the PatternIndependentRestructuring pipeline stage"""
 
 import pytest
-
-from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.base_class_car import \
-    CaseNodeCandidate
-from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder_intersecting_constants import \
-    MissingCaseFinderIntersectingConstants
-from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions, LoopBreakOptions
-from decompiler.structures.ast.ast_nodes import SeqNode, ConditionNode, SwitchNode
-from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.pipeline.controlflowanalysis.restructuring import PatternIndependentRestructuring
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.base_class_car import (
+    CaseNodeCandidate,
+)
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder_intersecting_constants import (
+    MissingCaseFinderIntersectingConstants,
+)
+from decompiler.pipeline.controlflowanalysis.restructuring_options import LoopBreakOptions, RestructuringOptions
+from decompiler.structures.ast.ast_nodes import ConditionNode, SeqNode, SwitchNode
+from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.structures.ast.reachability_graph import SiblingReachabilityGraph
 from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
@@ -25,10 +26,12 @@ var_b = Variable("b", Integer.int32_t())
 var_c = Variable("c", Integer.int32_t())
 const = [Constant(i, Integer.int32_t()) for i in range(4)]
 
+
 @pytest.fixture
 def task() -> DecompilerTask:
     """A mock task with an empty cfg."""
     return DecompilerTask("test", ControlFlowGraph())
+
 
 def test_no_crash_missing_case_finder(task):
     """
@@ -37,142 +40,39 @@ def test_no_crash_missing_case_finder(task):
 
     Test if no ValueError is raised.
     """
-    var_2 = Variable("var_2", Integer(32, False), ssa_name=Variable("rcx_1", Integer(32, False), 2)) 
-    var_3 = Variable("var_3", Integer(32, False), ssa_name=Variable("rbx_1", Integer(32, False), 2)) 
-    var_4 = Variable("var_4", Integer(32, False), ssa_name=Variable("rbx_2", Integer(32, False), 2)) 
-    var_5 = Variable("var_5", Integer(32, False), ssa_name=Variable("rax_1", Integer(32, False), 2)) 
-    var_6 = Variable("var_6", Integer(32, False), ssa_name=Variable("rax_2", Integer(32, False), 2)) 
+    var_2 = Variable("var_2", Integer(32, False), ssa_name=Variable("rcx_1", Integer(32, False), 2))
+    var_3 = Variable("var_3", Integer(32, False), ssa_name=Variable("rbx_1", Integer(32, False), 2))
+    var_4 = Variable("var_4", Integer(32, False), ssa_name=Variable("rbx_2", Integer(32, False), 2))
+    var_5 = Variable("var_5", Integer(32, False), ssa_name=Variable("rax_1", Integer(32, False), 2))
+    var_6 = Variable("var_6", Integer(32, False), ssa_name=Variable("rax_2", Integer(32, False), 2))
     task._cfg.add_nodes_from(
         [
             b0 := BasicBlock(
                 0,
-                [
-                    Branch(
-                        Condition(
-                            OperationType.less_or_equal,
-                            [
-                                var_2,
-                                Constant(0x2, Integer(32, True)),
-                            ],
-                            CustomType("bool", 1),
-                        )
-                    ),
-                ],
+                [Branch(Condition(OperationType.less_or_equal, [var_2, Constant(0x2, Integer(32, True))], CustomType("bool", 1)))],
             ),
-            b1 := BasicBlock(
-                1,
-                [
-                    Assignment(var_3, Constant(-0x3, Integer(32, True))),
-                ]
-            ),
+            b1 := BasicBlock(1, [Assignment(var_3, Constant(-0x3, Integer(32, True)))]),
             b3 := BasicBlock(
                 3,
-                [
-                    Branch(
-                        Condition(
-                            OperationType.equal,
-                            [
-                                var_5,
-                                Constant(0x2, Integer(32, True)),
-                            ],
-                            CustomType("bool", 1),
-                        )
-                    ),
-                ],
+                [Branch(Condition(OperationType.equal, [var_5, Constant(0x2, Integer(32, True))], CustomType("bool", 1)))],
             ),
-            b4 := BasicBlock(
-                4,
-                [
-                    Return([Constant(0xffffffff, Integer(32, True))])
-                    ],
-            ),
+            b4 := BasicBlock(4, [Return([Constant(0xFFFFFFFF, Integer(32, True))])]),
             b5 := BasicBlock(
                 5,
                 [
-                    Assignment(
-                        var_6,
-                        BinaryOperation(
-                            OperationType.plus,
-                            [
-                                var_5, Constant(-0x3, Integer(32, True))
-                            ]
-                        ),
-                    ),
-                    Branch(
-                        Condition(
-                            OperationType.greater_us,
-                            [
-                                var_5,
-                                Constant(0x2, Integer(32, True)),
-                            ],
-                            CustomType("bool", 1),
-                        )
-                    ),
+                    Assignment(var_6, BinaryOperation(OperationType.plus, [var_5, Constant(-0x3, Integer(32, True))])),
+                    Branch(Condition(OperationType.greater_us, [var_5, Constant(0x2, Integer(32, True))], CustomType("bool", 1))),
                 ],
             ),
-            b7 := BasicBlock(
-                7,
-                [
-                    Branch(
-                        Condition(
-                            OperationType.equal,
-                            [
-                                var_5,
-                                Constant(0x0, Integer(32, True)),
-                            ],
-                            CustomType("bool", 1),
-                        )
-                    )
-                ],
-            ),
-            b10 := BasicBlock(
-                10,
-                [
-                    Assignment(
-                        var_6,
-                        Constant(0x0, Integer(32, True))
-                    )
-                ],
-            ),
+            b7 := BasicBlock(7, [Branch(Condition(OperationType.equal, [var_5, Constant(0x0, Integer(32, True))], CustomType("bool", 1)))]),
+            b10 := BasicBlock(10, [Assignment(var_6, Constant(0x0, Integer(32, True)))]),
             b11 := BasicBlock(
-                11,
-                [
-                    Branch(
-                        Condition(
-                            OperationType.not_equal,
-                            [
-                                var_5,
-                                Constant(0x1, Integer(32, True)),
-                                ],
-                            CustomType("bool", 1),
-                            )
-                        )
-                    ]
+                11, [Branch(Condition(OperationType.not_equal, [var_5, Constant(0x1, Integer(32, True))], CustomType("bool", 1)))]
             ),
-            b15 := BasicBlock(
-                15,
-                [
-                    Return([var_6])
-                ],
-            ),
-           b17 := BasicBlock(
-                17,
-                [
-                    Assignment(var_6, Constant(0x1, Integer(32, True)))
-                ],
-            ),
-           b22 := BasicBlock(
-                22,
-                [
-                    Return([
-                        BinaryOperation(
-                            OperationType.plus,
-                            [
-                                var_3, BinaryOperation(OperationType.plus, [var_4, var_5])
-                            ]
-                        )
-                    ])
-                ],
+            b15 := BasicBlock(15, [Return([var_6])]),
+            b17 := BasicBlock(17, [Assignment(var_6, Constant(0x1, Integer(32, True)))]),
+            b22 := BasicBlock(
+                22, [Return([BinaryOperation(OperationType.plus, [var_3, BinaryOperation(OperationType.plus, [var_4, var_5])])])]
             ),
         ]
     )
@@ -209,7 +109,9 @@ def test_insert_intersecting_cases_before(task):
     true_branch = ast.factory.create_true_node()
     case1 = ast.factory.create_case_node(var_c, const[1])
     case2 = ast.factory.create_case_node(var_c, const[2], break_case=True)
-    code_nodes = [ast.factory.create_code_node([Assignment(var_b, BinaryOperation(OperationType.plus, [var_b, const[i+1]]))]) for i in range(3)]
+    code_nodes = [
+        ast.factory.create_code_node([Assignment(var_b, BinaryOperation(OperationType.plus, [var_b, const[i + 1]]))]) for i in range(3)
+    ]
     ast._add_nodes_from(code_nodes + [root, missing_case, switch, case1, case2, true_branch])
     ast._add_edges_from(
         [
@@ -223,18 +125,17 @@ def test_insert_intersecting_cases_before(task):
             (case2, code_nodes[2]),
         ]
     )
-    ast._code_node_reachability_graph.add_reachability_from(
-        ((code_nodes[0], code_nodes[2]), (code_nodes[1], code_nodes[2]))
-    )
+    ast._code_node_reachability_graph.add_reachability_from(((code_nodes[0], code_nodes[2]), (code_nodes[1], code_nodes[2])))
     root.sort_children()
     switch.sort_cases()
     sibling_reachability = ast.get_sibling_reachability_of_children_of(root)
     reachability_graph = SiblingReachabilityGraph(sibling_reachability)
     ast.set_current_root(root)
 
-    mcfic = MissingCaseFinderIntersectingConstants(ast, RestructuringOptions(True, True, 2, LoopBreakOptions.structural_variable), switch, reachability_graph)
+    mcfic = MissingCaseFinderIntersectingConstants(
+        ast, RestructuringOptions(True, True, 2, LoopBreakOptions.structural_variable), switch, reachability_graph
+    )
     mcfic.insert(CaseNodeCandidate(missing_case, mcfic._get_const_eq_check_expression_of_disjunction(cond_2_symbol), cond_2_symbol))
-
 
     assert isinstance(ast.current_root, SeqNode) and len(ast.current_root.children) == 2
     assert isinstance(cond := ast.current_root.children[0], ConditionNode) and cond.true_branch_child
@@ -253,7 +154,9 @@ def test_insert_intersecting_cases_anywhere(task):
     true_branch = ast.factory.create_true_node()
     case1 = ast.factory.create_case_node(var_c, const[1])
     case2 = ast.factory.create_case_node(var_c, const[2], break_case=True)
-    code_nodes = [ast.factory.create_code_node([Assignment(var_b, BinaryOperation(OperationType.plus, [var_b, const[i+1]]))]) for i in range(2)]
+    code_nodes = [
+        ast.factory.create_code_node([Assignment(var_b, BinaryOperation(OperationType.plus, [var_b, const[i + 1]]))]) for i in range(2)
+    ]
     empty_code = ast.factory.create_code_node([])
     ast._add_nodes_from(code_nodes + [root, missing_case, switch, case1, case2, true_branch, empty_code])
     ast._add_edges_from(
@@ -275,9 +178,10 @@ def test_insert_intersecting_cases_anywhere(task):
     reachability_graph = SiblingReachabilityGraph(sibling_reachability)
     ast.set_current_root(root)
 
-    mcfic = MissingCaseFinderIntersectingConstants(ast, RestructuringOptions(True, True, 2, LoopBreakOptions.structural_variable), switch, reachability_graph)
+    mcfic = MissingCaseFinderIntersectingConstants(
+        ast, RestructuringOptions(True, True, 2, LoopBreakOptions.structural_variable), switch, reachability_graph
+    )
     mcfic.insert(CaseNodeCandidate(missing_case, mcfic._get_const_eq_check_expression_of_disjunction(cond_2_symbol), cond_2_symbol))
-
 
     assert isinstance(ast.current_root, SeqNode) and len(ast.current_root.children) == 1
     assert isinstance(switch := ast.current_root.children[0], SwitchNode) and switch.cases == (case2, case1)
