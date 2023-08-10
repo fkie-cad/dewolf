@@ -1,7 +1,18 @@
 """ Tests for the PatternIndependentRestructuring pipeline stage"""
 
 import pytest
+
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.base_class_car import \
+    CaseNodeCandidate
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder_intersecting_constants import \
+    MissingCaseFinderIntersectingConstants
+from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions, LoopBreakOptions
+from decompiler.structures.ast.ast_nodes import SeqNode, ConditionNode, SwitchNode
+from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.pipeline.controlflowanalysis.restructuring import PatternIndependentRestructuring
+from decompiler.structures.ast.reachability_graph import SiblingReachabilityGraph
+from decompiler.structures.ast.switch_node_handler import ExpressionUsages
+from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
 from decompiler.structures.pseudo.expressions import Constant, ImportedFunctionSymbol, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Return
@@ -10,6 +21,9 @@ from decompiler.structures.pseudo.typing import CustomType, Integer
 from decompiler.task import DecompilerTask
 from decompiler.util.decoration import DecoratedCFG
 
+var_b = Variable("b", Integer.int32_t())
+var_c = Variable("c", Integer.int32_t())
+const = [Constant(i, Integer.int32_t()) for i in range(4)]
 
 @pytest.fixture
 def task() -> DecompilerTask:
@@ -180,3 +194,90 @@ def test_no_crash_missing_case_finder(task):
         ]
     )
     PatternIndependentRestructuring().run(task)
+
+
+def test_insert_intersecting_cases_before(task):
+    """Test, node is not insertable."""
+    condition_handler = ConditionHandler()
+    # cond_1_symbol = condition_handler.add_condition(Condition(OperationType.equal, [var_c, const[1]]))
+    cond_2_symbol = condition_handler.add_condition(Condition(OperationType.equal, [var_c, const[2]]))
+
+    ast = AbstractSyntaxForest(condition_handler=condition_handler)
+    root = ast.factory.create_seq_node()
+    missing_case = ast.factory.create_condition_node(condition=cond_2_symbol)
+    switch = ast.factory.create_switch_node(var_c)
+    true_branch = ast.factory.create_true_node()
+    case1 = ast.factory.create_case_node(var_c, const[1])
+    case2 = ast.factory.create_case_node(var_c, const[2], break_case=True)
+    code_nodes = [ast.factory.create_code_node([Assignment(var_b, BinaryOperation(OperationType.plus, [var_b, const[i+1]]))]) for i in range(3)]
+    ast._add_nodes_from(code_nodes + [root, missing_case, switch, case1, case2, true_branch])
+    ast._add_edges_from(
+        [
+            (root, missing_case),
+            (root, switch),
+            (missing_case, true_branch),
+            (true_branch, code_nodes[0]),
+            (switch, case1),
+            (switch, case2),
+            (case1, code_nodes[1]),
+            (case2, code_nodes[2]),
+        ]
+    )
+    ast._code_node_reachability_graph.add_reachability_from(
+        ((code_nodes[0], code_nodes[2]), (code_nodes[1], code_nodes[2]))
+    )
+    root.sort_children()
+    switch.sort_cases()
+    sibling_reachability = ast.get_sibling_reachability_of_children_of(root)
+    reachability_graph = SiblingReachabilityGraph(sibling_reachability)
+    ast.set_current_root(root)
+
+    mcfic = MissingCaseFinderIntersectingConstants(ast, RestructuringOptions(True, True, 2, LoopBreakOptions.structural_variable), switch, reachability_graph)
+    mcfic.insert(CaseNodeCandidate(missing_case, mcfic._get_const_eq_check_expression_of_disjunction(cond_2_symbol), cond_2_symbol))
+
+
+    assert isinstance(ast.current_root, SeqNode) and len(ast.current_root.children) == 2
+    assert isinstance(cond := ast.current_root.children[0], ConditionNode) and cond.true_branch_child
+
+
+def test_insert_intersecting_cases_anywhere(task):
+    """Test, node is not insertable."""
+    condition_handler = ConditionHandler()
+    # cond_1_symbol = condition_handler.add_condition(Condition(OperationType.equal, [var_c, const[1]]))
+    cond_2_symbol = condition_handler.add_condition(Condition(OperationType.equal, [var_c, const[2]]))
+
+    ast = AbstractSyntaxForest(condition_handler=condition_handler)
+    root = ast.factory.create_seq_node()
+    missing_case = ast.factory.create_condition_node(condition=cond_2_symbol)
+    switch = ast.factory.create_switch_node(var_c)
+    true_branch = ast.factory.create_true_node()
+    case1 = ast.factory.create_case_node(var_c, const[1])
+    case2 = ast.factory.create_case_node(var_c, const[2], break_case=True)
+    code_nodes = [ast.factory.create_code_node([Assignment(var_b, BinaryOperation(OperationType.plus, [var_b, const[i+1]]))]) for i in range(2)]
+    empty_code = ast.factory.create_code_node([])
+    ast._add_nodes_from(code_nodes + [root, missing_case, switch, case1, case2, true_branch, empty_code])
+    ast._add_edges_from(
+        [
+            (root, missing_case),
+            (root, switch),
+            (missing_case, true_branch),
+            (true_branch, code_nodes[0]),
+            (switch, case1),
+            (switch, case2),
+            (case1, empty_code),
+            (case2, code_nodes[1]),
+        ]
+    )
+    ast._code_node_reachability_graph.add_reachability(empty_code, code_nodes[1])
+    root.sort_children()
+    switch.sort_cases()
+    sibling_reachability = ast.get_sibling_reachability_of_children_of(root)
+    reachability_graph = SiblingReachabilityGraph(sibling_reachability)
+    ast.set_current_root(root)
+
+    mcfic = MissingCaseFinderIntersectingConstants(ast, RestructuringOptions(True, True, 2, LoopBreakOptions.structural_variable), switch, reachability_graph)
+    mcfic.insert(CaseNodeCandidate(missing_case, mcfic._get_const_eq_check_expression_of_disjunction(cond_2_symbol), cond_2_symbol))
+
+
+    assert isinstance(ast.current_root, SeqNode) and len(ast.current_root.children) == 1
+    assert isinstance(switch := ast.current_root.children[0], SwitchNode) and switch.cases == (case2, case1)
