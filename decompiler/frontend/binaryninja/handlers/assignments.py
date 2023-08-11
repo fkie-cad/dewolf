@@ -101,11 +101,11 @@ class AssignmentHandler(Handler):
         """
         source = self._lifter.lift(instruction.src, is_aliased=is_aliased, parent=instruction)
         # TODO move struct/union part to separate function
-        parent = kwargs.get("parent", None)
-        parent_type = None
-        if parent:
-            parent_type = self._lifter.lift(parent.dest.type)
         if isinstance(source.type, Struct) or isinstance(source.type, _Union):
+            parent = kwargs.get("parent", None)
+            parent_type = None
+            if parent:
+                parent_type = self._lifter.lift(parent.dest.type)
             return MemberAccess(
                 offset=instruction.offset,
                 member_name=source.type.get_member_by_offset(instruction.offset).name
