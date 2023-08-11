@@ -29,6 +29,7 @@ from decompiler.structures.pseudo.operations import (
     Call,
     Condition,
     ListOperation,
+    MemberAccess,
     OperationType,
     UnaryOperation,
 )
@@ -59,6 +60,7 @@ def x2_symbol(context=None):
 def true_condition(context=None):
     context = LogicCondition.generate_new_context() if context is None else context
     return LogicCondition.initialize_true(context)
+
 
 def logic_cond(name: str, context) -> LogicCondition:
     return LogicCondition.initialize_symbol(name, context)
@@ -462,7 +464,7 @@ class TestCodeGeneration:
         regex = r"^%int +test_function\(\)%{(?s).*if%\(%COND_STR%\)%{%return%0%;%}%}%$"
         assert self._regex_matches(regex.replace("COND_STR", expected).replace("%", "\\s*"), self._task(ast))
 
-    
+
     def test_loop_declaration_ListOp(self):
         """
         a = 5;
@@ -491,7 +493,7 @@ class TestCodeGeneration:
         ast._code_node_reachability_graph.add_reachability(code_node, loop_node_body)
         root._sorted_children = (code_node, loop_node)
         source_code = CodeGenerator().generate([self._task(ast)]).replace("\n", "")
-        assert source_code.find("for (b = foo();") != -1 
+        assert source_code.find("for (b = foo();") != -1
 
 
 class TestExpression:
@@ -702,6 +704,85 @@ class TestExpression:
     )
     def test_array_element_access_aggressive(self, operation, result):
         assert self._visit_code(operation, _generate_options(array_detection=True)) == result
+
+    @pytest.mark.parametrize(
+        "operation, result",
+        [
+            (
+                MemberAccess(operands=[Variable("a", Integer.int32_t())], member_name="x", offset=0, vartype=Integer.int32_t()),
+                "a.x",
+            ),
+            (
+                MemberAccess(
+                    operands=[
+                        MemberAccess(operands=[Variable("a", Integer.int32_t())], member_name="x", offset=0, vartype=Integer.int32_t())
+                    ],
+                    member_name="z",
+                    offset=0,
+                    vartype=Integer.int32_t(),
+                ),
+                "a.x.z",
+            ),
+            (
+                MemberAccess(operands=[Variable("ptr", Pointer(Integer.int32_t()))], member_name="x", offset=0, vartype=Integer.int32_t()),
+                "ptr->x",
+            ),
+            (
+                MemberAccess(
+                    operands=[
+                        MemberAccess(
+                            operands=[Variable("ptr", Pointer(Integer.int32_t()))], member_name="x", offset=0, vartype=Integer.int32_t()
+                        )
+                    ],
+                    member_name="z",
+                    offset=0,
+                    vartype=Pointer(Integer.int32_t()),
+                ),
+                "ptr->x.z",
+            ),
+            (
+                MemberAccess(
+                    operands=[
+                        MemberAccess(
+                            operands=[Variable("ptr", Pointer(Integer.int32_t()))],
+                            member_name="x",
+                            offset=0,
+                            vartype=Pointer(Integer.int32_t()),
+                        )
+                    ],
+                    member_name="z",
+                    offset=0,
+                    vartype=Pointer(Pointer(Integer.int32_t())),
+                ),
+                "ptr->x->z",
+            ),
+            (
+                MemberAccess(
+                    operands=[
+                        MemberAccess(
+                            operands=[
+                                MemberAccess(
+                                    operands=[Variable("ptr", Pointer(Integer.int32_t()))],
+                                    member_name="x",
+                                    offset=0,
+                                    vartype=Pointer(Integer.int32_t()),
+                                )
+                            ],
+                            member_name="z",
+                            offset=0,
+                            vartype=Pointer(Pointer(Integer.int32_t())),
+                        )
+                    ],
+                    member_name="w",
+                    offset=8,
+                    vartype=Pointer(Pointer(Pointer(Integer.int32_t()))),
+                ),
+                "ptr->x->z->w",
+            ),
+        ],
+    )
+    def test_member_access(self, operation, result):
+        assert self._visit_code(operation) == result
 
     @pytest.mark.parametrize(
         "expr, result",

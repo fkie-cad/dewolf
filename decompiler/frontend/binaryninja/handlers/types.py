@@ -1,6 +1,6 @@
 import logging
 from abc import abstractmethod
-from typing import Union, Optional
+from typing import Optional, Union
 
 from binaryninja import BinaryView, StructureVariant
 from binaryninja.types import (

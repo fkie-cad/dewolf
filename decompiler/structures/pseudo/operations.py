@@ -417,10 +417,6 @@ class MemberAccess(UnaryOperation):
             writes_memory=self.writes_memory,
         )
 
-    # def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
-    #     """Invoke the appropriate visitor for this Operation."""
-    #     return str(self)
-
     def is_read_access(self):
         return self.writes_memory is None
 

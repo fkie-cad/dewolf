@@ -181,6 +181,57 @@ def test_str():
     assert str(ListOperation([a, b])) == "a#0,b#1"
     assert str(MemberAccess(operands=[a], member_name="x", offset=0, vartype=Integer.int32_t())) == "a#0.x"
     assert str(MemberAccess(operands=[ptr], member_name="x", offset=0, vartype=Integer.int32_t())) == "ptr#0->x"
+    assert (
+        str(
+            MemberAccess(
+                operands=[MemberAccess(operands=[a], member_name="x", offset=0, vartype=Integer.int32_t())],
+                member_name="z",
+                offset=0,
+                vartype=Integer.int32_t(),
+            )
+        )
+        == "a#0.x.z"
+    )
+    assert (
+        str(
+            MemberAccess(
+                operands=[MemberAccess(operands=[ptr], member_name="x", offset=0, vartype=Integer.int32_t())],
+                member_name="z",
+                offset=0,
+                vartype=Pointer(Integer.int32_t()),
+            )
+        )
+        == "ptr#0->x.z"
+    )
+    assert (
+        str(
+            MemberAccess(
+                operands=[MemberAccess(operands=[ptr], member_name="x", offset=0, vartype=Pointer(Integer.int32_t()))],
+                member_name="z",
+                offset=0,
+                vartype=Pointer(Pointer(Integer.int32_t())),
+            )
+        )
+        == "ptr#0->x->z"
+    )
+    assert (
+        str(
+            MemberAccess(
+                operands=[
+                    MemberAccess(
+                        operands=[MemberAccess(operands=[ptr], member_name="x", offset=0, vartype=Pointer(Integer.int32_t()))],
+                        member_name="z",
+                        offset=0,
+                        vartype=Pointer(Pointer(Integer.int32_t())),
+                    )
+                ],
+                member_name="w",
+                offset=8,
+                vartype=Pointer(Pointer(Pointer(Integer.int32_t()))),
+            )
+        )
+        == "ptr#0->x->z->w"
+    )
 
 
 def test_iter():
