@@ -63,7 +63,7 @@ class Struct(ComplexType):
 
     def declaration(self):
         members = ";\n\t".join(self.members[k].declaration() for k in sorted(self.members.keys()))+";"
-        return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}};"
+        return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}}"
 
 
 @dataclass(frozen=True, order=True)
@@ -76,7 +76,7 @@ class Union(ComplexType):
 
     def declaration(self):
         members = ";\n\t".join(x.declaration() for x in self.members)
-        return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}};"
+        return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}}"
 
     def get_member_by_type(self, _type: Type) -> ComplexTypeMember:
         """Retrieve member of union by its type."""
@@ -98,7 +98,7 @@ class Enum(ComplexType):
 
     def declaration(self):
         members = ",\n\t".join(f"{x.name} = {x.value}" for x in self.members.values())
-        return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}};"
+        return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}}"
 
 
 @dataclass(frozen=True, order=True)
@@ -129,4 +129,4 @@ class ComplexTypeMap:
             logging.error(t.declaration())
 
     def declarations(self) -> str:
-        return "\n".join(t.declaration() for t in self._name_to_type_map.values())
+        return ";\n".join(t.declaration() for t in self._name_to_type_map.values())

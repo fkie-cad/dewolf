@@ -5,12 +5,11 @@ from decompiler.structures.pseudo.complextypes import ComplexTypeMember, Complex
 
 class TestStruct:
     def test_declaration(self, book: Struct, record_id: Union):
-        assert book.declaration() == "struct Book {\n\tchar * title;\n\tint num_pages;\n\tchar * author;\n};"
+        assert book.declaration() == "struct Book {\n\tchar * title;\n\tint num_pages;\n\tchar * author;\n}"
         # nest complex type
         book.add_member(m := ComplexTypeMember(size=64, name="id", offset=12, type=record_id), )
         # TODO if union is defined not within the struct itself?
-        # TODO fix semicolons
-        result = f"struct Book {{\n\tchar * title;\n\tint num_pages;\n\tchar * author;\n\t{m.declaration()};\n}};"
+        result = f"struct Book {{\n\tchar * title;\n\tint num_pages;\n\tchar * author;\n\t{m.declaration()};\n}}"
         # TODO nest enum
         assert book.declaration() == result
 
@@ -70,9 +69,7 @@ def record_id() -> Union:
 
 class TestUnion:
     def test_declaration(self, record_id):
-        print(record_id.declaration())
-        # TODO fix missing ; after last member
-        assert record_id.declaration() == "union RecordID {\n\tfloat float_id;\n\tint int_id;\n\tdouble double_id\n};"
+        assert record_id.declaration() == "union RecordID {\n\tfloat float_id;\n\tint int_id;\n\tdouble double_id\n}"
 
     def test_str(self, record_id):
         assert str(record_id) == "RecordID"
@@ -116,7 +113,7 @@ class TestUnion:
 class TestEnum:
     def test_declaration(self, color):
         # TODO comma after last member?
-        assert color.declaration() == "enum Color {\n\tred = 0,\n\tgreen = 1,\n\tblue = 2\n};"
+        assert color.declaration() == "enum Color {\n\tred = 0,\n\tgreen = 1,\n\tblue = 2\n}"
 
     def test_str(self, color):
         assert str(color) == "Color"
