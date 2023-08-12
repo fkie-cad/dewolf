@@ -1,12 +1,13 @@
 """Module for finding variable relevant to switch"""
 from typing import Optional
 
+from decompiler.pipeline.preprocessing.util import _init_basicblocks_of_definition
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, SwitchCase
 from decompiler.structures.maps import DefMap, UseMap
 from decompiler.structures.pseudo.expressions import Expression, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, IndirectBranch, Instruction
-from decompiler.structures.pseudo.operations import Condition, OperationType, UnaryOperation
+from decompiler.structures.pseudo.operations import Condition, Operation, OperationType, UnaryOperation
 from decompiler.task import DecompilerTask
 from decompiler.util.decoration import DecoratedCFG
 
@@ -97,9 +98,8 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
         """Init the def and use maps on the given cfg-"""
         self._use_map, self._def_map, self._dereferences_used_in_branches = UseMap(), DefMap(), set()
         self._undefined_vars = cfg.get_undefined_variables()
-        print("init")
+        self._bb_definitions = _init_basicblocks_of_definition(cfg)
         for instruction in cfg.instructions:
-            print("init", instruction)
             self._def_map.add(instruction)
             self._use_map.add(instruction)
             if isinstance(instruction, Branch) and not instruction.requirements:
@@ -117,47 +117,67 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
         traced_variable = (
             switch_instruction.expression.requirements[0] if switch_instruction.expression.requirements else switch_instruction.expression
         )
-        print("undefined:", self._undefined_vars)
         for variable in self._backwardslice(traced_variable):
-            print("VAR bs ", variable)
-            if str(variable) == "rax#1":
-                print("cheat")
-                return variable
-            if self._is_bounds_checked(variable):# or self._is_predecessor_undef(variable) or self._is_undef(variable):
+            if self._is_bounds_checked(variable, traced_variable):
+                print("switch:", variable)
                 return variable
         raise ValueError("No switch variable candidate found.")
 
-    def _is_predecessor_undef(self, variable: Variable) -> bool:
-        """Check if predecessor of a defined variable is undefined (i.e, in SSA-form predecessor is argument or global variable)"""
-        if definition := self._def_map.get(variable):
-            predecessors = {requirement for requirement in definition.requirements}
-            print(predecessors)
-            if self._undefined_vars.intersection(predecessors):
-                return True
-        return False
-
-    def _is_undef(self, variable: Variable) -> bool:
-        """Check variable is undefined"""
-        return variable in self._undefined_vars
-
-    def _is_bounds_checked(self, value: Variable) -> bool:
+    def _usage_check(self, value: Variable):
         """
-        Ceck if variable v is used
+        Check if variable v is used
             a) in an Assignment with RHS being Condition solely requiring v
             b) or if v is used in Branch requiring only v
-        If neither a) nor b): check if definition RHS of v is used as dereference in branches.
         """
         for usage in self._use_map.get(value):
             if isinstance(usage, Assignment) and isinstance(usage.value, Condition) and usage.requirements == [value]:
                 return True
             if isinstance(usage, Branch) and usage.requirements == [value]:
                 return True
+        return False
+
+    def _definition_check(self, value: Variable) -> bool:
+        """
+        Check if any expression in the RHS of variables definition is used as dereference in branches.
+        """
         if definition := self._def_map.get(value):
             return (
                 any(exp in self._dereferences_used_in_branches for exp in definition.value)
                 or definition.value in self._dereferences_used_in_branches
             )
         return False
+
+    def _is_simply_assigned(self, value: Variable) -> bool:
+        """
+        Check if variable is defined in simple assignment of the form Var1 = Var2.
+        """
+        if definition := self._def_map.get(value):
+            return isinstance(definition.value, Variable)
+        return False
+
+    def _is_predecessor_block_dependency(self, value: Variable, traced_variable: Variable) -> bool:
+        """
+        Check if variables (immediate) predecessors are dependencies of the traced block.
+        """
+        if not (definition := self._def_map.get(value)):
+            return False
+        if not (traced_variable_block := self._bb_definitions.get(traced_variable)):
+            return False
+        # TODO jump table is also dep?
+        return traced_variable_block.dependencies.isdisjoint({req for req in definition.requirements})
+
+    def _is_bounds_checked(self, value: Variable, traced_variable: Variable) -> bool:
+        """
+        Check if variable can be used in switch expression.
+        """
+        return any(
+            [
+                self._is_simply_assigned(value),  # let expression propagation handle this further
+                self._usage_check(value), # needed? rename, TODO
+                self._definition_check(value), # needed? rename, TODO
+                # self._is_predecessor_block_dependency(value, traced_variable) # needed?
+            ]
+        )
 
     def _backwardslice(self, value: Variable):
         """Do a breadth-first search on variable predecessors."""
