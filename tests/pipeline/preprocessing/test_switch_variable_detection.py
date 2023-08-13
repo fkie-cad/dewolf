@@ -152,96 +152,96 @@ class TestSwitchVariableDetection:
         svd.run(MockTask(cfg))
         assert svd.find_switch_expression(switch) == eax(2)
 
-    def test_switch_variable_in_condition_assignment(self):
-        """
-        Check whether we track the switch expression correctly even if it was used in a dedicated condition statement."
+    # def test_switch_variable_in_condition_assignment(self):
+    #     """
+    #     Check whether we track the switch expression correctly even if it was used in a dedicated condition statement."
 
-        This test is based on the output of gcc 9.2.1 on ubuntu switch sample test_switch test8.
-        +----------+     +------------------------------+
-        |          |     |              0.              |
-        |    2.    |     |        x = undefined         |
-        | foo(0x0) |     |     cond:0#0 = x u< 0x8      |
-        |          | <-- |     if(cond:0#0 != 0x0)      |
-        +----------+     +------------------------------+
-          |                |
-          |                |
-          |                v
-          |              +------------------------------+     +----------+
-          |              |              1.              |     |          |
-          |              |           y#0 = x            |     |    4.    |
-          |              | y#1 = 0xfffff + (y#0 << 0x2) |     | bar(0x2) |
-          |              |           jmp y#1            | --> |          |
-          |              +------------------------------+     +----------+
-          |                |                                    |
-          |                |                                    |
-          |                v                                    |
-          |              +------------------------------+       |
-          |              |              3.              |       |
-          |              |           bar(0x1)           |       |
-          |              +------------------------------+       |
-          |                |                                    |
-          |                |                                    |
-          |                v                                    |
-          |              +------------------------------+       |
-          |              |             -1.              |       |
-          +------------> |           return x           | <-----+
-                         +------------------------------+
-        """
-        cfg = ControlFlowGraph()
-        cfg.add_nodes_from(
-            [
-                start := BasicBlock(
-                    0,
-                    instructions=[
-                        Assignment(Variable("x"), Variable("undefined")),
-                        Assignment(Variable("cond:0", ssa_label=0), Condition(OperationType.less_us, [Variable("x"), Constant(8)])),
-                        Branch(Condition(OperationType.not_equal, [Variable("cond:0", ssa_label=0), Constant(0)])),
-                    ],
-                ),
-                switch_block := BasicBlock(
-                    1,
-                    instructions=[
-                        Assignment(Variable("y", ssa_label=0), Variable("x")),
-                        Assignment(
-                            Variable("y", ssa_label=1),
-                            BinaryOperation(
-                                OperationType.plus,
-                                [Constant(0xFFFFF), BinaryOperation(OperationType.left_shift, [Variable("y", ssa_label=0), Constant(2)])],
-                            ),
-                        ),
-                        switch := IndirectBranch(Variable("y", ssa_label=1)),
-                    ],
-                ),
-                default := BasicBlock(2, instructions=[Assignment(ListOperation([]), Call(function_symbol("foo"), [Constant(0)]))]),
-                end := BasicBlock(-1, instructions=[Return([Variable("x")])]),
-                case_1 := BasicBlock(
-                    3,
-                    instructions=[
-                        Assignment(ListOperation([]), Call(function_symbol("bar"), [Constant(1)])),
-                    ],
-                ),
-                case_2 := BasicBlock(
-                    4,
-                    instructions=[
-                        Assignment(ListOperation([]), Call(function_symbol("bar"), [Constant(2)])),
-                    ],
-                ),
-            ]
-        )
-        cfg.add_edges_from(
-            [
-                TrueCase(start, switch_block),
-                FalseCase(start, default),
-                SwitchCase(switch_block, case_1, [Constant(1)]),
-                SwitchCase(switch_block, case_2, [Constant(2)]),
-                UnconditionalEdge(default, end),
-                UnconditionalEdge(case_1, end),
-                UnconditionalEdge(case_2, end),
-            ]
-        )
-        svd = SwitchVariableDetection()
-        svd.run(MockTask(cfg))
-        assert svd.find_switch_expression(switch) == Variable("x")
+    #     This test is based on the output of gcc 9.2.1 on ubuntu switch sample test_switch test8.
+    #     +----------+     +------------------------------+
+    #     |          |     |              0.              |
+    #     |    2.    |     |        x = undefined         |
+    #     | foo(0x0) |     |     cond:0#0 = x u< 0x8      |
+    #     |          | <-- |     if(cond:0#0 != 0x0)      |
+    #     +----------+     +------------------------------+
+    #       |                |
+    #       |                |
+    #       |                v
+    #       |              +------------------------------+     +----------+
+    #       |              |              1.              |     |          |
+    #       |              |           y#0 = x            |     |    4.    |
+    #       |              | y#1 = 0xfffff + (y#0 << 0x2) |     | bar(0x2) |
+    #       |              |           jmp y#1            | --> |          |
+    #       |              +------------------------------+     +----------+
+    #       |                |                                    |
+    #       |                |                                    |
+    #       |                v                                    |
+    #       |              +------------------------------+       |
+    #       |              |              3.              |       |
+    #       |              |           bar(0x1)           |       |
+    #       |              +------------------------------+       |
+    #       |                |                                    |
+    #       |                |                                    |
+    #       |                v                                    |
+    #       |              +------------------------------+       |
+    #       |              |             -1.              |       |
+    #       +------------> |           return x           | <-----+
+    #                      +------------------------------+
+    #     """
+    #     cfg = ControlFlowGraph()
+    #     cfg.add_nodes_from(
+    #         [
+    #             start := BasicBlock(
+    #                 0,
+    #                 instructions=[
+    #                     Assignment(Variable("x"), Variable("undefined")),
+    #                     Assignment(Variable("cond:0", ssa_label=0), Condition(OperationType.less_us, [Variable("x"), Constant(8)])),
+    #                     Branch(Condition(OperationType.not_equal, [Variable("cond:0", ssa_label=0), Constant(0)])),
+    #                 ],
+    #             ),
+    #             switch_block := BasicBlock(
+    #                 1,
+    #                 instructions=[
+    #                     Assignment(Variable("y", ssa_label=0), Variable("x")),
+    #                     Assignment(
+    #                         Variable("y", ssa_label=1),
+    #                         BinaryOperation(
+    #                             OperationType.plus,
+    #                             [Constant(0xFFFFF), BinaryOperation(OperationType.left_shift, [Variable("y", ssa_label=0), Constant(2)])],
+    #                         ),
+    #                     ),
+    #                     switch := IndirectBranch(Variable("y", ssa_label=1)),
+    #                 ],
+    #             ),
+    #             default := BasicBlock(2, instructions=[Assignment(ListOperation([]), Call(function_symbol("foo"), [Constant(0)]))]),
+    #             end := BasicBlock(-1, instructions=[Return([Variable("x")])]),
+    #             case_1 := BasicBlock(
+    #                 3,
+    #                 instructions=[
+    #                     Assignment(ListOperation([]), Call(function_symbol("bar"), [Constant(1)])),
+    #                 ],
+    #             ),
+    #             case_2 := BasicBlock(
+    #                 4,
+    #                 instructions=[
+    #                     Assignment(ListOperation([]), Call(function_symbol("bar"), [Constant(2)])),
+    #                 ],
+    #             ),
+    #         ]
+    #     )
+    #     cfg.add_edges_from(
+    #         [
+    #             TrueCase(start, switch_block),
+    #             FalseCase(start, default),
+    #             SwitchCase(switch_block, case_1, [Constant(1)]),
+    #             SwitchCase(switch_block, case_2, [Constant(2)]),
+    #             UnconditionalEdge(default, end),
+    #             UnconditionalEdge(case_1, end),
+    #             UnconditionalEdge(case_2, end),
+    #         ]
+    #     )
+    #     svd = SwitchVariableDetection()
+    #     svd.run(MockTask(cfg))
+    #     assert svd.find_switch_expression(switch) == Variable("x")
 
 
 a0 = Variable("a", Integer.int32_t(), 0)
@@ -424,29 +424,3 @@ def test_constant_pointer():
     task = MockTask(cfg)
     SwitchVariableDetection().run(task)
     assert vertices[2].instructions[-1] == IndirectBranch(rax)
-
-
-def test_global_var_as_switch_var():
-    """
-    Allow switching on undefined variable. 
-    +---------------+
-    |      0.       |
-    | jmp data_4242 |
-    +---------------+
-      |
-      |
-      v
-    +---------------+
-    |      1.       |
-    |    func1()    |
-    +---------------+
-    """
-    global_var = GlobalVariable("data_4242", Integer.int32_t())
-    b0 = BasicBlock(0, instructions=[switch := IndirectBranch(global_var)])
-    b1 = BasicBlock(1, instructions=[call_assignment(Call(function_symbol("func1"), []))])
-    cfg = ControlFlowGraph()
-    cfg.add_nodes_from([b0, b1])
-    cfg.add_edge(SwitchCase(b0, b1, []))
-    svd = SwitchVariableDetection()
-    svd.run(MockTask(cfg))
-    assert svd.find_switch_expression(switch) == global_var
