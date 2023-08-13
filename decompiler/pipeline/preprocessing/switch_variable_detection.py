@@ -103,7 +103,6 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
     def _handle_switch_block(self, basic_block: BasicBlock):
         """Handle the given switch block, rendering jump table calculations dead code."""
         switch_instruction = basic_block.instructions[-1]
-        print("switch", type(switch_instruction))
         switch_expression = self.find_switch_expression(switch_instruction)
         switch_instruction.substitute(switch_instruction.expression, switch_expression)
 
