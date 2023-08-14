@@ -25,6 +25,9 @@ class ComplexType(Type):
     def copy(self, **kwargs) -> Type:
         return copy.deepcopy(self)
 
+    def declaration(self) -> str:
+        raise NotImplementedError
+
 
 @dataclass(frozen=True, order=True)
 class ComplexTypeMember(ComplexType):
@@ -34,6 +37,7 @@ class ComplexTypeMember(ComplexType):
     @param type: datatype of the member
     @param value: initial value of the member, enums only
     """
+
     name: str
     offset: int
     type: Type
@@ -62,7 +66,7 @@ class Struct(ComplexType):
         return self.members.get(offset)
 
     def declaration(self):
-        members = ";\n\t".join(self.members[k].declaration() for k in sorted(self.members.keys()))+";"
+        members = ";\n\t".join(self.members[k].declaration() for k in sorted(self.members.keys())) + ";"
         return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}}"
 
 
@@ -75,7 +79,7 @@ class Union(ComplexType):
         self.members.append(member)
 
     def declaration(self):
-        members = ";\n\t".join(x.declaration() for x in self.members)
+        members = ";\n\t".join(x.declaration() for x in self.members) + ";"
         return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}}"
 
     def get_member_by_type(self, _type: Type) -> ComplexTypeMember:
@@ -116,12 +120,14 @@ class ComplexTypeMap:
     """A class in charge of storing complex custom/user defined types by their string representation"""
 
     def __init__(self):
-        self._name_to_type_map: Dict[ComplexTypeName, Struct] = {}
+        self._name_to_type_map: Dict[ComplexTypeName, ComplexType] = {}
 
-    def retrieve_by_name(self, typename: ComplexTypeName) -> Struct:
+    def retrieve_by_name(self, typename: ComplexTypeName) -> ComplexType:
+        """Get complex type by name; used to avoid recursion."""
         return self._name_to_type_map.get(typename, None)
 
-    def add(self, complex_type: Struct):
+    def add(self, complex_type: ComplexType):
+        """Add complex type to the mapping."""
         self._name_to_type_map[ComplexTypeName(0, complex_type.name)] = complex_type
 
     def pretty_print(self):
@@ -129,4 +135,5 @@ class ComplexTypeMap:
             logging.error(t.declaration())
 
     def declarations(self) -> str:
-        return ";\n".join(t.declaration() for t in self._name_to_type_map.values())
+        """Returns declarations of all complex types used in decompiled function."""
+        return ";\n".join(t.declaration() for t in self._name_to_type_map.values()) + ";"
