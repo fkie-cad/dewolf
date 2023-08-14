@@ -125,7 +125,6 @@ SHORTHANDS = {
     OperationType.low: "low",
     OperationType.ternary: "?",
     OperationType.call: "func",
-    OperationType.field: "->",
     OperationType.list_op: "list",
     OperationType.adc: "adc",
     OperationType.member_access: ".",
@@ -392,18 +391,20 @@ class MemberAccess(UnaryOperation):
         self.member_name = member_name
 
     def __str__(self):
-        # use -> when accessing member via a pointer to a struct
-        # use . when accessing struct member directly
-        # e.g. &book->title or book.title
+        # use -> when accessing member via a pointer to a struct: ptrBook->title
+        # use . when accessing struct member directly: book.title
         if isinstance(self.struct_variable.type, Pointer):
             return f"{self.struct_variable}->{self.member_name}"
         return f"{self.struct_variable}.{self.member_name}"
 
     @property
-    def struct_variable(self):
+    def struct_variable(self) -> Expression:
+        """Variable of complex type, which member is being accessed here."""
         return self.operand
 
     def substitute(self, replacee: Expression, replacement: Expression) -> None:
+        # TODO test what if replacement is also member access
+        # TODO test if substitute of unary operation is enough
         if isinstance(replacee, Variable) and replacee == self.struct_variable and isinstance(replacement, Variable):
             self.operands[:] = [replacement]
 
@@ -417,10 +418,12 @@ class MemberAccess(UnaryOperation):
             writes_memory=self.writes_memory,
         )
 
-    def is_read_access(self):
+    def is_read_access(self) -> bool:
+        """Read-only member access."""
         return self.writes_memory is None
 
-    def is_write_access(self):
+    def is_write_access(self) -> bool:
+        """Member is being accessed for writing."""
         return self.writes_memory is not None
 
 

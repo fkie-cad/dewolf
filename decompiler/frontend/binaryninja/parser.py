@@ -38,7 +38,7 @@ class BinaryninjaParser(Parser):
         self._report_threshold = int(report_threshold)
 
     def parse(self, function: Function) -> Tuple[ControlFlowGraph, ComplexTypeMap]:
-        """Generate a cfg from the given function."""
+        """Generate a cfg and complex types from the given function."""
         cfg = ControlFlowGraph()
         index_to_BasicBlock = dict()
         for basic_block in function.medium_level_il.ssa_form:

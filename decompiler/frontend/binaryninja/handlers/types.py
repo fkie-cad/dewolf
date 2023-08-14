@@ -59,12 +59,12 @@ class TypeHandler(Handler):
         return CustomType(str(custom), custom.width * self.BYTE_SIZE)
 
     def lift_named_type_reference_type(self, custom: NamedTypeReferenceType, **kwargs) -> Union[Type, CustomType]:
-        """Lift a special type that binary ninja uses as placeholder for references on complex types like structs, unions, etc. as well
-        as user-defined types. E.g.
-        typedef PVOID HANDLE;
-        causes HANDLE to be NamedTypeReferenceType, despite the fact that it is actually a void pointer.
-        Binja does not attach named types to expressions, but this type instead that barely holds infos about name of the
-        corresponding complex type. #TODO is it a case for typedefs also?
+        """Lift a special type that binary ninja uses a references on complex types like structs, unions, etc. as well
+        as user-defined types. Examples:
+        typedef PVOID HANDLE; # NamedTypeReferenceType pointing to void pointer
+        struct IO_FILE; #NamedTypeReferenceType pointing to a structure with that name
+
+        Binary Ninja expressions do not get complex type in that case, but the NamedTypeReferenceType on that type.
         We try to retrieve the original complex type from binary view using this placeholder type, and lift it correspondingly.
         """
         view: BinaryView = self._lifter.bv
@@ -75,9 +75,8 @@ class TypeHandler(Handler):
 
     def lift_enum(self, binja_enum: EnumerationType, name: str = None, **kwargs) -> Enum:
         """Lift enum type."""
-        # TODO better way to get enum name
         enum_name = name if name else self._get_data_type_name(binja_enum, keyword="enum")
-        enum = Enum(0, enum_name, {})
+        enum = Enum(binja_enum.width * self.BYTE_SIZE, enum_name, {})
         for member in binja_enum.members:
             enum.add_member(self._lifter.lift(member))
         self._lifter.complex_types.add(enum)
@@ -103,13 +102,15 @@ class TypeHandler(Handler):
         return lifted_struct
 
     @abstractmethod
-    def _get_data_type_name(self, complex_type: Union[StructureType, EnumerationType], keyword: str):
+    def _get_data_type_name(self, complex_type: Union[StructureType, EnumerationType], keyword: str) -> str:
+        """Parse out the name of complex type."""
         string = complex_type.get_string()
         if keyword in string:
             return complex_type.get_string().split(keyword)[1]
         return string
 
     def lift_struct_member(self, member: StructureMember, parent_struct_name: str = None) -> ComplexTypeMember:
+        """Lift struct or union member."""
         # handle the case when struct member is a pointer on the same struct
         if structPtr := self._get_member_pointer_on_the_parent_struct(member, parent_struct_name):
             return structPtr
@@ -120,13 +121,13 @@ class TypeHandler(Handler):
 
     @abstractmethod
     def _get_member_pointer_on_the_parent_struct(self, member: StructureMember, parent_struct_name: str) -> ComplexTypeMember:
+        """Constructs struct or union member which is a pointer on parent struct or union type."""
         if (
             isinstance(member.type, PointerType)
             and (isinstance(member.type.target, StructureType) or isinstance(member.type.target, NamedTypeReferenceType))
-            and member.type.target.name.__str__() == parent_struct_name
+            and str(member.type.target.name) == parent_struct_name
         ):
-            member_struct_name = member.type.target.name.__str__()
-            member_type = Pointer(ComplexTypeName(0, member_struct_name))
+            member_type = Pointer(ComplexTypeName(0, parent_struct_name))
             return ComplexTypeMember(0, name=member.name, offset=member.offset, type=member_type)
 
     def lift_void(self, _, **kwargs) -> CustomType:
