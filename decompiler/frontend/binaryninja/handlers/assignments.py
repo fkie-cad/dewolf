@@ -10,6 +10,7 @@ from decompiler.structures.pseudo import (
     Assignment,
     BinaryOperation,
     Constant,
+    Expression,
     GlobalVariable,
     Integer,
     Operation,
@@ -43,8 +44,8 @@ class AssignmentHandler(Handler):
                 mediumlevelil.MediumLevelILVarAliasedField: partial(self.lift_get_field, is_aliased=True),
                 mediumlevelil.MediumLevelILStore: self.lift_store,
                 mediumlevelil.MediumLevelILStoreSsa: self.lift_store,
-                mediumlevelil.MediumLevelILStoreStruct: self._lift_store_struct,
-                mediumlevelil.MediumLevelILStoreStructSsa: self._lift_store_struct,
+                mediumlevelil.MediumLevelILStoreStruct: self.lift_store_struct,
+                mediumlevelil.MediumLevelILStoreStructSsa: self.lift_store_struct,
                 mediumlevelil.MediumLevelILLowPart: self._lift_mask_high,
             }
         )
@@ -66,11 +67,12 @@ class AssignmentHandler(Handler):
         case 3: writing into higher register part: eax.ah = value
                 lift using bit masking eax = (eax & 0xffff00ff) + (value << 2)
         """
-        # case 1 (struct):
+        # case 1 (struct), avoid set field of named integers:
         dest_type = self._lifter.lift(assignment.dest.type)
         if isinstance(assignment.dest.type, binaryninja.NamedTypeReferenceType) and not (
-            isinstance(dest_type, Pointer) and isinstance(dest_type.type, Integer)
+                isinstance(dest_type, Pointer) and isinstance(dest_type.type, Integer)
         ):
+            # TODO should we handle unions here? As in lift_get_field?
             struct_variable = self._lifter.lift(assignment.dest, is_aliased=True, parent=assignment)
             destination = MemberAccess(
                 offset=assignment.offset,
@@ -100,19 +102,8 @@ class AssignmentHandler(Handler):
         (x = ) <- for the sake of example, only rhs expression is lifted here.
         """
         source = self._lifter.lift(instruction.src, is_aliased=is_aliased, parent=instruction)
-        # TODO move struct/union part to separate function
         if isinstance(source.type, Struct) or isinstance(source.type, _Union):
-            parent = kwargs.get("parent", None)
-            parent_type = None
-            if parent:
-                parent_type = self._lifter.lift(parent.dest.type)
-            return MemberAccess(
-                offset=instruction.offset,
-                member_name=source.type.get_member_by_offset(instruction.offset).name
-                if isinstance(source.type, Struct)
-                else source.type.get_member_by_type(parent_type),
-                operands=[source],
-            )
+            return self._get_field_as_member_access(instruction, source, **kwargs)
         cast_type = source.type.resize(instruction.size * self.BYTE_SIZE)
         if instruction.offset:
             return BinaryOperation(
@@ -121,6 +112,21 @@ class AssignmentHandler(Handler):
                 vartype=cast_type,
             )
         return UnaryOperation(OperationType.cast, [source], vartype=cast_type, contraction=True)
+
+    def _get_field_as_member_access(self, instruction: mediumlevelil.MediumLevelILVarField, source: Expression, **kwargs) -> MemberAccess:
+        if isinstance(source.type, Struct):
+            member_name = source.type.get_member_by_offset(instruction.offset).name
+        elif parent := kwargs.get("parent", None):
+            parent_type = self._lifter.lift(parent.dest.type)
+            member_name = source.type.get_member_by_type(parent_type).name
+        else:
+            logging.warning(f"Cannot get member name for instruction {instruction}")
+            member_name = None
+        return MemberAccess(
+            offset=instruction.offset,
+            member_name=member_name,
+            operands=[source],
+        )
 
     def lift_store(self, assignment: mediumlevelil.MediumLevelILStoreSsa, **kwargs) -> Assignment:
         """Lift a store operation to pseudo (e.g. [ebp+4] = eax, or [global_var_label] = 25)."""
@@ -205,10 +211,10 @@ class AssignmentHandler(Handler):
             self._lifter.lift(assignment.src, parent=assignment),
         )
 
-    def _lift_store_struct(self, instruction: mediumlevelil.MediumLevelILStoreStruct, **kwargs) -> Assignment:
+    def lift_store_struct(self, instruction: mediumlevelil.MediumLevelILStoreStruct, **kwargs) -> Assignment:
         """Lift a MLIL_STORE_STRUCT_SSA instruction to pseudo (e.g. object->field = x)."""
         vartype = self._lifter.lift(instruction.dest.expr_type)
-        struct_variable = self._lifter.lift(instruction.dest)
+        struct_variable = self._lifter.lift(instruction.dest, is_aliased=True, parent=instruction)
         struct_member_access = MemberAccess(
             member_name=vartype.type.members.get(instruction.offset),
             offset=instruction.offset,

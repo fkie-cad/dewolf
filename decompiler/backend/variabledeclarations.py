@@ -55,7 +55,6 @@ class LocalDeclarationGenerator(BaseAstDataflowObjectVisitor):
     def visit_unary_operation(self, unary: UnaryOperation):
         """Visit unary operations to remember all variables those memory location was read."""
         if isinstance(unary, MemberAccess):
-            # TODO what if var -> field -> field? Than struct variable is an expression...
             self._variables.add(unary.struct_variable)
         if unary.operation == OperationType.address or unary.operation == OperationType.dereference:
             if isinstance(unary.operand, Variable):

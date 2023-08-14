@@ -73,7 +73,7 @@ class OperationType(Enum):
     field = auto()
     list_op = auto()
     adc = auto()
-    struct_member = auto()
+    member_access = auto()
 
 
 # For pretty-printing and debug
@@ -128,7 +128,7 @@ SHORTHANDS = {
     OperationType.field: "->",
     OperationType.list_op: "list",
     OperationType.adc: "adc",
-    OperationType.struct_member: ".",
+    OperationType.member_access: ".",
 }
 
 UNSIGNED_OPERATIONS = {
@@ -387,7 +387,7 @@ class MemberAccess(UnaryOperation):
         vartype: Type = UnknownType(),
         writes_memory: Optional[int] = None,
     ):
-        super().__init__(OperationType.struct_member, operands, vartype, writes_memory=writes_memory)
+        super().__init__(OperationType.member_access, operands, vartype, writes_memory=writes_memory)
         self.member_offset = offset
         self.member_name = member_name
 

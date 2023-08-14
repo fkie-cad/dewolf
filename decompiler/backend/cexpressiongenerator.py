@@ -65,7 +65,6 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         OperationType.greater_or_equal_us: ">=",
         OperationType.dereference: "*",
         OperationType.address: "&",
-        # OperationType.struct_member: "->",
         # Handled in code
         # OperationType.cast: "cast",
         # OperationType.pointer: "point",
@@ -147,8 +146,7 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         # OperationType.low: "low",
         OperationType.ternary: 30,
         OperationType.call: 150,
-        OperationType.field: 150,
-        OperationType.struct_member: 150,
+        OperationType.member_access: 150,
         OperationType.list_op: 10,
         # TODO: Figure out what these are / how to handle this
         # OperationType.adc: "adc",
