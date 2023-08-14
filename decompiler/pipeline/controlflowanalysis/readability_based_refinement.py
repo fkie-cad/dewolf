@@ -431,6 +431,7 @@ class ForLoopVariableRenamer:
             old_variable: Variable = self._get_variable_from_assignment(loop_node.declaration.destination)
             new_variable = Variable(self._get_variable_name(), old_variable.type, ssa_name=old_variable.ssa_name)
             self._ast.replace_variable_in_subtree(loop_node, old_variable, new_variable)
+            loop_node.declaration.value.substitute(new_variable, old_variable)
 
             if _requirement_without_reinitialization(self._ast, loop_node, old_variable):
                 self._ast.add_instructions_after(loop_node, Assignment(old_variable, new_variable))
