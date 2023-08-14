@@ -374,6 +374,41 @@ def ast_call_init() -> AbstractSyntaxTree:
 
 
 @pytest.fixture
+def ast_self_referential_init() -> AbstractSyntaxTree:
+    """
+    a = 5;
+    b = foo(b);
+    while(b <= 5){
+        a = a + b;
+        b = b + 1;
+    }
+    """
+    true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(
+        root := SeqNode(true_value),
+        condition_map={logic_cond("x1", context): Condition(OperationType.less_or_equal, [Variable("b"), Constant(5)])},
+    )
+    code_node = ast._add_code_node(
+        instructions=[
+            Assignment(Variable("a"), Constant(5)),
+            Assignment(ListOperation([Variable("b")]), Call(ImportedFunctionSymbol("foo", 0), [Variable("b")])),
+        ]
+    )
+    loop_node = ast.factory.create_while_loop_node(condition=logic_cond("x1", context))
+    loop_node_body = ast._add_code_node(
+        [
+            Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Variable("b")])),
+            Assignment(Variable("b"), BinaryOperation(OperationType.plus, [Variable("b"), Constant(1)])),
+        ]
+    )
+    ast._add_node(loop_node)
+    ast._add_edges_from(((root, code_node), (root, loop_node), (loop_node, loop_node_body)))
+    ast._code_node_reachability_graph.add_reachability(code_node, loop_node_body)
+    root._sorted_children = (code_node, loop_node)
+    return ast
+
+
+@pytest.fixture
 def ast_call_for_loop() -> AbstractSyntaxTree:
     """
     a = 5;
@@ -1460,6 +1495,12 @@ class TestReadabilityBasedRefinement:
             assert isinstance(ast_single_instruction_while.root, ForLoopNode)
         else:
             assert isinstance(ast_single_instruction_while.root.children[1], WhileLoopNode)
+
+    def test_rhs_of_for_loop_declaration_not_renamed(self, ast_self_referential_init: AbstractSyntaxTree):
+        self.run_rbr(ast_self_referential_init)
+        for_loops = list(ast_self_referential_init.get_for_loop_nodes_topological_order())
+        assert len(for_loops) == 1
+        assert for_loops[0].declaration == Assignment(Variable("i"), Call(ImportedFunctionSymbol("foo", 0), [Variable("b")]))
 
 
 class TestForLoopRecovery:
