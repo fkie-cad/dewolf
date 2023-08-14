@@ -136,8 +136,6 @@ class TestCodeGeneration:
         ast = AbstractSyntaxTree(root, {})
         code_node = ast._add_code_node([Comment("test_comment", comment_style="debug")])
         ast._add_edge(root, code_node)
-        print(ast.nodes)
-        print(f"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA {str(self._task(ast, return_type=void))}")
         assert self._regex_matches(r"^\s*void\s*test_function\(\s*\){\s*## test_comment ##\s*}\s*$", self._task(ast, return_type=void))
 
     def test_empty_function(self):

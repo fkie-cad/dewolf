@@ -136,4 +136,4 @@ class ComplexTypeMap:
 
     def declarations(self) -> str:
         """Returns declarations of all complex types used in decompiled function."""
-        return ";\n".join(t.declaration() for t in self._name_to_type_map.values()) + ";"
+        return ";\n".join(t.declaration() for t in self._name_to_type_map.values()) + ";" if self._name_to_type_map else ""
