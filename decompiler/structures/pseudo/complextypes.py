@@ -46,7 +46,7 @@ class ComplexTypeMember(ComplexType):
     def __str__(self) -> str:
         return f"{self.name}"
 
-    def declaration(self):
+    def declaration(self) -> str:
         if isinstance(self.type, Union):
             return self.type.declaration()
         return f"{self.type.__str__()} {self.name}"
@@ -65,7 +65,7 @@ class Struct(ComplexType):
     def get_member_by_offset(self, offset: int) -> ComplexTypeMember:
         return self.members.get(offset)
 
-    def declaration(self):
+    def declaration(self) -> str:
         members = ";\n\t".join(self.members[k].declaration() for k in sorted(self.members.keys())) + ";"
         return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}}"
 
@@ -78,7 +78,7 @@ class Union(ComplexType):
     def add_member(self, member: ComplexTypeMember):
         self.members.append(member)
 
-    def declaration(self):
+    def declaration(self) -> str:
         members = ";\n\t".join(x.declaration() for x in self.members) + ";"
         return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}}"
 
@@ -100,7 +100,7 @@ class Enum(ComplexType):
     def get_name_by_value(self, value: int) -> str:
         return self.members.get(value).name
 
-    def declaration(self):
+    def declaration(self) -> str:
         members = ",\n\t".join(f"{x.name} = {x.value}" for x in self.members.values())
         return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}}"
 

@@ -84,7 +84,7 @@ class TypeHandler(Handler):
 
     def lift_enum_member(self, enum_member: EnumerationMember, **kwargs) -> ComplexTypeMember:
         """Lift enum member type."""
-        return ComplexTypeMember(size=0, name=enum_member.name, offset=-1, type=Integer(32), value=self._lifter.lift(enum_member.value))
+        return ComplexTypeMember(size=0, name=enum_member.name, offset=-1, type=Integer(32), value=int(enum_member.value))
 
     def lift_struct(self, struct: StructureType, name: str = None, **kwargs) -> Union[Struct, ComplexTypeName]:
         """Lift struct or union type."""
