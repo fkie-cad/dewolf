@@ -4,19 +4,15 @@ from unittest.mock import Mock
 
 import pytest
 from binaryninja import (
-    BasicBlockEdge,
     BranchType,
     Function,
     MediumLevelILBasicBlock,
     MediumLevelILConstPtr,
     MediumLevelILInstruction,
     MediumLevelILJumpTo,
-    MediumLevelILOperation,
     PossibleValueSet,
     RegisterValueType,
-    Type,
     Variable,
-    VariableSourceType,
 )
 from decompiler.frontend.binaryninja.lifter import BinaryninjaLifter
 from decompiler.frontend.binaryninja.parser import BinaryninjaParser
@@ -121,9 +117,6 @@ class MockFunction(Function):
         """Redirect references to the ssa form of the function to itself."""
         return self
 
-    def create_user_var(self, type, value, values):
-        return None
-
     def __iter__(self) -> Iterator[MockBlock]:
         """Iterate all basic blocks in the function."""
         return iter(self._blocks)
@@ -133,45 +126,18 @@ class MockFunction(Function):
         pass
 
 
-class MockPossibleValues(PossibleValueSet):
-    """Mock object representing a possible value set returned by binaryninja."""
-
-    def __init__(self, mapping: dict):
-        """Create a new MockPossibleValues for testing purposes only."""
-        self._mapping = mapping
-
-    @property
-    def type(self):
-        """All switch statements should have a lookup table assigned."""
-        return RegisterValueType.LookupTableValue
-
-    def create_user_var(self, type, value, values=None):
-        return MockVariable(values)
-
-
-class MockVariable:
-    """Mock object representing a binaryninja Variable."""
-
-    def __init__(self, values, name="var27"):
-        """Create a new MockVariable for testing purposes only."""
-        self.__class__ = Variable
-        object.__setattr__(self, "_source_type", VariableSourceType(0))
-        object.__setattr__(self, "_function", MockFunction([]))
-        Variable.name = name
-        Variable.type = Type.int(32)
-        Variable.ssa_memory_version = 0
-        Variable.possible_values = values
-
-
-class MockSwitch:
+class MockSwitch(Mock):
     """Mock object representing a switch statement."""
 
     def __init__(self, mapping):
         """Create a new MockSwitch for testing purposes only."""
-        self.__class__ = MediumLevelILJumpTo
-        MediumLevelILJumpTo.dest = MockVariable(MockPossibleValues(mapping))
-        MediumLevelILJumpTo.ssa_memory_version = 0
-        MediumLevelILJumpTo.function = None
+        super().__init__(spec=MediumLevelILJumpTo)
+        self.ssa_memory_version = 0
+        self.function = None  # prevents lifting of tags
+        self.dest = Mock(spec=Variable)
+        self.dest.possible_values = Mock(spec=PossibleValueSet)
+        self.dest.possible_values.type = RegisterValueType.LookupTableValue
+        self.dest.possible_values.mapping = mapping
 
 
 class MockConstPtr(MediumLevelILConstPtr):
@@ -251,6 +217,7 @@ def test_branch(parser):
 
 def test_switch(parser):
     """Function with a switch statement."""
+    switch_instr = MockSwitch({"a": 1, "b": 1, "c": 2, "d": 3})
     function = MockFunction(
         [
             MockBlock(
@@ -260,7 +227,7 @@ def test_switch(parser):
                     MockEdge(0, 2, BranchType.IndirectBranch),
                     MockEdge(0, 3, BranchType.IndirectBranch),
                 ],
-                instructions=[MockSwitch({"a": 1, "b": 1, "c": 2, "d": 3})],
+                instructions=[switch_instr],
             ),
             MockBlock(1, [MockEdge(1, 4, BranchType.UnconditionalBranch)]),
             MockBlock(2, [MockEdge(2, 4, BranchType.UnconditionalBranch)]),
