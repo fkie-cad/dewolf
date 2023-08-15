@@ -72,7 +72,6 @@ class AssignmentHandler(Handler):
         if isinstance(assignment.dest.type, binaryninja.NamedTypeReferenceType) and not (
                 isinstance(dest_type, Pointer) and isinstance(dest_type.type, Integer)
         ):
-            # TODO should we handle unions here? As in lift_get_field?
             struct_variable = self._lifter.lift(assignment.dest, is_aliased=True, parent=assignment)
             destination = MemberAccess(
                 offset=assignment.offset,

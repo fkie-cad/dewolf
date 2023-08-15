@@ -96,7 +96,6 @@ class UnaryOperationHandler(Handler):
 
     def _lift_load_struct(self, instruction: mediumlevelil.MediumLevelILLoadStruct, **kwargs) -> MemberAccess:
         """Lift a MLIL_LOAD_STRUCT_SSA (struct member access e.g. var#n->x) instruction."""
-        # TODO handle union
         struct_variable = self._lifter.lift(instruction.src)
         struct_ptr: Pointer = self._lifter.lift(instruction.src.expr_type)
         struct_type: Struct = struct_ptr.type

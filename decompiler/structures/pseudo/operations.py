@@ -403,8 +403,6 @@ class MemberAccess(UnaryOperation):
         return self.operand
 
     def substitute(self, replacee: Expression, replacement: Expression) -> None:
-        # TODO test what if replacement is also member access
-        # TODO test if substitute of unary operation is enough
         if isinstance(replacee, Variable) and replacee == self.struct_variable and isinstance(replacement, Variable):
             self.operands[:] = [replacement]
 
