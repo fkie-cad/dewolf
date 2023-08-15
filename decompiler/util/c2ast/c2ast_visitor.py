@@ -20,6 +20,7 @@ from decompiler.structures.pseudo import (
     Instruction,
     Integer,
     ListOperation,
+    Operation,
     OperationType,
     Pointer,
     Return,
@@ -27,7 +28,6 @@ from decompiler.structures.pseudo import (
     TypeParser,
     UnaryOperation,
     Variable,
-    Operation,
 )
 from pycparser import c_ast
 from pycparser.c_ast import NodeVisitor
