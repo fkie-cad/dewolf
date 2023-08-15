@@ -125,7 +125,7 @@ int sub_10b2c() {
 """
 
 if __name__ == '__main__':
-    task = C2DeWolfASTGenerator().generateFromString(CODE, "sub_10b2c")
-    #task = C2DeWolfASTGenerator().generateFromFile("/home/neoquix/Git-Repos/_DeWolfTesting/main.c", "main")
+    #task = C2DeWolfASTGenerator().generateFromString(CODE, "sub_10b2c")
+    task = C2DeWolfASTGenerator().generateFromFile("/home/neoquix/Git-Repos/_DeWolfTesting/main.c", "main")
     DecoratedAST.from_ast(task._ast).export_plot("/tmp/AST.png")
     DecoratedAST.print_ascii(task._ast)

@@ -5,7 +5,6 @@ from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import (
-    SHORTHANDS,
     Assignment,
     BinaryOperation,
     Break,
@@ -31,6 +30,24 @@ from decompiler.structures.pseudo import (
 )
 from pycparser import c_ast
 from pycparser.c_ast import NodeVisitor
+
+BINARY_OPERATIONS_LOGIC: dict[str, OperationType] = {
+    "||": OperationType.logical_or,
+    "&&": OperationType.logical_and
+}
+
+BINARY_OPERATIONS_CONDITION: dict[str, OperationType] = {
+    "==": OperationType.equal,
+    "!=": OperationType.not_equal,
+    "<": OperationType.less,
+    "u<": OperationType.less_us,
+    ">": OperationType.greater,
+    "u>": OperationType.greater_us,
+    "<=": OperationType.less_or_equal,
+    "u<=": OperationType.less_or_equal_us,
+    ">=": OperationType.greater_or_equal,
+    "u>=": OperationType.greater_or_equal_us,
+}
 
 BINARY_OPERATIONS: dict[str, OperationType]= {
     "-": OperationType.minus,
@@ -179,56 +196,40 @@ class PyCNodeVisitor(NodeVisitor):
 
 
     def _resolve_condition(self, cond: Any) -> Condition:
-        """Resolve/Repair visited C conditions so they work with Logic"""
+        """Resolve/Repair C conditions which are not conditions in DeWolf (Unary, Variables, Constants...)"""
         if isinstance(cond, Condition):
             return cond
-        if isinstance(cond, Constant): # if(true/false/0/1.../N) used
+        if isinstance(cond, Constant): # if(true/false/0/1.../N)
             return Condition(OperationType.not_equal, [cond, Constant(0)])
         if isinstance(cond, UnaryOperation): # if(!var/~var/&var...)
             if cond.operation == OperationType.negate:
                 return Condition(OperationType.equal, [cond.operands[0], Constant(0)])
             else:
                 return Condition(OperationType.equal, [cond, Constant(0)])
-        if isinstance(cond, (Condition, Operation)): # if(var)
+        if isinstance(cond, Variable): # if(var)
             return Condition(OperationType.not_equal, [cond, Constant(0)])
         raise ValueError(f"No resolving handler for {type(cond)}")
 
 
-    def _get_symbol_for_condition(self, cond: Any) -> LogicCondition:
+    def _get_symbol_for_condition(self, cond: Expression) -> LogicCondition:
         """Resolve into real condition + return LogicSymbol it receives"""
         return self._condition_handler.add_condition(self._resolve_condition(cond))
 
 
-    def _resolve_binary_operation(self, cond: BinaryOperation):
-        """Recursively resolve a given BinaryOperation into a statement of LogicConditions (first Conditions) e.G. x1 & x2 & x3"""
-        operands = [] # will always hold left/right side of the BinaryOperation in index 0 and 1
-        for expr in cond:
-            if isinstance(expr, BinaryOperation):
-                operands.append(self._resolve_binary_operation(expr))
-            else:
-                operands.append(expr)
+    def _resolve_binary_operation(self, cond: Operation) -> LogicCondition:
+        """Recursively resolve binary operations into LogicConditions"""
+        if isinstance(cond, (Constant, Variable, UnaryOperation)):
+            return self._get_symbol_for_condition(cond)
+        if cond.operation in BINARY_OPERATIONS_LOGIC.values():
+            return _combine_logic_conditions(self._resolve_binary_operation(cond.left), self._resolve_binary_operation(cond.right), cond.operation)
+        if cond.operation in BINARY_OPERATIONS_CONDITION.values():
+            return self._get_symbol_for_condition(Condition(cond.operation, cond.operands, cond.type))
+        return cond
 
-        # 1. If both expressions, make a new condition (or two separated ones) and return the LogicCondition
-        if all(isinstance(operand, Expression) for operand in operands):
-            if cond.operation in LOGIC_CONDITION_OPERATIONS:
-                return _combine_logic_conditions(self._get_symbol_for_condition(operands[0]), self._get_symbol_for_condition(operands[1]), cond.operation)
-            newCond = Condition(cond.operation, operands)
-            symbol = self._get_symbol_for_condition(newCond)
-            return symbol
-        # 2. If only one is a LogicCondition, the other one must be a convertible Expression
-        if isinstance(operands[0], Expression):
-            operands[0] = self._get_symbol_for_condition(operands[0])
-        elif isinstance(operands[1], Expression):
-            operands[1] = self._get_symbol_for_condition(operands[1])
-        # 3. If both are LogicCondition, combine them into a new one
-        if all(isinstance(operand, LogicCondition) for operand in operands):
-            return _combine_logic_conditions(operands[0], operands[1], cond.operation)
-        raise ValueError("What just happened?")
 
-    
     def _resolve_condition_and_get_logic_condition(self, cond: Any) -> LogicCondition:
         """Resolve condition + add into condition handler + return LogicCondition"""
-        if isinstance(cond, BinaryOperation): # BinaryOperations (can be nested) must be recursively corrected into Conditions
+        if isinstance(cond, BinaryOperation): # BinaryOperations can be nested and must be recursively corrected into Conditions (&&, ||)
             return self._resolve_binary_operation(cond)
         return self._condition_handler.add_condition(self._resolve_condition(cond)) 
 
