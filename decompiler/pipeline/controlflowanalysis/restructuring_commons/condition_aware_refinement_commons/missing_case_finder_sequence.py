@@ -234,7 +234,7 @@ class MissingCaseFinderSequence(MissingCaseFinder):
                 if not (case_conditions_of_switch_without_interruption & default_z3_condition).is_false:
                     continue
                 disjunction = LogicCondition.get_logic_condition(case_conditions_of_switch | default_z3_condition, self.condition_handler)
-                if len(disjunction) > len(default_candidate.condition):
+                if disjunction is None or (len(disjunction) > len(default_candidate.condition)):
                     continue
                 self.asforest.add_default_case(default_candidate.node, switch_node)
                 possible_default_cases.remove(default_candidate)
