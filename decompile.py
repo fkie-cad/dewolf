@@ -2,7 +2,8 @@
 """Main decompiler Interface."""
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple
+import logging
+from typing import Optional
 
 from decompiler.backend.codegenerator import CodeGenerator
 from decompiler.frontend import BinaryninjaFrontend, Frontend
@@ -40,17 +41,21 @@ class Decompiler:
         """Create a decompiler instance from existing frontend instance (e.g. a binaryninja view)."""
         return cls(frontend.from_raw(data))
 
-    def decompile(self, function: str, task_options: Optional[Options] = None) -> DecompilerTask:
+    def decompile(self, function: str, task_options: Optional[Options] = None) -> str:
         """Decompile the target function."""
         # Sanity check to ensure task_options is populated
         if task_options is None:
             task_options = Decompiler.create_options()
         # Start decompiling
         pipeline = DecompilerPipeline.from_strings(task_options.getlist("pipeline.cfg_stages"), task_options.getlist("pipeline.ast_stages"))
-        task = self._frontend.create_task(function, task_options)
+        try:
+            task = self._frontend.create_task(function, task_options)
+        except RuntimeError as e:
+            print(e)
+            return ""
         pipeline.run(task)
-        task.code = self._backend.generate([task])
-        return task
+        code = self._backend.generate([task])
+        return code
 
     def decompile_all(self, task_options: Optional[Options] = None) -> str:
         """Decompile all functions in the binary"""
@@ -62,7 +67,11 @@ class Decompiler:
         pipeline = DecompilerPipeline.from_strings(task_options.getlist("pipeline.cfg_stages"), task_options.getlist("pipeline.ast_stages"))
         functions = self._frontend.get_all_function_names()
         for function in functions:
-            task = self._frontend.create_task(function, task_options)
+            try:
+                task = self._frontend.create_task(function, task_options)
+            except RuntimeError as e:
+                print(e)
+                continue
             pipeline.run(task)
             tasks.append(task)
         code = self._backend.generate(tasks)

@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from typing import List, Optional, Union
 
-from binaryninja import BinaryView, Function, FunctionUpdateType
+from binaryninja import BinaryView, Function
 from binaryninja import load as bload
 from binaryninja.types import SymbolType
 from decompiler.structures.graphs.cfg import ControlFlowGraph
@@ -136,8 +136,7 @@ class BinaryninjaFrontend(Frontend):
         """Create a task from the given function identifier."""
         function = FunctionObject.get(self._bv, function_identifier)
         if not FunctionObject.check_function(function):
-            logging.error("Binrayninja failed to provide Medium Level IL")
-            raise ValueError(f"No Medium Level IL for {function.name} provided")
+            raise RuntimeError(f"BNinja failed to provide MLIL for function {function.name}")
         tagging = CompilerIdiomsTagging(self._bv, function.function.start, options)
         tagging.run()
         try:

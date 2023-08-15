@@ -1,5 +1,5 @@
 """Command line interface for the decompiler."""
-from argparse import SUPPRESS, ArgumentParser, HelpFormatter
+from argparse import SUPPRESS, ArgumentParser
 from enum import Enum
 from os import isatty
 from os.path import isfile
@@ -71,16 +71,16 @@ def main(interface: "Decompiler"):
     try:
         if args.all or not args.function:
             # decompile all functions.
-            undecorated_code = decompiler.decompile_all(options)
-            DecoratedCode.print_code(
-                undecorated_code, output_stream, color, style=options.getstring("code-generator.style_cmd", fallback="paraiso-dark")
-            )
+            if (undecorated_code := decompiler.decompile_all(options)):
+                DecoratedCode.print_code(
+                    undecorated_code, output_stream, color, style=options.getstring("code-generator.style_cmd", fallback="paraiso-dark")
+                )
         else:
             for function_name in args.function:
-                task = decompiler.decompile(function_name, options)
-                DecoratedCode.print_code(
-                    task.code, output_stream, color, style=task.options.getstring("code-generator.style_cmd", fallback="paraiso-dark")
-                )
+                if (undecorated_code := decompiler.decompile(function_name, options)):
+                    DecoratedCode.print_code(
+                        undecorated_code, output_stream, color, style=options.getstring("code-generator.style_cmd", fallback="paraiso-dark")
+                    )
     finally:
         if output_stream is not None:
             output_stream.close()
