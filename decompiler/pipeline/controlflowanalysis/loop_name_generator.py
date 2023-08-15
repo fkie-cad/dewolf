@@ -1,6 +1,6 @@
 from typing import List
 
-from decompiler.pipeline.controlflowanalysis.readability_based_refinement import (
+from decompiler.pipeline.controlflowanalysis.loop_utility_methods import (
     AstInstruction,
     _find_continuation_instruction,
     _get_variable_initialisation,
