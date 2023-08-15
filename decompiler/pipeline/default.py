@@ -3,6 +3,7 @@
 from decompiler.pipeline.controlflowanalysis import (
     ExpressionSimplification,
     InstructionLengthHandler,
+    LoopNameGenerator,
     ReadabilityBasedRefinement,
     VariableNameGeneration,
 )
@@ -41,4 +42,4 @@ CFG_STAGES = [
     EdgePruner,
 ]
 
-AST_STAGES = [ReadabilityBasedRefinement, ExpressionSimplification, InstructionLengthHandler, VariableNameGeneration]
+AST_STAGES = [ReadabilityBasedRefinement, ExpressionSimplification, InstructionLengthHandler, VariableNameGeneration, LoopNameGenerator]
