@@ -1,6 +1,6 @@
 from collections import namedtuple
-from typing import Iterator, List
-from unittest.mock import Mock
+from typing import Any, Iterator, List
+from unittest.mock import Mock, NonCallableMock
 
 import pytest
 from binaryninja import (
@@ -35,14 +35,20 @@ class MockEdge:
         self.type = _type
 
 
-class MockBlock(MediumLevelILBasicBlock):
+class MockBlock(Mock):
     """Mock object representing a binaryninja MediumLevelILBasicBlock."""
 
     def __init__(self, index: int, edges: List[MockEdge], instructions: List[MediumLevelILInstruction] = None):
         """Create a basic block with the given index, instructions and edges."""
+        super().__init__(spec=MediumLevelILBasicBlock)
         self._index = index
         self._instructions = instructions if instructions else list()
         self._edges = edges
+        self.source_block = self
+
+    def _get_child_mock(self, **kw: Any) -> NonCallableMock:
+        """Child mocks should not be of type MockBlock."""
+        return Mock()._get_child_mock(**kw)
 
     @property
     def index(self) -> int:
@@ -140,29 +146,17 @@ class MockSwitch(Mock):
         self.dest.possible_values.mapping = mapping
 
 
-class MockConstPtr(MediumLevelILConstPtr):
-    """
-    Mock object representing a binaryninja MediumLevelILConstPtr.
-    """
-
-    def __init__(self, value: int):
-        """Create a new MockConstPtr for testing purposes only."""
-        self.__class__ = MediumLevelILConstPtr
-        object.__setattr__(self, "function", MockFunction([])) # need .function.view to lift 
-        object.__setattr__(self, "instr", Mock())
-        MediumLevelILConstPtr.constant = value
-
-
-class MockFixedJump:
-    """
-    Mock object representing a constant jump.
-    """
+class MockFixedJump(Mock):
+    """Mock object representing a constant jump."""
 
     def __init__(self, address: int):
         """Create new MediumLevelILJumpTo object"""
-        self.dest = MockConstPtr(address)
-        self.function = None
-        self.__class__ = MediumLevelILJumpTo
+        super().__init__(spec=MediumLevelILJumpTo)
+        self.ssa_memory_version = 0
+        self.function = None  # prevents lifting of tags
+        self.dest = Mock(spec=MediumLevelILConstPtr)
+        self.dest.constant = address
+        self.dest.function = MockFunction([])  # need .function.view to lift
 
 
 @pytest.fixture
@@ -282,10 +276,10 @@ def test_convert_indirect_edge_to_unconditional(parser):
     assert isinstance(cfg_edge, UnconditionalEdge)
     assert len(list(cfg.instructions)) == 0
 
+
 def test_convert_indirect_edge_to_unconditional_no_valid_edge(parser):
-    """Switch jump to constant address."""
-    jmp_instr = MockSwitch({"a": 1, "b": 1, "c": 2, "d": 42})
-    # jmp_instr = MockFixedJump(12) # does not work due to mocking problems...
+    """Unconditional jump to constant address, but jump addresses do not match."""
+    jmp_instr = MockFixedJump(12)
     function = MockFunction(
         [
             block := MockBlock(0, [MockEdge(0, 42, BranchType.IndirectBranch)], instructions=[jmp_instr]),
@@ -299,4 +293,3 @@ def test_convert_indirect_edge_to_unconditional_no_valid_edge(parser):
     assert (cfg_edge.source.address, cfg_edge.sink.address) == (0, 42)
     assert not isinstance(cfg_edge, UnconditionalEdge)
     assert len(list(cfg.instructions)) == 1
-
