@@ -1,14 +1,13 @@
 import pytest
 from decompiler.backend.codegenerator import CodeGenerator
 from decompiler.pipeline.controlflowanalysis import VariableNameGeneration
-from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree, CodeNode
+from decompiler.structures.ast.ast_nodes import CodeNode
+from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import Assignment, Constant, CustomType, Float, Integer, Pointer, Variable
 from decompiler.task import DecompilerTask
 from decompiler.util.decoration import DecoratedCode
 from decompiler.util.options import Options
-
-# Test Hungarian Notation
 
 PIPELINE_NAME = VariableNameGeneration.name
 
@@ -44,8 +43,6 @@ def _generate_options(notation: str = "system_hungarian", pointer_base: bool = T
     options.set(f"{PIPELINE_NAME}.pointer_base", pointer_base)
     options.set(f"{PIPELINE_NAME}.type_separator", type_sep)
     options.set(f"{PIPELINE_NAME}.counter_separator", counter_sep)
-    options.set(f"{PIPELINE_NAME}.rename_while_loop_variables", True)
-    options.set(f"{PIPELINE_NAME}.for_loop_variable_names", ["i", "j", "k", "l", "m", "n"])
     options.set(f"code-generator.max_complexity", 100)
     options.set("code-generator.use_increment_int", False)
     options.set("code-generator.use_increment_float", False)
@@ -77,54 +74,62 @@ def test_default_notation_1():
     ,
 )
 def test_hungarian_notation(variable, name):
-    node = CodeNode([Assignment(variable, Constant(42))], LogicCondition.initialize_true(LogicCondition.generate_new_context()))
-    ast = AbstractSyntaxTree(node, {})
+    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(CodeNode([Assignment(variable, Constant(42))], true_value), {})
     _run_vng(ast)
-    for instr in node.instructions:
-        assert instr.destination.name == name
+    assert variable.name == name
 
 
 @pytest.mark.parametrize("type_sep, counter_sep", [("", ""), ("_", "_")])
 def test_hungarian_notation_separators(type_sep: str, counter_sep: str):
-    node = CodeNode([Assignment(Variable("var_0", I32), Constant(0))], LogicCondition.initialize_true(LogicCondition.generate_new_context()))
-    ast = AbstractSyntaxTree(node, {})
+    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", I32), Constant(0)), true_value), {})
     _run_vng(ast, _generate_options(type_sep=type_sep, counter_sep=counter_sep))
-    for instr in node.instructions:
-        assert instr.destination.name == f"i{type_sep}Var{counter_sep}0"
+    assert var.name == f"i{type_sep}Var{counter_sep}0"
 
 
 def test_custom_type():
-    node = CodeNode([Assignment(Variable("var_0", CustomType("size_t", 64)), Constant(0))], LogicCondition.initialize_true(LogicCondition.generate_new_context()))
-    ast = AbstractSyntaxTree(node, {})
+    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", CustomType("size_t", 64)), Constant(0)), true_value), {})
     _run_vng(ast, _generate_options())
-    for instr in node.instructions:
-        assert instr.destination.name == "Var0"
+    assert var._name == "Var0"
 
 
 def test_bninja_invalid_type():
-    node = CodeNode([Assignment(Variable("var_0", Integer(104, True)), Constant(0))], LogicCondition.initialize_true(LogicCondition.generate_new_context()))
-    ast = AbstractSyntaxTree(node, {})
+    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
+    ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", Integer(104, True)), Constant(0)), true_value), {})
     _run_vng(ast, _generate_options())
-    for instr in node.instructions:
-        assert instr.destination.name == "unkVar0"
+    assert var._name == "unkVar0"
 
 
 def test_tmp_variable():
     true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
-    node = CodeNode([Assignment(Variable("tmp_42", Float(64)), Constant(0))], true_value)
-    ast = AbstractSyntaxTree(node, {})
+    ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("tmp_42", Float(64)), Constant(0)), true_value), {})
     _run_vng(ast, _generate_options())
-    for instr in node.instructions:
-        assert instr.destination.name == "dTmp42"
+    assert var._name == "dTmp42"
 
 
 def test_same_variable():
     """Variables can be copies of the same one. The renamer should only rename a variable once. (More times would destroy the actual name)"""
+    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
     var1 = Variable("tmp_42", Float(64))
-    node = CodeNode([
+    var2 = Variable("var_0", Integer(104, True))
+    ast = AbstractSyntaxTree(CodeNode([
         Assignment(var1, Constant(0)),
-        Assignment(var1, Constant(0))], LogicCondition.initialize_true(LogicCondition.generate_new_context()))
-    ast = AbstractSyntaxTree(node, {})
+        Assignment(var1, Constant(0)),
+        Assignment(var2, Constant(0)),
+        Assignment(var2, Constant(0))], true_value), {})
     _run_vng(ast, _generate_options())
-    for instr in node.instructions:
-        assert instr.destination.name == "dTmp42"
+    assert var1._name == "dTmp42"
+    assert var2._name == "unkVar0"
+    
+def test_same_variable_idx():
+    """Variables can be copies of the same one. The renamer should only rename a variable once. (More times would destroy   the actual name)"""
+    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
+    var1 = Variable("x_1", Integer.int32_t())
+    var2 = Variable("y_1", Integer.int32_t())
+    ast = AbstractSyntaxTree(CodeNode([
+        Assignment(var1, Constant(0)),
+        Assignment(var2, Constant(0))], true_value), {})
+    _run_vng(ast, _generate_options())
+    assert var1._name != var2._name
