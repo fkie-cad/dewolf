@@ -215,7 +215,7 @@
             },
             {
                 "dest": "variable-name-generation.notation",
-                "default": "default",
+                "default": "system_hungarian",
                 "title": "Variable Naming Convention",
                 "type": "string",
                 "enum": ["default", "system_hungarian"],
@@ -227,16 +227,6 @@
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
                 "argument_name": "--variable-generation-notation"
-            },
-            {
-                "dest": "variable-name-generation.variable_name",
-                "default": "Var",
-                "title": "Variable Base Name for hungarian notation",
-                "type": "string",
-                "description": "",
-                "is_hidden_from_gui": false,
-                "is_hidden_from_cli": false,
-                "argument_name": "--variable-generation-variable-name"
             },
             {
                 "dest": "variable-name-generation.pointer_base",

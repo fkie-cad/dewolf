@@ -157,3 +157,15 @@ def test_same_variable():
     _run_vng(ast, _generate_options())
     assert var1._name == "dTmp42"
     assert var2._name == "unkVar0"
+
+
+def test_same_variable_idx():
+    """Test that variables with the same counter don't get the same name"""
+    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
+    var1 = Variable("x_1", Integer.int32_t())
+    var2 = Variable("y_1", Integer.int32_t())
+    ast = AbstractSyntaxTree(CodeNode([
+        Assignment(var1, Constant(0)),
+        Assignment(var2, Constant(0))], true_value), {})
+    _run_vng(ast, _generate_options())
+    assert var1._name != var2._name
