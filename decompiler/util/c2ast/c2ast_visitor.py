@@ -218,18 +218,18 @@ class PyCNodeVisitor(NodeVisitor):
 
     def _resolve_binary_operation(self, cond: Operation) -> LogicCondition:
         """Recursively resolve binary operations into LogicConditions"""
-        if isinstance(cond, (Constant, Variable, UnaryOperation)):
+        if isinstance(cond, (Constant, Variable, UnaryOperation)): # Case: true, 1, var...
             return self._get_symbol_for_condition(cond)
-        if cond.operation in BINARY_OPERATIONS_LOGIC.values():
+        if cond.operation in BINARY_OPERATIONS_LOGIC.values(): # Case: &&, || 
             return _combine_logic_conditions(self._resolve_binary_operation(cond.left), self._resolve_binary_operation(cond.right), cond.operation)
-        if cond.operation in BINARY_OPERATIONS_CONDITION.values():
+        if cond.operation in BINARY_OPERATIONS_CONDITION.values(): # Case: ==, !=, <, >, <=, =>
             return self._get_symbol_for_condition(Condition(cond.operation, cond.operands, cond.type))
         return cond
 
 
     def _resolve_condition_and_get_logic_condition(self, cond: Any) -> LogicCondition:
         """Resolve condition + add into condition handler + return LogicCondition"""
-        if isinstance(cond, BinaryOperation): # BinaryOperations can be nested and must be recursively corrected into Conditions (&&, ||)
+        if isinstance(cond, BinaryOperation): # BinaryOperations can be nested and must be recursively corrected into LogicConditions (&&, ||)
             return self._resolve_binary_operation(cond)
         return self._condition_handler.add_condition(self._resolve_condition(cond)) 
 
