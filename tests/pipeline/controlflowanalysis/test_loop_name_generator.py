@@ -2,10 +2,8 @@ from typing import List
 
 import pytest
 from decompiler.pipeline.controlflowanalysis.loop_name_generator import ForLoopVariableRenamer, LoopNameGenerator, WhileLoopVariableRenamer
-from decompiler.pipeline.controlflowanalysis.readability_based_refinement import (
-    ReadabilityBasedRefinement,
-    _initialization_reaches_loop_node,
-)
+from decompiler.pipeline.controlflowanalysis.loop_utility_methods import _initialization_reaches_loop_node
+from decompiler.pipeline.controlflowanalysis.readability_based_refinement import ReadabilityBasedRefinement
 from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, ForLoopNode, SeqNode, SwitchNode, WhileLoopNode
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.logic.logic_condition import LogicCondition

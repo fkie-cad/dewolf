@@ -1,12 +1,12 @@
 from typing import List
 
 import pytest
-from decompiler.pipeline.controlflowanalysis.readability_based_refinement import (
-    ReadabilityBasedRefinement,
+from decompiler.pipeline.controlflowanalysis.loop_utility_methods import (
     _find_continuation_instruction,
     _has_deep_requirement,
     _initialization_reaches_loop_node,
 )
+from decompiler.pipeline.controlflowanalysis.readability_based_refinement import ReadabilityBasedRefinement
 from decompiler.structures.ast.ast_nodes import ConditionNode, ForLoopNode, SeqNode, WhileLoopNode
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.logic.logic_condition import LogicCondition
