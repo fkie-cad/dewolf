@@ -5,7 +5,7 @@ import logging
 from typing import List, Optional, Union
 
 from binaryninja import BinaryView, Function
-from binaryninja import load as bload
+from binaryninja import load
 from binaryninja.types import SymbolType
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.pseudo.expressions import Variable
@@ -29,13 +29,16 @@ class FunctionObject:
         self._name = self._lifter.lift(self._function.symbol).name
 
     @classmethod
-    def check_function(cls, function: FunctionObject, reload = 0) -> bool:
+    def check_function(cls, function: FunctionObject) -> bool:
         """Check if the function is loaded correctly by binary ninja. Try a reload if possible."""
-        if (function._function is None or function._function.mapped_medium_level_il is None) and reload < BNINJA_MAX_ANALYSIS_RELOADS:
-            function._function.analysis_skipped = False 
+        if function._function is not None and function._function.mapped_medium_level_il is not None:
+            return True
+        for _ in range(BNINJA_MAX_ANALYSIS_RELOADS):
+            function._function.analysis_skipped = False
             function._function.reanalyze()
-            return cls.check_function(function, reload=reload+1) 
-        return True
+            if function._function is not None and function._function.mapped_medium_level_il is not None:
+                return True
+        return False
 
     @classmethod
     def get(cls, bv: BinaryView, identifier: Union[str, Function]) -> FunctionObject:
@@ -123,7 +126,7 @@ class BinaryninjaFrontend(Frontend):
     def from_path(cls, path: str, options: Options):
         """Create a frontend object by invoking binaryninja on the given sample."""
         file_options = {"analysis.limits.maxFunctionSize": options.getint("binaryninja.max_function_size")}
-        if (bv := bload(path, options=file_options)) is not None:
+        if (bv := load(path, options=file_options)) is not None:
             return cls(bv)
         raise RuntimeError("Failed to create binary view")
 

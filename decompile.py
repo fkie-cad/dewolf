@@ -51,7 +51,7 @@ class Decompiler:
         try:
             task = self._frontend.create_task(function, task_options)
         except RuntimeError as e:
-            print(e)
+            logging.error(e)
             return ""
         pipeline.run(task)
         code = self._backend.generate([task])
@@ -70,7 +70,7 @@ class Decompiler:
             try:
                 task = self._frontend.create_task(function, task_options)
             except RuntimeError as e:
-                print(e)
+                logging.error(e)
                 continue
             pipeline.run(task)
             tasks.append(task)
