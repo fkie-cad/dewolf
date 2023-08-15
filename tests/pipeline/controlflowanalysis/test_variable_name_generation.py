@@ -8,7 +8,6 @@ from decompiler.task import DecompilerTask
 from decompiler.util.decoration import DecoratedCode
 from decompiler.util.options import Options
 
-
 PIPELINE_NAME = VariableNameGeneration.name
 
 I8 = Integer.int8_t()
