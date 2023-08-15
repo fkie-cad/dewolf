@@ -221,6 +221,11 @@ class ConditionInterface(LogicInterface, ABC, Generic[CONTEXT]):
           'x1 & x2' if 'x1 = var < 10' and 'x2 = var == 5' to the condition 'x2'.
         """
 
+    @classmethod
+    @abstractmethod
+    def get_logic_condition(cls, real_condition: PseudoLogicInterface, condition_handler: ConditionHandler) -> ConditionInterface:
+        """Generate a symbol condition given the real-condition together with the condition handler."""
+
     @abstractmethod
     def serialize(self) -> str:
         """Serializes a condition as a string"""

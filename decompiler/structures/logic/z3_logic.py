@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Dict, Generic, Iterable, Iterator, List, Optio
 from decompiler.structures.logic.logic_interface import ConditionInterface, PseudoLogicInterface
 from decompiler.structures.logic.z3_implementations import Z3Implementation
 from decompiler.structures.pseudo import Condition
-from z3 import And, Bool, BoolRef, BoolVal, Context, Not, Or, Solver, is_and, is_false, is_not, is_or, is_true, substitute
+from z3 import And, Bool, BoolRef, BoolVal, Context, Not, Or, Solver, is_and, is_const, is_false, is_not, is_or, is_true, substitute
 
 if TYPE_CHECKING:
     from decompiler.structures.ast.condition_symbol import ConditionHandler
@@ -219,22 +219,30 @@ class Z3LogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         """
         if self.is_literal or self.is_true or self.is_false:
             return self
-        condition_map = condition_handler.get_z3_condition_map()
-        condition: BoolRef = self._condition
-        replacement_to_z3 = list()
-        replacement_to_symbol = list()
-        for symbol in self.get_symbols():
-            replacement_to_z3.append((symbol._condition, condition_map[symbol]._condition))
-            simplified_cond_neg = self.z3.simplify_z3_condition(Not(condition_map[symbol]._condition), resolve_negations=False)
-            replacement_to_symbol.append((condition_map[symbol]._condition, symbol._condition))
-            replacement_to_symbol.append((simplified_cond_neg, Not(symbol._condition)))
-        condition = substitute(condition, replacement_to_z3)
-        condition = self.z3.simplify_z3_condition(condition, resolve_negations=False)
-        condition = substitute(condition, replacement_to_symbol)
-        condition = self.z3.z3_to_cnf(condition)
-        if self.z3.all_literals_contained_in_set(condition, set(symbol for symbol, _ in replacement_to_z3)):
-            self._condition = condition
+        z3_condition = PseudoZ3LogicCondition.initialize_from_formula(self, condition_handler.get_z3_condition_map())
+        z3_condition.simplify()
+        if (condition := self.get_logic_condition(z3_condition, condition_handler)) is not None:
+            self._condition = condition._condition
         return self
+
+    @classmethod
+    def get_logic_condition(cls, real_condition: PseudoZ3LogicCondition, condition_handler: ConditionHandler) -> Optional[LOGICCLASS]:
+        """Generate a symbol condition given the real-condition together with the condition handler."""
+        if real_condition.is_true or real_condition.is_false:
+            return cls(real_condition._condition)
+        replacement_to_symbol = list()
+        for symbol in condition_handler:
+            replacement_to_symbol.append((condition_handler.get_z3_condition_of(symbol)._condition, symbol._condition))
+            replacement_to_symbol.append(
+                (
+                    real_condition.z3.simplify_z3_condition(Not(condition_handler.get_z3_condition_of(symbol)._condition)),
+                    real_condition.z3.simplify_z3_condition(Not(symbol._condition)),
+                )
+            )
+
+        condition = substitute(real_condition._condition, replacement_to_symbol)
+        if real_condition.z3.all_literals_are_symbols(condition):
+            return cls(condition)
 
     def serialize(self) -> str:
         """Serialize the given condition into a SMT2 string representation."""
@@ -267,6 +275,8 @@ class PseudoZ3LogicCondition(PseudoLogicInterface, Z3LogicCondition, Generic[LOG
 
     @classmethod
     def initialize_from_conditions_or(cls, conditions: List[Condition], context: Context) -> PseudoLOGICCLASS:
+        if not conditions:
+            return cls.initialize_false(context)
         or_conditions = []
         for cond in conditions:
             or_conditions.append(Z3Implementation.get_z3_condition_of(cond, context))

@@ -131,14 +131,14 @@ class Integer(Type):
 
 
 @dataclass(frozen=True, order=True)
-class Float(Integer):
+class Float(Type):
     """Class representing the type of a floating point number as defined in IEEE 754."""
 
     SIZE_TYPES = {8: "quarter", 16: "half", 32: "float", 64: "double", 80: "long double", 128: "quadruple", 256: "octuple"}
 
-    def __init__(self, size: int, signed=True):
+    def __init__(self, size: int):
         """Create a new float type with the given size."""
-        super().__init__(size, signed)
+        super().__init__(size)
 
     @classmethod
     def float(cls) -> Float:
@@ -208,21 +208,9 @@ class CustomType(Type):
 
 
 @dataclass(frozen=True, order=True)
-class Parameter(Type):
-    """Class representing a function parameter combining type and identifier."""
-
-    name: str
-    type: Type
-
-    def __str__(self) -> str:
-        """Return an anonymous string representation such as void*(int, int, char*)."""
-        return f"{self.type} {self.name}" if self.name else str(self.type)
-
-
-@dataclass(frozen=True, order=True)
 class FunctionTypeDef(Type):
     return_type: Type
-    parameters: Tuple[Parameter, ...]
+    parameters: Tuple[Type, ...]
 
     def __str__(self) -> str:
         """Return an anonymous string representation such as void*(int, int, char*)."""
