@@ -6,6 +6,7 @@ from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, I
 from decompiler.structures.pseudo.instructions import Assignment, Branch, IndirectBranch, Phi, Return
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer
+from decompiler.util.decoration import DecoratedCFG
 
 arg, eax, ebx = (lambda x, name=name: Variable(name, Integer.int32_t(), ssa_label=x) for name in ["arg", "eax", "ebx"])
 const = lambda value: Constant(value, Integer.int32_t())
@@ -151,96 +152,100 @@ class TestSwitchVariableDetection:
         svd.run(MockTask(cfg))
         assert svd.find_switch_expression(switch) == eax(2)
 
-    # def test_switch_variable_in_condition_assignment(self):
-    #     """
-    #     Check whether we track the switch expression correctly even if it was used in a dedicated condition statement."
+    def test_switch_variable_in_condition_assignment(self):
+        """
+        Check whether we track the switch expression correctly even if it was used in a dedicated condition statement."
 
-    #     This test is based on the output of gcc 9.2.1 on ubuntu switch sample test_switch test8.
-    #     +----------+     +------------------------------+
-    #     |          |     |              0.              |
-    #     |    2.    |     |        x = undefined         |
-    #     | foo(0x0) |     |     cond:0#0 = x u< 0x8      |
-    #     |          | <-- |     if(cond:0#0 != 0x0)      |
-    #     +----------+     +------------------------------+
-    #       |                |
-    #       |                |
-    #       |                v
-    #       |              +------------------------------+     +----------+
-    #       |              |              1.              |     |          |
-    #       |              |           y#0 = x            |     |    4.    |
-    #       |              | y#1 = 0xfffff + (y#0 << 0x2) |     | bar(0x2) |
-    #       |              |           jmp y#1            | --> |          |
-    #       |              +------------------------------+     +----------+
-    #       |                |                                    |
-    #       |                |                                    |
-    #       |                v                                    |
-    #       |              +------------------------------+       |
-    #       |              |              3.              |       |
-    #       |              |           bar(0x1)           |       |
-    #       |              +------------------------------+       |
-    #       |                |                                    |
-    #       |                |                                    |
-    #       |                v                                    |
-    #       |              +------------------------------+       |
-    #       |              |             -1.              |       |
-    #       +------------> |           return x           | <-----+
-    #                      +------------------------------+
-    #     """
-    #     cfg = ControlFlowGraph()
-    #     cfg.add_nodes_from(
-    #         [
-    #             start := BasicBlock(
-    #                 0,
-    #                 instructions=[
-    #                     Assignment(Variable("x"), Variable("undefined")),
-    #                     Assignment(Variable("cond:0", ssa_label=0), Condition(OperationType.less_us, [Variable("x"), Constant(8)])),
-    #                     Branch(Condition(OperationType.not_equal, [Variable("cond:0", ssa_label=0), Constant(0)])),
-    #                 ],
-    #             ),
-    #             switch_block := BasicBlock(
-    #                 1,
-    #                 instructions=[
-    #                     Assignment(Variable("y", ssa_label=0), Variable("x")),
-    #                     Assignment(
-    #                         Variable("y", ssa_label=1),
-    #                         BinaryOperation(
-    #                             OperationType.plus,
-    #                             [Constant(0xFFFFF), BinaryOperation(OperationType.left_shift, [Variable("y", ssa_label=0), Constant(2)])],
-    #                         ),
-    #                     ),
-    #                     switch := IndirectBranch(Variable("y", ssa_label=1)),
-    #                 ],
-    #             ),
-    #             default := BasicBlock(2, instructions=[Assignment(ListOperation([]), Call(function_symbol("foo"), [Constant(0)]))]),
-    #             end := BasicBlock(-1, instructions=[Return([Variable("x")])]),
-    #             case_1 := BasicBlock(
-    #                 3,
-    #                 instructions=[
-    #                     Assignment(ListOperation([]), Call(function_symbol("bar"), [Constant(1)])),
-    #                 ],
-    #             ),
-    #             case_2 := BasicBlock(
-    #                 4,
-    #                 instructions=[
-    #                     Assignment(ListOperation([]), Call(function_symbol("bar"), [Constant(2)])),
-    #                 ],
-    #             ),
-    #         ]
-    #     )
-    #     cfg.add_edges_from(
-    #         [
-    #             TrueCase(start, switch_block),
-    #             FalseCase(start, default),
-    #             SwitchCase(switch_block, case_1, [Constant(1)]),
-    #             SwitchCase(switch_block, case_2, [Constant(2)]),
-    #             UnconditionalEdge(default, end),
-    #             UnconditionalEdge(case_1, end),
-    #             UnconditionalEdge(case_2, end),
-    #         ]
-    #     )
-    #     svd = SwitchVariableDetection()
-    #     svd.run(MockTask(cfg))
-    #     assert svd.find_switch_expression(switch) == Variable("x")
+        This test is based on the output of gcc 9.2.1 on ubuntu switch sample test_switch test8.
+        +----------+     +------------------------------+
+        |          |     |              0.              |
+        |    2.    |     |        x = undefined         |
+        | foo(0x0) |     |     cond:0#0 = x u< 0x8      |
+        |          | <-- |     if(cond:0#0 != 0x0)      |
+        +----------+     +------------------------------+
+          |                |
+          |                |
+          |                v
+          |              +------------------------------+     +----------+
+          |              |              1.              |     |          |
+          |              |           y#0 = x            |     |    4.    |
+          |              | y#1 = 0xfffff + (y#0 << 0x2) |     | bar(0x2) |
+          |              |           jmp y#1            | --> |          |
+          |              +------------------------------+     +----------+
+          |                |                                    |
+          |                |                                    |
+          |                v                                    |
+          |              +------------------------------+       |
+          |              |              3.              |       |
+          |              |           bar(0x1)           |       |
+          |              +------------------------------+       |
+          |                |                                    |
+          |                |                                    |
+          |                v                                    |
+          |              +------------------------------+       |
+          |              |             -1.              |       |
+          +------------> |           return x           | <-----+
+                         +------------------------------+
+        """
+        cfg = ControlFlowGraph()
+        y0 = Variable("y", ssa_label=0)
+        y1 = Variable("y", ssa_label=1)
+        x = Variable("x")
+        cfg.add_nodes_from(
+            [
+                start := BasicBlock(
+                    0,
+                    instructions=[
+                        Assignment(x, Variable("undefined")),
+                        Assignment(Variable("cond:0", ssa_label=0), Condition(OperationType.less_us, [x, Constant(8)])),
+                        Branch(Condition(OperationType.not_equal, [Variable("cond:0", ssa_label=0), Constant(0)])),
+                    ],
+                ),
+                switch_block := BasicBlock(
+                    1,
+                    instructions=[
+                        Assignment(y0, x),
+                        Assignment(
+                            y1,
+                            BinaryOperation(
+                                OperationType.plus,
+                                [Constant(0xFFFFF), BinaryOperation(OperationType.left_shift, [y0, Constant(2)])],
+                            ),
+                        ),
+                        switch := IndirectBranch(y1),
+                    ],
+                ),
+                default := BasicBlock(2, instructions=[Assignment(ListOperation([]), Call(function_symbol("foo"), [Constant(0)]))]),
+                end := BasicBlock(-1, instructions=[Return([x])]),
+                case_1 := BasicBlock(
+                    3,
+                    instructions=[
+                        Assignment(ListOperation([]), Call(function_symbol("bar"), [Constant(1)])),
+                    ],
+                ),
+                case_2 := BasicBlock(
+                    4,
+                    instructions=[
+                        Assignment(ListOperation([]), Call(function_symbol("bar"), [Constant(2)])),
+                    ],
+                ),
+            ]
+        )
+        cfg.add_edges_from(
+            [
+                TrueCase(start, switch_block),
+                FalseCase(start, default),
+                SwitchCase(switch_block, case_1, [Constant(1)]),
+                SwitchCase(switch_block, case_2, [Constant(2)]),
+                UnconditionalEdge(default, end),
+                UnconditionalEdge(case_1, end),
+                UnconditionalEdge(case_2, end),
+            ]
+        )
+        svd = SwitchVariableDetection()
+        DecoratedCFG.print_ascii(cfg)
+        svd.run(MockTask(cfg))
+        assert svd.find_switch_expression(switch) == y0
 
 
 a0 = Variable("a", Integer.int32_t(), 0)
@@ -423,3 +428,147 @@ def test_constant_pointer():
     task = MockTask(cfg)
     SwitchVariableDetection().run(task)
     assert vertices[2].instructions[-1] == IndirectBranch(rax)
+
+
+def test_first_simple_assignment():
+    """
+    +--------------+     +--------------------------++--------------+
+    |      1.      |     |            0.            ||      7.      |
+    |  return 0x4  |     |         x = arg0         || rbx#4 = 0xb  |
+    |              | <-- | if((*(0x423658)) u> 0x4) ||              | ----------------------+
+    +--------------+     +--------------------------++--------------+                       |
+                           |                           ^                                    |
+                           |                           |                                    |
+                           v                           |                                    |
+    +--------------+     +------------------------------------------+     +--------------+  |
+    |              |     |                    2.                    |     |              |  |
+    |      5.      |     |                rax#1 = x                 |     |      6.      |  |
+    | rbx#2 = 0x14 |     | rax#2 = (*(0xffffff42)) + (rax#1 << 0x3) |     | rbx#3 = 0x17 |  |
+    |              |     |     rax#3 = rax#2 + (*(0xffffff42))      |     |              |  |
+    |              | <-- |                jmp rax#3                 | --> |              |  |
+    +--------------+     +------------------------------------------+     +--------------+  |
+      |                    |                           |                    |               |
+      |                    |                           |                    |               |
+      |                    v                           v                    |               |
+      |                  +--------------------------++--------------+       |               |
+      |                  |            3.            ||      4.      |       |               |
+      |                  |       rbx#0 = 0x2c       || rbx#1 = 0x28 |       |               |
+      |                  +--------------------------++--------------+       |               |
+      |                    |                           |                    |               |
+      |                    |                           |                    |               |
+      |                    v                           v                    |               |
+      |                  +------------------------------------------+       |               |
+      +----------------> |                    8.                    | <-----+               |
+                         | rbx#5 = ϕ(rbx#0,rbx#1,rbx#2,rbx#3,rbx#4) |                       |
+                         |               return rbx#5               |                       |
+                         |                                          | <---------------------+
+                         +------------------------------------------+
+    """
+    cfg = ControlFlowGraph()
+    cont_pointer = UnaryOperation(
+        OperationType.dereference,
+        [Constant(4339288, Pointer(Integer(32, False), 64))],
+        Integer(32, False),
+        None,
+        False,
+    )
+    rax1 = Variable("rax", Integer(64, False), 1, False, None)
+    rax2 = Variable("rax", Integer(64, False), 2, False, None)
+    rax3 = Variable("rax", Integer(64, False), 3, False, None)
+    rbx = [Variable("rbx", Integer(64, False), i, False, None) for i in range(6)]
+    def3 = Assignment(
+        rax3,
+        BinaryOperation(
+            OperationType.plus,
+            [
+                rax2,
+                UnaryOperation(OperationType.dereference, [Constant(JT_OFFSET)], Integer(64, True)),
+            ],
+            Integer(64, True),
+        ),
+    )
+    def2 = Assignment(
+        rax2,
+        BinaryOperation(
+            OperationType.plus,
+            [
+                UnaryOperation(OperationType.dereference, [Constant(JT_OFFSET)], Integer(64, True)),
+                BinaryOperation(
+                    OperationType.left_shift,
+                    [rax1, Constant(3, Integer(8, True))],
+                    Integer(64, False),
+                ),
+            ],
+            Integer(64, True),
+        ),
+    )
+    def1 = Assignment(rax1, Variable("x"))
+    def0 = Assignment(Variable("x"), Variable("arg0"))
+
+    cfg.add_nodes_from(
+        vertices := [
+            BasicBlock(
+                0,
+                [
+                    def0,
+                    Branch(Condition(OperationType.greater_us, [cont_pointer, Constant(4, Integer(32, True))], CustomType("bool", 1))),
+                ],
+            ),
+            BasicBlock(1, [Return([Constant(4, Integer(64, True))])]),
+            BasicBlock(
+                2,
+                [
+                    def1,
+                    def2,
+                    def3,
+                    switch := IndirectBranch(rax3),
+                ],
+            ),
+            BasicBlock(3, [Assignment(rbx[0], Constant(44, Integer(64, True)))]),
+            BasicBlock(4, [Assignment(rbx[1], Constant(40, Integer(64, True)))]),
+            BasicBlock(
+                5,
+                [Assignment(rbx[2], Constant(20, Integer(64, True)))],
+            ),
+            BasicBlock(
+                6,
+                [Assignment(rbx[3], Constant(23, Integer(64, True)))],
+            ),
+            BasicBlock(
+                7,
+                [Assignment(rbx[4], Constant(11, Integer(64, True)))],
+            ),
+            BasicBlock(
+                8,
+                [
+                    Phi(
+                        rbx[5],
+                        rbx[0:5],
+                        {},
+                    ),
+                    Return([rbx[5]]),
+                ],
+            ),
+        ]
+    )
+    cfg.add_edges_from(
+        [
+            TrueCase(vertices[0], vertices[1]),
+            FalseCase(vertices[0], vertices[2]),
+            SwitchCase(vertices[2], vertices[3], [Constant(3)]),
+            SwitchCase(vertices[2], vertices[4], [Constant(4)]),
+            SwitchCase(vertices[2], vertices[5], [Constant(0)]),
+            SwitchCase(vertices[2], vertices[6], [Constant(1)]),
+            SwitchCase(vertices[2], vertices[7], [Constant(2)]),
+            UnconditionalEdge(vertices[3], vertices[8]),
+            UnconditionalEdge(vertices[4], vertices[8]),
+            UnconditionalEdge(vertices[5], vertices[8]),
+            UnconditionalEdge(vertices[6], vertices[8]),
+            UnconditionalEdge(vertices[7], vertices[8]),
+        ]
+    )
+    task = MockTask(cfg)
+    svd = SwitchVariableDetection()
+    svd.run(task)
+    assert vertices[2].instructions[-1] == IndirectBranch(rax1)
+    assert svd.find_switch_expression(switch) == rax1
