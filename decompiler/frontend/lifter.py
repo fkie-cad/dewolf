@@ -24,7 +24,7 @@ class ObserverLifter(Lifter):
 
     def lift(self, expression: T, **kwargs) -> V:
         """Lift the given expression based on the registered handlers."""
-        handler = self.HANDLERS.get(type(expression), self.lift_unknown)
+        handler = self.HANDLERS.get(expression.__class__, self.lift_unknown)
         return handler(expression)
 
     @abstractmethod
