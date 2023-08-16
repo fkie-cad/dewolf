@@ -379,6 +379,8 @@ class UnaryOperation(Operation):
 class BinaryOperation(Operation):
     """Class representing operations with two operands."""
 
+    __match_args__ = ("operation", "left", "right")
+
     def __str__(self) -> str:
         """Return a string representation with infix notation."""
         str_left = f"({self.left})" if isinstance(self.left, Operation) else f"{self.left}"

@@ -3,7 +3,8 @@ from typing import Any, List, Optional, Tuple
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.pseudo import Constant, Expression
-from decompiler.structures.pseudo.instructions import Branch
+from decompiler.structures.pseudo.expressions import Variable
+from decompiler.structures.pseudo.instructions import Branch, Instruction
 from decompiler.structures.pseudo.operations import BinaryOperation, Condition, OperationType
 from decompiler.task import DecompilerTask
 from decompiler.util.decoration import DecoratedCFG
@@ -21,7 +22,8 @@ class BitFieldComparisonUnrolling(PipelineStage):
     if ( amount == 1 || amount == 3 || amount == 4 ) { ... }
 
     This can subsequently be used to reconstruct switch-case statements.
-    Requires expression-propagation PipelineStage, such that bit-shift
+
+    This stage requires expression-propagation PipelineStage, such that bit-shift
     gets forwarded into Branch.condition:
 
     if ( (1 << amount) & bit_mask) == 0) ) { ... }
@@ -33,46 +35,63 @@ class BitFieldComparisonUnrolling(PipelineStage):
     def run(self, task: DecompilerTask):
         """Run the pipeline stage: Check all viable Branch-instructions."""
         for instr in task.graph.instructions:
-            if isinstance(instr, Branch):
-                replacement = self._unroll_condition(instr.condition)
-                if replacement:
-                    instr.substitute(instr.condition, replacement)
-        DecoratedCFG.show_flowgraph(task.graph, "CFG after unrolling")  # TODO for debugging
+            if (replacement := self._handle_bit_field_instruction(instr)) is not None:
+                task.graph.substitute_expression(instr, replacement)
 
-    def _unroll_condition(self, cond: Condition) -> Optional[Condition]:
-        """Handle the following case of Condition: ((var & bit_field) == 0)"""
-        if cond.is_equality_with_constant_check():
-            if (operands := self._left_or_right(cond, Constant)) is not None:
-                expr, const = operands
-                if const.value == 0x0:
-                    return self._get_unrolled_condition(expr)
-        return None
-
-    def _get_unrolled_condition(self, expr: Expression) -> Optional[Condition]:
-        """
-        Unroll bit-field to ORed integer comparisions.
-        Assume Expression is of the form ((1 << (cast)var) & 0xffffffff)) & bit_field_constant)
-        """
-        if isinstance(expr, BinaryOperation) and expr.operation == OperationType.bitwise_and:
-            operands = self._left_or_right(expr, Constant)
-            if operands is None:
-                return None
-            sub_expression, bit_field_constant = operands
-            values = self._bitmask_values(bit_field_constant)
-            var = self._get_bitshift_variable(sub_expression)
-            if not values or not var:
-                return None
-            comparisons = [Condition(OperationType.equal, [var, Constant(val)]) for val in values]
+    def _handle_bit_field_instruction(self, instr: Instruction) -> Optional[Instruction]:
+        if (subexpr := self._get_subexpression_for_unrolling(instr)) is not None:
+            switch_var, cases = self._unfold_expression(subexpr)
+            print("switch_var", switch_var)
+            for case in cases:
+                print("case", case)
+            comparisons = [Condition(OperationType.equal, [switch_var, Constant(value)]) for value in cases]
             # TODO why cant I do this:
             # unrolled = Condition(OperationType.logical_or, comparisons)
             # this looks stupid:
-            unrolled = Condition(OperationType.logical_or, [comparisons[0], comparisons[1]])
-            for comp in comparisons[2:]:
-                unrolled = Condition(OperationType.logical_or, [unrolled, comp])
-            return unrolled
+            replacement = Branch(condition=Condition(OperationType.logical_or, [comparisons[0], comparisons[1]]))
+            # unrolled = Condition(OperationType.logical_or, [comparisons[0], comparisons[1]])
+            # for comp in comparisons[2:]:
+            #     unrolled = Condition(OperationType.logical_or, [unrolled, comp])
+            # return unrolled
+            return replacement
         return None
 
-    def _bitmask_values(self, const: Constant) -> List[int]:
+    def _get_subexpression_for_unrolling(self, instr: Instruction):
+        match instr:
+            case Branch(condition=Condition(OperationType.equal, subexpr, Constant(value=0x0))):
+                return subexpr
+            case _:
+                return None
+
+    def _unfold_expression(self, subexpr: Expression) -> Tuple[Any, List[int]]:
+        switch_var, bit_field = self._get_switch_var_and_bitfield(subexpr)
+        if bit_field is not None:
+            return switch_var, self._get_values(bit_field)
+        return None, []
+
+    def _get_switch_var_and_bitfield(self, subexpr: Expression) -> Tuple[Any, Optional[Constant]]:
+        """
+        Match expression of folded switch case: 
+            ((1 << (cast)var) & 0xffffffff)) & bit_field_constant)
+        """
+        match subexpr:
+            case BinaryOperation(
+                OperationType.bitwise_and,
+                BinaryOperation(
+                    OperationType.bitwise_and, 
+                    BinaryOperation(
+                        OperationType.left_shift, 
+                        Constant(value=1), 
+                        switch_var), 
+                    Constant()
+                ),
+                Constant() as bit_field,
+            ):
+                return switch_var, bit_field
+            case _:
+                return None, None
+
+    def _get_values(self, const: Constant) -> List[int]:
         """Return positions of set bits from integer Constant"""
         bitmask = const.value
         values = []
@@ -84,29 +103,3 @@ class BitFieldComparisonUnrolling(PipelineStage):
                 values.append(pos)
         return values
 
-    def _get_bitshift_variable(self, expr: Expression) -> Optional[Expression]:
-        """
-        From Expression ( (1 << (cast)var) & 0xffffffff) ) extract var.
-        Note: var might not be of type Variable, but rather UnaryOperation with cast.
-        """
-        if not isinstance(expr, BinaryOperation):
-            return None
-        # find and ignore ... & 0xffffffff
-        if expr.operation == OperationType.bitwise_and and (operands := self._left_or_right(expr, Constant)) is not None:
-            sub_expression, bit_mask_constant = operands
-            if isinstance(sub_expression, BinaryOperation) and bit_mask_constant.value == 0xFFFFFFFF:
-                # find bit-shift of 0x1
-                if sub_expression.operation == OperationType.left_shift:
-                    if isinstance(sub_expression.left, Constant) and sub_expression.left.value == 0x1:
-                        return sub_expression.right
-        return None
-
-    def _left_or_right(self, bin_op: BinaryOperation, target_type_rhs: Any) -> Optional[Tuple]:
-        """
-        For BinaryOperation `a op b` return operands in canonical order: Expected type on right hand side.
-        """
-        if isinstance(bin_op.right, target_type_rhs):
-            return bin_op.left, bin_op.right
-        if isinstance(bin_op.left, target_type_rhs):
-            return bin_op.right, bin_op.left
-        return None
