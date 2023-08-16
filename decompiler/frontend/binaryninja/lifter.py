@@ -24,7 +24,7 @@ class BinaryninjaLifter(ObserverLifter):
 
     def lift(self, expression: MediumLevelILInstruction, **kwargs) -> Optional[DataflowObject]:
         """Lift the given Binaryninja instruction to an expression."""
-        handler = self.HANDLERS.get(type(expression), self.lift_unknown)
+        handler = self.HANDLERS.get(expression.__class__, self.lift_unknown)
         if pseudo_expression := handler(expression, **kwargs):
             if isinstance(expression, MediumLevelILInstruction):
                 pseudo_expression.tags = self.lift_tags(expression)
