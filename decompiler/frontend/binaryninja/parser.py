@@ -2,7 +2,15 @@
 from logging import info, warning
 from typing import Dict, Iterator, List
 
-from binaryninja import BranchType, Function, MediumLevelILBasicBlock, MediumLevelILInstruction, MediumLevelILJumpTo, RegisterValueType
+from binaryninja import (
+    BranchType,
+    Function,
+    MediumLevelILBasicBlock,
+    MediumLevelILConstPtr,
+    MediumLevelILInstruction,
+    MediumLevelILJumpTo,
+    RegisterValueType,
+)
 from decompiler.frontend.lifter import Lifter
 from decompiler.frontend.parser import Parser
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, IndirectEdge, SwitchCase, TrueCase, UnconditionalEdge
@@ -40,8 +48,13 @@ class BinaryninjaParser(Parser):
 
     def _add_basic_block_edges(self, cfg: ControlFlowGraph, vertices: dict, basic_block: MediumLevelILBasicBlock) -> None:
         """Add all outgoing edges of the given basic block to the given cfg."""
+        if self._can_convert_single_outedge_to_unconditional(basic_block):
+            vertices[basic_block.index].remove_instruction(-1)  # change block condition by removing last jump instruction
+            # add unconditional edge:
+            edge = basic_block.outgoing_edges[0]
+            cfg.add_edge(UnconditionalEdge(vertices[edge.source.index], vertices[edge.target.index]))
         # check if the block ends with a switch statement
-        if lookup_table := self._get_lookup_table(basic_block):
+        elif lookup_table := self._get_lookup_table(basic_block):
             for edge in basic_block.outgoing_edges:
                 cfg.add_edge(
                     SwitchCase(
@@ -55,16 +68,36 @@ class BinaryninjaParser(Parser):
                 edgeclass = self.EDGES.get(edge.type)
                 cfg.add_edge(edgeclass(vertices[edge.source.index], vertices[edge.target.index]))
 
+    def _can_convert_single_outedge_to_unconditional(self, block: MediumLevelILBasicBlock) -> bool:
+        """
+        Check if last block instruction is of type `jmp const ptr`
+        """
+        if len(block.outgoing_edges) != 1 or not len(block):
+            return False
+        out_edge = block.outgoing_edges[0]
+        jmp_instr = block[-1]
+        return (
+            isinstance(jmp_instr, MediumLevelILJumpTo)
+            and isinstance(jmp_instr.dest, MediumLevelILConstPtr)
+            and jmp_instr.dest.constant == out_edge.target.source_block.start
+        )
+
+    def _craft_lookup_table(self, block: MediumLevelILBasicBlock) -> Dict[int, List[Constant]]:
+        """
+        Build a lookup table for use in SwitchCase edges.
+        """
+        return {edge.target.source_block.start: [Constant(i)] for i, edge in enumerate(block.outgoing_edges)}
+
     def _get_lookup_table(self, block: MediumLevelILBasicBlock) -> Dict[int, List[Constant]]:
         """Extract the lookup table from ninja to annotate the edges."""
-        # check if the last instruction of the block got multiple targets
+        # check if the last instruction of the block is a jump
         if not len(block) or not isinstance(block[-1], MediumLevelILJumpTo):
             return {}
         # check if binaryninja found a lookup table here
         possible_values = block[-1].dest.possible_values
         if possible_values.type != RegisterValueType.LookupTableValue:
             warning(f"Found indirect jump without lookup table at {block.source_block.end}")
-            return {edge.target.source_block.start: [Constant(i)] for i, edge in enumerate(block.outgoing_edges)}
+            return self._craft_lookup_table(block)
         # reverse the returned mapping so we can work more efficiently
         lookup: Dict[int, List[Constant]] = {target: [] for target in set(possible_values.mapping.values())}
         for value, target in possible_values.mapping.items():
