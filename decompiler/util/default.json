@@ -121,7 +121,7 @@
             },
             {
                 "dest": "instruction-length-handler.max_assignment_complexity",
-                "default": 10,
+                "default": 1,
                 "title": "maximum assignment complexity",
                 "type": "number",
                 "description": "Assignments with a complexity above this threshold will be simplified.",

@@ -1,20 +1,11 @@
-import re
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import List, Optional, Set
+from typing import List, Set
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.pseudo import CustomType, Float, GlobalVariable, Integer, Pointer, Type, Variable
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask
-
-
-
-def _get_var_counter(var_name: str) -> Optional[str]:
-    """Return the counter of a given variable name, if any is present."""
-    if counter := re.match(r".*?([0-9]+)$", var_name):
-        return counter.group(1)
-    return None
 
 
 class VariableCollector(BaseAstDataflowObjectVisitor):
@@ -61,8 +52,12 @@ class RenamingScheme(ABC):
 
     def renameVariables(self):
         """Rename all collected variables with a naming scheme."""
+        names: dict[Variable, Variable] = {}
         for var in self._variables:
+            names[var] = var.copy(self.getVariableName(var))
             self._ast.replace_variable_in_subtree(self._ast.root, var, Variable(self.getVariableName(var), var.type, is_aliased=var.is_aliased, ssa_name=var.ssa_name))
+
+        pass # Instead of updating the tree every time, update via dictionary at the end
 
 
     @abstractmethod
@@ -86,26 +81,30 @@ class HungarianScheme(RenamingScheme):
         self._pointer_base: bool = task.options.getboolean(f"{self._name}.pointer_base", fallback=True)
         self._type_separator: str = task.options.getstring(f"{self._name}.type_separator", fallback="")
         self._counter_separator: str = task.options.getstring(f"{self._name}.counter_separator", fallback="")
-        self._variable_counter_dic: dict[Variable, Integer] = {}
+        self._variable_counter: dict[Variable, Integer] = {}
         self._counter: Integer = 0
             
 
     def _get_counter(self, var: Variable) -> Integer:
         """Look up if variable already has a counter, if not assign new one"""
-        if var not in self._variable_counter_dic:
-            self._variable_counter_dic[var] = self._counter
+        if var not in self._variable_counter: # If the set _really_ works, then it's enough to just return a increasing number
+            self._variable_counter[var] = self._counter
             self._counter += 1      
-        return self._variable_counter_dic[var]
+        return self._variable_counter[var]
 
 
     def _get_name_identifier(self, name: str) -> str:
-        """Return identifier for hungarian notation."""
-        return "Var"
+        """Return identifier by purging non alpha chars + capitalize the string."""
+        return "".join(filter(str.isalpha, name)).capitalize()
 
 
     def getVariableName(self, var: Variable) -> str:
-        """Return hungarian notation to a given variable."""
-        return f"{self._hungarian_prefix(var.type)}{self._type_separator}{self._get_name_identifier(var._name)}{self._counter_separator}{self._get_counter(var.name)}"
+        """Return hungarian notation to a given variable. If no prefix exists, make the first char lower case."""
+        newName = self._get_name_identifier(var._name)
+        if (prefix := self._hungarian_prefix(var.type)):
+            return f"{prefix}{self._type_separator}{newName}{self._counter_separator}{self._get_counter(var.name)}"
+        newName = newName[0].lower() + newName[1:]
+        return f"{newName}{self._counter_separator}{self._get_counter(var.name)}"
 
     def _hungarian_prefix(self, var_type: Type) -> str:
         """Return hungarian prefix to a given variable type."""
