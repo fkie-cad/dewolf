@@ -60,8 +60,7 @@ def _run_vng(ast: AbstractSyntaxTree, options: Options = _generate_options()):
 
 
 def test_default_notation_1():
-    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
-    ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", I32), Constant(0)), true_value), {})
+    ast = AbstractSyntaxTree(CodeNode(Assignment(var := Variable("var_0", I32), Constant(0)), LogicCondition.initialize_true(LogicCondition.generate_new_context())), {})
     _run_vng(ast, _generate_options(notation="default"))
     assert var.name == "var_0"
 
@@ -75,8 +74,7 @@ def test_hungarian_notation(variable, name):
     node = CodeNode([Assignment(variable, Constant(42))], LogicCondition.initialize_true(LogicCondition.generate_new_context()))
     ast = AbstractSyntaxTree(node, {})
     _run_vng(ast)
-    for instr in node.instructions:
-        assert instr.destination.name == name
+    assert node.instructions[0].destination.name == name
 
 
 @pytest.mark.parametrize("type_sep, counter_sep", [("", ""), ("_", "_")])
@@ -92,8 +90,7 @@ def test_custom_type():
     node = CodeNode([Assignment(Variable("var_0", CustomType("size_t", 64)), Constant(0))], LogicCondition.initialize_true(LogicCondition.generate_new_context()))
     ast = AbstractSyntaxTree(node, {})
     _run_vng(ast, _generate_options())
-    for instr in node.instructions:
-        assert instr.destination.name == "Var0"
+    assert node.instructions[0].destination.name == "Var0"
 
 
 def test_bninja_invalid_type():
@@ -105,12 +102,10 @@ def test_bninja_invalid_type():
 
 
 def test_tmp_variable():
-    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
-    node = CodeNode([Assignment(Variable("tmp_42", Float(64)), Constant(0))], true_value)
+    node = CodeNode([Assignment(Variable("tmp_42", Float(64)), Constant(0))], LogicCondition.initialize_true(LogicCondition.generate_new_context()))
     ast = AbstractSyntaxTree(node, {})
     _run_vng(ast, _generate_options())
-    for instr in node.instructions:
-        assert instr.destination.name == "dVar0"
+    assert node.instructions[0].destination.name == "dTmp0"
 
 
 def test_same_variable():
@@ -121,16 +116,21 @@ def test_same_variable():
         Assignment(var1, Constant(0))], LogicCondition.initialize_true(LogicCondition.generate_new_context()))
     ast = AbstractSyntaxTree(node, {})
     _run_vng(ast, _generate_options())
-    for instr in node.instructions:
-        assert instr.destination.name == "dVar0"
+    assert node.instructions[0].destination.name == "dTmp0"
 
 def test_same_variable_idx():
     """Variables with the same counter should not be renamed into the same thing"""
-    true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
     var1 = Variable("x_1", Integer.int32_t())
     var2 = Variable("y_1", Integer.int32_t())
-    ast = AbstractSyntaxTree(CodeNode([
+    node = CodeNode([
         Assignment(var1, Constant(0)),
-        Assignment(var2, Constant(0))], true_value), {})
+        Assignment(var2, Constant(0))], LogicCondition.initialize_true(LogicCondition.generate_new_context()))
+    ast = AbstractSyntaxTree(node, {})
     _run_vng(ast, _generate_options())
-    assert var1._name != var2._name
+    assert node.instructions[0].destination.name != node.instructions[1].destination.name
+
+def test_different_custom_names_1():
+    node = CodeNode([Assignment(Variable("loop_break", Float(64)), Constant(0))], LogicCondition.initialize_true(LogicCondition.generate_new_context()))
+    ast = AbstractSyntaxTree(node, {})
+    _run_vng(ast, _generate_options())
+    assert node.instructions[0].destination.name == "dLoopbreak0"
