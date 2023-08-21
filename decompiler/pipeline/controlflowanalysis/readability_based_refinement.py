@@ -284,7 +284,7 @@ class WhileLoopReplacer:
 
         for loop_node in list(self._ast.get_while_loop_nodes_topological_order()):
             if loop_node.is_endless_loop or (not self._keep_empty_for_loops and _is_single_instruction_loop_node(loop_node)) \
-            or self._invalid_simple_for_loop_condition_type(loop_node.condition):
+            or self._invalid_simple_for_loop_condition_type(loop_node.condition) or loop_node.body.does_contain_continue:
                 continue
 
             if not self._force_for_loops and loop_node.condition.get_complexity(self._ast.condition_map) > self._condition_max_complexity:
