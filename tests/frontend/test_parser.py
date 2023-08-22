@@ -1,12 +1,13 @@
 from collections import namedtuple
-from typing import Iterator, List
-from unittest.mock import Mock
+from typing import Any, Iterator, List
+from unittest.mock import Mock, NonCallableMock
 
 import pytest
 from binaryninja import (
     BranchType,
     Function,
     MediumLevelILBasicBlock,
+    MediumLevelILConstPtr,
     MediumLevelILInstruction,
     MediumLevelILJumpTo,
     PossibleValueSet,
@@ -15,6 +16,7 @@ from binaryninja import (
 )
 from decompiler.frontend.binaryninja.lifter import BinaryninjaLifter
 from decompiler.frontend.binaryninja.parser import BinaryninjaParser
+from decompiler.structures.graphs.branches import UnconditionalEdge
 from decompiler.structures.graphs.cfg import BasicBlockEdgeCondition
 from decompiler.structures.pseudo.expressions import Constant
 
@@ -33,14 +35,20 @@ class MockEdge:
         self.type = _type
 
 
-class MockBlock(MediumLevelILBasicBlock):
+class MockBlock(Mock):
     """Mock object representing a binaryninja MediumLevelILBasicBlock."""
 
     def __init__(self, index: int, edges: List[MockEdge], instructions: List[MediumLevelILInstruction] = None):
         """Create a basic block with the given index, instructions and edges."""
+        super().__init__(spec=MediumLevelILBasicBlock)
         self._index = index
         self._instructions = instructions if instructions else list()
         self._edges = edges
+        self.source_block = self
+
+    def _get_child_mock(self, **kw: Any) -> NonCallableMock:
+        """Child mocks should not be of type MockBlock."""
+        return Mock()._get_child_mock(**kw)
 
     @property
     def index(self) -> int:
@@ -48,9 +56,9 @@ class MockBlock(MediumLevelILBasicBlock):
         return self._index
 
     @property
-    def outgoing_edges(self) -> Iterator[MockEdge]:
-        """Ierate all outgoing edges."""
-        return iter(self._edges)
+    def outgoing_edges(self) -> List[MockEdge]:
+        """List all outgoing edges."""
+        return list(self._edges)
 
     def __iter__(self) -> Iterator[MediumLevelILInstruction]:
         """Iterate all instructions in the BasicBlock."""
@@ -70,8 +78,28 @@ class MockBlock(MediumLevelILBasicBlock):
 
 
 class MockView:
+    endianness = 0
+    sections = {}
+    address_size = 32
+
     def update_analysis_and_wait(self):
         pass
+
+    def get_tags_at(self, _):
+        """Do not lift tags. Needed to lift mock instructions that do not set .function to None"""
+        return list()
+
+    def get_data_var_at(self, _):
+        """Do not lift constant pointer as data variable."""
+        return None
+
+    def get_symbol_at(self, _):
+        """Do not lift constant pointer as symbol."""
+        return None
+
+    def get_function_at(self, _):
+        """Do not lift constant pointer as function."""
+        return None
 
 
 class MockFunction(Function):
@@ -82,6 +110,8 @@ class MockFunction(Function):
         self._blocks = blocks
         self._view = MockView()
         self._arch = "test"
+        self.source_function = self
+        self.handle = Mock()
 
     @property
     def medium_level_il(self) -> "MockFunction":
@@ -114,6 +144,19 @@ class MockSwitch(Mock):
         self.dest.possible_values = Mock(spec=PossibleValueSet)
         self.dest.possible_values.type = RegisterValueType.LookupTableValue
         self.dest.possible_values.mapping = mapping
+
+
+class MockFixedJump(Mock):
+    """Mock object representing a constant jump."""
+
+    def __init__(self, address: int):
+        """Create new MediumLevelILJumpTo object"""
+        super().__init__(spec=MediumLevelILJumpTo)
+        self.ssa_memory_version = 0
+        self.function = None  # prevents lifting of tags
+        self.dest = Mock(spec=MediumLevelILConstPtr)
+        self.dest.constant = address
+        self.dest.function = MockFunction([])  # need .function.view to lift
 
 
 @pytest.fixture
@@ -214,3 +257,39 @@ def test_loop(parser):
     assert [v.name for v in cfg.nodes] == [0, 1, 2, 3]
     assert [(edge.source.address, edge.sink.address) for edge in cfg.edges] == [(0, 1), (1, 2), (2, 1), (2, 3)]
     assert len(list(cfg.instructions)) == 0
+
+
+def test_convert_indirect_edge_to_unconditional(parser):
+    """Unconditional jump to constant address."""
+    jmp_instr = MockFixedJump(42)
+    function = MockFunction(
+        [
+            block := MockBlock(0, [MockEdge(0, 42, BranchType.IndirectBranch)], instructions=[jmp_instr]),
+            MockBlock(42, []),
+        ]
+    )
+    assert parser._can_convert_single_outedge_to_unconditional(block)
+    cfg = parser.parse(function)  # need to mock everything the lifter needs...
+    assert [v.name for v in cfg.nodes] == [0, 42]
+    cfg_edge = cfg.edges[0]
+    assert (cfg_edge.source.address, cfg_edge.sink.address) == (0, 42)
+    assert isinstance(cfg_edge, UnconditionalEdge)
+    assert len(list(cfg.instructions)) == 0
+
+
+def test_convert_indirect_edge_to_unconditional_no_valid_edge(parser):
+    """Unconditional jump to constant address, but jump addresses do not match."""
+    jmp_instr = MockFixedJump(12)
+    function = MockFunction(
+        [
+            block := MockBlock(0, [MockEdge(0, 42, BranchType.IndirectBranch)], instructions=[jmp_instr]),
+            MockBlock(42, []),
+        ]
+    )
+    assert not parser._can_convert_single_outedge_to_unconditional(block)
+    cfg = parser.parse(function)  # need to mock everything the lifter needs...
+    assert [v.name for v in cfg.nodes] == [0, 42]
+    cfg_edge = cfg.edges[0]
+    assert (cfg_edge.source.address, cfg_edge.sink.address) == (0, 42)
+    assert not isinstance(cfg_edge, UnconditionalEdge)
+    assert len(list(cfg.instructions)) == 1
