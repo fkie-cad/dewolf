@@ -6,7 +6,6 @@ from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, I
 from decompiler.structures.pseudo.instructions import Assignment, Branch, IndirectBranch, Phi, Return
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer
-from decompiler.util.decoration import DecoratedCFG
 
 arg, eax, ebx = (lambda x, name=name: Variable(name, Integer.int32_t(), ssa_label=x) for name in ["arg", "eax", "ebx"])
 const = lambda value: Constant(value, Integer.int32_t())
@@ -243,7 +242,6 @@ class TestSwitchVariableDetection:
             ]
         )
         svd = SwitchVariableDetection()
-        DecoratedCFG.print_ascii(cfg)
         svd.run(MockTask(cfg))
         assert svd.find_switch_expression(switch) == y0
 

@@ -80,7 +80,7 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
         - iterate through the basic blocks
         - on switch block found:
             - track the variable in indirect jump backwards until it matches a replacement criterion:
-                a) defined in simple assignment Var1 = Var2
+                a) defined in copy assignment Var1 = Var2
                 b) is used in an Assignment with RHS being Condition solely requiring `variable`
                 c) is used in Branch with single requirement
                 d) if any predecessors of `variable` are used as dereferences in branches
@@ -145,9 +145,9 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
             )
         return False
 
-    def _is_simply_assigned(self, value: Variable) -> bool:
+    def _is_copy_assigned(self, value: Variable) -> bool:
         """
-        Check if variable is defined in simple assignment of the form Var1 = Var2.
+        Check if variable is defined in copy assignment of the form Var1 = Var2.
         """
         if definition := self._def_map.get(value):
             return isinstance(definition.value, Variable)
@@ -159,7 +159,7 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
         """
         return any(
             [
-                self._is_simply_assigned(value),
+                self._is_copy_assigned(value),
                 self._is_used_in_condition_assignment(value),
                 self._is_used_in_branch(value),
                 self._is_predecessor_dereferenced_in_branch(value),
