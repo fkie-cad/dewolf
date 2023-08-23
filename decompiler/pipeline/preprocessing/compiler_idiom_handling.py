@@ -1,11 +1,11 @@
 """Module for handling compiler idioms that have already been marked in BinaryNinja"""
 import logging
 from dataclasses import dataclass
-from typing import Iterable, List, Optional
+from typing import List, Optional
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.pseudo.expressions import Constant, Tag, Variable
-from decompiler.structures.pseudo.instructions import Assignment, Instruction
+from decompiler.structures.pseudo.instructions import Assignment, Instruction, Branch
 from decompiler.structures.pseudo.operations import BinaryOperation, OperationType
 from decompiler.structures.pseudo.typing import Integer
 from decompiler.task import DecompilerTask
@@ -23,10 +23,10 @@ class TaggedIdiom:
 class CompilerIdiomHandling(PipelineStage):
     """
     The CompilerIdiomHandling replaces instructions that have been marked as compiler idioms in BinaryNinja by the respective high level instruction.
-    Basically, for a consecutive sequence of instructions with the identical tag (starting with "compiler_idiom: "), the last intruction will be replaced.
+    Basically, for a consecutive sequence of instructions with the identical tag (starting with "compiler_idiom: "), the last instruction will be replaced.
     This stage itself does not recognize nor tag instructions as compiler idiom.
 
-    See https://gitlab.fkie.fraunhofer.de/mariia.rybalka/compiler-idioms-paper for more details.
+    See https://github.com/fkie-cad/dewolf-idioms for more details.
     """
 
     name = "compiler-idiom-handling"
@@ -82,11 +82,11 @@ class CompilerIdiomHandling(PipelineStage):
     ) -> Optional[Assignment]:
         """
         Create the assignment instruction to replace the compiler idiom with.
-        Return None if no constant could be extracted from tag or unable to find dividend variable
+        Return None if no constant could be extracted from tag or unable to find dividend variable or last instruction is branch
         """
         var = self._get_variable_from_first_instruction(instructions[first_index], tag)
         const = self._get_constant_from_tag(tag)
-        if not var or not const:
+        if not var or not const or isinstance(instructions[last_index], Branch):
             return None
         operation_type = self._get_operation_type_from_tag(tag)
         return Assignment(instructions[last_index].destination, BinaryOperation(operation_type, [var, const]))
