@@ -94,7 +94,9 @@ class HungarianScheme(RenamingScheme):
 
 
     def _get_name_identifier(self, name: str) -> str:
-        """Return identifier by purging non alpha chars + capitalize the string."""
+        """Return identifier by purging non alpha chars + capitalize the string. If string is too short, return generic"""
+        if len(name) < 2:
+            return "Var"
         return "".join(filter(str.isalpha, name)).capitalize()
 
 
