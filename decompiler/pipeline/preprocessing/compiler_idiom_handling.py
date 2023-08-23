@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.pseudo.expressions import Constant, Tag, Variable
-from decompiler.structures.pseudo.instructions import Assignment, Instruction, Branch
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Instruction
 from decompiler.structures.pseudo.operations import BinaryOperation, OperationType
 from decompiler.structures.pseudo.typing import Integer
 from decompiler.task import DecompilerTask
