@@ -192,6 +192,10 @@ class AbstractSyntaxTreeNode(BaseAbstractSyntaxTreeNode, ABC):
         """Replaces each occurrence of the given variable replacee by the variable replacement in the given AST-node."""
         pass
 
+    def replace_variables(self, replacement_dictionary: dict[Variable, Variable]) -> None:
+        for replacee, replacement in replacement_dictionary.items():
+            self.replace_variable(replacee, replacement)
+
     def get_possible_case_candidate_condition(self) -> Optional[LogicCondition]:
         """Returns the reaching condition of a node if it is a possible case node of a switch node."""
         if not self.reaching_condition.is_true:
