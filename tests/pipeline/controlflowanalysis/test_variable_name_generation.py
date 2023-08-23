@@ -90,7 +90,7 @@ def test_custom_type():
     node = CodeNode([Assignment(Variable("var_0", CustomType("size_t", 64)), Constant(0))], LogicCondition.initialize_true(LogicCondition.generate_new_context()))
     ast = AbstractSyntaxTree(node, {})
     _run_vng(ast, _generate_options())
-    assert node.instructions[0].destination.name == "Var0"
+    assert node.instructions[0].destination.name == "var0" # if there is no type, the first char should be lower 
 
 
 def test_bninja_invalid_type():
@@ -99,13 +99,6 @@ def test_bninja_invalid_type():
     _run_vng(ast, _generate_options())
     for instr in node.instructions:
         assert instr.destination.name == "unkVar0"
-
-
-def test_tmp_variable():
-    node = CodeNode([Assignment(Variable("tmp_42", Float(64)), Constant(0))], LogicCondition.initialize_true(LogicCondition.generate_new_context()))
-    ast = AbstractSyntaxTree(node, {})
-    _run_vng(ast, _generate_options())
-    assert node.instructions[0].destination.name == "dTmp0"
 
 
 def test_same_variable():
@@ -128,6 +121,12 @@ def test_same_variable_idx():
     ast = AbstractSyntaxTree(node, {})
     _run_vng(ast, _generate_options())
     assert node.instructions[0].destination.name != node.instructions[1].destination.name
+
+def test_different_custom_names_0():
+    node = CodeNode([Assignment(Variable("tmp_42", Float(64)), Constant(0))], LogicCondition.initialize_true(LogicCondition.generate_new_context()))
+    ast = AbstractSyntaxTree(node, {})
+    _run_vng(ast, _generate_options())
+    assert node.instructions[0].destination.name == "dTmp0"
 
 def test_different_custom_names_1():
     node = CodeNode([Assignment(Variable("loop_break", Float(64)), Constant(0))], LogicCondition.initialize_true(LogicCondition.generate_new_context()))
