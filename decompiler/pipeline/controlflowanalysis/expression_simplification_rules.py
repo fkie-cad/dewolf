@@ -2,7 +2,22 @@ import logging
 from abc import ABC, abstractmethod
 
 from decompiler.backend.cexpressiongenerator import CExpressionGenerator
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.collapse_add_neg import CollapseAddNeg
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.collapse_constants import CollapseConstants
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.collect_terms import CollectTerms
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.fix_add_sub_sign import FixAddSubSign
 from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.rule import SimplificationRule
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.simplify_redundant_reference import SimplifyRedundantReference
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.simplify_trivial_arithmetic import SimplifyTrivialArithmetic
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.simplify_trivial_bit_arithmetic import (
+    SimplifyTrivialBitArithmetic,
+)
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.simplify_trivial_logic_arithmetic import (
+    SimplifyTrivialLogicArithmetic,
+)
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.simplify_trivial_shift import SimplifyTrivialShift
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.sub_to_add import SubToAdd
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.term_order import TermOrder
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.ast.ast_nodes import CodeNode
 from decompiler.structures.pseudo import Instruction, Operation
@@ -49,8 +64,21 @@ class ExpressionSimplificationRulesAst(_ExpressionSimplificationRulesBase):
 
 
 _pre_rules: list[SimplificationRule] = []
-_rules: list[SimplificationRule] = []
-_post_rules: list[SimplificationRule] = []
+_rules: list[SimplificationRule] = [
+    TermOrder(),
+    SubToAdd(),
+    SimplifyRedundantReference(),
+    SimplifyTrivialArithmetic(),
+    SimplifyTrivialBitArithmetic(),
+    SimplifyTrivialLogicArithmetic(),
+    SimplifyTrivialShift(),
+    CollapseConstants(),
+    CollectTerms(),
+]
+_post_rules: list[SimplificationRule] = [
+    CollapseAddNeg(),
+    FixAddSubSign()
+]
 
 
 def simplify_instructions(instructions: list[Instruction], max_iterations: int):
