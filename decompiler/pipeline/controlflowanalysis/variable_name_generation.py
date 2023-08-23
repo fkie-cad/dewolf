@@ -55,9 +55,8 @@ class RenamingScheme(ABC):
         names: dict[Variable, Variable] = {}
         for var in self._variables:
             names[var] = var.copy(self.getVariableName(var))
-            self._ast.replace_variable_in_subtree(self._ast.root, var, Variable(self.getVariableName(var), var.type, is_aliased=var.is_aliased, ssa_name=var.ssa_name))
 
-        pass # Instead of updating the tree every time, update via dictionary at the end
+        self._ast.replace_variables_in_subtree(self._ast.root, names)
 
 
     @abstractmethod
