@@ -18,8 +18,7 @@ from decompiler.structures.pseudo import (
     RegisterPair,
     UnaryOperation,
 )
-from decompiler.structures.pseudo.complextypes import Struct
-from decompiler.structures.pseudo.complextypes import Union
+from decompiler.structures.pseudo.complextypes import Struct, Union
 from decompiler.structures.pseudo.operations import MemberAccess
 
 

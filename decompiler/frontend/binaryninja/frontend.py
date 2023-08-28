@@ -7,12 +7,12 @@ from typing import List, Optional, Tuple, Union
 from binaryninja import BinaryView, Function, load
 from binaryninja.types import SymbolType
 from decompiler.structures.graphs.cfg import ControlFlowGraph
+from decompiler.structures.pseudo.complextypes import ComplexTypeMap
 from decompiler.structures.pseudo.expressions import Variable
 from decompiler.structures.pseudo.typing import Type
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
-from decompiler.structures.pseudo.complextypes import ComplexTypeMap
 from ..frontend import Frontend
 from .lifter import BinaryninjaLifter
 from .parser import BinaryninjaParser
