@@ -65,6 +65,7 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         OperationType.greater_or_equal_us: ">=",
         OperationType.dereference: "*",
         OperationType.address: "&",
+        OperationType.member_access: ".",
         # Handled in code
         # OperationType.cast: "cast",
         # OperationType.pointer: "point",
@@ -181,9 +182,8 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
     def visit_unary_operation(self, op: operations.UnaryOperation) -> str:
         """Return a string representation of the given unary operation (e.g. !a or &a)."""
         if isinstance(op, MemberAccess):
-            if isinstance(op.struct_variable.type, Pointer):
-                return f"{self.visit(op.struct_variable)}->{op.member_name}"
-            return f"{self.visit(op.struct_variable)}.{op.member_name}"
+            operator_str = "->" if isinstance(op.struct_variable.type, Pointer) else self.C_SYNTAX[op.operation]
+            return f"{self.visit(op.struct_variable)}{operator_str}{op.member_name}"
         operand = self._visit_bracketed(op.operand) if self._has_lower_precedence(op.operand, op) else self.visit(op.operand)
         if op.operation == OperationType.cast and op.contraction:
             return f"({int(op.type.size / 8)}: ){operand}"

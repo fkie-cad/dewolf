@@ -36,9 +36,10 @@ class BinaryninjaParser(Parser):
         self._lifter = lifter
         self._unlifted_instructions: List[MediumLevelILInstruction] = []
         self._report_threshold = int(report_threshold)
+        self._complex_types = None
 
-    def parse(self, function: Function) -> Tuple[ControlFlowGraph, ComplexTypeMap]:
-        """Generate a cfg and complex types from the given function."""
+    def parse(self, function: Function) -> ControlFlowGraph:
+        """Generate a cfg from the given function."""
         cfg = ControlFlowGraph()
         index_to_BasicBlock = dict()
         for basic_block in function.medium_level_il.ssa_form:
@@ -46,9 +47,14 @@ class BinaryninjaParser(Parser):
             cfg.add_node(index_to_BasicBlock[basic_block.index])
         for basic_block in function.medium_level_il.ssa_form:
             self._add_basic_block_edges(cfg, index_to_BasicBlock, basic_block)
-        complex_types = self._lifter.complex_types
+        self._complex_types = self._lifter.complex_types
         self._report_lifter_errors()
-        return cfg, complex_types
+        return cfg
+
+    @property
+    def complex_types(self) -> ComplexTypeMap:
+        """Return complex type map for the given function."""
+        return self._complex_types
 
     def _recover_switch_edge_cases(self, edge: BasicBlockEdge, lookup_table: dict):
         """

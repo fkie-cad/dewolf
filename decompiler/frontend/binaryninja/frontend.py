@@ -12,7 +12,7 @@ from decompiler.structures.pseudo.typing import Type
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
-from ...structures.pseudo.complextypes import ComplexTypeMap
+from decompiler.structures.pseudo.complextypes import ComplexTypeMap
 from ..frontend import Frontend
 from .lifter import BinaryninjaLifter
 from .parser import BinaryninjaParser
@@ -160,4 +160,4 @@ class BinaryninjaFrontend(Frontend):
         report_threshold = options.getint("lifter.report_threshold", fallback=3)
         no_masks = options.getboolean("lifter.no_bit_masks", fallback=True)
         parser = BinaryninjaParser(BinaryninjaLifter(no_masks, bv=function.view), report_threshold)
-        return parser.parse(function)
+        return parser.parse(function), parser.complex_types

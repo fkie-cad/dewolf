@@ -97,5 +97,5 @@ class DecompilerTask:
 
     @property
     def complex_types(self) -> ComplexTypeMap:
-        """Returns complex types present in the function (structs, unions, enums, etc.)."""
+        """Return complex types present in the function (structs, unions, enums, etc.)."""
         return self._complex_types

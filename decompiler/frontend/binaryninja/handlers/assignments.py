@@ -1,7 +1,6 @@
 """Module implementing the AssignmentHandler for binaryninja."""
 import logging
 from functools import partial
-from typing import Union
 
 import binaryninja
 from binaryninja import mediumlevelil
@@ -20,7 +19,7 @@ from decompiler.structures.pseudo import (
     UnaryOperation,
 )
 from decompiler.structures.pseudo.complextypes import Struct
-from decompiler.structures.pseudo.complextypes import Union as _Union
+from decompiler.structures.pseudo.complextypes import Union
 from decompiler.structures.pseudo.operations import MemberAccess
 
 
@@ -101,7 +100,7 @@ class AssignmentHandler(Handler):
         (x = ) <- for the sake of example, only rhs expression is lifted here.
         """
         source = self._lifter.lift(instruction.src, is_aliased=is_aliased, parent=instruction)
-        if isinstance(source.type, Struct) or isinstance(source.type, _Union):
+        if isinstance(source.type, Struct) or isinstance(source.type, Union):
             return self._get_field_as_member_access(instruction, source, **kwargs)
         cast_type = source.type.resize(instruction.size * self.BYTE_SIZE)
         if instruction.offset:
@@ -134,7 +133,7 @@ class AssignmentHandler(Handler):
             self._lifter.lift(assignment.src),
         )
 
-    def _lift_store_destination(self, store_assignment: mediumlevelil.MediumLevelILStoreSsa) -> Union[UnaryOperation, GlobalVariable]:
+    def _lift_store_destination(self, store_assignment: mediumlevelil.MediumLevelILStoreSsa) -> UnaryOperation | GlobalVariable:
         """
         Lift destination operand of store operation which is used for modelling both assignments of dereferences and global variables.
         """
