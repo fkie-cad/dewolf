@@ -55,18 +55,48 @@ class BinaryninjaParser(Parser):
             cfg.add_edge(UnconditionalEdge(vertices[edge.source.index], vertices[edge.target.index]))
         # check if the block ends with a switch statement
         elif lookup_table := self._get_lookup_table(basic_block):
+            print("LOOKUP", [(hex(key), val) for key, val in lookup_table.items()])
             for edge in basic_block.outgoing_edges:
+                # print(edge.target, [i for i in edge.target])
+                try:
+                    case_list = lookup_table[edge.target.source_block.start]
+                except KeyError:
+                    # fix lookup addresses
+                    addresses_from_successor_instructions = set()
+                    case_list = []
+                    successor = edge.target
+                    for i in successor:
+                        # print(i, type(i), i.dest, i.dest.constant)
+                        # print("i.dest", hex(i.dest))
+                        # edge_address_mapping[(e.source.index, e.target.index)] = i.dest
+                        addresses_from_successor_instructions.add(i.dest.constant)
+                        if i.dest.constant in lookup_table:
+                            print("found!!!", i.dest.constant, hex(i.dest.constant))
+                            case_list = lookup_table[i.dest.constant]
+                            print("new case list", case_list)
+                            # assert False, "always assing last one is wrong"
+                            # print("case list", case_list)
+                    # breakpoint() 
+                    print("intersection", set(lookup_table.keys()).intersection(addresses_from_successor_instructions))
+                    print("lookup values", lookup_table.values())
+                print("add edge", case_list)
                 cfg.add_edge(
                     SwitchCase(
                         vertices[edge.source.index],
                         vertices[edge.target.index],
-                        lookup_table[edge.target.source_block.start],
+                        case_list,
                     )
                 )
         else:
             for edge in basic_block.outgoing_edges:
                 edgeclass = self.EDGES.get(edge.type)
                 cfg.add_edge(edgeclass(vertices[edge.source.index], vertices[edge.target.index]))
+
+    def _get_successors(self, basic_block: MediumLevelILBasicBlock):
+        successors = set()
+        for edge in basic_block.outgoing_edges:
+            successors.add(edge.target)
+        return successors
 
     def _can_convert_single_outedge_to_unconditional(self, block: MediumLevelILBasicBlock) -> bool:
         """
@@ -82,6 +112,14 @@ class BinaryninjaParser(Parser):
             and jmp_instr.dest.constant == out_edge.target.source_block.start
         )
 
+    def _is_address_in_range(self, block: MediumLevelILBasicBlock, address: int):
+        if not block.function:
+            raise ValueError("can not get block.function")
+        for r in block.function.address_ranges:
+            if r.start <= address <= r.end:
+                return True
+        return False
+
     def _craft_lookup_table(self, block: MediumLevelILBasicBlock) -> Dict[int, List[Constant]]:
         """
         Build a lookup table for use in SwitchCase edges.
@@ -95,12 +133,19 @@ class BinaryninjaParser(Parser):
             return {}
         # check if binaryninja found a lookup table here
         possible_values = block[-1].dest.possible_values
+        # i = block[-1]
+        # breakpoint()
         if possible_values.type != RegisterValueType.LookupTableValue:
             warning(f"Found indirect jump without lookup table at {block.source_block.end}")
             return self._craft_lookup_table(block)
         # reverse the returned mapping so we can work more efficiently
+        print("poss", possible_values)
+        print("poss values", possible_values.mapping.values())
         lookup: Dict[int, List[Constant]] = {target: [] for target in set(possible_values.mapping.values())}
         for value, target in possible_values.mapping.items():
+            if not self._is_address_in_range(block, target):
+                # check if would raise key error. then fix by tailcall dest
+                print("NOT IN RANGE", hex(target))
             lookup[target] += [Constant(value)]
         return lookup
 
