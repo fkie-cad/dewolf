@@ -11,7 +11,7 @@ from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.pseudo.expressions import Expression, Variable
 from decompiler.structures.pseudo.instructions import BaseAssignment, Instruction
-from decompiler.structures.pseudo.typing import CustomType, Float, Integer, Pointer, Type, UnknownType
+from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer, Type, UnknownType
 from decompiler.task import DecompilerTask
 from networkx import DiGraph, Graph, connected_components
 
@@ -133,8 +133,8 @@ class TypePropagation(PipelineStage):
 
     @staticmethod
     def _is_non_primitive_type(type: Type) -> bool:
-        """Check if the given type is primitive, so ew can ignore it."""
-        if isinstance(type, Integer) and not isinstance(type, Float):
+        """Check if the given type is primitive, so we can ignore it."""
+        if isinstance(type, Integer):
             return False
         if isinstance(type, Pointer) and type.type == CustomType.void():
             return False

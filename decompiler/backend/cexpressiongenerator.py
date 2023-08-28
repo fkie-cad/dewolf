@@ -4,7 +4,7 @@ from itertools import chain, repeat
 from typing import Union
 
 from decompiler.structures import pseudo as expressions
-from decompiler.structures.pseudo import Float, Integer, OperationType, Pointer, StringSymbol
+from decompiler.structures.pseudo import Float, Integer, OperationType, StringSymbol
 from decompiler.structures.pseudo import instructions as instructions
 from decompiler.structures.pseudo import operations as operations
 from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInterface
@@ -158,7 +158,7 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
 
     def visit_constant(self, expr: expressions.Constant) -> str:
         """Return constant in a format that will be parsed correctly by a compiler."""
-        if isinstance(expr.type, Integer) and not isinstance(expr.type, (Float, Pointer)):
+        if isinstance(expr.type, Integer):
             value = self._get_integer_literal_value(expr)
             return self._format_integer_literal(expr.type, value)
         if isinstance(expr, StringSymbol):
@@ -186,8 +186,8 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         if op.operation == OperationType.cast:
             if op.type == op.operand.type:
                 return operand
-            elif isinstance(op.type, Integer) and isinstance(op.operand.type, Integer):
-                if isinstance(op.operand, expressions.Constant):
+            elif isinstance(op.operand, expressions.Constant):
+                if isinstance(op.type, Integer) and isinstance(op.operand.type, Integer):
                     value = self._get_integer_literal_value(op.operand)
                     eliminated_val = expressions.Constant(value, op.type)
                     try:
@@ -195,6 +195,8 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
                             return self.visit(eliminated_val)
                     except ValueError:
                         pass
+                elif isinstance(op.type, Float) and isinstance(op.operand.type, Float):
+                    return self.visit(op.operand)
             return f"({op.type}){operand}"
         return f"{self.C_SYNTAX[op.operation]}{operand}"
 
@@ -287,13 +289,11 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         """Return a string representation of a mem phi instruction. Only included for completeness."""
         return f"{instr}"
 
-    def _get_integer_literal_value(self, literal: expressions.Constant[Integer]) -> Union[float, int]:
+    def _get_integer_literal_value(self, literal: expressions.Constant) -> int:
         """
         Return the right integer value for the given type, assuming that the
         re-compilation host has the same sizes as the decompilation host.
         """
-        if isinstance(literal.type, Float):
-            return literal.value
         if literal.type.is_signed:
             if handler := self.SIGNED_FORMATS.get(literal.type.size, None):
                 return handler(literal.value)
