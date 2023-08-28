@@ -1,4 +1,3 @@
-from datetime import datetime
 from logging import debug, warning
 from typing import Any, List, Optional, Tuple
 
@@ -47,7 +46,7 @@ class BitFieldComparisonUnrolling(PipelineStage):
 
     def _modify_cfg(self, cfg: ControlFlowGraph, block: BasicBlock, switch_var: Variable, cases: List[int], is_negated_condition: bool):
         """
-        Create a nested if blocks for each case in unfolded values.
+        Create nested if blocks for each case in unfolded values.
         Note: with the Branch condition encountered so far (== 0x0), the node of the collected cases is adjacent to the FalseCase edge.
         However, negated conditions may exist. In this case, pass condition type (flag) and swap successor nodes accordingly.
         """
@@ -69,15 +68,11 @@ class BitFieldComparisonUnrolling(PipelineStage):
         cfg.add_edge(UnconditionalEdge(block, nested_if_blocks[0]))
 
     def _create_condition_block(self, cfg: ControlFlowGraph, switch_var: Any, case_value: int) -> BasicBlock:
-        """
-        Create conditional block in CFG, e.g., `if (var == 0x42)`.
-        """
+        """Create conditional block in CFG, e.g., `if (var == 0x42)`."""
         return cfg.create_block([Branch(condition=Condition(OperationType.equal, [switch_var, Constant(case_value)]))])
 
     def _tf_edges_from_block(self, cfg: ControlFlowGraph, block: BasicBlock) -> Tuple[TrueCase, FalseCase]:
-        """
-        Return TrueCase, FalseCase edges from conditional block (in that order).
-        """
+        """Return TrueCase, FalseCase edges from conditional block (in that order)."""
         match cfg.get_out_edges(block):
             case (TrueCase() as true_edge, FalseCase() as false_edge):
                 pass
@@ -88,9 +83,7 @@ class BitFieldComparisonUnrolling(PipelineStage):
         return true_edge, false_edge
 
     def _unfold_cases(self, block: BasicBlock) -> Optional[Tuple[Any, List[int], bool]]:
-        """
-        Unfold Branch condition (checking bit field) into switch variable and list of case values.
-        """
+        """Unfold Branch condition (checking bit field) into switch variable and list of case values."""
         if not len(block):
             return None
         if not isinstance(branch_instruction := block[-1], Branch):
@@ -115,6 +108,7 @@ class BitFieldComparisonUnrolling(PipelineStage):
         Match expression of folded switch case:
             a) ((1 << (cast)var) & 0xffffffff) & bit_field_constant
             b) (0x1 << ((1: ) ecx#1)) & 0xa50
+        Return the Variable (or Expression) that is switched on, and bit field Constant.
         """
         match subexpr:
             case BinaryOperation(
@@ -136,7 +130,7 @@ class BitFieldComparisonUnrolling(PipelineStage):
                 return None
 
     def _get_values(self, const: Constant) -> List[int]:
-        """Return positions of set bits from integer Constant"""
+        """Return positions of set bits from integer Constant."""
         bitmask = const.value
         values = []
         if not isinstance(bitmask, int):
@@ -148,9 +142,7 @@ class BitFieldComparisonUnrolling(PipelineStage):
         return values
 
     def _clean_variable(self, expr: Expression) -> Optional[Variable]:
-        """
-        Remove cast from Variable.
-        """
+        """Remove cast from Variable."""
         if isinstance(expr, Variable):
             return expr
         if isinstance(expr, UnaryOperation) and expr.operation == OperationType.cast:

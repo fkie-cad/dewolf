@@ -5,7 +5,6 @@ from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.pseudo.expressions import Constant, Variable
 from decompiler.structures.pseudo.instructions import Branch, Comment, Return
 from decompiler.structures.pseudo.operations import BinaryOperation, Condition, OperationType
-from decompiler.util.decoration import DecoratedCFG
 
 
 class MockTask:
@@ -67,7 +66,6 @@ def test_unrolling_with_bitmask():
     cfg.add_edges_from([TrueCase(block, other_block), FalseCase(block, case_block)])
     task = MockTask(cfg)
     BitFieldComparisonUnrolling().run(task)
-    DecoratedCFG.from_cfg(cfg).export_plot("test.png")
     assert len(block) == 0, "removing of branch instruction failed"
     block_out_edges = cfg.get_out_edges(block)
     assert len(block_out_edges) == 1
