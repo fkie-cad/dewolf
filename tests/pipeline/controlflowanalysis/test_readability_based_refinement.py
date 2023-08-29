@@ -2127,11 +2127,7 @@ class TestReadabilityUtils:
         )
 
         WhileLoopReplacer(ast, _generate_options()).run()
-        for loop_node in list(ast.get_loop_nodes_post_order()):
-            if any(node.does_end_with_continue for node in loop_node.body.get_descendant_code_nodes_interrupting_ancestor_loop()):
-                assert isinstance(loop_node, WhileLoopNode)
-            else:
-                assert isinstance(loop_node, ForLoopNode)
+        assert not any(isinstance(loop_node, ForLoopNode) for loop_node in list(ast.get_loop_nodes_post_order()))
 
     def test_skip_for_loop_recovery_if_continue_in_nested_while(self):
         """
@@ -2163,7 +2159,7 @@ class TestReadabilityUtils:
                 Continue()
             ]
         )
-        if_condition = ast._add_condition_node_with(logic_cond("x2", context), true_branch)
+        if_condition = ast._add_condition_node_with(logic_cond("x3", context), true_branch)
 
         while_loop_outer = ast.factory.create_while_loop_node(logic_cond("x1", context))
         while_loop_body_outer = ast.factory.create_seq_node()
@@ -2172,7 +2168,7 @@ class TestReadabilityUtils:
         ast._add_node(while_loop_outer)
         ast._add_node(while_loop_body_outer)
 
-        while_loop_inner = ast.factory.create_while_loop_node(logic_cond("x1", context))
+        while_loop_inner = ast.factory.create_while_loop_node(logic_cond("x2", context))
         while_loop_body_inner = ast.factory.create_seq_node()
         while_loop_iteration_inner = ast._add_code_node([Assignment(Variable("b"), BinaryOperation(OperationType.plus, [Variable("b"), Constant(1)]))])
         ast._add_node(while_loop_inner)
@@ -2192,8 +2188,5 @@ class TestReadabilityUtils:
         )
 
         WhileLoopReplacer(ast, _generate_options()).run()
-        for loop_node in list(ast.get_loop_nodes_post_order()):
-            if any(node.does_end_with_continue for node in loop_node.body.get_descendant_code_nodes_interrupting_ancestor_loop()):
-                assert isinstance(loop_node, WhileLoopNode)
-            else:
-                assert isinstance(loop_node, ForLoopNode)
+        loop_nodes = list(ast.get_loop_nodes_post_order())
+        assert not isinstance(loop_nodes[0], ForLoopNode) and isinstance(loop_nodes[1], ForLoopNode)
