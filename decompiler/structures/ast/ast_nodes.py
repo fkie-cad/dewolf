@@ -123,11 +123,6 @@ class AbstractSyntaxTreeNode(BaseAbstractSyntaxTreeNode, ABC):
         return any(code_node.does_end_with_break for code_node in self.get_descendant_code_nodes())
 
     @property
-    def does_contain_continue(self) -> bool:
-        """Checks whether any descendant CodeNode contains a continue."""
-        return any(code_node.does_end_with_continue for code_node in self.get_descendant_code_nodes())
-
-    @property
     def is_break_condition(self) -> bool:
         """Checks that the node is a Condition node with one branch that is a break node."""
         if not isinstance(self, ConditionNode):
@@ -735,11 +730,6 @@ class LoopNode(AbstractSyntaxTreeNode, ABC):
     @property
     def does_contain_break(self) -> bool:
         """Return False because a break-node could also belong to a nested loop-node."""
-        return False
-
-    @property
-    def does_contain_continue(self) -> bool:
-        """Return False because a continue-node could also belong to a nested loop-node."""
         return False
 
     @property
