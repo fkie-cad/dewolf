@@ -1,10 +1,9 @@
 import logging
 from ctypes import c_byte, c_int, c_long, c_short, c_ubyte, c_uint, c_ulong, c_ushort
 from itertools import chain, repeat
-from typing import Union
 
 from decompiler.structures import pseudo as expressions
-from decompiler.structures.pseudo import Float, Integer, OperationType, StringSymbol
+from decompiler.structures.pseudo import Float, FunctionTypeDef, Integer, OperationType, Pointer, StringSymbol, Type
 from decompiler.structures.pseudo import instructions as instructions
 from decompiler.structures.pseudo import operations as operations
 from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInterface
@@ -361,3 +360,13 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
             escaped = string_representation.replace('"', '\\"')
             return f'"{escaped}"'
         return f"{constant}"
+
+    @staticmethod
+    def format_variables_declaration(var_type: Type, var_names: list[str]) -> str:
+        """ Return a string representation of variable declarations."""
+        match var_type:
+            case Pointer(type=FunctionTypeDef() as fun_type):
+                rest = "".join(map(lambda n: f"(* {n})({', '.join(str(x) for x in fun_type.parameters)})", var_names))
+                return f"{fun_type.return_type} {rest}"
+            case _:
+                return f"{var_type} {', '.join(var_names)}"
