@@ -1,3 +1,4 @@
+import string
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import List, Set
@@ -18,9 +19,9 @@ class VariableCollector(BaseAstDataflowObjectVisitor):
         """Get collected variables."""
         return self._variables
 
-    def visit_variable(self, expression: Variable):
+    def visit_variable(self, var: Variable):
         """Add visited variables to list"""
-        self._variables.append(expression)
+        self._variables.append(var)
 
 
 class NamingConvention(str, Enum):
@@ -36,9 +37,9 @@ class RenamingScheme(ABC):
     def __init__(self, task: DecompilerTask) -> None:
         """Collets all needed variables for renaming + filters which should not be renamed"""
         collector = VariableCollector()
-        collector.visit_ast(task._ast)
-        self._ast = task._ast
-        self._params: List[Variable] = task._function_parameters
+        collector.visit_ast(task.syntax_tree)
+        self._ast = task.syntax_tree
+        self._params: List[Variable] = task.function_parameters
         self._variables: Set[Variable] = set(filter(self._filter_variables, collector.get_variables()))
         
 
@@ -54,7 +55,7 @@ class RenamingScheme(ABC):
         """Rename all collected variables with a naming scheme."""
         names: dict[Variable, Variable] = {}
         for var in self._variables:
-            names[var] = var.copy(self.getVariableName(var))
+            names[var] = var.copy(name=self.getVariableName(var))
 
         self._ast.replace_variables_in_subtree(self._ast.root, names)
 
@@ -93,18 +94,19 @@ class HungarianScheme(RenamingScheme):
 
 
     def _get_name_identifier(self, name: str) -> str:
-        """Return identifier by purging non alpha chars + capitalize the string. If string is too short, return generic"""
+        """Return identifier by purging non alpha chars + capitalize the char afterwards. If string is too short, return generic"""
         if len(name) < 2:
-            return "Var"
-        return "".join(filter(str.isalpha, name)).capitalize()
+            return "var"
+        x = string.capwords("".join([c if c.isalnum() else " " for c in name]))
+        x = x[0].lower() + x[1:]
+        return "".join(filter(str.isalpha, x))
 
 
     def getVariableName(self, var: Variable) -> str:
         """Return hungarian notation to a given variable. If no prefix exists, make the first char lower case."""
         newName = self._get_name_identifier(var._name)
         if (prefix := self._hungarian_prefix(var.type)):
-            return f"{prefix}{self._type_separator}{newName}{self._counter_separator}{self._get_counter(var.name)}"
-        newName = newName[0].lower() + newName[1:]
+            return f"{prefix}{self._type_separator}{newName.capitalize()}{self._counter_separator}{self._get_counter(var.name)}"
         return f"{newName}{self._counter_separator}{self._get_counter(var.name)}"
 
     def _hungarian_prefix(self, var_type: Type) -> str:
