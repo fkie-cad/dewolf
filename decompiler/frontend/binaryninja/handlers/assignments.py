@@ -111,6 +111,7 @@ class AssignmentHandler(Handler):
         return UnaryOperation(OperationType.cast, [source], vartype=cast_type, contraction=True)
 
     def _get_field_as_member_access(self, instruction: mediumlevelil.MediumLevelILVarField, source: Expression, **kwargs) -> MemberAccess:
+        """Lift MLIL var_field as struct or union member read access."""
         if isinstance(source.type, Struct):
             member_name = source.type.get_member_by_offset(instruction.offset).name
         elif parent := kwargs.get("parent", None):
@@ -118,7 +119,7 @@ class AssignmentHandler(Handler):
             member_name = source.type.get_member_by_type(parent_type).name
         else:
             logging.warning(f"Cannot get member name for instruction {instruction}")
-            member_name = None
+            member_name = f"field_{hex(instruction.offset)}"
         return MemberAccess(
             offset=instruction.offset,
             member_name=member_name,

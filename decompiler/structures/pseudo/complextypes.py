@@ -47,6 +47,7 @@ class ComplexTypeMember(ComplexType):
         return f"{self.name}"
 
     def declaration(self) -> str:
+        """Return declaration field for the complex type member."""
         if isinstance(self.type, Union):
             return self.type.declaration()
         return f"{self.type.__str__()} {self.name}"

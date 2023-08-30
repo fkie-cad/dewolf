@@ -18,9 +18,7 @@ class TestStruct:
         book.add_member(
             m := ComplexTypeMember(size=64, name="id", offset=12, type=record_id),
         )
-        # TODO if union is defined not within the struct itself?
         result = f"struct Book {{\n\tchar * title;\n\tint num_pages;\n\tchar * author;\n\t{m.declaration()};\n}}"
-        # TODO nest enum
         assert book.declaration() == result
 
     def test_str(self, book: Struct):
