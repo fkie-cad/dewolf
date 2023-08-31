@@ -6,7 +6,7 @@ from decompiler.pipeline.controlflowanalysis.loop_utility_methods import (
     _has_deep_requirement,
     _initialization_reaches_loop_node,
 )
-from decompiler.pipeline.controlflowanalysis.readability_based_refinement import ReadabilityBasedRefinement
+from decompiler.pipeline.controlflowanalysis.readability_based_refinement import ReadabilityBasedRefinement, WhileLoopReplacer
 from decompiler.structures.ast.ast_nodes import ConditionNode, ForLoopNode, SeqNode, WhileLoopNode
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.logic.logic_condition import LogicCondition
@@ -810,3 +810,115 @@ class TestReadabilityUtils:
         inner_while = condition_node.false_branch_child
 
         assert _initialization_reaches_loop_node(init_code_node, inner_while) is False
+
+
+    def test_skip_for_loop_recovery_if_continue_in_while(self):
+        """
+        a = 0
+        while(a < 10) {
+            if(a == 2) {
+                a = a + 2
+                continue
+            }
+            a = a + 1
+        }
+        """
+        true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+        ast = AbstractSyntaxTree(
+            root := SeqNode(true_value),
+            condition_map={
+                logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(10)]),
+                logic_cond("x2", context): Condition(OperationType.equal, [Variable("a"), Constant(2)])
+            }
+        )
+
+        true_branch = ast._add_code_node(
+            [
+                Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(2)])),
+                Continue()
+            ]
+        )
+        if_condition = ast._add_condition_node_with(logic_cond("x2", context), true_branch)
+
+        init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
+
+        while_loop = ast.factory.create_while_loop_node(logic_cond("x1", context))
+        while_loop_body = ast.factory.create_seq_node()
+        while_loop_iteration = ast._add_code_node([Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))])
+        ast._add_node(while_loop)
+        ast._add_node(while_loop_body)
+
+        ast._add_edges_from(
+            [
+                (root, init_code_node),
+                (root, while_loop),
+                (while_loop, while_loop_body),
+                (while_loop_body, if_condition),
+                (while_loop_body, while_loop_iteration)
+            ]
+        )
+
+        WhileLoopReplacer(ast, _generate_options()).run()
+        assert not any(isinstance(loop_node, ForLoopNode) for loop_node in list(ast.get_loop_nodes_post_order()))
+
+    def test_skip_for_loop_recovery_if_continue_in_nested_while(self):
+        """
+        while(a < 5) {
+            a = a + b
+            while(b < 10) {
+                if(b < 0) {
+                    b = b + 2
+                    continue
+                }
+                b = b + 1
+            }
+            a = a + 1
+        }
+        """
+        true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+        ast = AbstractSyntaxTree(
+            root := SeqNode(true_value),
+            condition_map={
+                logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(5)]),
+                logic_cond("x2", context): Condition(OperationType.less, [Variable("b"), Constant(10)]),
+                logic_cond("x3", context): Condition(OperationType.less, [Variable("b"), Constant(0)])
+            }
+        )
+
+        true_branch = ast._add_code_node(
+            [
+                Assignment(Variable("b"), BinaryOperation(OperationType.plus, [Variable("b"), Constant(2)])),
+                Continue()
+            ]
+        )
+        if_condition = ast._add_condition_node_with(logic_cond("x3", context), true_branch)
+
+        while_loop_outer = ast.factory.create_while_loop_node(logic_cond("x1", context))
+        while_loop_body_outer = ast.factory.create_seq_node()
+        while_loop_iteration_outer_1 = ast._add_code_node([Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Variable("b")]))])
+        while_loop_iteration_outer_2 = ast._add_code_node([Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))])
+        ast._add_node(while_loop_outer)
+        ast._add_node(while_loop_body_outer)
+
+        while_loop_inner = ast.factory.create_while_loop_node(logic_cond("x2", context))
+        while_loop_body_inner = ast.factory.create_seq_node()
+        while_loop_iteration_inner = ast._add_code_node([Assignment(Variable("b"), BinaryOperation(OperationType.plus, [Variable("b"), Constant(1)]))])
+        ast._add_node(while_loop_inner)
+        ast._add_node(while_loop_body_inner)
+
+        ast._add_edges_from(
+            [
+                (root, while_loop_outer),
+                (while_loop_outer, while_loop_body_outer),
+                (while_loop_body_outer, while_loop_inner),
+                (while_loop_body_outer, while_loop_iteration_outer_1),
+                (while_loop_body_outer, while_loop_iteration_outer_2),
+                (while_loop_inner, while_loop_body_inner),
+                (while_loop_body_inner, if_condition),
+                (while_loop_body_inner, while_loop_iteration_inner)
+            ]
+        )
+
+        WhileLoopReplacer(ast, _generate_options()).run()
+        loop_nodes = list(ast.get_loop_nodes_post_order())
+        assert not isinstance(loop_nodes[0], ForLoopNode) and isinstance(loop_nodes[1], ForLoopNode)
