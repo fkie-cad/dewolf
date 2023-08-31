@@ -11,6 +11,7 @@ from decompiler.backend.variabledeclarations import GlobalDeclarationGenerator, 
 from decompiler.structures.ast.ast_nodes import CodeNode, SeqNode, SwitchNode
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.logic.logic_condition import LogicCondition
+from decompiler.structures.pseudo import FunctionTypeDef
 from decompiler.structures.pseudo.expressions import (
     Constant,
     DataflowObject,
@@ -75,6 +76,8 @@ var_y_f = Variable("y_f", float32)
 var_x_u = Variable("x_u", uint32)
 var_y_u = Variable("y_u", uint32)
 var_p = Variable("p", Pointer(int32))
+var_fun_p = Variable("p", Pointer(FunctionTypeDef(0, int32, (int32,))))
+var_fun_p0 = Variable("p0", Pointer(FunctionTypeDef(0, int32, (int32,))))
 
 const_0 = Constant(0, int32)
 const_1 = Constant(1, int32)
@@ -153,6 +156,15 @@ class TestCodeGeneration:
         ast._add_edge(root, code_node)
         assert self._regex_matches(
             r"^\s*int +test_function\(\s*int +a\s*,\s*int +b\s*\){\s*}\s*$", self._task(ast, params=[var_a.copy(), var_b.copy()])
+        )
+
+    def test_empty_function_two_function_parameters(self):
+        root = SeqNode(LogicCondition.initialize_true(LogicCondition.generate_new_context()))
+        ast = AbstractSyntaxTree(root, {})
+        code_node = ast._add_code_node([])
+        ast._add_edge(root, code_node)
+        assert self._regex_matches(
+            r"^\s*int +test_function\(\s*int +\(\*\s*p\)\(int\)\s*,\s*int +\(\*\s*p0\)\(int\)\s*\){\s*}\s*$", self._task(ast, params=[var_fun_p.copy(), var_fun_p0.copy()])
         )
 
     def test_function_with_instruction(self):
@@ -1069,6 +1081,8 @@ class TestLocalDeclarationGenerator:
             (1, [var_x.copy(), var_y.copy(), var_x_f.copy(), var_y_f.copy()], "float x_f;\nfloat y_f;\nint x;\nint y;"),
             (2, [var_x.copy(), var_y.copy(), var_x_f.copy(), var_y_f.copy()], "float x_f, y_f;\nint x, y;"),
             (1, [var_x.copy(), var_y.copy(), var_p.copy()], "int x;\nint y;\nint * p;"),
+            (1, [var_x.copy(), var_y.copy(), var_fun_p.copy()], "int x;\nint y;\nint (* p)(int);"),
+            (2, [var_x.copy(), var_y.copy(), var_fun_p.copy(), var_fun_p0.copy()], "int x, y;\nint (* p)(int), (* p0)(int);"),
         ],
     )
     def test_variable_declaration(self, vars_per_line: int, variables: List[Variable], expected: str):
