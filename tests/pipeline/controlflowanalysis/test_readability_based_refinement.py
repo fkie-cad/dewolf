@@ -17,6 +17,7 @@ from decompiler.structures.pseudo import (
     Call,
     Condition,
     Constant,
+    Continue,
     ImportedFunctionSymbol,
     ListOperation,
     OperationType,

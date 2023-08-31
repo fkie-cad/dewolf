@@ -2,7 +2,7 @@
 from functools import partial
 from typing import List
 
-from binaryninja import MediumLevelILInstruction, Tailcall, mediumlevelil
+from binaryninja import FunctionType, PointerType, Tailcall, mediumlevelil
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import Assignment, Call, ImportedFunctionSymbol, IntrinsicSymbol, ListOperation
 
@@ -73,11 +73,11 @@ class CallHandler(Handler):
 
     @staticmethod
     def _lift_call_parameter_names(instruction: mediumlevelil.MediumLevelILCall) -> List[str]:
-        """Lift parameter names of call from type string of instruction.dest.expr_type"""
-        if instruction.dest.expr_type is None:
+        """Lift parameter names of call by iterating over the function parameters where the call is pointing to (if available)"""
+        if instruction.dest.expr_type is None or not isinstance(instruction.dest.expr_type, PointerType) or \
+        not isinstance(instruction.dest.expr_type.target, FunctionType):
             return []
-        clean_type_string_of_parameters = instruction.dest.expr_type.get_string_after_name().strip("()")
-        return [type_parameter.rsplit(" ", 1)[-1] for type_parameter in clean_type_string_of_parameters.split(",")]
+        return [param.name for param in instruction.dest.expr_type.target.parameters]
 
     @staticmethod 
     def _lift_syscall_parameter_names(instruction: mediumlevelil.MediumLevelILSyscall) -> List[str]:
