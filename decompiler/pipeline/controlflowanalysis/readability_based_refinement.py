@@ -287,6 +287,9 @@ class WhileLoopReplacer:
             or self._invalid_simple_for_loop_condition_type(loop_node.condition):
                 continue
 
+            if any(node.does_end_with_continue for node in loop_node.body.get_descendant_code_nodes_interrupting_ancestor_loop()):
+                continue
+
             if not self._force_for_loops and loop_node.condition.get_complexity(self._ast.condition_map) > self._condition_max_complexity:
                 continue
 
