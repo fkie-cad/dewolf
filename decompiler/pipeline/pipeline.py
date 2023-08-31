@@ -19,6 +19,7 @@ from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.task import DecompilerTask
 from decompiler.util.decoration import DecoratedAST, DecoratedCFG
 
+from ..structures.graphs.cfg import ControlFlowGraph
 from .default import AST_STAGES, CFG_STAGES
 from .stage import PipelineStage
 
@@ -109,6 +110,9 @@ class DecompilerPipeline:
                     raise e
                 break
 
+            if debug_mode and task.graph is not None:
+                self._assert_no_cfg_duplicates(task.graph)
+
     @staticmethod
     def _show_stage(task: DecompilerTask, stage_name: str, print_ascii: bool, show_in_tabs: bool):
         """Based on the task either an AST or a CFG is shown on the console (ASCII) and/or in BinaryNinja (FlowGraph) tabs."""
@@ -122,3 +126,14 @@ class DecompilerPipeline:
                 DecoratedCFG.print_ascii(task.graph, stage_name)
             if show_in_tabs:
                 DecoratedCFG.show_flowgraph(task.graph, stage_name)
+
+    @staticmethod
+    def _assert_no_cfg_duplicates(cfg: ControlFlowGraph):
+        encountered_ids: set[int] = set()
+
+        for instruction in cfg.instructions:
+            for obj in instruction.subexpressions():
+                if id(obj) in encountered_ids:
+                    raise AssertionError(f"Found duplicated DataflowObject in cfg: {obj}")
+
+                encountered_ids.add(id(obj))
