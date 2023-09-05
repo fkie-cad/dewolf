@@ -72,10 +72,21 @@ def test_unrolling_with_bitmask():
     assert isinstance(block_out_edges[0], UnconditionalEdge)
     successors = cfg.get_successors(block)
     assert len(successors) == 1
-    target, s2 = get_tf_successors(cfg, successors[0])
+    s1 = successors[0]
+    target, s2 = get_tf_successors(cfg, s1)
     assert target == case_block
     target, s3 = get_tf_successors(cfg, s2)
     assert target == case_block
     target, other = get_tf_successors(cfg, s3)
     assert target == case_block
     assert other == other_block
+    assert str(s1.instructions[-1].condition) == "var == 0x0"
+    assert str(s2.instructions[-1].condition) == "var == 0x1"
+    assert str(s3.instructions[-1].condition) == "var == 0x2"
+    assert isinstance(cfg.get_edge(block, s1), UnconditionalEdge)
+    assert isinstance(cfg.get_edge(s1, s2), FalseCase)
+    assert isinstance(cfg.get_edge(s2, s3), FalseCase)
+    assert isinstance(cfg.get_edge(s3, other_block), FalseCase)
+    assert isinstance(cfg.get_edge(s1, case_block), TrueCase)
+    assert isinstance(cfg.get_edge(s2, case_block), TrueCase)
+    assert isinstance(cfg.get_edge(s3, case_block), TrueCase)
