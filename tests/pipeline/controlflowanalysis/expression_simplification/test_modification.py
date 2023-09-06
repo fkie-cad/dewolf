@@ -2,7 +2,7 @@ from contextlib import nullcontext
 
 import pytest
 from decompiler.pipeline.controlflowanalysis.expression_simplification.modification import (
-    FOLDABLE_CONSTANTS,
+    FOLDABLE_OPERATIONS,
     constant_fold,
     multiply_int_with_constant,
 )
@@ -47,7 +47,7 @@ def test_multiply_int_with_constant(expression: Expression, constant: Constant, 
 
 @pytest.mark.parametrize(
     ["operation"],
-    [(operation,) for operation in OperationType if operation not in FOLDABLE_CONSTANTS]
+    [(operation,) for operation in OperationType if operation not in FOLDABLE_OPERATIONS]
 )
 def test_constant_fold_invalid_operations(operation: OperationType):
     with pytest.raises(ValueError):

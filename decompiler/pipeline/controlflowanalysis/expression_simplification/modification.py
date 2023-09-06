@@ -45,7 +45,7 @@ _FOLD_HANDLER: dict[OperationType, Callable[[list[Constant]], Constant]] = {
 }
 
 
-FOLDABLE_CONSTANTS = _FOLD_HANDLER.keys()
+FOLDABLE_OPERATIONS = _FOLD_HANDLER.keys()
 
 
 def constant_fold(operation: OperationType, constants: list[Constant]) -> Constant:
