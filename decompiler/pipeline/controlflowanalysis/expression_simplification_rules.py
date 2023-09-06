@@ -84,6 +84,7 @@ class _ExpressionSimplificationRulesBase(PipelineStage, ABC):
         iteration_count = 0
         for expression in instruction.subexpressions():
             while True:
+                # NOTE: By breaking out of the inner endless loop, we just continue with the next subexpression.
                 if expression is None:
                     break
                 if not isinstance(expression, Operation):
