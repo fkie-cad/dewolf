@@ -187,7 +187,7 @@ class SubstituteVisitor(DataflowObjectVisitorInterface[Optional[DataflowObject]]
 
         # update instr.origin_block with potential changes from instr.value.accept(self)
         for node, expression in instr.origin_block.items():
-            if (replacement := self._mapper(expression)) is not None:
+            if (replacement := expression.accept(self)) is not None:
                 instr.origin_block[node] = _assert_type(replacement, Union[Variable, Constant])
 
         if (destination_replacement := instr.destination.accept(self)) is not None:
