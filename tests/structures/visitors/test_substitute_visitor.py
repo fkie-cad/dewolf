@@ -28,7 +28,7 @@ _d = Variable("d", Integer.int32_t(), 3)
 
 
 @pytest.mark.parametrize(
-    ["obj", "result", "visitor"],
+    ["initial_obj", "expected_result", "visitor"],
     [
         (
             o := Variable("v", _i32, 0),
@@ -185,9 +185,9 @@ _d = Variable("d", Integer.int32_t(), 3)
         ),
     ]
 )
-def test_substitute(obj: DataflowObject, result: DataflowObject, visitor: SubstituteVisitor):
-    new = obj.accept(visitor)
-    if new is not None:
-        obj = new
+def test_substitute(initial_obj: DataflowObject, expected_result: DataflowObject, visitor: SubstituteVisitor):
+    result = initial_obj.accept(visitor)
+    if result is None:
+        result = initial_obj
 
-    assert obj == result
+    assert result == expected_result
