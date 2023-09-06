@@ -2,29 +2,7 @@ import operator
 from functools import partial
 from typing import Callable, Optional
 
-from decompiler.structures.pseudo import BinaryOperation, Constant, Expression, Integer, OperationType
-
-
-def multiply_int_with_constant(expression: Expression, constant: Constant) -> Expression:
-    """
-    Multiply an integer expression with an integer constant.
-
-    :param expression: The integer expression to be multiplied.
-    :param constant: The constant value to multiply the expression by.
-    :return: A simplified expression representing the multiplication result.
-    """
-
-    if not isinstance(expression.type, Integer):
-        raise ValueError(f"Expression must have integer type, got {expression.type}.")
-    if not isinstance(constant.type, Integer):
-        raise ValueError(f"Constant must have integer type, got {constant.type}.")
-    if expression.type != constant.type:
-        raise ValueError(f"Expression and constant type must equal. {expression.type} != {constant.type}")
-
-    if isinstance(expression, Constant):
-        return constant_fold(OperationType.multiply, [expression, constant])
-    else:
-        return BinaryOperation(OperationType.multiply, [expression, constant])
+from decompiler.structures.pseudo import Constant, Integer, OperationType
 
 
 def constant_fold(operation: OperationType, constants: list[Constant]) -> Constant:

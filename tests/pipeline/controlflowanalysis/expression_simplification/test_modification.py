@@ -1,12 +1,8 @@
 from contextlib import nullcontext
 
 import pytest
-from decompiler.pipeline.controlflowanalysis.expression_simplification.modification import (
-    FOLDABLE_OPERATIONS,
-    constant_fold,
-    multiply_int_with_constant,
-)
-from decompiler.structures.pseudo import BinaryOperation, Constant, Expression, Float, Integer, OperationType, Variable
+from decompiler.pipeline.controlflowanalysis.expression_simplification.modification import FOLDABLE_OPERATIONS, constant_fold
+from decompiler.structures.pseudo import Constant, Float, Integer, OperationType
 
 
 def _c_i32(value: int) -> Constant:
@@ -23,26 +19,6 @@ def _c_i16(value: int) -> Constant:
 
 def _c_float(value: float) -> Constant:
     return Constant(value, Float.float())
-
-
-@pytest.mark.parametrize(
-    ["expression", "constant", "result", "context"],
-    [
-        (
-            var := Variable("x", Integer.int32_t()),
-            con := _c_i32(4),
-            BinaryOperation(OperationType.multiply, [var, con], Integer.int32_t()),
-            nullcontext(),
-        ),
-        (_c_i32(3), _c_i32(4), _c_i32(12), nullcontext()),
-        (_c_float(3.0), _c_i32(4), None, pytest.raises(ValueError)),
-        (_c_i32(4), _c_float(3.0), None, pytest.raises(ValueError)),
-        (_c_i32(3), _c_i16(4), None, pytest.raises(ValueError)),
-    ],
-)
-def test_multiply_int_with_constant(expression: Expression, constant: Constant, result: Expression, context):
-    with context:
-        assert multiply_int_with_constant(expression, constant) == result
 
 
 @pytest.mark.parametrize(
