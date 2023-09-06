@@ -126,9 +126,10 @@ class SubstituteVisitor(DataflowObjectVisitorInterface[Optional[DataflowObject]]
         if op.array_info is not None:
             if (base_replacement := op.array_info.base.accept(self)) is not None:
                 op.array_info.base = _assert_type(base_replacement, Variable)
-            if (isinstance(op.array_info.index, Variable) and
-                    (index_replacement := op.array_info.index.accept(self)) is not None):
-                op.array_info.index = _assert_type(index_replacement, Variable)
+            # op.array_info.index can either be Variable or int. Only try substituting if not int
+            if isinstance(op.array_info.index, Variable):
+                if (index_replacement := op.array_info.index.accept(self)) is not None:
+                    op.array_info.index = _assert_type(index_replacement, Variable)
 
         return self._visit_operation(op)
 
