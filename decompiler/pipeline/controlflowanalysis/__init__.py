@@ -1,4 +1,4 @@
-from .expression_simplification_rules import ExpressionSimplificationRulesAst, ExpressionSimplificationRulesCfg
+from .expression_simplification.stages import ExpressionSimplificationAst, ExpressionSimplificationCfg
 from .instruction_length_handler import InstructionLengthHandler
 from .readability_based_refinement import ReadabilityBasedRefinement
 from .variable_name_generation import VariableNameGeneration

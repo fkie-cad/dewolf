@@ -608,7 +608,7 @@
                     "dead-code-elimination",
                     "expression-propagation-memory",
                     "expression-propagation-function-call",
-                    "expression-simplification-rules-cfg",
+                    "expression-simplification-cfg",
                     "dead-code-elimination",
                     "redundant-casts-elimination",
                     "identity-elimination",
@@ -628,7 +628,7 @@
                 "dest": "pipeline.ast_stages",
                 "default": [
                     "readability-based-refinement",
-                    "expression-simplification-rules-ast",
+                    "expression-simplification-ast",
                     "instruction-length-handler",
                     "variable-name-generation"
                 ],

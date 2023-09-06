@@ -25,7 +25,7 @@ from decompiler.structures.visitors.substitute_visitor import SubstituteVisitor
 from decompiler.task import DecompilerTask
 
 
-class _ExpressionSimplificationRulesBase(PipelineStage, ABC):
+class _ExpressionSimplificationBase(PipelineStage, ABC):
 
     def run(self, task: DecompilerTask):
         max_iterations = task.options.getint("expression-simplification.max_iterations")
@@ -123,23 +123,23 @@ class _ExpressionSimplificationRulesBase(PipelineStage, ABC):
         return iteration_count
 
 
-class ExpressionSimplificationRulesCfg(_ExpressionSimplificationRulesBase):
+class ExpressionSimplificationCfg(_ExpressionSimplificationBase):
     """
     Pipeline stage that simplifies cfg expressions by applying a set of simplification rules.
     """
 
-    name = "expression-simplification-rules-cfg"
+    name = "expression-simplification-cfg"
 
     def _get_instructions(self, task: DecompilerTask) -> list[Instruction]:
         return list(task.graph.instructions)
 
 
-class ExpressionSimplificationRulesAst(_ExpressionSimplificationRulesBase):
+class ExpressionSimplificationAst(_ExpressionSimplificationBase):
     """
     Pipeline stage that simplifies ast expressions by applying a set of simplification rules.
     """
 
-    name = "expression-simplification-rules-ast"
+    name = "expression-simplification-ast"
 
     def _get_instructions(self, task: DecompilerTask) -> list[Instruction]:
         instructions = []
