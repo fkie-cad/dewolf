@@ -52,6 +52,21 @@ def test_trivial_no_change():
     assert isinstance(cfg.get_edge(n1, n2), TrueCase)
     assert isinstance(cfg.get_edge(n1, n3), FalseCase)
 
+def test_no_change_to_single_block_function():
+    """
+    +--------------------+
+    |         0.         |
+    | __stack_chk_fail() |
+    +--------------------+
+    """
+    cfg = ControlFlowGraph()
+    cfg.add_nodes_from(
+        [
+            b := BasicBlock(0, instructions=[Assignment(ListOperation([]), Call(ImportedFunctionSymbol("__stack_chk_fail", 0), []))]),
+        ]
+    )
+    _run_remove_stack_canary(cfg)
+    assert set(cfg) == {b}
 
 def test_one_branch_to_stack_fail():
     """
