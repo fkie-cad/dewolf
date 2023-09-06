@@ -64,39 +64,56 @@ class _ExpressionSimplificationRulesBase(PipelineStage, ABC):
 
             for rule in rule_set:
                 for instruction in instructions:
-                    for expression in instruction.subexpressions():
-                        while True:
-                            if expression is None:
-                                break
-                            if not isinstance(expression, Operation):
-                                break
+                    additional_iterations = cls._simplify_instruction_with_rule(instruction, rule, max_iterations - iteration_count)
+                    if additional_iterations > 0:
+                        changes = True
 
-                            substitutions = rule.apply(expression)
-                            if not substitutions:
-                                break
+                    iteration_count += additional_iterations
+                    if iteration_count > max_iterations:
+                        return iteration_count
 
-                            changes = True
-                            iteration_count += 1
+        return iteration_count
 
-                            if iteration_count > max_iterations:
-                                logging.warning("Took to many iterations for rule set to finish")
-                                return iteration_count
+    @classmethod
+    def _simplify_instruction_with_rule(
+            cls,
+            instruction: Instruction,
+            rule: SimplificationRule,
+            max_iterations: int
+    ) -> int:
+        iteration_count = 0
+        for expression in instruction.subexpressions():
+            while True:
+                if expression is None:
+                    break
+                if not isinstance(expression, Operation):
+                    break
 
-                            for i, (replacee, replacement) in enumerate(substitutions):
-                                expression_gen = CExpressionGenerator()
-                                logging.debug(
-                                    f"[{rule.__class__.__name__}] {i}. Substituting: '{replacee.accept(expression_gen)}'"
-                                    f" with '{replacement.accept(expression_gen)}' in '{expression.accept(expression_gen)}'"
-                                )
-                                instruction.accept(SubstituteVisitor.identity(replacee, replacement))
+                substitutions = rule.apply(expression)
+                if not substitutions:
+                    break
 
-                                # This is modifying the expression tree, while we are iterating over it.
-                                # This works because we are iterating depth first and only
-                                # modifying already visited nodes.
+                iteration_count += 1
 
-                                # if expression got replaced, we need to update the reference
-                                if replacee == expression:
-                                    expression = replacement
+                if iteration_count > max_iterations:
+                    logging.warning("Took to many iterations for rule set to finish")
+                    return iteration_count
+
+                for i, (replacee, replacement) in enumerate(substitutions):
+                    expression_gen = CExpressionGenerator()
+                    logging.debug(
+                        f"[{rule.__class__.__name__}] {i}. Substituting: '{replacee.accept(expression_gen)}'"
+                        f" with '{replacement.accept(expression_gen)}' in '{expression.accept(expression_gen)}'"
+                    )
+                    instruction.accept(SubstituteVisitor.identity(replacee, replacement))
+
+                    # This is modifying the expression tree, while we are iterating over it.
+                    # This works because we are iterating depth first and only
+                    # modifying already visited nodes.
+
+                    # if expression got replaced, we need to update the reference
+                    if replacee == expression:
+                        expression = replacement
 
         return iteration_count
 
