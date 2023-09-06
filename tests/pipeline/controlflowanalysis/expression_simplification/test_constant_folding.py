@@ -1,7 +1,7 @@
 from contextlib import nullcontext
 
 import pytest
-from decompiler.pipeline.controlflowanalysis.expression_simplification.modification import FOLDABLE_OPERATIONS, constant_fold
+from decompiler.pipeline.controlflowanalysis.expression_simplification.constant_folding import FOLDABLE_OPERATIONS, constant_fold
 from decompiler.structures.pseudo import Constant, Float, Integer, OperationType
 
 

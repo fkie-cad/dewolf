@@ -1,4 +1,4 @@
-from decompiler.pipeline.controlflowanalysis.expression_simplification.modification import normalize_int
+from decompiler.pipeline.controlflowanalysis.expression_simplification.constant_folding import normalize_int
 from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.rule import SimplificationRule
 from decompiler.structures.pseudo import BinaryOperation, Constant, Expression, Integer, Operation, OperationType
 

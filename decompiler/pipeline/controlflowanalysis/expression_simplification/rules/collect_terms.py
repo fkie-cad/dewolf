@@ -1,7 +1,7 @@
 from functools import reduce
 from typing import Iterator
 
-from decompiler.pipeline.controlflowanalysis.expression_simplification.modification import constant_fold
+from decompiler.pipeline.controlflowanalysis.expression_simplification.constant_folding import constant_fold
 from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.rule import SimplificationRule
 from decompiler.structures.pseudo import Constant, Expression, Operation, OperationType, Type
 from decompiler.structures.pseudo.operations import COMMUTATIVE_OPERATIONS
