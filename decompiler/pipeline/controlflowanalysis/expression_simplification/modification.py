@@ -25,6 +25,15 @@ def _constant_fold_arithmetic_binary(
         fun: Callable[[int, int], int],
         norm_sign: Optional[bool] = None
 ) -> Constant:
+    """
+    Fold an arithmetic binary operation with constants as operands.
+
+    :param constants: A list of exactly 2 constant operands.
+    :param fun: The binary function to perform on the constants.
+    :param norm_sign: Optional boolean flag to indicate whether to normalize the sign of the input constants to 'fun'.
+    :return: A constant representing the result of the operation.
+    """
+
     if len(constants) != 2:
         raise ValueError(f"Expected exactly 2 constants to fold, got {len(constants)}.")
     if not all(constant.type == constants[0].type for constant in constants):
@@ -47,6 +56,14 @@ def _constant_fold_arithmetic_binary(
 
 
 def _constant_fold_arithmetic_unary(constants: list[Constant], fun: Callable[[int], int]) -> Constant:
+    """
+    Fold an arithmetic unary operation with a constant operand.
+
+    :param constants: A list containing a single constant operand.
+    :param fun: The unary function to perform on the constant.
+    :return: A constant representing the result of the operation.
+    """
+
     if len(constants) != 1:
         raise ValueError("Expected exactly 1 constant to fold")
     if not isinstance(constants[0].type, Integer):
@@ -56,6 +73,16 @@ def _constant_fold_arithmetic_unary(constants: list[Constant], fun: Callable[[in
 
 
 def _constant_fold_shift(constants: list[Constant], fun: Callable[[int, int], int], signed: bool) -> Constant:
+    """
+    Fold a shift operation with constants as operands.
+
+    :param constants: A list of exactly 2 constant operands.
+    :param fun: The shift function to perform on the constants.
+    :param signed: Boolean flag indicating whether the shift is signed.
+    This is used to normalize the sign of the input constant to simulate unsigned shifts.
+    :return: A constant representing the result of the operation.
+    """
+
     if len(constants) != 2:
         raise ValueError("Expected exactly 2 constants to fold")
     if not all(isinstance(constant.type, Integer) for constant in constants):
