@@ -366,7 +366,8 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         """ Return a string representation of variable declarations."""
         match var_type:
             case Pointer(type=FunctionTypeDef() as fun_type):
-                rest = ", ".join(map(lambda n: f"(* {n})({', '.join(str(x) for x in fun_type.parameters)})", var_names))
-                return f"{fun_type.return_type} {rest}"
+                parameter_names = ", ".join(str(parameter) for parameter in fun_type.parameters)
+                declarations_without_return_type = [f"(* {var_name})({parameter_names})" for var_name in var_names]
+                return f"{fun_type.return_type} {', '.join(declarations_without_return_type)}"
             case _:
                 return f"{var_type} {', '.join(var_names)}"
