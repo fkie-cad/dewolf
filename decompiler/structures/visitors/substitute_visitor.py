@@ -47,10 +47,12 @@ class SubstituteVisitor(DataflowObjectVisitorInterface[Optional[DataflowObject]]
     and if the mapping function returns a non-None value, the node is replaced with the returned value.
 
     Note:
-        Modifications to the dataflow tree happen in place. Only if the whole node that is being visited is
-        replaced, the visit method returns the replacement and not none.
-        Even if a visit method returns a replacement, modifications could have happened to the original dataflow
-        tree.
+        - Modifications to the dataflow tree happen in place. Only if the whole node that is being visited is replaced,
+          the visit method returns the replacement and not none.
+        - Even if a visit method returns a replacement, modifications could have happened to the original dataflow tree.
+        - Care should be taken when using this visitor, as substitution can leave the dataflow tree in an invalid state.
+          For example a dereference UnaryOperation could be updated without the changes being reflected in its ArrayInfo.
+          Same with changes to Phi and its origin_block
     """
 
     @classmethod
@@ -180,12 +182,14 @@ class SubstituteVisitor(DataflowObjectVisitorInterface[Optional[DataflowObject]]
     def visit_continue(self, instr: Continue) -> Optional[DataflowObject]:
         return self._mapper(instr)
 
-    def visit_phi(self, instr: Phi) -> Optional[DataflowObject]:
-        # we ignore the return value here, because replacing instr.value itself would require updating
-        # instr.origin_block with information we don't have
-        instr.value.accept(self)
+    def _visit_phi_base(self, instr: Phi, value_type: type[DataflowObject]):
+        if (repl := instr.value.accept(self)) is not None:
+            # Phi only accepts ListOperation with 'value_type' as valid values
+            for operand in _assert_type(repl, ListOperation).operands:
+                _assert_type(operand, value_type)
 
-        # update instr.origin_block with potential changes from instr.value.accept(self)
+            instr._value = repl
+
         for node, expression in instr.origin_block.items():
             if (replacement := expression.accept(self)) is not None:
                 instr.origin_block[node] = _assert_type(replacement, Union[Variable, Constant])
@@ -195,6 +199,8 @@ class SubstituteVisitor(DataflowObjectVisitorInterface[Optional[DataflowObject]]
 
         return self._mapper(instr)
 
+    def visit_phi(self, instr: Phi) -> Optional[DataflowObject]:
+        return self._visit_phi_base(instr, Union[Variable, Constant])
+
     def visit_mem_phi(self, instr: MemPhi) -> Optional[DataflowObject]:
-        """We do not want substitute capabilities for MemPhi, since we remove it while preprocessing."""
-        return None
+        return self._visit_phi_base(instr, Union[Variable])
