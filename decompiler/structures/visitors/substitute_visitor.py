@@ -63,6 +63,10 @@ class SubstituteVisitor(DataflowObjectVisitorInterface[Optional[DataflowObject]]
         This class method creates a SubstituteVisitor instance that replaces nodes equal to the 'replacee'
         parameter with the 'replacement' parameter based on identity comparison (is).
 
+        Note:
+            While SubstituteVisitor.equality() creates copies of the specified replacement, this one does not!
+            Be careful as to not introduce the same dataflow object twice into the dataflow tree.
+
         :param replacee: The object to be replaced based on identity.
         :param replacement: The object to replace 'replacee' with.
         :return: A SubstituteVisitor instance for identity-based substitution.
@@ -78,12 +82,15 @@ class SubstituteVisitor(DataflowObjectVisitorInterface[Optional[DataflowObject]]
         This class method creates a SubstituteVisitor instance that replaces nodes equal to the 'replacee'
         parameter with the 'replacement' parameter based on equality comparison (==).
 
+        Note:
+            This visitor creates copies of the specified replacement when substituting.
+
         :param replacee: The object to be replaced based on equality.
         :param replacement: The object to replace 'replacee' with.
         :return: A SubstituteVisitor instance for equality-based substitution.
         """
 
-        return SubstituteVisitor(lambda o: replacement if o == replacee else None)
+        return SubstituteVisitor(lambda o: replacement.copy() if o == replacee else None)
 
     def __init__(self, mapper: Callable[[DataflowObject], Optional[DataflowObject]]) -> None:
         """
