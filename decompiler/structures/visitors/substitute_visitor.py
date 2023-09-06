@@ -39,16 +39,58 @@ def _assert_type(obj: DataflowObject, t: type[T]) -> T:
 
 
 class SubstituteVisitor(DataflowObjectVisitorInterface[Optional[DataflowObject]]):
+    """
+    A visitor class for performing substitutions in a dataflow tree.
+
+    This class allows you to create instances that can traverse a dataflow graph and perform substitutions
+    based on a provided mapping function. The mapping function is applied to each visited node in the graph,
+    and if the mapping function returns a non-None value, the node is replaced with the returned value.
+
+    Note:
+        Modifications to the dataflow tree happen in place. Only if the whole node that is being visited is
+        replaced, the visit method returns the replacement and not none.
+        Even if a visit method returns a replacement, modifications could have happened to the original dataflow
+        tree.
+    """
 
     @classmethod
     def identity(cls, replacee: DataflowObject, replacement: DataflowObject) -> "SubstituteVisitor":
+        """
+        Create a SubstituteVisitor instance for identity-based substitution.
+
+        This class method creates a SubstituteVisitor instance that replaces nodes equal to the 'replacee'
+        parameter with the 'replacement' parameter based on identity comparison (is).
+
+        :param replacee: The object to be replaced based on identity.
+        :param replacement: The object to replace 'replacee' with.
+        :return: A SubstituteVisitor instance for identity-based substitution.
+        """
+
         return SubstituteVisitor(lambda o: replacement if o is replacee else None)
 
     @classmethod
     def equality(cls, replacee: DataflowObject, replacement: DataflowObject) -> "SubstituteVisitor":
+        """
+        Create a SubstituteVisitor instance for equality-based substitution.
+
+        This class method creates a SubstituteVisitor instance that replaces nodes equal to the 'replacee'
+        parameter with the 'replacement' parameter based on equality comparison (==).
+
+        :param replacee: The object to be replaced based on equality.
+        :param replacement: The object to replace 'replacee' with.
+        :return: A SubstituteVisitor instance for equality-based substitution.
+        """
+
         return SubstituteVisitor(lambda o: replacement if o == replacee else None)
 
     def __init__(self, mapper: Callable[[DataflowObject], Optional[DataflowObject]]) -> None:
+        """
+        Initialize a SubstituteVisitor instance.
+
+        :param mapper: A callable object that takes a DataflowObject as input and returns an Optional[DataflowObject].
+        This function is used to determine replacements for visited nodes.
+        """
+
         self._mapper = mapper
 
     def visit_unknown_expression(self, expr: UnknownExpression) -> Optional[DataflowObject]:
@@ -70,6 +112,7 @@ class SubstituteVisitor(DataflowObjectVisitorInterface[Optional[DataflowObject]]
         return self._mapper(expr)
 
     def _visit_operation(self, op: Operation) -> Optional[DataflowObject]:
+        """Base visit function used for all operation related visit functions"""
         op.operands[:] = [op if (repl := op.accept(self)) is None else _assert_type(repl, Expression) for op in op.operands]
         return self._mapper(op)
 
