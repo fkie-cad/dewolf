@@ -25,7 +25,7 @@ def multiply_int_with_constant(expression: Expression, constant: Constant) -> Ex
         return BinaryOperation(OperationType.multiply, [expression, constant])
 
 
-_FOLD_HANDLER: dict[OperationType, Callable[[list[Constant]], Constant]] = {
+_OPERATION_TO_FOLD_FUNCTION: dict[OperationType, Callable[[list[Constant]], Constant]] = {
     OperationType.minus: lambda constants: _constant_fold_arithmetic_binary(constants, lambda x, y: x - y),
     OperationType.plus: lambda constants: _constant_fold_arithmetic_binary(constants, lambda x, y: x + y),
     OperationType.multiply: lambda constants: _constant_fold_arithmetic_binary(constants, lambda x, y: x * y, True),
@@ -45,7 +45,7 @@ _FOLD_HANDLER: dict[OperationType, Callable[[list[Constant]], Constant]] = {
 }
 
 
-FOLDABLE_OPERATIONS = _FOLD_HANDLER.keys()
+FOLDABLE_OPERATIONS = _OPERATION_TO_FOLD_FUNCTION.keys()
 
 
 def constant_fold(operation: OperationType, constants: list[Constant]) -> Constant:
@@ -57,10 +57,10 @@ def constant_fold(operation: OperationType, constants: list[Constant]) -> Consta
     :return: A constant representing the result of the operation.
     """
 
-    if operation not in _FOLD_HANDLER:
+    if operation not in _OPERATION_TO_FOLD_FUNCTION:
         raise ValueError(f"Constant folding not implemented for operation '{operation}'.")
 
-    return _FOLD_HANDLER[operation](constants)
+    return _OPERATION_TO_FOLD_FUNCTION[operation](constants)
 
 
 def _constant_fold_arithmetic_binary(
