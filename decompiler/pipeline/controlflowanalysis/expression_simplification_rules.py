@@ -105,7 +105,11 @@ class _ExpressionSimplificationRulesBase(PipelineStage, ABC):
                         f"[{rule.__class__.__name__}] {i}. Substituting: '{replacee.accept(expression_gen)}'"
                         f" with '{replacement.accept(expression_gen)}' in '{expression.accept(expression_gen)}'"
                     )
-                    instruction.accept(SubstituteVisitor.identity(replacee, replacement))
+                    instruction_repl = instruction.accept(SubstituteVisitor.identity(replacee, replacement))
+
+                    # instruction.accept should never replace itself and consequently return none, because replacee is
+                    # of type Expression and doesn't permit Instruction
+                    assert instruction_repl is None
 
                     # This is modifying the expression tree, while we are iterating over it.
                     # This works because we are iterating depth first and only
