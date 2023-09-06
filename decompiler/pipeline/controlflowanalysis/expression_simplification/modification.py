@@ -1,3 +1,5 @@
+import operator
+from functools import partial
 from typing import Callable, Optional
 
 from decompiler.structures.pseudo import BinaryOperation, Constant, Expression, Integer, OperationType
@@ -23,29 +25,6 @@ def multiply_int_with_constant(expression: Expression, constant: Constant) -> Ex
         return constant_fold(OperationType.multiply, [expression, constant])
     else:
         return BinaryOperation(OperationType.multiply, [expression, constant])
-
-
-_OPERATION_TO_FOLD_FUNCTION: dict[OperationType, Callable[[list[Constant]], Constant]] = {
-    OperationType.minus: lambda constants: _constant_fold_arithmetic_binary(constants, lambda x, y: x - y),
-    OperationType.plus: lambda constants: _constant_fold_arithmetic_binary(constants, lambda x, y: x + y),
-    OperationType.multiply: lambda constants: _constant_fold_arithmetic_binary(constants, lambda x, y: x * y, True),
-    OperationType.multiply_us: lambda constants: _constant_fold_arithmetic_binary(constants, lambda x, y: x * y, False),
-    OperationType.divide: lambda constants: _constant_fold_arithmetic_binary(constants, lambda x, y: x // y, True),
-    OperationType.divide_us: lambda constants: _constant_fold_arithmetic_binary(constants, lambda x, y: x // y, False),
-    OperationType.negate: lambda constants: _constant_fold_arithmetic_unary(constants, lambda value: -value),
-    OperationType.left_shift: lambda constants: _constant_fold_shift(constants, lambda value, shift, size: value << shift),
-    OperationType.right_shift: lambda constants: _constant_fold_shift(constants, lambda value, shift, size: value >> shift),
-    OperationType.right_shift_us: lambda constants: _constant_fold_shift(
-        constants, lambda value, shift, size: normalize_int(value >> shift, size - shift, False)
-    ),
-    OperationType.bitwise_or: lambda constants: _constant_fold_arithmetic_binary(constants, lambda x, y: x | y),
-    OperationType.bitwise_and: lambda constants: _constant_fold_arithmetic_binary(constants, lambda x, y: x & y),
-    OperationType.bitwise_xor: lambda constants: _constant_fold_arithmetic_binary(constants, lambda x, y: x ^ y),
-    OperationType.bitwise_not: lambda constants: _constant_fold_arithmetic_unary(constants, lambda x: ~x),
-}
-
-
-FOLDABLE_OPERATIONS = _OPERATION_TO_FOLD_FUNCTION.keys()
 
 
 def constant_fold(operation: OperationType, constants: list[Constant]) -> Constant:
@@ -98,7 +77,7 @@ def _constant_fold_arithmetic_unary(constants: list[Constant], fun: Callable[[in
     return Constant(normalize_int(fun(constants[0].value), constants[0].type.size, constants[0].type.signed), constants[0].type)
 
 
-def _constant_fold_shift(constants: list[Constant], fun: Callable[[int, int, int], int]) -> Constant:
+def _constant_fold_shift(constants: list[Constant], fun: Callable[[int, int], int], signed: bool) -> Constant:
     if len(constants) != 2:
         raise ValueError("Expected exactly 2 constants to fold")
     if not all(isinstance(constant.type, Integer) for constant in constants):
@@ -106,7 +85,14 @@ def _constant_fold_shift(constants: list[Constant], fun: Callable[[int, int, int
 
     left, right = constants
 
-    return Constant(normalize_int(fun(left.value, right.value, left.type.size), left.type.size, left.type.signed), left.type)
+    shifted_value = fun(
+        normalize_int(left.value, left.type.size, left.type.signed and signed),
+        right.value
+    )
+    return Constant(
+        normalize_int(shifted_value, left.type.size, left.type.signed),
+        left.type
+    )
 
 
 def normalize_int(v: int, size: int, signed: bool) -> int:
@@ -127,3 +113,24 @@ def normalize_int(v: int, size: int, signed: bool) -> int:
         return value - (1 << size)
     else:
         return value
+
+
+_OPERATION_TO_FOLD_FUNCTION: dict[OperationType, Callable[[list[Constant]], Constant]] = {
+    OperationType.minus: partial(_constant_fold_arithmetic_binary, fun=operator.sub),
+    OperationType.plus: partial(_constant_fold_arithmetic_binary, fun=operator.add),
+    OperationType.multiply: partial(_constant_fold_arithmetic_binary, fun=operator.mul, norm_sign=True),
+    OperationType.multiply_us: partial(_constant_fold_arithmetic_binary, fun=operator.mul, norm_sign=False),
+    OperationType.divide: partial(_constant_fold_arithmetic_binary, fun=operator.floordiv, norm_sign=True),
+    OperationType.divide_us: partial(_constant_fold_arithmetic_binary, fun=operator.floordiv, norm_sign=False),
+    OperationType.negate: partial(_constant_fold_arithmetic_unary, fun=operator.neg),
+    OperationType.left_shift: partial(_constant_fold_shift, fun=operator.lshift, signed=True),
+    OperationType.right_shift: partial(_constant_fold_shift, fun=operator.rshift, signed=True),
+    OperationType.right_shift_us: partial(_constant_fold_shift, fun=operator.rshift, signed=False),
+    OperationType.bitwise_or: partial(_constant_fold_arithmetic_binary, fun=operator.or_),
+    OperationType.bitwise_and: partial(_constant_fold_arithmetic_binary, fun=operator.and_),
+    OperationType.bitwise_xor: partial(_constant_fold_arithmetic_binary, fun=operator.xor),
+    OperationType.bitwise_not: partial(_constant_fold_arithmetic_unary, fun=operator.inv),
+}
+
+
+FOLDABLE_OPERATIONS = _OPERATION_TO_FOLD_FUNCTION.keys()
