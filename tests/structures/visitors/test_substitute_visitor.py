@@ -1,20 +1,25 @@
 import pytest
+from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.pseudo import (
     Assignment,
     BinaryOperation,
     Branch,
     Call,
-    Condition,
+    Constant,
     DataflowObject,
     Integer,
-    OperationType,
+    Phi,
+    Pointer,
     RegisterPair,
     Return,
+    UnaryOperation,
     Variable,
 )
+from decompiler.structures.pseudo.operations import ArrayInfo, Condition, OperationType
 from decompiler.structures.visitors.substitute_visitor import SubstituteVisitor
 
 _i32 = Integer.int32_t()
+_p_i32 = Pointer(Integer.int32_t())
 
 _a = Variable("a", Integer.int32_t(), 0)
 _b = Variable("b", Integer.int32_t(), 1)
@@ -51,6 +56,54 @@ _d = Variable("d", Integer.int32_t(), 3)
             SubstituteVisitor.identity(b, c)
         ),
         (
+            Assignment(a := Variable("a"), b := Variable("b")),
+            Assignment(c := Variable("c"), b),
+            SubstituteVisitor.identity(a, c)
+        ),
+        (
+            UnaryOperation(OperationType.dereference, [a := Variable("a")]),
+            UnaryOperation(OperationType.dereference, [b := Variable("b")]),
+            SubstituteVisitor.identity(a, b)
+        ),
+        (
+            UnaryOperation(
+                OperationType.dereference,
+                [BinaryOperation(OperationType.plus, [a := Variable("a", _p_i32), Constant(4, _i32)])],
+                array_info=ArrayInfo(a, 1)
+            ),
+            UnaryOperation(
+                OperationType.dereference,
+                [BinaryOperation(OperationType.plus, [b := Variable("b", _p_i32), Constant(4, _i32)])],
+                array_info=ArrayInfo(b, 1)
+            ),
+            SubstituteVisitor.identity(a, b)
+        ),
+        (
+            UnaryOperation(
+                OperationType.dereference,
+                [BinaryOperation(
+                    OperationType.plus,
+                    [
+                        a := Variable("a", _p_i32),
+                        BinaryOperation(OperationType.multiply, [b := Variable("b", _i32), Constant(4, _i32)])
+                    ]
+                )],
+                array_info=ArrayInfo(a, b)
+            ),
+            UnaryOperation(
+                OperationType.dereference,
+                [BinaryOperation(
+                    OperationType.plus,
+                    [
+                        a := Variable("a", _p_i32),
+                        BinaryOperation(OperationType.multiply, [c := Variable("c", _i32), Constant(4, _i32)])
+                    ]
+                )],
+                array_info=ArrayInfo(a, c)
+            ),
+            SubstituteVisitor.identity(b, c)
+        ),
+        (
             BinaryOperation(OperationType.multiply, [a := Variable("a"), b := Variable("b")]),
             BinaryOperation(OperationType.multiply, [a, c := Variable("c")]),
             SubstituteVisitor.identity(b, c)
@@ -69,6 +122,56 @@ _d = Variable("d", Integer.int32_t(), 3)
             Call(f := Variable("f"), [a := Variable("a")]),
             Call(g := Variable("g"), [a]),
             SubstituteVisitor.identity(f, g)
+        ),
+        (
+            Phi(
+                a3 := Variable("a", _i32, 3),
+                [
+                    a2 := Variable("a", _i32, 2),
+                    a1 := Variable("a", _i32, 1)
+                ],
+                {
+                    BasicBlock(2): a2,
+                    BasicBlock(1): a1,
+                }
+            ),
+            Phi(
+                a3,
+                [
+                    a2,
+                    a0 := Variable("a", _i32, 0)
+                ],
+                {
+                    BasicBlock(2): a2,
+                    BasicBlock(1): a0,
+                }
+            ),
+            SubstituteVisitor.identity(a1, a0)
+        ),
+        (
+            Phi(
+                a3 := Variable("a", _i32, 3),
+                [
+                    a2 := Variable("a", _i32, 2),
+                    a1 := Variable("a", _i32, 1)
+                ],
+                {
+                    BasicBlock(2): a2,
+                    BasicBlock(1): a1,
+                }
+            ),
+            Phi(
+                a4 := Variable("a", _i32, 4),
+                [
+                    a2,
+                    a1
+                ],
+                {
+                    BasicBlock(2): a2,
+                    BasicBlock(1): a0,
+                }
+            ),
+            SubstituteVisitor.identity(a3, a4)
         ),
         (
             Branch(a := Condition(OperationType.equal, [])),
