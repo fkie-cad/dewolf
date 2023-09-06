@@ -113,7 +113,10 @@ class SubstituteVisitor(DataflowObjectVisitorInterface[Optional[DataflowObject]]
 
     def _visit_operation(self, op: Operation) -> Optional[DataflowObject]:
         """Base visit function used for all operation related visit functions"""
-        op.operands[:] = [op if (repl := op.accept(self)) is None else _assert_type(repl, Expression) for op in op.operands]
+        for index, operand in enumerate(op.operands):
+            if (repl := operand.accept(self)) is not None:
+                op.operands[index] = _assert_type(repl, Expression)
+
         return self._mapper(op)
 
     def visit_list_operation(self, op: ListOperation) -> Optional[DataflowObject]:
