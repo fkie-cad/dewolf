@@ -26,6 +26,7 @@ from decompiler.structures.pseudo import (
     UnknownExpression,
     Variable,
 )
+from decompiler.structures.pseudo.operations import ArrayInfo
 from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInterface
 
 T = TypeVar("T", bound=DataflowObject)
@@ -131,14 +132,18 @@ class SubstituteVisitor(DataflowObjectVisitorInterface[Optional[DataflowObject]]
     def visit_list_operation(self, op: ListOperation) -> Optional[DataflowObject]:
         return self._visit_operation(op)
 
+    def _substitute_array_info(self, array_info: ArrayInfo):
+        if (base_replacement := array_info.base.accept(self)) is not None:
+            array_info.base = _assert_type(base_replacement, Variable)
+
+        # array_info.index can either be Variable or int. Only try substituting if not int
+        if isinstance(array_info.index, Variable):
+            if (index_replacement := array_info.index.accept(self)) is not None:
+                array_info.index = _assert_type(index_replacement, Variable)
+
     def visit_unary_operation(self, op: UnaryOperation) -> Optional[DataflowObject]:
         if op.array_info is not None:
-            if (base_replacement := op.array_info.base.accept(self)) is not None:
-                op.array_info.base = _assert_type(base_replacement, Variable)
-            # op.array_info.index can either be Variable or int. Only try substituting if not int
-            if isinstance(op.array_info.index, Variable):
-                if (index_replacement := op.array_info.index.accept(self)) is not None:
-                    op.array_info.index = _assert_type(index_replacement, Variable)
+            self._substitute_array_info(op.array_info)
 
         return self._visit_operation(op)
 
