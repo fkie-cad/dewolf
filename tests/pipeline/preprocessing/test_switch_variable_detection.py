@@ -158,7 +158,7 @@ class TestSwitchVariableDetection:
         This test is based on the output of gcc 9.2.1 on ubuntu switch sample test_switch test8.
         +----------+     +------------------------------+
         |          |     |              0.              |
-        |    2.    |     |        x = undefined         |
+        |    2.    |     |                              |
         | foo(0x0) |     |     cond:0#0 = x u< 0x8      |
         |          | <-- |     if(cond:0#0 != 0x0)      |
         +----------+     +------------------------------+
@@ -195,7 +195,6 @@ class TestSwitchVariableDetection:
                 start := BasicBlock(
                     0,
                     instructions=[
-                        Assignment(x, Variable("undefined")),
                         Assignment(Variable("cond:0", ssa_label=0), Condition(OperationType.less_us, [x, Constant(8)])),
                         Branch(Condition(OperationType.not_equal, [Variable("cond:0", ssa_label=0), Constant(0)])),
                     ],
