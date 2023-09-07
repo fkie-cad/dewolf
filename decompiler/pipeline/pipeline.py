@@ -87,6 +87,7 @@ class DecompilerPipeline:
         print_ascii = output_format == "ascii" or output_format == "ascii_and_tabs"
         show_in_tabs = output_format == "tabs" or output_format == "ascii_and_tabs"
         debug_mode = task.options.getboolean("pipeline.debug", fallback=False)
+        validate_no_dataflowobj_dup = task.options.getboolean("pipeline.validate_no_dataflowobj_dup", fallback=False)
 
         self.validate()
 
@@ -110,7 +111,7 @@ class DecompilerPipeline:
                     raise e
                 break
 
-            if debug_mode and task.graph is not None:
+            if validate_no_dataflowobj_dup and task.graph is not None:
                 self._assert_no_cfg_duplicates(task.graph)
 
     @staticmethod
