@@ -4,21 +4,24 @@ from unittest.mock import Mock, NonCallableMock
 
 import pytest
 from binaryninja import (
+    BasicBlockEdge,
     BranchType,
     Function,
     MediumLevelILBasicBlock,
     MediumLevelILConstPtr,
     MediumLevelILInstruction,
     MediumLevelILJumpTo,
+    MediumLevelILTailcallSsa,
     PossibleValueSet,
     RegisterValueType,
     Variable,
 )
 from decompiler.frontend.binaryninja.lifter import BinaryninjaLifter
 from decompiler.frontend.binaryninja.parser import BinaryninjaParser
-from decompiler.structures.graphs.branches import UnconditionalEdge
+from decompiler.structures.graphs.branches import SwitchCase, UnconditionalEdge
 from decompiler.structures.graphs.cfg import BasicBlockEdgeCondition
 from decompiler.structures.pseudo.expressions import Constant
+from decompiler.util.decoration import DecoratedCFG
 
 
 class MockEdge:
@@ -158,6 +161,24 @@ class MockFixedJump(Mock):
         self.dest.constant = address
         self.dest.function = MockFunction([])  # need .function.view to lift
 
+class MockTailcall(Mock):
+    """Mock object representing a constant jump."""
+
+    def __init__(self, address: int):
+        """Create new MediumLevelILJumpTo object"""
+        super().__init__(spec=MediumLevelILTailcallSsa)
+        self.ssa_memory_version = 0
+        self.function = None  # prevents lifting of tags
+        self.dest = Mock(spec=MediumLevelILConstPtr)
+        self.dest.constant = address
+        self.params = []
+        self.output = []
+        self.dest.function = MockFunction([])  # need .function.view to lift
+
+    def _get_child_mock(self, **kw: Any) -> NonCallableMock:
+        """Return Mock as child mock."""
+        return Mock(params=[])._get_child_mock(**kw)
+
 
 @pytest.fixture
 def parser():
@@ -293,3 +314,35 @@ def test_convert_indirect_edge_to_unconditional_no_valid_edge(parser):
     assert (cfg_edge.source.address, cfg_edge.sink.address) == (0, 42)
     assert not isinstance(cfg_edge, UnconditionalEdge)
     assert len(list(cfg.instructions)) == 1
+
+def test_tailcall_address_recovery(parser):
+    """
+    Address of edge.target.source_block.start is not in lookup table.
+    """
+    jmp_instr = MockSwitch({"a": 42})
+    function = MockFunction(
+        [
+            MockBlock(0, [MockEdge(0, 0, BranchType.IndirectBranch)], instructions=[jmp_instr]),
+            MockBlock(1, []),
+        ]
+    )
+    with pytest.raises(KeyError):
+        cfg = parser.parse(function)
+
+    # extract address from tailcall in successor
+    tailcall = MockTailcall(address=42)
+    broken_edge = Mock()
+    broken_edge.type = BranchType.IndirectBranch
+
+    function = MockFunction(
+        [
+            switch_block := MockBlock(0, [broken_edge], instructions=[jmp_instr]),
+            tailcall_block := MockBlock(1, [], instructions=[tailcall]),
+        ]
+    )
+    broken_edge.source = switch_block
+    broken_edge.target = tailcall_block
+    broken_edge.target.source_block.start = 0
+    cfg = parser.parse(function)
+    v0, v1 = cfg.nodes
+    assert isinstance(cfg.get_edge(v0, v1), SwitchCase)

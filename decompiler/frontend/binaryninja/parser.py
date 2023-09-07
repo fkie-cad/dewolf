@@ -1,14 +1,16 @@
 """Implements the parser for the binaryninja frontend."""
-from logging import info, warning
+from logging import debug, info, warning
 from typing import Dict, Iterator, List
 
 from binaryninja import (
+    BasicBlockEdge,
     BranchType,
     Function,
     MediumLevelILBasicBlock,
     MediumLevelILConstPtr,
     MediumLevelILInstruction,
     MediumLevelILJumpTo,
+    MediumLevelILTailcallSsa,
     RegisterValueType,
 )
 from decompiler.frontend.lifter import Lifter
@@ -46,6 +48,23 @@ class BinaryninjaParser(Parser):
         self._report_lifter_errors()
         return cfg
 
+    def _recover_switch_edge_cases(self, edge: BasicBlockEdge, lookup_table: dict):
+        """
+        If edge.target.source_block.start address is not in lookup table, 
+        try to recover matching address by inspecting addresses used in edge.target.
+        Return matched case list for edge.target.
+        """
+        possible_matches = set()
+        for instruction in edge.target:
+            match instruction:
+                # tail calls destroy edge address mapping
+                case MediumLevelILTailcallSsa(dest=MediumLevelILConstPtr()):
+                    possible_matches.add(instruction.dest.constant)
+        # we have found exactly one address and that address is used in lookup table.
+        if len(possible_matches) == 1 and possible_matches & set(lookup_table):
+            return lookup_table[possible_matches.pop()]  # return cases for matched address
+        raise KeyError("Can not recover address used in lookup table")
+
     def _add_basic_block_edges(self, cfg: ControlFlowGraph, vertices: dict, basic_block: MediumLevelILBasicBlock) -> None:
         """Add all outgoing edges of the given basic block to the given cfg."""
         if self._can_convert_single_outedge_to_unconditional(basic_block):
@@ -56,11 +75,15 @@ class BinaryninjaParser(Parser):
         # check if the block ends with a switch statement
         elif lookup_table := self._get_lookup_table(basic_block):
             for edge in basic_block.outgoing_edges:
+                if edge.target.source_block.start not in lookup_table:
+                    case_list = self._recover_switch_edge_cases(edge, lookup_table)
+                else:
+                    case_list = lookup_table[edge.target.source_block.start]
                 cfg.add_edge(
                     SwitchCase(
                         vertices[edge.source.index],
                         vertices[edge.target.index],
-                        lookup_table[edge.target.source_block.start],
+                        case_list,
                     )
                 )
         else:
