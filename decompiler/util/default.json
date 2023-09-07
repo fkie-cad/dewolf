@@ -632,14 +632,14 @@
                 "argument_name": "--ast-stages"
             },
             {
-                "dest": "pipeline.validate_no_dataflowobj_dup",
+                "dest": "pipeline.validate_no_dataflow_dup",
                 "default": false,
                 "title": "Validate no DataflowObject duplication",
                 "type": "boolean",
                 "description": "Throw exception if duplicate DataflowObjects exist after any stage",
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
-                "argument_name": "--validate-no-dataflowobj-dup"
+                "argument_name": "--validate-no-dataflow-dup"
             },
             {
                 "dest": "pipeline.debug",
