@@ -19,7 +19,9 @@ from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.task import DecompilerTask
 from decompiler.util.decoration import DecoratedAST, DecoratedCFG
 
-from ..structures.graphs.cfg import ControlFlowGraph
+from ..structures.ast.ast_nodes import CodeNode
+from ..structures.ast.syntaxtree import AbstractSyntaxTree
+from ..structures.pseudo import Instruction
 from .default import AST_STAGES, CFG_STAGES
 from .stage import PipelineStage
 
@@ -111,8 +113,11 @@ class DecompilerPipeline:
                     raise e
                 break
 
-            if validate_no_dataflowobj_dup and task.graph is not None:
-                self._assert_no_cfg_duplicates(task.graph)
+            if validate_no_dataflowobj_dup:
+                if task.graph is not None:
+                    self._assert_no_dataflow_duplicates(list(task.graph.instructions))
+                if task.syntax_tree is not None:
+                    self._assert_no_ast_duplicates(task.syntax_tree)
 
     @staticmethod
     def _show_stage(task: DecompilerTask, stage_name: str, print_ascii: bool, show_in_tabs: bool):
@@ -129,10 +134,19 @@ class DecompilerPipeline:
                 DecoratedCFG.show_flowgraph(task.graph, stage_name)
 
     @staticmethod
-    def _assert_no_cfg_duplicates(cfg: ControlFlowGraph):
+    def _assert_no_ast_duplicates(ast: AbstractSyntaxTree):
+        instructions = []
+        for node in ast.topological_order():
+            if isinstance(node, CodeNode):
+                instructions.extend(node.instructions)
+
+        DecompilerPipeline._assert_no_dataflow_duplicates(instructions)
+
+    @staticmethod
+    def _assert_no_dataflow_duplicates(instructions: list[Instruction]):
         encountered_ids: set[int] = set()
 
-        for instruction in cfg.instructions:
+        for instruction in instructions:
             for obj in instruction.subexpressions():
                 if id(obj) in encountered_ids:
                     raise AssertionError(f"Found duplicated DataflowObject in cfg: {obj}")
