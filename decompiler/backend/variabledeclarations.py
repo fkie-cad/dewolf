@@ -18,6 +18,7 @@ from decompiler.structures.pseudo import (
     UnaryOperation,
     Variable,
 )
+from decompiler.structures.pseudo.operations import MemberAccess
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask
 from decompiler.util.serialization.bytes_serializer import convert_bytes
@@ -53,6 +54,8 @@ class LocalDeclarationGenerator(BaseAstDataflowObjectVisitor):
 
     def visit_unary_operation(self, unary: UnaryOperation):
         """Visit unary operations to remember all variables those memory location was read."""
+        if isinstance(unary, MemberAccess):
+            self._variables.add(unary.struct_variable)
         if unary.operation == OperationType.address or unary.operation == OperationType.dereference:
             if isinstance(unary.operand, Variable):
                 self._variables.add(unary.operand)
@@ -68,7 +71,6 @@ class LocalDeclarationGenerator(BaseAstDataflowObjectVisitor):
         for variable in sorted(self._variables, key=lambda x: str(x)):
             if not isinstance(variable, GlobalVariable) and variable.name not in param_names:
                 variable_type_mapping[variable.type].append(variable)
-
         for variable_type, variables in sorted(variable_type_mapping.items(), key=lambda x: str(x)):
             for chunked_variables in self._chunks(variables, self._vars_per_line):
                 yield CExpressionGenerator.format_variables_declaration(
