@@ -8,6 +8,9 @@ from decompiler.structures.pseudo.operations import COMMUTATIVE_OPERATIONS
 
 
 class CollectTerms(SimplificationRule):
+    """
+    This rule walks the dafaflow tree and collects and folds constants in commutative operations.
+    """
     def apply(self, operation: Operation) -> list[tuple[Expression, Expression]]:
         if operation.operation not in COMMUTATIVE_OPERATIONS:
             return []
@@ -34,6 +37,14 @@ class CollectTerms(SimplificationRule):
 
 
 def _collect_constants(operation: Operation) -> Iterator[Constant]:
+    """
+    Collects constants of potentially multiple nested commutative operations of the same type.
+
+    This function traverses the subtree rooted at the provided operation and collects
+    all constants that belong to operations with the same operation type as the root operation.
+    The subtree includes only operations that have matching operation types.
+    """
+
     operation_type = operation.operation
     operand_type = operation.type
 
@@ -54,6 +65,9 @@ def _collect_constants(operation: Operation) -> Iterator[Constant]:
 
 
 def _identity_constant(operation: OperationType, var_type: Type) -> Constant:
+    """
+    Return a const containing the identity element for the specified operation and variable type.
+    """
     match operation:
         case OperationType.plus | OperationType.bitwise_xor | OperationType.bitwise_or:
             return Constant(0, var_type)
