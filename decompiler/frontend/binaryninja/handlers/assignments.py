@@ -1,13 +1,15 @@
 """Module implementing the AssignmentHandler for binaryninja."""
+import logging
 from functools import partial
-from typing import Union
 
+import binaryninja
 from binaryninja import mediumlevelil
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import (
     Assignment,
     BinaryOperation,
     Constant,
+    Expression,
     GlobalVariable,
     Integer,
     Operation,
@@ -16,6 +18,8 @@ from decompiler.structures.pseudo import (
     RegisterPair,
     UnaryOperation,
 )
+from decompiler.structures.pseudo.complextypes import Struct, Union
+from decompiler.structures.pseudo.operations import MemberAccess
 
 
 class AssignmentHandler(Handler):
@@ -38,8 +42,8 @@ class AssignmentHandler(Handler):
                 mediumlevelil.MediumLevelILVarAliasedField: partial(self.lift_get_field, is_aliased=True),
                 mediumlevelil.MediumLevelILStore: self.lift_store,
                 mediumlevelil.MediumLevelILStoreSsa: self.lift_store,
-                mediumlevelil.MediumLevelILStoreStruct: self._lift_store_struct,
-                mediumlevelil.MediumLevelILStoreStructSsa: self._lift_store_struct,
+                mediumlevelil.MediumLevelILStoreStruct: self.lift_store_struct,
+                mediumlevelil.MediumLevelILStoreStructSsa: self.lift_store_struct,
                 mediumlevelil.MediumLevelILLowPart: self._lift_mask_high,
             }
         )
@@ -54,16 +58,31 @@ class AssignmentHandler(Handler):
     def lift_set_field(self, assignment: mediumlevelil.MediumLevelILSetVarField, is_aliased=False, **kwargs) -> Assignment:
         """
         Lift an instruction writing to a subset of the given value.
-
-        In case of lower register (offset 0) lift as contraction
-        e.g. eax.al = .... <=> (char)eax  ....
-
-        In case higher registers use masking
-        e.g. eax.ah = x <=> eax = (eax & 0xffff00ff) + (x << 2)
+        case 1: writing into struct member: book.title = value
+                lift as struct_member(book, title, writes_memory) = value
+        case 2: writing into lower register part (offset 0): eax.al = value
+                lift as contraction (char) eax = value
+        case 3: writing into higher register part: eax.ah = value
+                lift using bit masking eax = (eax & 0xffff00ff) + (value << 2)
         """
-        if assignment.offset == 0 and self._lifter.is_omitting_masks:
+        # case 1 (struct), avoid set field of named integers:
+        dest_type = self._lifter.lift(assignment.dest.type)
+        if isinstance(assignment.dest.type, binaryninja.NamedTypeReferenceType) and not (
+                isinstance(dest_type, Pointer) and isinstance(dest_type.type, Integer)
+        ):
+            struct_variable = self._lifter.lift(assignment.dest, is_aliased=True, parent=assignment)
+            destination = MemberAccess(
+                offset=assignment.offset,
+                member_name=struct_variable.type.get_member_by_offset(assignment.offset).name,
+                operands=[struct_variable],
+                writes_memory=assignment.ssa_memory_version,
+            )
+            value = self._lifter.lift(assignment.src)
+        # case 2 (contraction):
+        elif assignment.offset == 0 and self._lifter.is_omitting_masks:
             destination = self._lift_contraction(assignment, is_aliased=is_aliased, parent=assignment)
             value = self._lifter.lift(assignment.src)
+        # case 3 (bit masking):
         else:
             destination = self._lifter.lift(assignment.dest, is_aliased=is_aliased, parent=assignment)
             value = self._lift_masked_operand(assignment)
@@ -72,9 +91,16 @@ class AssignmentHandler(Handler):
     def lift_get_field(self, instruction: mediumlevelil.MediumLevelILVarField, is_aliased=False, **kwargs) -> Operation:
         """
         Lift an instruction accessing a field from the outside.
-        e.g. x = eax.ah <=> x = eax & 0x0000ff00
+
+        case 1: struct member read access e.g. (x = )book.title
+                lift as (x = ) struct_member(book, title)
+        case 2: accessing register portion e.g. (x = )eax.ah
+                lift as (x = ) eax & 0x0000ff00
+        (x = ) <- for the sake of example, only rhs expression is lifted here.
         """
         source = self._lifter.lift(instruction.src, is_aliased=is_aliased, parent=instruction)
+        if isinstance(source.type, Struct) or isinstance(source.type, Union):
+            return self._get_field_as_member_access(instruction, source, **kwargs)
         cast_type = source.type.resize(instruction.size * self.BYTE_SIZE)
         if instruction.offset:
             return BinaryOperation(
@@ -84,6 +110,22 @@ class AssignmentHandler(Handler):
             )
         return UnaryOperation(OperationType.cast, [source], vartype=cast_type, contraction=True)
 
+    def _get_field_as_member_access(self, instruction: mediumlevelil.MediumLevelILVarField, source: Expression, **kwargs) -> MemberAccess:
+        """Lift MLIL var_field as struct or union member read access."""
+        if isinstance(source.type, Struct):
+            member_name = source.type.get_member_by_offset(instruction.offset).name
+        elif parent := kwargs.get("parent", None):
+            parent_type = self._lifter.lift(parent.dest.type)
+            member_name = source.type.get_member_by_type(parent_type).name
+        else:
+            logging.warning(f"Cannot get member name for instruction {instruction}")
+            member_name = f"field_{hex(instruction.offset)}"
+        return MemberAccess(
+            offset=instruction.offset,
+            member_name=member_name,
+            operands=[source],
+        )
+
     def lift_store(self, assignment: mediumlevelil.MediumLevelILStoreSsa, **kwargs) -> Assignment:
         """Lift a store operation to pseudo (e.g. [ebp+4] = eax, or [global_var_label] = 25)."""
         return Assignment(
@@ -91,7 +133,7 @@ class AssignmentHandler(Handler):
             self._lifter.lift(assignment.src),
         )
 
-    def _lift_store_destination(self, store_assignment: mediumlevelil.MediumLevelILStoreSsa) -> Union[UnaryOperation, GlobalVariable]:
+    def _lift_store_destination(self, store_assignment: mediumlevelil.MediumLevelILStoreSsa) -> UnaryOperation | GlobalVariable:
         """
         Lift destination operand of store operation which is used for modelling both assignments of dereferences and global variables.
         """
@@ -167,24 +209,16 @@ class AssignmentHandler(Handler):
             self._lifter.lift(assignment.src, parent=assignment),
         )
 
-    def _lift_store_struct(self, instruction: mediumlevelil.MediumLevelILStoreStruct, **kwargs) -> Assignment:
+    def lift_store_struct(self, instruction: mediumlevelil.MediumLevelILStoreStruct, **kwargs) -> Assignment:
         """Lift a MLIL_STORE_STRUCT_SSA instruction to pseudo (e.g. object->field = x)."""
         vartype = self._lifter.lift(instruction.dest.expr_type)
-        return Assignment(
-            UnaryOperation(
-                OperationType.dereference,
-                [
-                    BinaryOperation(
-                        OperationType.plus,
-                        [
-                            UnaryOperation(OperationType.cast, [self._lifter.lift(instruction.dest)], vartype=Pointer(Integer.char())),
-                            Constant(instruction.offset),
-                        ],
-                        vartype=vartype,
-                    ),
-                ],
-                vartype=Pointer(vartype),
-                writes_memory=instruction.dest_memory
-            ),
-            self._lifter.lift(instruction.src),
+        struct_variable = self._lifter.lift(instruction.dest, is_aliased=True, parent=instruction)
+        struct_member_access = MemberAccess(
+            member_name=vartype.type.members.get(instruction.offset),
+            offset=instruction.offset,
+            operands=[struct_variable],
+            vartype=vartype,
+            writes_memory=instruction.dest_memory,
         )
+        src = self._lifter.lift(instruction.src)
+        return Assignment(struct_member_access, src)

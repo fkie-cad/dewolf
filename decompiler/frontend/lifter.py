@@ -8,6 +8,9 @@ from decompiler.structures.pseudo import Expression
 class Lifter(ABC):
     """Represents a basic lifter emmiting decompiler IR."""
 
+    def __init__(self):
+        self.complex_types = None
+
     @abstractmethod
     def lift(self, expression, **kwargs) -> Expression:
         """Lift the given expression to pseudo IR."""

@@ -260,6 +260,17 @@ def test_tailcall_display():
     assert output.count("return fseeko(") == 1
 
 
+def test_member_access_is_in_decompiled_code():
+    """Test that arg1#0->_IO_read_ptr, arg1#0->_IO_write_base and arg1#0->_IO_save_base
+    are displayed as member accesses in the decompiled code."""
+    args = ["python", "decompile.py", "tests/coreutils/binaries/sha224sum", "rpl_fseeko"]
+    output = str(subprocess.run(args, check=True, capture_output=True).stdout)
+
+    assert "->_IO_read_ptr" in output
+    assert "->_IO_save" in output
+    assert "->_IO_write_base" in output
+
+
 def test_issue_70():
     """Test Issue #70."""
     args = ["python", "decompile.py", "tests/samples/others/issue-70.bin", "main"]

@@ -69,21 +69,21 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
     name = "backward-slice-switch-variable-detection"
 
     def __init__(self):
-        self._use_map = None
-        self._def_map = None
-        self._dereferences_used_in_branches = None
+        self._def_map: DefMap
+        self._use_map: UseMap
+        self._dereferences_used_in_branches: set
 
     def run(self, task: DecompilerTask):
         """
+        Replace switch variable containing offset calculations with a "cleaner" predecessor.
+        Jump table offset calculations become then the dead code and will be removed during the dead code elimination stage.
         - iterate through the basic blocks
         - on switch block found:
-            if switch block has only one conditional block predecessor:
-                track the variable in indirect jump backwards till its first related use in the switch basic block
-                find the variable common between the first use instruction and condition in conditional predecessor
-                and substitute the jump variable with the common variable;
-                jump table offset calculations become then the dead code and will be removed during
-                the dead code elimination stage
-
+            - track the variable in indirect jump backwards until it matches a replacement criterion:
+                a) defined in copy assignment Var1 = Var2
+                b) is used in an Assignment with RHS being Condition solely requiring `variable`
+                c) is used in Branch with single requirement
+                d) if any predecessors of `variable` are used as dereferences in branches
         Overcomes issues with dummy heuristic.
         """
         self._init_map(task.graph)
@@ -116,19 +116,55 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
                 return variable
         raise ValueError("No switch variable candidate found.")
 
-    def _is_bounds_checked(self, value: Variable) -> bool:
-        """Check if the given variable is a direct copy of another one. It that is the case, return the copied variable."""
+    def _is_used_in_condition_assignment(self, value: Variable):
+        """
+        Check if `value` is used in an Assignment with RHS being Condition solely requiring `value`
+        """
         for usage in self._use_map.get(value):
             if isinstance(usage, Assignment) and isinstance(usage.value, Condition) and usage.requirements == [value]:
                 return True
+        return False 
+
+    def _is_used_in_branch(self, value: Variable):
+        """
+        Check if `value` is used in Branch solely requiring `value`
+        """
+        for usage in self._use_map.get(value):
             if isinstance(usage, Branch) and usage.requirements == [value]:
                 return True
+        return False
+
+    def _is_predecessor_dereferenced_in_branch(self, value: Variable) -> bool:
+        """
+        Check if any predecessors of `value` are used as dereferences in branches.
+        """
         if definition := self._def_map.get(value):
             return (
                 any(exp in self._dereferences_used_in_branches for exp in definition.value)
                 or definition.value in self._dereferences_used_in_branches
             )
         return False
+
+    def _is_copy_assigned(self, value: Variable) -> bool:
+        """
+        Check if variable is defined in copy assignment of the form Var1 = Var2.
+        """
+        if definition := self._def_map.get(value):
+            return isinstance(definition.value, Variable)
+        return False
+
+    def _is_bounds_checked(self, value: Variable) -> bool:
+        """
+        Check if variable can be used in switch expression.
+        """
+        return any(
+            [
+                self._is_copy_assigned(value),
+                self._is_used_in_condition_assignment(value),
+                self._is_used_in_branch(value),
+                self._is_predecessor_dereferenced_in_branch(value),
+            ]
+        )
 
     def _backwardslice(self, value: Variable):
         """Do a breadth-first search on variable predecessors."""
