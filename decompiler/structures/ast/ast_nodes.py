@@ -261,7 +261,7 @@ class SeqNode(AbstractSyntaxTreeNode):
     def __init__(self, reaching_condition: LogicCondition, ast: Optional[AbstractSyntaxInterface] = None):
         """Init a new SequenceNode with a reaching condition and the ast it is contained in."""
         super().__init__(reaching_condition, ast)
-        self._sorted_children: Tuple[AbstractSyntaxTreeNode, ...] = tuple()
+        self.__sorted_children: Tuple[AbstractSyntaxTreeNode, ...] = tuple()
 
     def __str__(self) -> str:
         """Return a string representation of a SeqNode."""
@@ -274,6 +274,16 @@ class SeqNode(AbstractSyntaxTreeNode):
     def copy(self) -> SeqNode:
         """Return a copy of the ast node."""
         return SeqNode(self.reaching_condition)
+
+    @property
+    def _sorted_children(self):
+        return self.__sorted_children
+
+    @_sorted_children.setter
+    def _sorted_children(self, value):
+        if value is None:
+            raise ValueError("_sorted_children cannot be set to None")
+        self.__sorted_children = value
 
     @property
     def children(self) -> Tuple[AbstractSyntaxTreeNode, ...]:

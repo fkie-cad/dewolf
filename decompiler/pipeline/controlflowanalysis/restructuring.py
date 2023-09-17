@@ -18,6 +18,7 @@ from decompiler.structures.graphs.classifiedgraph import EdgeProperty
 from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock, TransitionCFG
 from decompiler.structures.pseudo import Assignment, Constant, Integer, Variable
 from decompiler.task import DecompilerTask
+from decompiler.util.decoration import DecoratedAST, DecoratedCFG, DecoratedGraph
 
 
 class PatternIndependentRestructuring(PipelineStage):
@@ -46,6 +47,8 @@ class PatternIndependentRestructuring(PipelineStage):
         self.t_cfg = TransitionCFG.generate(task.graph)
         self.asforest = AbstractSyntaxForest.generate_from_code_nodes([node.ast for node in self.t_cfg], self.t_cfg.condition_handler)
         self.options = RestructuringOptions.generate(task.options)
+
+        # DecoratedCFG.from_cfg(task.graph).export_plot("restructuring.png")
 
         self.restructure_cfg()
 
