@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.ast.ast_nodes import (
@@ -19,7 +19,7 @@ from decompiler.structures.ast.ast_nodes import (
 )
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.logic.logic_condition import LogicCondition
-from decompiler.structures.pseudo import Assignment, Condition, Expression, Operation, Variable
+from decompiler.structures.pseudo import Assignment, BinaryOperation, Condition, Constant, Expression, Operation, OperationType, Variable
 from decompiler.structures.visitors.assignment_visitor import AssignmentVisitor
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
@@ -277,6 +277,7 @@ class WhileLoopReplacer:
             -> loop condition complexity < condition complexity 
             -> possible modification complexity < modification complexity
             -> if condition is only a symbol: check condition type for allowed one
+            -> has a continue statement which must and can be equalized
         
         If 'force_for_loops' is enabled, the complexity options are ignored and every while loop after the 
         initial transformation will be forced into a for loop with an empty declaration/modification      
@@ -285,9 +286,6 @@ class WhileLoopReplacer:
         for loop_node in list(self._ast.get_while_loop_nodes_topological_order()):
             if loop_node.is_endless_loop or (not self._keep_empty_for_loops and _is_single_instruction_loop_node(loop_node)) \
             or self._invalid_simple_for_loop_condition_type(loop_node.condition):
-                continue
-
-            if any(node.does_end_with_continue for node in loop_node.body.get_descendant_code_nodes_interrupting_ancestor_loop()):
                 continue
 
             if not self._force_for_loops and loop_node.condition.get_complexity(self._ast.condition_map) > self._condition_max_complexity:
@@ -300,6 +298,10 @@ class WhileLoopReplacer:
                     continue
                 if not self._force_for_loops and continuation.instruction.complexity > self._modification_max_complexity:
                     continue
+                if (equalizable_continue_nodes := self._get_continue_nodes_with_equalizable_definition(loop_node, continuation, variable_init)) is None:
+                    break
+                for node in equalizable_continue_nodes:
+                    self._remove_continuation_from_last_definition(node, continuation, variable_init)
                 self._replace_with_for_loop(loop_node, continuation, variable_init)
                 break
 
@@ -314,6 +316,54 @@ class WhileLoopReplacer:
                     reaching_condition=loop_node.reaching_condition,
                     )
                 )
+
+    def _get_continue_nodes_with_equalizable_definition(self, loop_node: WhileLoopNode, continuation: AstInstruction, variable_init: AstInstruction) -> List[CodeNode]:
+        """
+        Finds code nodes containing continue statements and a definition of the continuation instruction, which can be easily equalized.
+
+        Returns None if there is no definition or equalizing would not be easy enough.
+        """
+        equalizable_nodes = []
+        for code_node in loop_node.body.get_descendant_code_nodes_interrupting_ancestor_loop():
+            if not code_node.does_end_with_continue:
+                continue
+            if not self._is_expression_simple_binary_operation(continuation.instruction.value):
+                return None
+            if (last_definition_index := _get_last_definition_index_of(code_node, variable_init.instruction.destination)) == -1:
+                return None
+            if not (self._is_expression_simple_binary_operation(code_node.instructions[last_definition_index].value) \
+                or isinstance(code_node.instructions[last_definition_index].value, Constant)):
+                return None
+            equalizable_nodes.append(code_node)
+        return equalizable_nodes
+
+    def _is_expression_simple_binary_operation(self, expression: Expression) -> bool:
+        """Checks if an expression is a binary operation with plus or minus and a constant."""
+        if not isinstance(expression, BinaryOperation):
+            return False
+        if not expression.operation in [OperationType.plus, OperationType.minus]:
+            return False
+        if not any(isinstance(operand, Constant) for operand in expression.operands):
+            return False
+        return True
+
+    def _remove_continuation_from_last_definition(self, code_node: CodeNode, continuation: AstInstruction, variable_init: AstInstruction):
+        """Substracts the value of the continuation instruction from the last definition, which must be a simple binary operation or a constant."""
+        last_definition = code_node.instructions[_get_last_definition_index_of(code_node, variable_init.instruction.destination)]
+        continuation_operand = continuation.instruction.value.right if isinstance(continuation.instruction.value.right, Constant) else continuation.instruction.value.left
+
+        if isinstance(last_definition.value, BinaryOperation) and self._is_expression_simple_binary_operation(last_definition.value):
+            last_definition_operand = last_definition.value.right if isinstance(last_definition.value.right, Constant) else last_definition.value.left
+
+            if continuation.instruction.value.operation == last_definition.value.operation:
+                last_definition_operand.value -= continuation_operand.value
+            else:
+                last_definition_operand.value += continuation_operand.value
+        elif isinstance(last_definition.value, Constant):
+            if continuation.instruction.value.operation == OperationType.plus:
+                last_definition.value.value -= continuation_operand.value
+            else:
+                last_definition.value.value += continuation_operand.value
 
     def _replace_with_for_loop(self, loop_node: WhileLoopNode, continuation: AstInstruction, init: AstInstruction):
         """
@@ -347,7 +397,7 @@ class WhileLoopReplacer:
         )
         continuation.node.instructions.remove(continuation.instruction)
         self._ast.clean_up()
-       
+
     def _invalid_simple_for_loop_condition_type(self, logic_condition) -> bool:
         """ Checks if a logic condition is only a symbol, if true checks condition type of symbol for forbidden ones"""
         if not logic_condition.is_symbol or not self._forbidden_condition_types:
