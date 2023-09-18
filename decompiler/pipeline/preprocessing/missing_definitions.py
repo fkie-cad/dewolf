@@ -67,9 +67,19 @@ class _VariableCopyPool:
             return self._sorted_copies_of[variable][0]
         return min(self._copies_of_variable[variable], key=lambda var: var.ssa_label)
 
+    def _check_duplicated(self, var_name: str):
+        """
+        Due to mixing of ssa_labels and memory versions, it can happen that we have duplicates in the copy pool.
+        E.g., [edx#0, edx#0, ...]
+        """
+        ssa_labels = [var.ssa_label for var in self._sorted_copies_of[var_name]]
+        if any(i == j for i, j in zip(ssa_labels, ssa_labels[1:])):
+            raise ValueError(f"duplicate entries in copy pool for {var_name}")
+
     def possible_missing_definitions_for(self, variable: Union[str, Variable]) -> List[Variable]:
         """Returns all variables whose definition may be missing because it is not the first in the order."""
         var_name = self._get_variable_name(variable)
+        self._check_duplicated(var_name)
         return self._sorted_copies_of[var_name][1:]
 
     @staticmethod
