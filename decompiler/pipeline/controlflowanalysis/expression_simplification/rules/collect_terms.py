@@ -10,6 +10,8 @@ from decompiler.structures.pseudo.operations import COMMUTATIVE_OPERATIONS
 class CollectTerms(SimplificationRule):
     """
     This rule walks the dafaflow tree and collects and folds constants in commutative operations.
+    The first constant of the tree is replaced with the folded result and all remaining constants are replaced with the identity.
+    This stage exploits associativity and is the only stage doing so. Therefore, it cannot be replaced by a combination of `TermOrder` and `CollapseConstants`.
     """
     def apply(self, operation: Operation) -> list[tuple[Expression, Expression]]:
         if operation.operation not in COMMUTATIVE_OPERATIONS:
