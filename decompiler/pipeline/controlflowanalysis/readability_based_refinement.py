@@ -319,9 +319,12 @@ class WhileLoopReplacer:
 
     def _get_continue_nodes_with_equalizable_definition(self, loop_node: WhileLoopNode, continuation: AstInstruction, variable_init: AstInstruction) -> List[CodeNode]:
         """
-        Finds code nodes containing continue statements and a definition of the continuation instruction, which can be easily equalized.
+        Finds code nodes of a while loop containing continue statements and a definition of the continuation instruction, which can be easily equalized.
 
-        Returns None if there is no definition or equalizing would not be easy enough.
+        :param loop_node: While-loop to search in
+        :param continuation: Instruction defining the for-loops modification
+        :param variable_init: Instruction defining the for-loops declaration
+        :return: List of continue code nodes that has equalizable definitions, None if at least one continue node does not match the requirements
         """
         equalizable_nodes = []
         for code_node in loop_node.body.get_descendant_code_nodes_interrupting_ancestor_loop():
@@ -348,18 +351,24 @@ class WhileLoopReplacer:
         return True
 
     def _remove_continuation_from_last_definition(self, code_node: CodeNode, continuation: AstInstruction, variable_init: AstInstruction):
-        """Substracts the value of the continuation instruction from the last definition, which must be a simple binary operation or a constant."""
+        """
+        Substracts the value of the continuation instruction from the last definition, which must be a simple binary operation or a constant.
+        
+        :param code_node: Code node whose last instruction is to be changed
+        :param continuation: Instruction defining the for-loops modification
+        :param variable_init: Instruction defining the for-loops declaration
+        """
         last_definition = code_node.instructions[_get_last_definition_index_of(code_node, variable_init.instruction.destination)]
         continuation_operand = continuation.instruction.value.right if isinstance(continuation.instruction.value.right, Constant) else continuation.instruction.value.left
 
-        if isinstance(last_definition.value, BinaryOperation) and self._is_expression_simple_binary_operation(last_definition.value):
+        if isinstance(last_definition.value, BinaryOperation):
             last_definition_operand = last_definition.value.right if isinstance(last_definition.value.right, Constant) else last_definition.value.left
 
             if continuation.instruction.value.operation == last_definition.value.operation:
                 last_definition_operand.value -= continuation_operand.value
             else:
                 last_definition_operand.value += continuation_operand.value
-        elif isinstance(last_definition.value, Constant):
+        else:
             if continuation.instruction.value.operation == OperationType.plus:
                 last_definition.value.value -= continuation_operand.value
             else:
