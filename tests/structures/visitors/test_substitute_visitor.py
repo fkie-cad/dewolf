@@ -168,7 +168,7 @@ _d = Variable("d", Integer.int32_t(), 3)
                 ],
                 {
                     BasicBlock(2): a2,
-                    BasicBlock(1): a0,
+                    BasicBlock(1): a1,
                 }
             ),
             SubstituteVisitor.identity(a3, a4)
@@ -191,3 +191,7 @@ def test_substitute(initial_obj: DataflowObject, expected_result: DataflowObject
         result = initial_obj
 
     assert result == expected_result
+
+    # if expected result is Phi also test for origin_block equality, as that is not covered by object equality
+    if isinstance(expected_result, Phi):
+        assert result.origin_block == expected_result.origin_block
