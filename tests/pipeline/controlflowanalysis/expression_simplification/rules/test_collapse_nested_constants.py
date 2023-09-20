@@ -1,5 +1,5 @@
 import pytest
-from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.collect_terms import CollectTerms
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.collapse_nested_constants import CollapseNestedConstants
 from decompiler.structures.pseudo import BinaryOperation, Constant, Expression, Integer, Operation, OperationType, Variable
 from decompiler.structures.visitors.substitute_visitor import SubstituteVisitor
 
@@ -132,7 +132,7 @@ def _bit_or(e0: Expression, e1: Expression) -> BinaryOperation:
     ],
 )
 def test_collect_terms(operation: Operation, possible_results: set[Expression]):
-    collect_terms = CollectTerms()
+    collect_terms = CollapseNestedConstants()
 
     for i in range(100):
         substitutions = collect_terms.apply(operation)

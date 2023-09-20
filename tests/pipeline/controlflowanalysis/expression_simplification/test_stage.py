@@ -1,6 +1,6 @@
 import pytest
 from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.collapse_constants import CollapseConstants
-from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.collect_terms import CollectTerms
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.collapse_nested_constants import CollapseNestedConstants
 from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.rule import SimplificationRule
 from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.simplify_trivial_arithmetic import SimplifyTrivialArithmetic
 from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.sub_to_add import SubToAdd
@@ -59,7 +59,7 @@ def _v_i32(name: str) -> Variable:
             Assignment(_v_i32("a"), _c_i32(5))
         ),
         (
-            [SubToAdd(), CollectTerms(), SimplifyTrivialArithmetic()],
+            [SubToAdd(), CollapseNestedConstants(), SimplifyTrivialArithmetic()],
             Assignment(_v_i32("a"), _sub(_add(_v_i32("a"), _c_i32(5)), _c_i32(5))),
             Assignment(_v_i32("a"), _v_i32("a"))
         ),

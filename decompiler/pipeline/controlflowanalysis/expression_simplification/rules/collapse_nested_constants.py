@@ -7,7 +7,7 @@ from decompiler.structures.pseudo import Constant, Expression, Operation, Operat
 from decompiler.structures.pseudo.operations import COMMUTATIVE_OPERATIONS
 
 
-class CollectTerms(SimplificationRule):
+class CollapseNestedConstants(SimplificationRule):
     """
     This rule walks the dafaflow tree and collects and folds constants in commutative operations.
     The first constant of the tree is replaced with the folded result and all remaining constants are replaced with the identity.

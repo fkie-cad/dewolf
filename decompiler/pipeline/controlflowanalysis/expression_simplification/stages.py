@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from decompiler.backend.cexpressiongenerator import CExpressionGenerator
 from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.collapse_add_neg import CollapseAddNeg
 from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.collapse_constants import CollapseConstants
-from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.collect_terms import CollectTerms
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.collapse_nested_constants import CollapseNestedConstants
 from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.positive_constants import PositiveConstants
 from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.rule import SimplificationRule
 from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.simplify_redundant_reference import SimplifyRedundantReference
@@ -161,7 +161,7 @@ _rules: list[SimplificationRule] = [
     SimplifyTrivialLogicArithmetic(),
     SimplifyTrivialShift(),
     CollapseConstants(),
-    CollectTerms(),
+    CollapseNestedConstants(),
 ]
 _post_rules: list[SimplificationRule] = [
     CollapseAddNeg(),
