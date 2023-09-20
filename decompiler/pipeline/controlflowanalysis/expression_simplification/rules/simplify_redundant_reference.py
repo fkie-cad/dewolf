@@ -13,8 +13,8 @@ class SimplifyRedundantReference(SimplificationRule):
         match operation:
             case UnaryOperation(
                 operation=OperationType.dereference,
-                operand=UnaryOperation(operation=OperationType.address, operand=operand)
+                operand=UnaryOperation(operation=OperationType.address, operand=inner_operand)
             ):
-                return [(operation, operand)]
+                return [(operation, inner_operand)]
             case _:
                 return []
