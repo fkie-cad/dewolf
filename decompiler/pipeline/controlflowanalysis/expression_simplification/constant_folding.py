@@ -30,7 +30,10 @@ def _constant_fold_arithmetic_binary(
 
     :param constants: A list of exactly 2 constant operands.
     :param fun: The binary function to perform on the constants.
-    :param norm_sign: Optional boolean flag to indicate whether to normalize the sign of the input constants to 'fun'.
+    :param norm_sign: Optional boolean flag to indicate if/how to normalize the input constants to 'fun':
+        - None (default): no normalization
+        - True:  normalize inputs, interpreted as signed values
+        - False: normalize inputs, interpreted as unsigned values
     :return: A constant representing the result of the operation.
     """
 
