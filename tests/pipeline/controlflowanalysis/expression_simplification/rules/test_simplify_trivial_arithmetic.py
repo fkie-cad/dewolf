@@ -13,6 +13,8 @@ con_neg1 = Constant(-1, Integer.int32_t())
     [
         (BinaryOperation(OperationType.plus, [var, con_0]), [var]),
         (BinaryOperation(OperationType.minus, [var, con_0]), [var]),
+        (BinaryOperation(OperationType.multiply, [var, con_0]), [con_0]),
+        (BinaryOperation(OperationType.multiply_us, [var, con_0]), [con_0]),
         (BinaryOperation(OperationType.multiply, [var, con_1]), [var]),
         (BinaryOperation(OperationType.multiply_us, [var, con_1]), [var]),
         (BinaryOperation(OperationType.multiply, [var, con_neg1]), [UnaryOperation(OperationType.negate, [var])]),

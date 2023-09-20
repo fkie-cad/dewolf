@@ -8,6 +8,8 @@ class SimplifyTrivialArithmetic(SimplificationRule):
 
     - `e + 0 -> e`
     - `e - 0 -> e`
+    - `e * 0 -> 0`
+    - `e u* 0 -> 0`
     - `e * 1 -> e`
     - `e u* 1 -> e`
     - `e * -1 -> -e`
@@ -26,7 +28,7 @@ class SimplifyTrivialArithmetic(SimplificationRule):
                 right=Constant(value=1),
             ):
                 return [(operation, operation.left)]
-            case BinaryOperation(operation=OperationType.multiply, right=Constant(value=0)):
+            case BinaryOperation(operation=OperationType.multiply | OperationType.multiply_us, right=Constant(value=0)):
                 return [(operation, Constant(0, operation.type))]
             case BinaryOperation(
                 operation=OperationType.multiply | OperationType.multiply_us | OperationType.divide,
