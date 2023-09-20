@@ -34,7 +34,7 @@ class CollectTerms(SimplificationRule):
         identity_constant = _identity_constant(operation.operation, operation.type)
         return [
             (first, folded_constant),
-            *((o, identity_constant) for o in rest)
+            *((constant, identity_constant) for constant in rest)
         ]
 
 
