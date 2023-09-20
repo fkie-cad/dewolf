@@ -1,5 +1,5 @@
 import pytest
-from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.fix_add_sub_sign import FixAddSubSign
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.positive_constants import PositiveConstants
 from decompiler.structures.pseudo import BinaryOperation, Constant, Expression, Integer, Operation, OperationType, Variable
 
 var_x_i = Variable("x", Integer.int32_t())
@@ -33,4 +33,4 @@ var_x_u = Variable("x", Integer.uint32_t())
     ],
 )
 def test_fix_add_sub_sign(operation: Operation, result: list[Expression]):
-    assert FixAddSubSign().apply(operation) == [(operation, e) for e in result]
+    assert PositiveConstants().apply(operation) == [(operation, e) for e in result]

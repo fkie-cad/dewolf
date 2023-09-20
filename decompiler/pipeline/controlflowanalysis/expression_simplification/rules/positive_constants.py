@@ -3,9 +3,10 @@ from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.rul
 from decompiler.structures.pseudo import BinaryOperation, Constant, Expression, Integer, Operation, OperationType
 
 
-class FixAddSubSign(SimplificationRule):
+class PositiveConstants(SimplificationRule):
     """
-    Changes add/sub when variable type is signed.
+    Changes add/sub so that the right operand constant is always positive.
+    For unsigned arithmetic, choose the operation with the lesser constant (e.g.: V - 4294967293 -> V + 3 for 32 bit ints).
 
     - `V - a -> E + (-a)` when signed(a) < 0
     - `V + a -> E - (-a)` when signed(a) < 0
