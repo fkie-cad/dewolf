@@ -59,7 +59,7 @@ def _v_i32(name: str) -> Variable:
             Assignment(_v_i32("a"), _c_i32(5))
         ),
         (
-            [SubToAdd(), CollapseNestedConstants(), SimplifyTrivialArithmetic()],
+            [SubToAdd(), CollapseNestedConstants(), SimplifyTrivialArithmetic(), CollapseConstants()],
             Assignment(_v_i32("a"), _sub(_add(_v_i32("a"), _c_i32(5)), _c_i32(5))),
             Assignment(_v_i32("a"), _v_i32("a"))
         ),
