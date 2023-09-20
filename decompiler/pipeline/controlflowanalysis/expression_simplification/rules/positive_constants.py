@@ -22,22 +22,22 @@ class PositiveConstants(SimplificationRule):
         if not isinstance(right, Constant):
             return []
 
-        con_type = right.type
-        if not isinstance(con_type, Integer):
+        constant_type = right.type
+        if not isinstance(constant_type, Integer):
             return []
 
-        a = normalize_int(right.value, con_type.size, True)
-        if a >= 0:
+        signed_normalized_constant = normalize_int(right.value, constant_type.size, True)
+        if signed_normalized_constant >= 0:
             return []
 
-        neg_a = Constant(
-            normalize_int(-a, con_type.size, con_type.signed),
-            con_type
+        neg_constant = Constant(
+            normalize_int(-signed_normalized_constant, constant_type.size, constant_type.signed),
+            constant_type
         )
         return [(
             operation,
             BinaryOperation(
                 OperationType.plus if operation.operation == OperationType.minus else OperationType.minus,
-                [operation.left, neg_a]
+                [operation.left, neg_constant]
             )
         )]
