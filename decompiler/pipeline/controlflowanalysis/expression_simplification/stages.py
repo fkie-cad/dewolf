@@ -43,6 +43,7 @@ class _ExpressionSimplificationBase(PipelineStage, ABC):
             ("post-rules", _post_rules)
         ]
         for rule_name, rule_set in rule_sets:
+            # max_iterations is counted per rule_set
             iteration_count = cls._simplify_instructions_with_rule_set(instructions, rule_set, max_iterations)
             if iteration_count <= max_iterations:
                 logging.info(f"Expression simplification took {iteration_count} iterations for {rule_name}")
