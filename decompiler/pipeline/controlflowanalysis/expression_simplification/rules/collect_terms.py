@@ -19,11 +19,11 @@ class CollectTerms(SimplificationRule):
         if not isinstance(operation, Operation):
             raise TypeError(f"Expected Operation, got {type(operation)}")
 
-        operands = list(_collect_constants(operation))
-        if len(operands) <= 1:
+        constants = list(_collect_constants(operation))
+        if len(constants) <= 1:
             return []
 
-        first, *rest = operands
+        first, *rest = constants
 
         folded_constant = reduce(
             lambda c0, c1: constant_fold(operation.operation, [c0, c1]),
