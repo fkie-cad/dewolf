@@ -215,4 +215,6 @@ class SubstituteVisitor(DataflowObjectVisitorInterface[Optional[DataflowObject]]
         return self._visit_phi_base(instr, Union[Variable, Constant])
 
     def visit_mem_phi(self, instr: MemPhi) -> Optional[DataflowObject]:
-        return self._visit_phi_base(instr, Union[Variable])
+        """We do not want substitute capabilities for MemPhi, since we remove it while preprocessing."""
+        # return self._visit_phi_base(instr, Union[Variable])
+        pass
