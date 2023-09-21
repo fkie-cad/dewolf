@@ -1,8 +1,9 @@
 """Module describing tasks to be handled by the decompiler pipleline."""
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.graphs.cfg import ControlFlowGraph
+from decompiler.structures.pseudo.complextypes import ComplexTypeMap
 from decompiler.structures.pseudo.expressions import Variable
 from decompiler.structures.pseudo.typing import Integer, Type
 from decompiler.util.options import Options
@@ -19,6 +20,7 @@ class DecompilerTask:
         options: Optional[Options] = None,
         function_return_type: Type = Integer(32),
         function_parameters: Optional[List[Variable]] = None,
+        complex_types: Optional[ComplexTypeMap] = None
     ):
         """
         Init a new decompiler task.
@@ -36,6 +38,7 @@ class DecompilerTask:
         self._options: Options = options if options else Options.load_default_options()
         self._failed = False
         self._failure_origin = None
+        self._complex_types = complex_types if complex_types else ComplexTypeMap()
 
     @property
     def name(self) -> str:
@@ -91,3 +94,8 @@ class DecompilerTask:
         if self._failure_origin:
             msg += f" due to error during {self._failure_origin}."
         return msg
+
+    @property
+    def complex_types(self) -> ComplexTypeMap:
+        """Return complex types present in the function (structs, unions, enums, etc.)."""
+        return self._complex_types

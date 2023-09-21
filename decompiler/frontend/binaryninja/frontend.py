@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import logging
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 from binaryninja import BinaryView, Function, load
 from binaryninja.types import SymbolType
 from decompiler.structures.graphs.cfg import ControlFlowGraph
+from decompiler.structures.pseudo.complextypes import ComplexTypeMap
 from decompiler.structures.pseudo.expressions import Variable
 from decompiler.structures.pseudo.typing import Type
 from decompiler.task import DecompilerTask
@@ -127,10 +128,10 @@ class BinaryninjaFrontend(Frontend):
         tagging = CompilerIdiomsTagging(self._bv, function.function.start, options)
         tagging.run()
         try:
-            cfg = self._extract_cfg(function.function, options)
+            cfg, complex_types = self._extract_cfg(function.function, options)
             task = DecompilerTask(
                 function.name, cfg, function_return_type=function.return_type, function_parameters=function.params,
-                options=options
+                options=options, complex_types=complex_types
             )
         except Exception as e:
             task = DecompilerTask(
@@ -154,9 +155,9 @@ class BinaryninjaFrontend(Frontend):
             functions.append(function.name)
         return functions
 
-    def _extract_cfg(self, function: Function, options: Options) -> ControlFlowGraph:
+    def _extract_cfg(self, function: Function, options: Options) -> Tuple[ControlFlowGraph, ComplexTypeMap]:
         """Extract a control flow graph utilizing the parser and fixing it afterwards."""
         report_threshold = options.getint("lifter.report_threshold", fallback=3)
         no_masks = options.getboolean("lifter.no_bit_masks", fallback=True)
-        parser = BinaryninjaParser(BinaryninjaLifter(no_masks), report_threshold)
-        return parser.parse(function)
+        parser = BinaryninjaParser(BinaryninjaLifter(no_masks, bv=function.view), report_threshold)
+        return parser.parse(function), parser.complex_types
