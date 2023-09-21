@@ -95,7 +95,7 @@ class AssignmentHandler(Handler):
         case 1: struct member read access e.g. (x = )book.title
                 lift as (x = ) struct_member(book, title)
         case 2: accessing register portion e.g. (x = )eax.ah
-                lift as (x = ) eax & 0x0000ff00
+                lift as (x = ) (uint16_t)(eax >> 8)
         (x = ) <- for the sake of example, only rhs expression is lifted here.
         """
         source = self._lifter.lift(instruction.src, is_aliased=is_aliased, parent=instruction)
@@ -103,10 +103,13 @@ class AssignmentHandler(Handler):
             return self._get_field_as_member_access(instruction, source, **kwargs)
         cast_type = source.type.resize(instruction.size * self.BYTE_SIZE)
         if instruction.offset:
-            return BinaryOperation(
-                OperationType.bitwise_and,
-                [source, Constant(self._get_all_ones_mask_for_type(instruction.size) << instruction.offset)],
-                vartype=cast_type,
+            return UnaryOperation(
+                OperationType.cast,
+                [BinaryOperation(
+                    OperationType.right_shift_us,
+                    [source, Constant(instruction.offset, Integer.int32_t())]
+                )],
+                cast_type
             )
         return UnaryOperation(OperationType.cast, [source], vartype=cast_type, contraction=True)
 
