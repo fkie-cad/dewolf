@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Dict, Iterator, List, Optional, Sequence, Tupl
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 
 from .expressions import Constant, Expression, FunctionSymbol, ImportedFunctionSymbol, IntrinsicSymbol, Symbol, Tag, Variable
-from .typing import CustomType, Type, UnknownType
+from .typing import CustomType, Pointer, Type, UnknownType
 
 T = TypeVar("T")
 
@@ -73,6 +73,7 @@ class OperationType(Enum):
     field = auto()
     list_op = auto()
     adc = auto()
+    member_access = auto()
 
 
 # For pretty-printing and debug
@@ -124,9 +125,9 @@ SHORTHANDS = {
     OperationType.low: "low",
     OperationType.ternary: "?",
     OperationType.call: "func",
-    OperationType.field: "->",
     OperationType.list_op: "list",
     OperationType.adc: "adc",
+    OperationType.member_access: ".",
 }
 
 UNSIGNED_OPERATIONS = {
@@ -385,8 +386,58 @@ class UnaryOperation(Operation):
         return visitor.visit_unary_operation(self)
 
 
+class MemberAccess(UnaryOperation):
+    def __init__(
+        self,
+        offset: int,
+        member_name: str,
+        operands: List[Expression],
+        vartype: Type = UnknownType(),
+        writes_memory: Optional[int] = None,
+    ):
+        super().__init__(OperationType.member_access, operands, vartype, writes_memory=writes_memory)
+        self.member_offset = offset
+        self.member_name = member_name
+
+    def __str__(self):
+        # use -> when accessing member via a pointer to a struct: ptrBook->title
+        # use . when accessing struct member directly: book.title
+        if isinstance(self.struct_variable.type, Pointer):
+            return f"{self.struct_variable}->{self.member_name}"
+        return f"{self.struct_variable}.{self.member_name}"
+
+    @property
+    def struct_variable(self) -> Expression:
+        """Variable of complex type, which member is being accessed here."""
+        return self.operand
+
+    def substitute(self, replacee: Expression, replacement: Expression) -> None:
+        if isinstance(replacee, Variable) and replacee == self.struct_variable and isinstance(replacement, Variable):
+            self.operands[:] = [replacement]
+
+    def copy(self) -> MemberAccess:
+        """Copy the current UnaryOperation, copying all operands and the type."""
+        return MemberAccess(
+            self.member_offset,
+            self.member_name,
+            [operand.copy() for operand in self._operands],
+            self._type.copy(),
+            writes_memory=self.writes_memory,
+        )
+
+    def is_read_access(self) -> bool:
+        """Read-only member access."""
+        return self.writes_memory is None
+
+    def is_write_access(self) -> bool:
+        """Member is being accessed for writing."""
+        return self.writes_memory is not None
+
+
 class BinaryOperation(Operation):
     """Class representing operations with two operands."""
+
+    __match_args__ = ("operation", "left", "right")
 
     def __str__(self) -> str:
         """Return a string representation with infix notation."""

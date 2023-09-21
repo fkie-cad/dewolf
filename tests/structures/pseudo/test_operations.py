@@ -9,15 +9,17 @@ from decompiler.structures.pseudo.operations import (
     Call,
     Condition,
     ListOperation,
+    MemberAccess,
     OperationType,
     TernaryExpression,
     UnaryOperation,
 )
-from decompiler.structures.pseudo.typing import Integer
+from decompiler.structures.pseudo.typing import Integer, Pointer
 
 a = Variable("a", Integer.int32_t(), 0)
 b = Variable("b", Integer.int32_t(), 1)
 c = Variable("c", Integer.int32_t(), 2)
+ptr = Variable("ptr", Pointer(Integer.int32_t()), 0)
 
 neg = OperationType.negate
 add = OperationType.plus
@@ -75,6 +77,9 @@ def test_substitute():
     op = BinaryOperation(add, [BinaryOperation(add, [a, a]), b])
     op.substitute(a, BinaryOperation(add, [b, c]))
     assert str(op) == "((b#1 + c#2) + (b#1 + c#2)) + b#1"
+    op = MemberAccess(operands=[a], member_name="x", offset=0, vartype=Integer.int32_t())
+    op.substitute(a, b)
+    assert str(op) == "b#1.x"
 
 
 def test_substitute_loop():
@@ -99,6 +104,7 @@ def test_complexity():
         UnaryOperation(OperationType.cast, [UnaryOperation(OperationType.negate, [UnaryOperation(OperationType.cast, [a])])]).complexity
         == 1
     )
+    assert MemberAccess(operands=[a], member_name="x", offset=0, vartype=Integer.int32_t()).complexity == 1
 
 
 def test_requirements():
@@ -111,6 +117,7 @@ def test_requirements():
     assert set(ListOperation([a, BinaryOperation(add, [a, b])]).requirements) == {a, b}
     assert set(ListOperation([a, BinaryOperation(add, [b, c])]).requirements) == {a, b, c}
     assert ListOperation([Constant(2), a]).requirements == [a]
+    assert MemberAccess(operands=[a], member_name="x", offset=0, vartype=Integer.int32_t()).requirements == [a]
 
 
 def test_repr():
@@ -172,6 +179,59 @@ def test_str():
     assert str(BinaryOperation(div, [a, b])) == "a#0 / b#1"
     assert str(BinaryOperation(udiv, [a, b])) == "a#0 u/ b#1"
     assert str(ListOperation([a, b])) == "a#0,b#1"
+    assert str(MemberAccess(operands=[a], member_name="x", offset=0, vartype=Integer.int32_t())) == "a#0.x"
+    assert str(MemberAccess(operands=[ptr], member_name="x", offset=0, vartype=Integer.int32_t())) == "ptr#0->x"
+    assert (
+        str(
+            MemberAccess(
+                operands=[MemberAccess(operands=[a], member_name="x", offset=0, vartype=Integer.int32_t())],
+                member_name="z",
+                offset=0,
+                vartype=Integer.int32_t(),
+            )
+        )
+        == "a#0.x.z"
+    )
+    assert (
+        str(
+            MemberAccess(
+                operands=[MemberAccess(operands=[ptr], member_name="x", offset=0, vartype=Integer.int32_t())],
+                member_name="z",
+                offset=0,
+                vartype=Pointer(Integer.int32_t()),
+            )
+        )
+        == "ptr#0->x.z"
+    )
+    assert (
+        str(
+            MemberAccess(
+                operands=[MemberAccess(operands=[ptr], member_name="x", offset=0, vartype=Pointer(Integer.int32_t()))],
+                member_name="z",
+                offset=0,
+                vartype=Pointer(Pointer(Integer.int32_t())),
+            )
+        )
+        == "ptr#0->x->z"
+    )
+    assert (
+        str(
+            MemberAccess(
+                operands=[
+                    MemberAccess(
+                        operands=[MemberAccess(operands=[ptr], member_name="x", offset=0, vartype=Pointer(Integer.int32_t()))],
+                        member_name="z",
+                        offset=0,
+                        vartype=Pointer(Pointer(Integer.int32_t())),
+                    )
+                ],
+                member_name="w",
+                offset=8,
+                vartype=Pointer(Pointer(Pointer(Integer.int32_t()))),
+            )
+        )
+        == "ptr#0->x->z->w"
+    )
 
 
 def test_iter():
@@ -250,6 +310,23 @@ def test_copy():
     )
     original.array_info.index = Variable("y")
     assert copy != original
+    original = MemberAccess(operands=[a], member_name="x", offset=0, vartype=Integer.int32_t(), writes_memory=1)
+    copy = original.copy()
+    assert copy == original
+    assert id(copy) != original
+    assert copy == MemberAccess(operands=[a], member_name="x", offset=0, vartype=Integer.int32_t(), writes_memory=1)
+
+
+def test_member_access_properties():
+    member_access = MemberAccess(operands=[a], member_name="x", offset=4, vartype=Integer.int32_t(), writes_memory=1)
+    assert member_access.member_name == "x"
+    assert member_access.member_offset == 4
+    assert member_access.struct_variable == a
+    assert member_access.is_write_access()
+    assert not member_access.is_read_access()
+    member_access = MemberAccess(operands=[a], member_name="x", offset=4, vartype=Integer.int32_t(), writes_memory=None)
+    assert not member_access.is_write_access()
+    assert member_access.is_read_access()
 
 
 func = FunctionSymbol("func", 0x42)

@@ -602,6 +602,7 @@
                 "dest": "pipeline.cfg_stages",
                 "default": [
                     "expression-propagation",
+                    "bit-field-comparison-unrolling",
                     "type-propagation",
                     "dead-path-elimination",
                     "dead-loop-elimination",
