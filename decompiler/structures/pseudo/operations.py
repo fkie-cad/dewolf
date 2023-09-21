@@ -153,9 +153,14 @@ SIGNED_OPERATIONS = {
 COMMUTATIVE_OPERATIONS = {
     OperationType.plus,
     OperationType.multiply,
+    OperationType.multiply_us,
     OperationType.bitwise_and,
     OperationType.bitwise_xor,
     OperationType.bitwise_or,
+    OperationType.logical_or,
+    OperationType.logical_and,
+    OperationType.equal,
+    OperationType.not_equal
 }
 
 NON_COMPOUNDABLE_OPERATIONS = {
@@ -164,6 +169,10 @@ NON_COMPOUNDABLE_OPERATIONS = {
     OperationType.left_rotate,
     OperationType.left_rotate_carry,
     OperationType.power,
+    OperationType.logical_or,
+    OperationType.logical_and,
+    OperationType.equal,
+    OperationType.not_equal
 }
 
 

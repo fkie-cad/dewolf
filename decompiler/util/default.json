@@ -581,6 +581,16 @@
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
                 "argument_name": "--loop_break_in_cases"
+            },
+            {
+                "dest": "expression-simplification.max_iterations",
+                "default": 10000,
+                "type": "number",
+                "title": "The maximum number of iterations any rule set in the expression simplification stage is allowed to take",
+                "description": "Stop simplifying with a rule set after this number of iterations is exceeded, even if more possible simplifications are possible",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--max_expression_simplification_iterations"
             }
         ]
     },
@@ -599,7 +609,7 @@
                     "dead-code-elimination",
                     "expression-propagation-memory",
                     "expression-propagation-function-call",
-                    "expression-simplification",
+                    "expression-simplification-cfg",
                     "dead-code-elimination",
                     "redundant-casts-elimination",
                     "identity-elimination",
@@ -619,7 +629,7 @@
                 "dest": "pipeline.ast_stages",
                 "default": [
                     "readability-based-refinement",
-                    "expression-simplification",
+                    "expression-simplification-ast",
                     "instruction-length-handler",
                     "variable-name-generation"
                 ],
