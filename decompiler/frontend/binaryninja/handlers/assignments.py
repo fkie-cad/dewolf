@@ -95,7 +95,7 @@ class AssignmentHandler(Handler):
         case 1: struct member read access e.g. (x = )book.title
                 lift as (x = ) struct_member(book, title)
         case 2: accessing register portion e.g. (x = )eax.ah
-                lift as (x = ) (uint16_t)(eax >> 8)
+                lift as (x = ) (uint8_t)(eax >> 8)
         (x = ) <- for the sake of example, only rhs expression is lifted here.
         """
         source = self._lifter.lift(instruction.src, is_aliased=is_aliased, parent=instruction)
