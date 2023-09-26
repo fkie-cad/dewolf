@@ -4,6 +4,7 @@ from decompiler.pipeline.controlflowanalysis import (
     ExpressionSimplificationAst,
     ExpressionSimplificationCfg,
     InstructionLengthHandler,
+    LoopNameGenerator,
     ReadabilityBasedRefinement,
     VariableNameGeneration,
 )
@@ -47,5 +48,6 @@ AST_STAGES = [
     ReadabilityBasedRefinement,
     ExpressionSimplificationAst,
     InstructionLengthHandler,
-    VariableNameGeneration
+    VariableNameGeneration,
+    LoopNameGenerator
 ]
