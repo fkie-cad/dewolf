@@ -286,24 +286,6 @@
                 "argument_name": "--empty-for-loops"
             },
             {
-                "dest": "readability-based-refinement.for_loop_variable_names",
-                "default": [
-                    "i",
-                    "j",
-                    "k",
-                    "l",
-                    "m",
-                    "n"
-                ],
-                "type": "array",
-                "elementType": "string",
-                "title": "Rename for-loop variables into desired names",
-                "description": "Rename for-loop variables to values from list",
-                "is_hidden_from_gui": false,
-                "is_hidden_from_cli": false,
-                "argument_name": "--for-loop-variable-names"
-            },
-            {
                 "dest": "readability-based-refinement.max_condition_complexity_for_loop_recovery",
                 "default": 100,
                 "type": "number",
@@ -346,16 +328,6 @@
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
                 "argument_name": "--for-loop-exclude-conditions"
-            },
-            {
-                "dest": "readability-based-refinement.rename_while_loop_variables",
-                "default": true,
-                "type": "boolean",
-                "title": "Rename while-loop variables",
-                "description": "Rename while-loop counter variables to counter, counter1, ...",
-                "is_hidden_from_gui": false,
-                "is_hidden_from_cli": false,
-                "argument_name": "--rename-while-loop-variables"
             },
             {
                 "dest": "variable-name-generation.notation",
@@ -411,6 +383,34 @@
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
                 "argument_name": "--variable-generation-counter-separator"
+            },
+            {
+                "dest": "loop-name-generator.rename_while_loop_variables",
+                "default": true,
+                "type": "boolean",
+                "title": "Rename while-loop variables",
+                "description": "Rename while-loop counter variables to counter, counter1, ...",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--rename-while-loop-variables"
+            },
+            {
+                "dest": "loop-name-generator.for_loop_variable_names",
+                "default": [
+                    "i",
+                    "j",
+                    "k",
+                    "l",
+                    "m",
+                    "n"
+                ],
+                "type": "array",
+                "elementType": "string",
+                "title": "Rename for-loop variables",
+                "description": "Rename for-loop variables to values from given list",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--for-loop-variable-names"
             },
             {
                 "dest": "code-generator.max_complexity",
@@ -631,7 +631,8 @@
                     "readability-based-refinement",
                     "expression-simplification-ast",
                     "instruction-length-handler",
-                    "variable-name-generation"
+                    "variable-name-generation",
+                    "loop-name-generator"
                 ],
                 "title": "AST pipeline stages",
                 "type": "array",
@@ -640,6 +641,16 @@
                 "is_hidden_from_gui": true,
                 "is_hidden_from_cli": false,
                 "argument_name": "--ast-stages"
+            },
+            {
+                "dest": "pipeline.validate_no_dataflow_dup",
+                "default": false,
+                "title": "Validate no DataflowObject duplication",
+                "type": "boolean",
+                "description": "Throw exception if duplicate DataflowObjects exist after any stage",
+                "is_hidden_from_gui": true,
+                "is_hidden_from_cli": false,
+                "argument_name": "--validate-no-dataflow-dup"
             },
             {
                 "dest": "pipeline.debug",
