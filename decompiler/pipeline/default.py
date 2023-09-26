@@ -46,7 +46,7 @@ CFG_STAGES = [
 
 AST_STAGES = [
     ReadabilityBasedRefinement,
-    ExpressionSimplification,
+    ExpressionSimplificationAst,
     InstructionLengthHandler,
     VariableNameGeneration,
     LoopNameGenerator
