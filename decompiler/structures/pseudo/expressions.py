@@ -32,6 +32,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Generic, Iterator, List, Optional, Tuple, TypeVar, Union
 
+from .complextypes import Enum
 from .typing import CustomType, Type, UnknownType
 
 T = TypeVar("T")
@@ -186,7 +187,11 @@ class Constant(Expression[DecompiledType]):
         return f"{value} type: {self.type}"
 
     def __str__(self) -> str:
-        """Return a hex-based string representation for integers, strings are printed with double quotation marks"""
+        """Return a hex-based string representation for integers, strings are printed with double quotation marks.
+        Constants of type Enum are represented as strings (corresponding enumerator identifiers).
+        """
+        if isinstance(self._type, Enum):
+            return self._type.get_name_by_value(self.value)
         if self._type.is_boolean:
             return "true" if self.value else "false"
         if isinstance(self.value, str):

@@ -1,4 +1,5 @@
 """Module implementing the UnaryOperationHandler."""
+import logging
 from functools import partial
 from typing import Union
 
@@ -14,6 +15,8 @@ from decompiler.structures.pseudo import (
     Pointer,
     UnaryOperation,
 )
+from decompiler.structures.pseudo.complextypes import Struct
+from decompiler.structures.pseudo.operations import MemberAccess
 
 
 class UnaryOperationHandler(Handler):
@@ -52,7 +55,7 @@ class UnaryOperationHandler(Handler):
         self, operation: Union[mediumlevelil.MediumLevelILLoad, mediumlevelil.MediumLevelILLoadSsa], **kwargs
     ) -> Union[GlobalVariable, UnaryOperation]:
         """Lift load operation which is used both to model dereference operation and global variable read."""
-        load_operand : UnaryOperation = self._lifter.lift(operation.src, parent=operation)
+        load_operand: UnaryOperation = self._lifter.lift(operation.src, parent=operation)
         if load_operand and isinstance(global_variable := load_operand, GlobalVariable):
             global_variable.ssa_label = operation.ssa_memory_version
             return global_variable
@@ -91,22 +94,12 @@ class UnaryOperationHandler(Handler):
             )
         return self.lift_cast(instruction, **kwargs)
 
-    def _lift_load_struct(self, instruction: mediumlevelil.MediumLevelILLoadStruct, **kwargs) -> UnaryOperation:
-        """Lift a MLIL_LOAD_STRUCT_SSA instruction."""
-        return UnaryOperation(
-            OperationType.dereference,
-            [
-                BinaryOperation(
-                    OperationType.plus,
-                    [
-                        UnaryOperation(OperationType.cast, [self._lifter.lift(instruction.src)], vartype=Pointer(Integer.char())),
-                        Constant(instruction.offset),
-                    ],
-                    vartype=self._lifter.lift(instruction.src.expr_type),
-                ),
-            ],
-            vartype=Pointer(self._lifter.lift(instruction.src.expr_type)),
-        )
+    def _lift_load_struct(self, instruction: mediumlevelil.MediumLevelILLoadStruct, **kwargs) -> MemberAccess:
+        """Lift a MLIL_LOAD_STRUCT_SSA (struct member access e.g. var#n->x) instruction."""
+        struct_variable = self._lifter.lift(instruction.src)
+        struct_ptr: Pointer = self._lifter.lift(instruction.src.expr_type)
+        struct_member = struct_ptr.type.get_member_by_offset(instruction.offset)
+        return MemberAccess(vartype=struct_ptr, operands=[struct_variable], offset=struct_member.offset, member_name=struct_member.name)
 
     def _lift_ftrunc(self, instruction: mediumlevelil.MediumLevelILFtrunc, **kwargs) -> UnaryOperation:
         """Lift a MLIL_FTRUNC operation."""
