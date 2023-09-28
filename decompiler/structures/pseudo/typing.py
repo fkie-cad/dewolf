@@ -217,16 +217,6 @@ class FunctionTypeDef(Type):
         return f"{self.return_type}({', '.join(str(x) for x in self.parameters)})"
 
 
-@dataclass(frozen=True, order=True)
-class FunctionTypeDef(Type):
-    return_type: Type
-    parameters: Tuple[Parameter, ...]
-
-    def __str__(self) -> str:
-        """Return an anonymous string representation such as void*(int, int, char*)."""
-        return f"{self.return_type}({', '.join(str(x) for x in self.parameters)})"
-
-
 class TypeParser:
     """A type parser in charge of creating types."""
 
