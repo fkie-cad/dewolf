@@ -164,6 +164,8 @@ class UnknownExpression(Expression[UnknownType]):
 class Constant(Expression[DecompiledType]):
     """Represents a constant expression type."""
 
+    __match_args__ = ("value", "vartype")
+
     def __init__(
         self,
         value: Union[int, float, str, bytes],
@@ -341,6 +343,8 @@ class IntrinsicSymbol(FunctionSymbol):
 
 class Variable(Expression[DecompiledType]):
     """Represents a variable based expression."""
+
+    __match_args__ = ("name", "vartype")
 
     def __init__(
         self,

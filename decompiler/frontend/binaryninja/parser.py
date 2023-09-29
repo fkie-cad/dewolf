@@ -52,6 +52,14 @@ class BinaryninjaParser(Parser):
             self._add_basic_block_edges(cfg, index_to_BasicBlock, basic_block)
         self._complex_types = self._lifter.complex_types
         self._report_lifter_errors()
+        parameters = function.type.parameters
+        r14 = None
+        for parameter in parameters:
+            if parameter.location and parameter.location.name == "r14":
+                r14 = parameter.name
+                break
+        print(r14)
+        cfg.r14 = r14
         return cfg
 
     @property

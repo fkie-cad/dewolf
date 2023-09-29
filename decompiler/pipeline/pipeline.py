@@ -14,6 +14,7 @@ from decompiler.pipeline.preprocessing import (
     PhiFunctionFixer,
     RegisterPairHandling,
     RemoveStackCanary,
+    RemoveGoIdioms,
     SwitchVariableDetection,
 )
 from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
@@ -28,6 +29,7 @@ from .stage import PipelineStage
 
 PREPROCESSING_STAGES = [
     CompilerIdiomHandling,
+    RemoveGoIdioms,
     RemoveStackCanary,
     RegisterPairHandling,
     Coherence,
