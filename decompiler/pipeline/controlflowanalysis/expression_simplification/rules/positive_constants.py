@@ -1,6 +1,6 @@
-from decompiler.pipeline.controlflowanalysis.expression_simplification.constant_folding import normalize_int
 from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.rule import SimplificationRule
 from decompiler.structures.pseudo import BinaryOperation, Constant, Expression, Integer, Operation, OperationType
+from decompiler.util.integer_util import normalize_int
 
 
 class PositiveConstants(SimplificationRule):
