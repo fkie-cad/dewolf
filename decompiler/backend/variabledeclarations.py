@@ -2,6 +2,7 @@
 from collections import defaultdict
 from typing import Iterable, Iterator, List, Set
 
+from decompiler.backend.cexpressiongenerator import CExpressionGenerator
 from decompiler.structures.ast.ast_nodes import ForLoopNode, LoopNode
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.pseudo import (
@@ -17,6 +18,7 @@ from decompiler.structures.pseudo import (
     UnaryOperation,
     Variable,
 )
+from decompiler.structures.pseudo.operations import MemberAccess
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask
 from decompiler.util.serialization.bytes_serializer import convert_bytes
@@ -52,6 +54,8 @@ class LocalDeclarationGenerator(BaseAstDataflowObjectVisitor):
 
     def visit_unary_operation(self, unary: UnaryOperation):
         """Visit unary operations to remember all variables those memory location was read."""
+        if isinstance(unary, MemberAccess):
+            self._variables.add(unary.struct_variable)
         if unary.operation == OperationType.address or unary.operation == OperationType.dereference:
             if isinstance(unary.operand, Variable):
                 self._variables.add(unary.operand)
@@ -61,19 +65,18 @@ class LocalDeclarationGenerator(BaseAstDataflowObjectVisitor):
                 else:
                     self.visit(unary.operand.left)
 
-    def generate(self, param_names: list = []) -> Iterator[str]:
+    def generate(self, param_names: list[str] = []) -> Iterator[str]:
         """Generate a string containing the variable definitions for the visited variables."""
         variable_type_mapping = defaultdict(list)
         for variable in sorted(self._variables, key=lambda x: str(x)):
-            if not isinstance(variable, GlobalVariable):
+            if not isinstance(variable, GlobalVariable) and variable.name not in param_names:
                 variable_type_mapping[variable.type].append(variable)
-
         for variable_type, variables in sorted(variable_type_mapping.items(), key=lambda x: str(x)):
             for chunked_variables in self._chunks(variables, self._vars_per_line):
-                variable_names = ", ".join([var.name for var in chunked_variables])
-                if variable_names in param_names:
-                    continue
-                yield f"{variable_type} {variable_names};"
+                yield CExpressionGenerator.format_variables_declaration(
+                    variable_type,
+                    [var.name for var in chunked_variables]
+                ) + ";"
 
     @staticmethod
     def _chunks(lst: List, n: int) -> Iterator[List]:

@@ -8,6 +8,9 @@ from decompiler.structures.pseudo import Expression
 class Lifter(ABC):
     """Represents a basic lifter emmiting decompiler IR."""
 
+    def __init__(self):
+        self.complex_types = None
+
     @abstractmethod
     def lift(self, expression, **kwargs) -> Expression:
         """Lift the given expression to pseudo IR."""
@@ -24,7 +27,7 @@ class ObserverLifter(Lifter):
 
     def lift(self, expression: T, **kwargs) -> V:
         """Lift the given expression based on the registered handlers."""
-        handler = self.HANDLERS.get(type(expression), self.lift_unknown)
+        handler = self.HANDLERS.get(expression.__class__, self.lift_unknown)
         return handler(expression)
 
     @abstractmethod

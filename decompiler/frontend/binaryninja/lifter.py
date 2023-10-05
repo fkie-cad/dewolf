@@ -2,18 +2,21 @@
 from logging import warning
 from typing import Optional, Tuple, Union
 
-from binaryninja import MediumLevelILInstruction, Type
+from binaryninja import BinaryView, MediumLevelILInstruction, Type
 from decompiler.frontend.lifter import ObserverLifter
 from decompiler.structures.pseudo import DataflowObject, Tag, UnknownExpression, UnknownType
 
+from ...structures.pseudo.complextypes import ComplexTypeMap
 from .handlers import HANDLERS
 
 
 class BinaryninjaLifter(ObserverLifter):
     """Lifter converting Binaryninja.mediumlevelil expressions to pseudo expressions."""
 
-    def __init__(self, no_bit_masks: bool = True):
+    def __init__(self, no_bit_masks: bool = True, bv: BinaryView = None):
         self.no_bit_masks = no_bit_masks
+        self.bv: BinaryView = bv
+        self.complex_types: ComplexTypeMap = ComplexTypeMap()
         for handler in HANDLERS:
             handler(self).register()
 
@@ -24,7 +27,7 @@ class BinaryninjaLifter(ObserverLifter):
 
     def lift(self, expression: MediumLevelILInstruction, **kwargs) -> Optional[DataflowObject]:
         """Lift the given Binaryninja instruction to an expression."""
-        handler = self.HANDLERS.get(type(expression), self.lift_unknown)
+        handler = self.HANDLERS.get(expression.__class__, self.lift_unknown)
         if pseudo_expression := handler(expression, **kwargs):
             if isinstance(expression, MediumLevelILInstruction):
                 pseudo_expression.tags = self.lift_tags(expression)

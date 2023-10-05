@@ -11,6 +11,7 @@ from decompiler.backend.variabledeclarations import GlobalDeclarationGenerator, 
 from decompiler.structures.ast.ast_nodes import CodeNode, SeqNode, SwitchNode
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.logic.logic_condition import LogicCondition
+from decompiler.structures.pseudo import FunctionTypeDef
 from decompiler.structures.pseudo.expressions import (
     Constant,
     DataflowObject,
@@ -28,6 +29,7 @@ from decompiler.structures.pseudo.operations import (
     Call,
     Condition,
     ListOperation,
+    MemberAccess,
     OperationType,
     UnaryOperation,
 )
@@ -59,6 +61,7 @@ def true_condition(context=None):
     context = LogicCondition.generate_new_context() if context is None else context
     return LogicCondition.initialize_true(context)
 
+
 def logic_cond(name: str, context) -> LogicCondition:
     return LogicCondition.initialize_symbol(name, context)
 
@@ -75,6 +78,8 @@ var_y_f = Variable("y_f", float32)
 var_x_u = Variable("x_u", uint32)
 var_y_u = Variable("y_u", uint32)
 var_p = Variable("p", Pointer(int32))
+var_fun_p = Variable("p", Pointer(FunctionTypeDef(0, int32, (int32,))))
+var_fun_p0 = Variable("p0", Pointer(FunctionTypeDef(0, int32, (int32,))))
 
 const_0 = Constant(0, int32)
 const_1 = Constant(1, int32)
@@ -127,6 +132,7 @@ class TestCodeGeneration:
 
     def test_function_with_comment(self):
         root = SeqNode(LogicCondition.initialize_true(LogicCondition.generate_new_context()))
+
         ast = AbstractSyntaxTree(root, {})
         code_node = ast._add_code_node([Comment("test_comment", comment_style="debug")])
         ast._add_edge(root, code_node)
@@ -153,6 +159,15 @@ class TestCodeGeneration:
         ast._add_edge(root, code_node)
         assert self._regex_matches(
             r"^\s*int +test_function\(\s*int +a\s*,\s*int +b\s*\){\s*}\s*$", self._task(ast, params=[var_a.copy(), var_b.copy()])
+        )
+
+    def test_empty_function_two_function_parameters(self):
+        root = SeqNode(LogicCondition.initialize_true(LogicCondition.generate_new_context()))
+        ast = AbstractSyntaxTree(root, {})
+        code_node = ast._add_code_node([])
+        ast._add_edge(root, code_node)
+        assert self._regex_matches(
+            r"^\s*int +test_function\(\s*int +\(\*\s*p\)\(int\)\s*,\s*int +\(\*\s*p0\)\(int\)\s*\){\s*}\s*$", self._task(ast, params=[var_fun_p.copy(), var_fun_p0.copy()])
         )
 
     def test_function_with_instruction(self):
@@ -450,7 +465,7 @@ class TestCodeGeneration:
         regex = r"^%int +test_function\(\)%{(?s).*if%\(%COND_STR%\)%{%return%0%;%}%}%$"
         assert self._regex_matches(regex.replace("COND_STR", expected).replace("%", "\\s*"), self._task(ast))
 
-    
+
     def test_loop_declaration_ListOp(self):
         """
         a = 5;
@@ -479,7 +494,7 @@ class TestCodeGeneration:
         ast._code_node_reachability_graph.add_reachability(code_node, loop_node_body)
         root._sorted_children = (code_node, loop_node)
         source_code = CodeGenerator().generate([self._task(ast)]).replace("\n", "")
-        assert source_code.find("for (b = foo();") != -1 
+        assert source_code.find("for (b = foo();") != -1
 
 
 class TestExpression:
@@ -690,6 +705,85 @@ class TestExpression:
     )
     def test_array_element_access_aggressive(self, operation, result):
         assert self._visit_code(operation, _generate_options(array_detection=True)) == result
+
+    @pytest.mark.parametrize(
+        "operation, result",
+        [
+            (
+                MemberAccess(operands=[Variable("a", Integer.int32_t())], member_name="x", offset=0, vartype=Integer.int32_t()),
+                "a.x",
+            ),
+            (
+                MemberAccess(
+                    operands=[
+                        MemberAccess(operands=[Variable("a", Integer.int32_t())], member_name="x", offset=0, vartype=Integer.int32_t())
+                    ],
+                    member_name="z",
+                    offset=0,
+                    vartype=Integer.int32_t(),
+                ),
+                "a.x.z",
+            ),
+            (
+                MemberAccess(operands=[Variable("ptr", Pointer(Integer.int32_t()))], member_name="x", offset=0, vartype=Integer.int32_t()),
+                "ptr->x",
+            ),
+            (
+                MemberAccess(
+                    operands=[
+                        MemberAccess(
+                            operands=[Variable("ptr", Pointer(Integer.int32_t()))], member_name="x", offset=0, vartype=Integer.int32_t()
+                        )
+                    ],
+                    member_name="z",
+                    offset=0,
+                    vartype=Pointer(Integer.int32_t()),
+                ),
+                "ptr->x.z",
+            ),
+            (
+                MemberAccess(
+                    operands=[
+                        MemberAccess(
+                            operands=[Variable("ptr", Pointer(Integer.int32_t()))],
+                            member_name="x",
+                            offset=0,
+                            vartype=Pointer(Integer.int32_t()),
+                        )
+                    ],
+                    member_name="z",
+                    offset=0,
+                    vartype=Pointer(Pointer(Integer.int32_t())),
+                ),
+                "ptr->x->z",
+            ),
+            (
+                MemberAccess(
+                    operands=[
+                        MemberAccess(
+                            operands=[
+                                MemberAccess(
+                                    operands=[Variable("ptr", Pointer(Integer.int32_t()))],
+                                    member_name="x",
+                                    offset=0,
+                                    vartype=Pointer(Integer.int32_t()),
+                                )
+                            ],
+                            member_name="z",
+                            offset=0,
+                            vartype=Pointer(Pointer(Integer.int32_t())),
+                        )
+                    ],
+                    member_name="w",
+                    offset=8,
+                    vartype=Pointer(Pointer(Pointer(Integer.int32_t()))),
+                ),
+                "ptr->x->z->w",
+            ),
+        ],
+    )
+    def test_member_access(self, operation, result):
+        assert self._visit_code(operation) == result
 
     @pytest.mark.parametrize(
         "expr, result",
@@ -1069,6 +1163,8 @@ class TestLocalDeclarationGenerator:
             (1, [var_x.copy(), var_y.copy(), var_x_f.copy(), var_y_f.copy()], "float x_f;\nfloat y_f;\nint x;\nint y;"),
             (2, [var_x.copy(), var_y.copy(), var_x_f.copy(), var_y_f.copy()], "float x_f, y_f;\nint x, y;"),
             (1, [var_x.copy(), var_y.copy(), var_p.copy()], "int x;\nint y;\nint * p;"),
+            (1, [var_x.copy(), var_y.copy(), var_fun_p.copy()], "int x;\nint y;\nint (* p)(int);"),
+            (2, [var_x.copy(), var_y.copy(), var_fun_p.copy(), var_fun_p0.copy()], "int x, y;\nint (* p)(int), (* p0)(int);"),
         ],
     )
     def test_variable_declaration(self, vars_per_line: int, variables: List[Variable], expected: str):

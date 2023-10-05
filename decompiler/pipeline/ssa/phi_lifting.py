@@ -54,6 +54,8 @@ class PhiFunctionLifter:
                 new_basic_block = self._insert_basic_block_before(basic_block, new_instructions)
                 if predecessor:
                     self._cfg.substitute_edge(edge, edge.copy(sink=new_basic_block))
+                else:
+                    self._cfg.root = new_basic_block
 
             self._update_interference_graph_after_lifting(new_instructions)
 
