@@ -129,6 +129,9 @@ class RemoveGoIdioms(PipelineStage):
 
     def _check_root_node(self) -> bool:
         # check if root node has an if similar to "if((&(__return_addr)) u<= (*(r14 + 0x10)))"
+        # however, the variable in lhs sometimes differs from __return_address,
+        # so we just check for the address operator.
+
         # r14 has a special meaning in go and always points to a the current go thread
         root = self._cfg.root
         if root is None:
@@ -139,7 +142,14 @@ class RemoveGoIdioms(PipelineStage):
             return False
 
         r14_name = self._cfg.r14
-        # if r14_name is None, the variable coud still be "r14_1" or something like this
+
+        # check if rhs of condition compares an address (e.g. of __return_addr)
+        left_expression = root_node_if.condition.left
+        match left_expression:
+            case UnaryOperation(OperationType.address):
+                pass
+            case _:
+                return False
 
         right_expression = root_node_if.condition.right
 
