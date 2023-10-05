@@ -200,7 +200,7 @@ class RegisterPairHandling(PipelineStage):
                         OperationType.left_shift,
                         [
                             register_pair.high,
-                            Constant(register_pair.low.type.size, vartype=Integer.int32_t())
+                            Constant(register_pair.low.type.size, vartype=Integer.uint8_t())
                         ]
                     )
                 ],
