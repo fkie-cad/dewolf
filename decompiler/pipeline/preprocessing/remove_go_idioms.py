@@ -129,6 +129,7 @@ class RemoveGoIdioms(PipelineStage):
 
     def _check_root_node(self) -> bool:
         # check if root node has an if similar to "if((&(__return_addr)) u<= (*(r14 + 0x10)))"
+        # or "if((&(__return_addr)) u<= (*(*(fsbase -8) + 0x10)))".
         # however, the variable in lhs sometimes differs from __return_address,
         # so we just check for the address operator.
 
@@ -141,6 +142,7 @@ class RemoveGoIdioms(PipelineStage):
         if not isinstance(root_node_if, Branch):
             return False
 
+        # Note: if r14_name is None, the variable coud still be "r14_1" or something like this
         r14_name = self._cfg.r14
 
         # check if rhs of condition compares an address (e.g. of __return_addr)
@@ -152,15 +154,21 @@ class RemoveGoIdioms(PipelineStage):
                 return False
 
         right_expression = root_node_if.condition.right
-
         match right_expression:
-            case UnaryOperation(OperationType.dereference, BinaryOperation(OperationType.plus, Variable(name=variable_name), Constant(value=0x10))):
-                if r14_name is not None:
-                    return variable_name == r14_name
-                else:
-                    return variable_name.startswith("r14")
-            case _:
-                return False
+            case UnaryOperation(OperationType.dereference, BinaryOperation(OperationType.plus, Variable(name=variable_name, ssa_label=ssa_label), Constant(value=0x10))):
+                if r14_name is not None and variable_name == r14_name:
+                    return True
+                if variable_name.startswith("r14"):
+                    return True
+                if len(root.instructions) > 1:
+                    match root.instructions[-2]:
+                        case Assignment(
+                                destination=Variable(name=variable_name, ssa_label=ssa_label),
+                                value=UnaryOperation(OperationType.dereference, BinaryOperation(OperationType.plus, Variable(name="fsbase"), Constant(value=-8)))
+                            ):
+                            return True
+                        
+        return False
 
 
     def _verify_morestack_instructions(self, morestack_node: BasicBlock) -> bool:
