@@ -88,6 +88,10 @@ class TypeHandler(Handler):
 
     def lift_struct(self, struct: StructureType, name: str = None, **kwargs) -> Union[Struct, ComplexTypeName]:
         """Lift struct or union type."""
+        complex_type_name = ComplexTypeName(0, name)
+        cached_type = self._lifter.complex_types.retrieve_by_name(complex_type_name)
+        if cached_type is not None:
+            return cached_type
         if struct.type == StructureVariant.StructStructureType:
             type_name = name if name else self._get_data_type_name(struct, keyword="struct")
             lifted_struct = Struct(struct.width * self.BYTE_SIZE, type_name, {})
@@ -96,9 +100,9 @@ class TypeHandler(Handler):
             lifted_struct = Union_(struct.width * self.BYTE_SIZE, type_name, [])
         else:
             raise RuntimeError(f"Unknown struct type {struct.type.name}")
+        self._lifter.complex_types.add(lifted_struct)
         for member in struct.members:
             lifted_struct.add_member(self.lift_struct_member(member, type_name))
-        self._lifter.complex_types.add(lifted_struct)
         return lifted_struct
 
     @abstractmethod
