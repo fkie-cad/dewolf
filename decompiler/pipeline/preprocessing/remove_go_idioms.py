@@ -1,9 +1,9 @@
 """Module for removing go idioms"""
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.graphs.branches import ConditionalEdge, FalseCase, TrueCase, UnconditionalEdge
-from decompiler.structures.pseudo.expressions import Constant, Variable
+from decompiler.structures.pseudo.expressions import Constant, Expression, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Phi, Return
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import CustomType, Integer
@@ -50,6 +50,7 @@ class RemoveGoIdioms(PipelineStage):
                 print("Did not remove go prologue", flush=True)
             # if not self._dont_crash:
             #     raise ValueError("Crash on purpose")
+            raise ValueError("Crash on purpose")
 
 
     def _is_root_single_indirect_successor(self, node: BasicBlock):
@@ -127,13 +128,52 @@ class RemoveGoIdioms(PipelineStage):
         return start_node, morestack_node
 
 
+    def _match_r14(self, variable: Variable):
+        r14_name = self._cfg.r14
+        if r14_name is not None and variable.name == r14_name:
+            return True
+        
+        if variable.name.startswith("r14"):
+            return True
+        
+        return False
+
+
+    def _match_expression(self, expression:Expression, pattern, instr_num=None):
+        if not isinstance(pattern, tuple):
+            if isinstance(pattern, Callable):
+                return pattern(expression)
+            else:
+                return isinstance(expression, Variable) and expression.name == pattern
+
+        if instr_num is None:
+            instr_num = len(self._cfg.root.instructions) - 1
+
+        inner_pattern, deref_offset = pattern
+        neg_deref_offset = -deref_offset
+        match expression:
+            case Variable() if instr_num>0:
+                prev_instruction = self._cfg.root.instructions[instr_num-1]
+                if isinstance(prev_instruction, Assignment) and prev_instruction.destination == expression:
+                    # important: dont use inner_pattern here
+                    return self._match_expression(prev_instruction.value, pattern, instr_num-1)
+            case UnaryOperation(OperationType.dereference, BinaryOperation(OperationType.plus, inner_expression, Constant(value=deref_offset))):
+                return self._match_expression(inner_expression, inner_pattern, instr_num)
+            case UnaryOperation(OperationType.dereference, BinaryOperation(OperationType.minus, inner_expression, Constant(value=neg_deref_offset))):
+                return self._match_expression(inner_expression, inner_pattern, instr_num)
+            case UnaryOperation(OperationType.dereference, inner_expression) if deref_offset==0:
+                return self._match_expression(inner_expression, inner_pattern, instr_num)
+
+        return False
+
+
     def _check_root_node(self) -> bool:
         # check if root node has an if similar to "if((&(__return_addr)) u<= (*(r14 + 0x10)))"
         # or "if((&(__return_addr)) u<= (*(*(fsbase -8) + 0x10)))".
+        # or .....
         # however, the variable in lhs sometimes differs from __return_address,
         # so we just check for the address operator.
 
-        # r14 has a special meaning in go and always points to a the current go thread
         root = self._cfg.root
         if root is None:
             return False
@@ -141,9 +181,6 @@ class RemoveGoIdioms(PipelineStage):
         root_node_if = root.instructions[-1]
         if not isinstance(root_node_if, Branch):
             return False
-
-        # Note: if r14_name is None, the variable coud still be "r14_1" or something like this
-        r14_name = self._cfg.r14
 
         # check if rhs of condition compares an address (e.g. of __return_addr)
         left_expression = root_node_if.condition.left
@@ -153,21 +190,26 @@ class RemoveGoIdioms(PipelineStage):
             case _:
                 return False
 
+        # match stackguard0 within g struct
         right_expression = root_node_if.condition.right
-        match right_expression:
-            case UnaryOperation(OperationType.dereference, BinaryOperation(OperationType.plus, Variable(name=variable_name, ssa_label=ssa_label), Constant(value=0x10))):
-                if r14_name is not None and variable_name == r14_name:
-                    return True
-                if variable_name.startswith("r14"):
-                    return True
-                if len(root.instructions) > 1:
-                    match root.instructions[-2]:
-                        case Assignment(
-                                destination=Variable(name=variable_name, ssa_label=ssa_label),
-                                value=UnaryOperation(OperationType.dereference, BinaryOperation(OperationType.plus, Variable(name="fsbase"), Constant(value=-8)))
-                            ):
-                            return True
-                        
+
+        patterns = [
+            (self._match_r14, 0x10),          # 1.17+ (darwin amd64, linux amd64, windows amd64)
+            ((("gsbase", 0), -4), 0x8),       # linux   386   1.5  -1.18
+            (("fsbase", -8), 0x10),           # linux   amd64 1.5  -1.16
+            (("gsbase", 0x468), 0x8),         # darwin  386   1.5  -1.10
+            (("gsbase", 0x18), 0x8),          # darwin  386   1.11 -1.14
+            (("gsbase", 0x8a0), 0x10),        # darwin  amd64 1.5  -1.10
+            (("gsbase", 0x30), 0x10),         # darwin  amd64 1.11 -1.16
+            ((("fsbase",0x14), 0), 0),        # windows 386   1.2.2- 1.3
+            ((("fsbase",0x14), 0), 0x8),      # windows 386   1.4  -1.18
+            ((("gsbase", 0x28), 0), 0),       # windows amd64 1.2.2- 1.3
+            ((("gsbase", 0x28), 0), 0x10),    # windows amd64 1.4  -1.16
+        ]
+        for pattern in patterns:
+            if self._match_expression(right_expression, pattern):
+                return True
+
         return False
 
 
