@@ -475,6 +475,7 @@
             {
                 "dest": "pipeline.cfg_stages",
                 "default": [
+                    "expression-propagation",
                     "bit-field-comparison-unrolling",
                     "type-propagation",
                     "dead-path-elimination",
@@ -482,6 +483,8 @@
                     "dead-code-elimination",
                     "expression-simplification-cfg",
                     "dead-code-elimination",
+                    "expression-propagation-memory",
+                    "expression-propagation-function-call",
                     "redundant-casts-elimination",
                     "identity-elimination",
                     "common-subexpression-elimination",
