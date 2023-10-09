@@ -30,8 +30,6 @@ class ExpressionPropagationBase(PipelineStage, ABC):
     name = "expression-propagation-base"
 
     def __init__(self):
-        self._limit: Optional[int] = None
-        self._limits: Dict[Instruction, int]
         self._use_map: UseMap
         self._def_map: DefMap
         self._pointers_info: Optional[Pointers] = None
@@ -43,7 +41,6 @@ class ExpressionPropagationBase(PipelineStage, ABC):
 
     def run(self, task: DecompilerTask):
         """Execute the expression propagation on the current ControlFlowGraph."""
-        self._parse_options(task)
         iteration = 0
         # execute until there are no more changes
         while self.perform(task.graph, iteration):
@@ -88,15 +85,6 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         :return: true if propagation is allowed false otherwise
         """
         pass
-
-    def _parse_options(self, task: DecompilerTask):
-        """Parse the config options for this pipeline stage."""
-        self._limit = task.options.getint(f"{self.name}.maximum_instruction_complexity")
-        self._limits = {
-            Branch: min(self._limit, task.options.getint(f"{self.name}.maximum_branch_complexity")),
-            Call: min(self._limit, task.options.getint(f"{self.name}.maximum_call_complexity")),
-            Assignment: min(self._limit, task.options.getint(f"{self.name}.maximum_assignment_complexity")),
-        }
 
     def _initialize_maps(self, cfg: ControlFlowGraph) -> None:
         """
