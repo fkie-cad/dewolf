@@ -9,6 +9,7 @@ from binaryninja import (
     MediumLevelILBasicBlock,
     MediumLevelILConstPtr,
     MediumLevelILInstruction,
+    MediumLevelILJump,
     MediumLevelILJumpTo,
     MediumLevelILTailcallSsa,
     RegisterValueType,
@@ -18,6 +19,7 @@ from decompiler.frontend.parser import Parser
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, IndirectEdge, SwitchCase, TrueCase, UnconditionalEdge
 from decompiler.structures.pseudo import Constant, Instruction
 from decompiler.structures.pseudo.complextypes import ComplexTypeMap
+from decompiler.structures.pseudo.instructions import Comment
 
 
 class BinaryninjaParser(Parser):
@@ -135,6 +137,10 @@ class BinaryninjaParser(Parser):
             lookup[target] += [Constant(value)]
         return lookup
 
+    def _has_undetermined_jump(self, basic_block: MediumLevelILBasicBlock) -> bool:
+        """Return True if basic-block is ending in a jump and has no outgoing edges"""
+        return bool(len(basic_block) and isinstance(basic_block[-1], MediumLevelILJump) and not basic_block.outgoing_edges)
+
     def _lift_instructions(self, basic_block: MediumLevelILBasicBlock) -> Iterator[Instruction]:
         """Yield the lifted versions of all instructions in the given basic block."""
         for instruction in basic_block:
@@ -144,6 +150,8 @@ class BinaryninjaParser(Parser):
                     self._unlifted_instructions.append(instruction)
                     continue
                 yield lifted_instruction
+        if self._has_undetermined_jump(basic_block):
+            yield Comment("jump -> undetermined")
 
     def _report_lifter_errors(self):
         """Report instructions which could not be lifted and reset their counter."""

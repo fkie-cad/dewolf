@@ -19,6 +19,9 @@ from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.task import DecompilerTask
 from decompiler.util.decoration import DecoratedAST, DecoratedCFG
 
+from ..structures.ast.ast_nodes import CodeNode
+from ..structures.ast.syntaxtree import AbstractSyntaxTree
+from ..structures.pseudo import Instruction
 from .default import AST_STAGES, CFG_STAGES
 from .stage import PipelineStage
 
@@ -86,6 +89,7 @@ class DecompilerPipeline:
         print_ascii = output_format == "ascii" or output_format == "ascii_and_tabs"
         show_in_tabs = output_format == "tabs" or output_format == "ascii_and_tabs"
         debug_mode = task.options.getboolean("pipeline.debug", fallback=False)
+        validate_no_dataflow_dup = task.options.getboolean("pipeline.validate_no_dataflow_dup", fallback=False)
 
         self.validate()
 
@@ -109,6 +113,12 @@ class DecompilerPipeline:
                     raise e
                 break
 
+            if validate_no_dataflow_dup:
+                if task.graph is not None:
+                    self._assert_no_dataflow_duplicates(list(task.graph.instructions))
+                if task.syntax_tree is not None:
+                    self._assert_no_ast_duplicates(task.syntax_tree)
+
     @staticmethod
     def _show_stage(task: DecompilerTask, stage_name: str, print_ascii: bool, show_in_tabs: bool):
         """Based on the task either an AST or a CFG is shown on the console (ASCII) and/or in BinaryNinja (FlowGraph) tabs."""
@@ -122,3 +132,23 @@ class DecompilerPipeline:
                 DecoratedCFG.print_ascii(task.graph, stage_name)
             if show_in_tabs:
                 DecoratedCFG.show_flowgraph(task.graph, stage_name)
+
+    @staticmethod
+    def _assert_no_ast_duplicates(ast: AbstractSyntaxTree):
+        instructions = []
+        for node in ast.topological_order():
+            if isinstance(node, CodeNode):
+                instructions.extend(node.instructions)
+
+        DecompilerPipeline._assert_no_dataflow_duplicates(instructions)
+
+    @staticmethod
+    def _assert_no_dataflow_duplicates(instructions: list[Instruction]):
+        encountered_ids: set[int] = set()
+
+        for instruction in instructions:
+            for obj in instruction.subexpressions():
+                if id(obj) in encountered_ids:
+                    raise AssertionError(f"Found duplicated DataflowObject in cfg: {obj}")
+
+                encountered_ids.add(id(obj))
