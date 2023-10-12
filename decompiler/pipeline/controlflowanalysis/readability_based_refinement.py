@@ -301,7 +301,7 @@ class WhileLoopReplacer:
                 if (equalizable_continue_nodes := self._get_continue_nodes_with_equalizable_definition(loop_node, continuation, variable_init)) is None:
                     break
                 for node in equalizable_continue_nodes:
-                    self._remove_continuation_from_last_definition(node, continuation, variable_init)
+                    self._substract_continuation_from_last_definition(node, continuation, variable_init)
                 self._replace_with_for_loop(loop_node, continuation, variable_init)
                 break
 
@@ -327,33 +327,32 @@ class WhileLoopReplacer:
         :return: List of continue code nodes that has equalizable definitions, None if at least one continue node does not match the requirements
         """
         equalizable_nodes = []
-        for code_node in loop_node.body.get_descendant_code_nodes_interrupting_ancestor_loop():
-            if not code_node.does_end_with_continue:
-                continue
+        for code_node in (node for node in loop_node.body.get_descendant_code_nodes_interrupting_ancestor_loop() if node.does_end_with_continue):
             if not self._is_expression_simple_binary_operation(continuation.instruction.value):
                 return None
             if (last_definition_index := _get_last_definition_index_of(code_node, variable_init.instruction.destination)) == -1:
                 return None
-            if not (self._is_expression_simple_binary_operation(code_node.instructions[last_definition_index].value) \
-                or isinstance(code_node.instructions[last_definition_index].value, Constant)):
+            if not (
+                self._is_expression_simple_binary_operation(code_node.instructions[last_definition_index].value)
+                or isinstance(code_node.instructions[last_definition_index].value, Constant)
+            ):
                 return None
             equalizable_nodes.append(code_node)
         return equalizable_nodes
 
     def _is_expression_simple_binary_operation(self, expression: Expression) -> bool:
         """Checks if an expression is a binary operation with plus or minus and a constant."""
-        if not isinstance(expression, BinaryOperation):
-            return False
-        if not expression.operation in [OperationType.plus, OperationType.minus]:
-            return False
-        if not any(isinstance(operand, Constant) for operand in expression.operands):
-            return False
-        return True
+        return (
+            isinstance(expression, BinaryOperation)
+            and expression.operation in {OperationType.plus, OperationType.minus}
+            and any(isinstance(operand, Constant) for operand in expression.operands)
+        )
 
-    def _remove_continuation_from_last_definition(self, code_node: CodeNode, continuation: AstInstruction, variable_init: AstInstruction):
+    def _substract_continuation_from_last_definition(self, code_node: CodeNode, continuation: AstInstruction, variable_init: AstInstruction):
         """
-        Substracts the value of the continuation instruction from the last definition, which must be a simple binary operation or a constant.
-        
+        Substracts the value of the continuation instruction from the last definition, which must be a simple binary operation or a constant,
+        defining the same value as the continuation instruction in the given code node.
+
         :param code_node: Code node whose last instruction is to be changed
         :param continuation: Instruction defining the for-loops modification
         :param variable_init: Instruction defining the for-loops declaration
