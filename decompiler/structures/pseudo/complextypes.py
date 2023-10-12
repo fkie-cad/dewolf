@@ -54,11 +54,11 @@ class ComplexTypeMember(ComplexType):
 
 
 @dataclass(frozen=True, order=True)
-class Struct(ComplexType):
+class _BaseStruct(ComplexType):
     """Class representing a struct type."""
 
     members: Dict[int, ComplexTypeMember] = field(compare=False)
-    type_specifier: ComplexTypeSpecifier = ComplexTypeSpecifier.STRUCT
+    type_specifier: ComplexTypeSpecifier
 
     def add_member(self, member: ComplexTypeMember):
         self.members[member.offset] = member
@@ -69,6 +69,16 @@ class Struct(ComplexType):
     def declaration(self) -> str:
         members = ";\n\t".join(self.members[k].declaration() for k in sorted(self.members.keys())) + ";"
         return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}}"
+
+
+@dataclass(frozen=True, order=True)
+class Struct(_BaseStruct):
+    type_specifier: ComplexTypeSpecifier = ComplexTypeSpecifier.STRUCT
+
+
+@dataclass(frozen=True, order=True)
+class Class(_BaseStruct):
+    type_specifier: ComplexTypeSpecifier = ComplexTypeSpecifier.CLASS
 
 
 @dataclass(frozen=True, order=True)

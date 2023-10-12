@@ -22,7 +22,7 @@ from binaryninja.types import (
 )
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import CustomType, Float, FunctionTypeDef, Integer, Pointer, UnknownType, Variable
-from decompiler.structures.pseudo.complextypes import ComplexTypeMember, ComplexTypeName, Enum, Struct
+from decompiler.structures.pseudo.complextypes import Class, ComplexTypeMember, ComplexTypeName, Enum, Struct
 from decompiler.structures.pseudo.complextypes import Union as Union_
 
 
@@ -98,6 +98,9 @@ class TypeHandler(Handler):
         elif struct.type == StructureVariant.UnionStructureType:
             type_name = name if name else self._get_data_type_name(struct, keyword="union")
             lifted_struct = Union_(struct.width * self.BYTE_SIZE, type_name, [])
+        elif struct.type == StructureVariant.ClassStructureType:
+            type_name = name if name else self._get_data_type_name(struct, keyword="class")
+            lifted_struct = Class(struct.width * self.BYTE_SIZE, type_name, {})
         else:
             raise RuntimeError(f"Unknown struct type {struct.type.name}")
         self._lifter.complex_types.add(lifted_struct)
