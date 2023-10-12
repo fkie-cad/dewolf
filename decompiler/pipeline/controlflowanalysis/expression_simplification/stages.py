@@ -25,30 +25,42 @@ from decompiler.structures.visitors.substitute_visitor import SubstituteVisitor
 from decompiler.task import DecompilerTask
 
 
+class _SimplificationException(Exception):
+    pass
+
+
 class _ExpressionSimplificationBase(PipelineStage, ABC):
 
     def run(self, task: DecompilerTask):
         max_iterations = task.options.getint("expression-simplification.max_iterations")
-        self._simplify_instructions(self._get_instructions(task), max_iterations)
+        debug = task.options.getboolean("pipeline.debug", fallback=False)
+
+        self._simplify_instructions(self._get_instructions(task), max_iterations, debug)
 
     @abstractmethod
     def _get_instructions(self, task: DecompilerTask) -> list[Instruction]:
         pass
 
     @classmethod
-    def _simplify_instructions(cls, instructions: list[Instruction], max_iterations: int):
+    def _simplify_instructions(cls, instructions: list[Instruction], max_iterations: int, debug: bool):
         rule_sets = [
             ("pre-rules", _pre_rules),
             ("rules", _rules),
             ("post-rules", _post_rules)
         ]
-        for rule_name, rule_set in rule_sets:
-            # max_iterations is counted per rule_set
-            iteration_count = cls._simplify_instructions_with_rule_set(instructions, rule_set, max_iterations)
-            if iteration_count <= max_iterations:
-                logging.info(f"Expression simplification took {iteration_count} iterations for {rule_name}")
+        try:
+            for rule_name, rule_set in rule_sets:
+                # max_iterations is counted per rule_set
+                iteration_count = cls._simplify_instructions_with_rule_set(instructions, rule_set, max_iterations)
+                if iteration_count <= max_iterations:
+                    logging.info(f"Expression simplification took {iteration_count} iterations for {rule_name}")
+                else:
+                    logging.warning(f"Exceeded max iteration count for {rule_name}")
+        except _SimplificationException as e:
+            if debug:
+                raise  # re-raises the exception
             else:
-                logging.warning(f"Exceeded max iteration count for {rule_name}")
+                logging.exception(f"An unexpected error occurred while simplifying: {e}")
 
     @classmethod
     def _simplify_instructions_with_rule_set(
@@ -91,7 +103,11 @@ class _ExpressionSimplificationBase(PipelineStage, ABC):
                 if not isinstance(expression, Operation):
                     break
 
-                substitutions = rule.apply(expression)
+                try:
+                    substitutions = rule.apply(expression)
+                except Exception as e:
+                    raise _SimplificationException(e)
+
                 if not substitutions:
                     break
 
