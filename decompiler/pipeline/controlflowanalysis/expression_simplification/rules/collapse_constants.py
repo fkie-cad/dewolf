@@ -1,4 +1,9 @@
-from decompiler.pipeline.controlflowanalysis.expression_simplification.constant_folding import FOLDABLE_OPERATIONS, constant_fold
+from decompiler.pipeline.controlflowanalysis.expression_simplification.constant_folding import (
+    UnsupportedMismatchedSizes,
+    UnsupportedOperationType,
+    UnsupportedValueType,
+    constant_fold,
+)
 from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.rule import SimplificationRule
 from decompiler.structures.pseudo import Constant, Expression, Operation
 
@@ -11,10 +16,10 @@ class CollapseConstants(SimplificationRule):
     def apply(self, operation: Operation) -> list[tuple[Expression, Expression]]:
         if not all(isinstance(o, Constant) for o in operation.operands):
             return []
-        if operation.operation not in FOLDABLE_OPERATIONS:
+
+        try:
+            folded_constant = constant_fold(operation.operation, operation.operands, operation.type)
+        except (UnsupportedOperationType, UnsupportedValueType, UnsupportedMismatchedSizes):
             return []
 
-        return [(
-            operation,
-            constant_fold(operation.operation, operation.operands)
-        )]
+        return [(operation, folded_constant)]

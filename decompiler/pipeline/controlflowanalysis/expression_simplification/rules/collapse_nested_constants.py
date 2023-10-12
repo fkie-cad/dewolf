@@ -8,6 +8,7 @@ from decompiler.structures.pseudo.operations import COMMUTATIVE_OPERATIONS
 
 _COLLAPSIBLE_OPERATIONS = COMMUTATIVE_OPERATIONS & FOLDABLE_OPERATIONS
 
+
 class CollapseNestedConstants(SimplificationRule):
     """
     This rule walks the dafaflow tree and collects and folds constants in commutative operations.
@@ -17,8 +18,6 @@ class CollapseNestedConstants(SimplificationRule):
     def apply(self, operation: Operation) -> list[tuple[Expression, Expression]]:
         if operation.operation not in _COLLAPSIBLE_OPERATIONS:
             return []
-        if not isinstance(operation, Operation):
-            raise TypeError(f"Expected Operation, got {type(operation)}")
 
         constants = list(_collect_constants(operation))
         if len(constants) <= 1:
@@ -26,8 +25,10 @@ class CollapseNestedConstants(SimplificationRule):
 
         first, *rest = constants
 
+        # We don't need to catch any errors of 'constant_fold', because '_collect_constants' only returns constants
+        # which have the same type as 'operation.type' and we check that operation.operation is foldable.
         folded_constant = reduce(
-            lambda c0, c1: constant_fold(operation.operation, [c0, c1]),
+            lambda c0, c1: constant_fold(operation.operation, [c0, c1], operation.type),
             rest,
             first
         )
@@ -56,7 +57,7 @@ def _collect_constants(operation: Operation) -> Iterator[Constant]:
         current_operation = context_stack.pop()
 
         for i, operand in enumerate(current_operation.operands):
-            if operand.type != operand_type:
+            if operand.type != operand_type:  # This check could potentially be relaxed to only check for equal size
                 continue
 
             if isinstance(operand, Operation):
@@ -77,6 +78,6 @@ def _identity_constant(operation: OperationType, var_type: Type) -> Constant:
         case OperationType.multiply | OperationType.multiply_us:
             return Constant(1, var_type)
         case OperationType.bitwise_and:
-            return constant_fold(OperationType.bitwise_not, [Constant(0, var_type)])
+            return constant_fold(OperationType.bitwise_not, [Constant(0, var_type)], var_type)
         case _:
             raise NotImplementedError()

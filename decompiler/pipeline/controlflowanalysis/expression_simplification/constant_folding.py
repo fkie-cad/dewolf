@@ -2,48 +2,80 @@ import operator
 from functools import partial
 from typing import Callable, Optional
 
-from decompiler.structures.pseudo import Constant, Integer, OperationType
+from decompiler.structures.pseudo import Constant, Integer, OperationType, Type
 from decompiler.util.integer_util import normalize_int
 
 
-def constant_fold(operation: OperationType, constants: list[Constant]) -> Constant:
+class UnsupportedOperationType(Exception):
+    """Indicates that the specified Operation is not supported"""
+    pass
+
+
+class UnsupportedValueType(Exception):
+    """Indicates that the value type of one constant is not supported."""
+    pass
+
+
+class UnsupportedMismatchedSizes(Exception):
+    """Indicates that folding of different sized constants is not supported for the specified operation."""
+    pass
+
+
+def constant_fold(operation: OperationType, constants: list[Constant], result_type: Type) -> Constant:
     """
     Fold operation with constants as operands.
 
     :param operation: The operation.
     :param constants: All constant operands of the operation.
+    :param result_type: What type the folded constant should have.
     :return: A constant representing the result of the operation.
+    :raises:
+        UnsupportedOperationType: Thrown if the specified operation is not supported.
+        UnsupportedValueType: Thrown if constants contain value of types not supported. Currently only ints are supported.
+        UnsupportedMismatchedValueSizes: Thrown if constants types have different sizes and folding of different sized
+            constants is not supported for the specified operation.
     """
 
-    if operation not in _OPERATION_TO_FOLD_FUNCTION:
-        raise ValueError(f"Constant folding not implemented for operation '{operation}'.")
+    if not constants:
+        raise ValueError(f"Constants list may not be empty")
 
-    return _OPERATION_TO_FOLD_FUNCTION[operation](constants)
+    if operation not in _OPERATION_TO_FOLD_FUNCTION:
+        raise UnsupportedOperationType(f"Constant folding not implemented for operation '{operation}'.")
+
+    if not all(isinstance(v, int) for v in [c.value for c in constants]):  # For now we only support integer value folding
+        raise UnsupportedValueType(f"Constant folding is not implemented for non int constant values: {[c.value for c in constants]}")
+
+    return Constant(
+        normalize_int(
+            _OPERATION_TO_FOLD_FUNCTION[operation](constants),
+            result_type.size,
+            isinstance(result_type, Integer) and result_type.signed
+        ),
+        result_type
+    )
 
 
 def _constant_fold_arithmetic_binary(
         constants: list[Constant],
         fun: Callable[[int, int], int],
         norm_sign: Optional[bool] = None
-) -> Constant:
+) -> int:
     """
     Fold an arithmetic binary operation with constants as operands.
 
-    :param constants: A list of exactly 2 constant operands.
+    :param constants: A list of exactly 2 constant values.
     :param fun: The binary function to perform on the constants.
     :param norm_sign: Optional boolean flag to indicate if/how to normalize the input constants to 'fun':
         - None (default): no normalization
-        - True:  normalize inputs, interpreted as signed values
+        - True: normalize inputs, interpreted as signed values
         - False: normalize inputs, interpreted as unsigned values
-    :return: A constant representing the result of the operation.
+    :return: The result of the operation.
     """
 
     if len(constants) != 2:
         raise ValueError(f"Expected exactly 2 constants to fold, got {len(constants)}.")
-    if not all(constant.type == constants[0].type for constant in constants):
-        raise ValueError(f"Can not fold constants with different types: {(constant.type for constant in constants)}")
-    if not all(isinstance(constant.type, Integer) for constant in constants):
-        raise ValueError(f"All constants must be integers, got {list(constant.type for constant in constants)}.")
+    if not all(constant.type.size == constants[0].type.size for constant in constants):
+        raise UnsupportedMismatchedSizes(f"Can not fold constants with different sizes: {[constant.type for constant in constants]}")
 
     left, right = constants
 
@@ -53,30 +85,25 @@ def _constant_fold_arithmetic_binary(
         left_value = normalize_int(left_value, left.type.size, norm_sign)
         right_value = normalize_int(right_value, right.type.size, norm_sign)
 
-    return Constant(
-        normalize_int(fun(left_value, right_value), left.type.size, left.type.signed),
-        left.type
-    )
+    return fun(left_value, right_value)
 
 
-def _constant_fold_arithmetic_unary(constants: list[Constant], fun: Callable[[int], int]) -> Constant:
+def _constant_fold_arithmetic_unary(constants: list[Constant], fun: Callable[[int], int]) -> int:
     """
     Fold an arithmetic unary operation with a constant operand.
 
     :param constants: A list containing a single constant operand.
     :param fun: The unary function to perform on the constant.
-    :return: A constant representing the result of the operation.
+    :return: The result of the operation.
     """
 
     if len(constants) != 1:
         raise ValueError("Expected exactly 1 constant to fold")
-    if not isinstance(constants[0].type, Integer):
-        raise ValueError(f"Constant must be of type integer: {constants[0].type}")
 
-    return Constant(normalize_int(fun(constants[0].value), constants[0].type.size, constants[0].type.signed), constants[0].type)
+    return fun(constants[0].value)
 
 
-def _constant_fold_shift(constants: list[Constant], fun: Callable[[int, int], int], signed: bool) -> Constant:
+def _constant_fold_shift(constants: list[Constant], fun: Callable[[int, int], int], signed: bool) -> int:
     """
     Fold a shift operation with constants as operands.
 
@@ -84,27 +111,21 @@ def _constant_fold_shift(constants: list[Constant], fun: Callable[[int, int], in
     :param fun: The shift function to perform on the constants.
     :param signed: Boolean flag indicating whether the shift is signed.
     This is used to normalize the sign of the input constant to simulate unsigned shifts.
-    :return: A constant representing the result of the operation.
+    :return: The result of the operation.
     """
 
     if len(constants) != 2:
         raise ValueError("Expected exactly 2 constants to fold")
-    if not all(isinstance(constant.type, Integer) for constant in constants):
-        raise ValueError("All constants must be integers")
 
     left, right = constants
 
-    shifted_value = fun(
+    return fun(
         normalize_int(left.value, left.type.size, left.type.signed and signed),
         right.value
     )
-    return Constant(
-        normalize_int(shifted_value, left.type.size, left.type.signed),
-        left.type
-    )
 
 
-_OPERATION_TO_FOLD_FUNCTION: dict[OperationType, Callable[[list[Constant]], Constant]] = {
+_OPERATION_TO_FOLD_FUNCTION: dict[OperationType, Callable[[list[Constant]], int]] = {
     OperationType.minus: partial(_constant_fold_arithmetic_binary, fun=operator.sub),
     OperationType.plus: partial(_constant_fold_arithmetic_binary, fun=operator.add),
     OperationType.multiply: partial(_constant_fold_arithmetic_binary, fun=operator.mul, norm_sign=True),
@@ -120,6 +141,5 @@ _OPERATION_TO_FOLD_FUNCTION: dict[OperationType, Callable[[list[Constant]], Cons
     OperationType.bitwise_xor: partial(_constant_fold_arithmetic_binary, fun=operator.xor),
     OperationType.bitwise_not: partial(_constant_fold_arithmetic_unary, fun=operator.inv),
 }
-
 
 FOLDABLE_OPERATIONS = _OPERATION_TO_FOLD_FUNCTION.keys()

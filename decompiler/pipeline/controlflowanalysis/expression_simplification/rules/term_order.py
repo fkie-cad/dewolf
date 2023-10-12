@@ -20,7 +20,7 @@ class TermOrder(SimplificationRule):
         if operation.operation not in COMMUTATIVE_OPERATIONS:
             return []
         if not isinstance(operation, BinaryOperation):
-            raise TypeError(f"Expected BinaryOperation, got {operation}")
+            raise TypeError(f"Expected BinaryOperation, got {type(operation)}")
 
         if isinstance(operation.left, Constant) and not isinstance(operation.right, Constant):
             return [(operation, BinaryOperation(operation.operation, [operation.right, operation.left], operation.type, operation.tags))]
