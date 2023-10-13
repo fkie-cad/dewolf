@@ -108,8 +108,9 @@ class Enum(ComplexType):
     def add_member(self, member: ComplexTypeMember):
         self.members[member.value] = member
 
-    def get_name_by_value(self, value: int) -> str:
-        return self.members.get(value).name
+    def get_name_by_value(self, value: int) -> Optional[str]:
+        member = self.members.get(value)
+        return member.name if member is not None else None
 
     def declaration(self) -> str:
         members = ",\n\t".join(f"{x.name} = {x.value}" for x in self.members.values())
