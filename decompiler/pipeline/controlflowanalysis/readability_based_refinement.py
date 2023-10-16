@@ -328,7 +328,10 @@ class WhileLoopReplacer:
         """
         equalizable_nodes = []
         for code_node in (node for node in loop_node.body.get_descendant_code_nodes_interrupting_ancestor_loop() if node.does_end_with_continue):
-            if not self._is_expression_simple_binary_operation(continuation.instruction.value):
+            if not (
+                self._is_expression_simple_binary_operation(continuation.instruction.value)
+                and continuation.instruction.destination == (continuation_used_var := self._get_variable_in_binary_operation(continuation.instruction.value))
+            ):
                 return None
             if (last_definition_index := _get_last_definition_index_of(code_node, variable_init.instruction.destination)) == -1:
                 return None
@@ -337,6 +340,10 @@ class WhileLoopReplacer:
                 or isinstance(code_node.instructions[last_definition_index].value, Constant)
             ):
                 return None
+            if not isinstance(code_node.instructions[last_definition_index].value, Constant):
+                if not continuation_used_var == self._get_variable_in_binary_operation(code_node.instructions[last_definition_index].value):
+                    return None
+
             equalizable_nodes.append(code_node)
         return equalizable_nodes
 
@@ -347,6 +354,15 @@ class WhileLoopReplacer:
             and expression.operation in {OperationType.plus, OperationType.minus}
             and any(isinstance(operand, Constant) for operand in expression.operands)
         )
+    
+    def _get_variable_in_binary_operation(self, binaryoperation: BinaryOperation) -> Variable:
+        """Returns the used variable of a binary operation if available."""
+        if isinstance(binaryoperation.left, Variable):
+            return binaryoperation.left
+        elif isinstance(binaryoperation.right, Variable):
+            return binaryoperation.right
+        else:
+            return None
 
     def _substract_continuation_from_last_definition(self, code_node: CodeNode, continuation: AstInstruction, variable_init: AstInstruction):
         """
