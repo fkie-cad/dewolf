@@ -276,6 +276,16 @@
                 "argument_name": "--return-complexity-threshold"
             },
             {
+                "dest": "readability-based-refinement.restructure_for_loops",
+                "default": true,
+                "type": "boolean",
+                "title": "Restructure for-loops at all",
+                "description": "Transform while-loops to for-loops. If set to false, no for-loop is restructured.",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--restructure-for-loops"
+            },
+            {
                 "dest": "readability-based-refinement.keep_empty_for_loops",
                 "default": false,
                 "type": "boolean",
