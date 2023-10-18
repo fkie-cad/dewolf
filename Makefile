@@ -40,9 +40,19 @@ check-format: venv
 	. $(VENV_PATH)/bin/activate
 endif
 	python -m black --version
+	python -m black --check .;\
+	if [ $$? -ne 0 ];\
+	then \
+	  echo "Not black formatted"; \
+	  exit 1;\
+	fi
 	python -m isort --version
-	python -m black --check . || \
-	python -m isort --check . -s install_api.py -s $(VENV_PATH) --skip-glob dewolf-idioms --skip-glob logic
+	python -m isort --check . -s install_api.py -s $(VENV_PATH) --skip-glob dewolf-idioms --skip-glob logic; \
+	if [ $$? -ne 0 ];\
+	then \
+	  echo "Not isort formatted"; \
+	  exit 1;\
+	fi
 
 .ONESHELL: format
 .PHONY: format
