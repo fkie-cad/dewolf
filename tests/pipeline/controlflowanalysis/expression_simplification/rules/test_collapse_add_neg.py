@@ -17,6 +17,14 @@ var_y = Variable("y")
             BinaryOperation(OperationType.minus, [var_x, UnaryOperation(OperationType.negate, [var_y])]),
             [BinaryOperation(OperationType.plus, [var_x, var_y])],
         ),
+        (
+            BinaryOperation(OperationType.plus, [UnaryOperation(OperationType.negate, [var_x]), var_y]),
+            [BinaryOperation(OperationType.minus, [var_y, var_x])],
+        ),
+        (
+            BinaryOperation(OperationType.minus, [UnaryOperation(OperationType.negate, [var_x]), var_y]),
+            [UnaryOperation(OperationType.negate, [BinaryOperation(OperationType.plus, [var_x, var_y])])],
+        ),
     ],
 )
 def test_collapse_add_neg(operation: Operation, result: list[Expression]):
