@@ -328,41 +328,33 @@ class WhileLoopReplacer:
         """
         equalizable_nodes = []
         for code_node in (node for node in loop_node.body.get_descendant_code_nodes_interrupting_ancestor_loop() if node.does_end_with_continue):
-            if not (
-                self._is_expression_simple_binary_operation(continuation.instruction.value)
-                and continuation.instruction.destination == (continuation_used_var := self._get_variable_in_binary_operation(continuation.instruction.value))
-            ):
+            if not self._is_assignment_simple_increment(continuation.instruction):
                 return None
             if (last_definition_index := _get_last_definition_index_of(code_node, variable_init.instruction.destination)) == -1:
                 return None
             if not (
-                self._is_expression_simple_binary_operation(code_node.instructions[last_definition_index].value)
+                self._is_assignment_simple_increment(code_node.instructions[last_definition_index])
                 or isinstance(code_node.instructions[last_definition_index].value, Constant)
             ):
                 return None
-            if not isinstance(code_node.instructions[last_definition_index].value, Constant):
-                if not continuation_used_var == self._get_variable_in_binary_operation(code_node.instructions[last_definition_index].value):
-                    return None
-
             equalizable_nodes.append(code_node)
         return equalizable_nodes
 
-    def _is_expression_simple_binary_operation(self, expression: Expression) -> bool:
-        """Checks if an expression is a binary operation with plus or minus and a constant."""
+    def _is_assignment_simple_increment(self, assignment: Assignment) -> bool:
+        """
+        Checks if an assignment is a simple incrementation. Meaning that it defines and uses the same variable and which included expression is a binary operation with the used
+        variable and a constant and uses plus or minus as operation. The minus operation is not commutative and is therefore only defined as simple if the variable is the first
+        operand and the constant the second.
+        """
         return (
-            isinstance(expression, BinaryOperation)
-            and expression.operation in {OperationType.plus, OperationType.minus}
-            and any(isinstance(operand, Constant) for operand in expression.operands)
+            isinstance(assignment.value, BinaryOperation)
+            and assignment.value.operation in {OperationType.plus, OperationType.minus}
+            and any(isinstance(operand, Constant) for operand in assignment.value.operands)
+            and (
+                assignment.destination == assignment.value.left
+                or (assignment.destination == assignment.value.right and assignment.value.operation == OperationType.plus)
+            )
         )
-    
-    def _get_variable_in_binary_operation(self, binaryoperation: BinaryOperation) -> Variable:
-        """Returns the used variable of a binary operation if available."""
-        if isinstance(binaryoperation.left, Variable):
-            return binaryoperation.left
-        elif isinstance(binaryoperation.right, Variable):
-            return binaryoperation.right
-        else:
-            return None
 
     def _substract_continuation_from_last_definition(self, code_node: CodeNode, continuation: AstInstruction, variable_init: AstInstruction):
         """
