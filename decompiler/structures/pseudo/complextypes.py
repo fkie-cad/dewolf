@@ -63,7 +63,7 @@ class _BaseStruct(ComplexType):
     def add_member(self, member: ComplexTypeMember):
         self.members[member.offset] = member
 
-    def get_member_by_offset(self, offset: int) -> ComplexTypeMember:
+    def get_member_by_offset(self, offset: int) -> Optional[ComplexTypeMember]:
         return self.members.get(offset)
 
     def declaration(self) -> str:

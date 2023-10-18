@@ -212,8 +212,14 @@ class AssignmentHandler(Handler):
         """Lift a MLIL_STORE_STRUCT_SSA instruction to pseudo (e.g. object->field = x)."""
         vartype = self._lifter.lift(instruction.dest.expr_type)
         struct_variable = self._lifter.lift(instruction.dest, is_aliased=True, parent=instruction)
+        member = vartype.type.get_member_by_offset(instruction.offset)
+        if member is not None:
+            name = member.name
+        else:
+            name = f"__offset_{instruction.offset}"
+            name.replace("-", "minus_")
         struct_member_access = MemberAccess(
-            member_name=vartype.type.members.get(instruction.offset),
+            member_name=name,
             offset=instruction.offset,
             operands=[struct_variable],
             vartype=vartype,
