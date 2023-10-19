@@ -60,9 +60,25 @@ class ExpressionPropagationFunctionCall(ExpressionPropagationBase):
         True on exactly one use.
         False otherwise, or Call has more than one return value.
         """
-        if len(return_values := definition.destination.requirements) == 1:
-            return len(self._use_map.get(return_values[0])) == 1
-        return False
+        if len(return_values := definition.destination.requirements) != 1:
+            return False
+
+        [required_variable] = return_values
+        requiring_instructions = self._use_map.get(required_variable)
+
+        if len(requiring_instructions) != 1:
+            return False
+
+        [requiring_instruction] = requiring_instructions
+
+        usages = 0
+        for variable in requiring_instruction.requirements_iter:
+            if variable == required_variable:
+                usages += 1
+            if usages > 1:
+                return False
+
+        return usages == 1
 
     def _definition_can_be_propagated_into_target(self, definition: Assignment, target: Instruction):
         """Tests if propagation is allowed based on set of rules, namely

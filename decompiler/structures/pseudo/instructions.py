@@ -5,7 +5,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Generic, Iterator, List, Optional, Sequence, Set, Tuple, TypeVar, Union, final
 
-from .expressions import Constant, DataflowObject, Expression, GlobalVariable, Tag, Variable
+from .expressions import Constant, DataflowObject, Expression, Tag, Variable
 from .operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
 
 E = TypeVar("E", bound=Expression)
@@ -74,11 +74,6 @@ class Comment(Instruction):
         """Return 0, since comment should not add complexity."""
         return 0
 
-    @property
-    def requirements(self) -> List["Variable"]:
-        """Return [] since comment has no requirements."""
-        return []
-
     def copy(self) -> Comment:
         """Return a Comment with same str parameters."""
         return Comment(self._comment, self._comment_style, self.tags)
@@ -131,15 +126,16 @@ class BaseAssignment(Instruction, ABC, Generic[E, F]):
         return self._value
 
     @property
-    def requirements(self) -> List[Variable]:
+    def requirements_iter(self) -> Iterator[Variable]:
         """Return the values necessary for evaluation."""
         if (
-            isinstance(self._destination, Variable)
-            or isinstance(self._destination, ListOperation)
-            or self._is_contraction(self._destination)
+            not isinstance(self.destination, Variable)
+            and not isinstance(self.destination, ListOperation)
+            and not self._is_contraction(self.destination)
         ):
-            return self._value.requirements
-        return self._destination.requirements + self._value.requirements
+            yield from self._destination.requirements_iter
+
+        yield from self._value.requirements_iter
 
     @property
     def writes_memory(self) -> Optional[int]:
@@ -260,9 +256,9 @@ class GenericBranch(Instruction, ABC, Generic[E]):
         return self.condition.complexity
 
     @property
-    def requirements(self) -> List[Variable]:
+    def requirements_iter(self) -> Iterator[Variable]:
         """Return the conditions dependencies."""
-        return self.condition.requirements
+        return self.condition.requirements_iter
 
     def substitute(self, replacee: Expression, replacement: Expression) -> None:
         """Substitutes condition directly (in case of condition is a variable)
@@ -372,9 +368,9 @@ class Return(Instruction):
         return self._values.complexity
 
     @property
-    def requirements(self) -> List[Variable]:
+    def requirements_iter(self) -> Iterator[Variable]:
         """All returned values are required by the return statement."""
-        return self._values.requirements
+        return self._values.requirements_iter
 
     @property
     def values(self) -> ListOperation:
@@ -405,10 +401,6 @@ class Break(Instruction):
     def complexity(self) -> int:
         return 0
 
-    @property
-    def requirements(self) -> List[Variable]:
-        return []
-
     @final
     def copy(self) -> Break:
         return Break()
@@ -430,10 +422,6 @@ class Continue(Instruction):
     @property
     def complexity(self) -> int:
         return 0
-
-    @property
-    def requirements(self) -> List[Variable]:
-        return []
 
     @final
     def copy(self) -> Continue:
