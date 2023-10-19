@@ -138,7 +138,6 @@ class TypeHandler(Handler):
         else:
             # if member is an embedded struct/union, the name is already available
             member_type = self._lifter.lift(member.type, name=member.name)
-            # This is still wrong for Pointers...
         return ComplexTypeMember(member_type.size, name=member.name, offset=member.offset, type=member_type)
 
     @abstractmethod
