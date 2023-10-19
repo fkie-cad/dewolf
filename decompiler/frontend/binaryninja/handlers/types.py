@@ -75,21 +75,22 @@ class TypeHandler(Handler):
 
     def lift_enum(self, binja_enum: EnumerationType, name: str = None, **kwargs) -> Enum:
         """Lift enum type."""
+        type_id = hash(binja_enum)
         enum_name = name if name else self._get_data_type_name(binja_enum, keyword="enum")
         if enum_name.strip() == "":
             enum_name = f"__anonymous_enum"
         enum_name = self._lifter.unique_name_provider.get_unique_name(enum_name)
-        enum = Enum(binja_enum.width * self.BYTE_SIZE, enum_name, hash(binja_enum), {})
+        enum = Enum(binja_enum.width * self.BYTE_SIZE, enum_name, {})
         for member in binja_enum.members:
             enum.add_member(self._lifter.lift(member))
-        self._lifter.complex_types.add(enum)
+        self._lifter.complex_types.add(enum, type_id)
         return enum
 
     def lift_enum_member(self, enum_member: EnumerationMember, **kwargs) -> ComplexTypeMember:
         """Lift enum member type."""
         return ComplexTypeMember(size=0, name=enum_member.name, offset=-1, type=Integer(32), value=int(enum_member.value))
 
-    def lift_struct(self, struct: StructureType, name: str = None, **kwargs) -> Union[Struct, ComplexTypeName]:
+    def lift_struct(self, struct: StructureType, name: str = None, **kwargs) -> Union[Struct, Union_, Class, ComplexTypeName]:
         type_id = hash(struct)
         cached_type = self._lifter.complex_types.retrieve_by_id(type_id)
         if cached_type is not None:
@@ -109,9 +110,9 @@ class TypeHandler(Handler):
         if type_name.strip() == "":
             type_name = f"__anonymous_{keyword}"
         type_name = self._lifter.unique_name_provider.get_unique_name(type_name)
-        lifted_struct = type(struct.width * self.BYTE_SIZE, type_name, type_id, members)
+        lifted_struct = type(struct.width * self.BYTE_SIZE, type_name, members)
 
-        self._lifter.complex_types.add(lifted_struct)
+        self._lifter.complex_types.add(lifted_struct, type_id)
         for member in struct.members:
             lifted_struct.add_member(self.lift_struct_member(member, type_name))
         return lifted_struct
