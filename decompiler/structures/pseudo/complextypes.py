@@ -120,10 +120,6 @@ class Enum(ComplexType):
         members = ",\n\t".join(f"{x.name} = {x.value}" for x in self.members.values())
         return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}}"
 
-    @property
-    def complex_type_name(self):
-        return ComplexTypeName(0, self.name)
-
 
 @dataclass(frozen=True, order=True)
 class ComplexTypeName(Type):
