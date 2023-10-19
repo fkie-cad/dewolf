@@ -76,7 +76,10 @@ class TypeHandler(Handler):
     def lift_enum(self, binja_enum: EnumerationType, name: str = None, **kwargs) -> Enum:
         """Lift enum type."""
         enum_name = name if name else self._get_data_type_name(binja_enum, keyword="enum")
-        enum = Enum(binja_enum.width * self.BYTE_SIZE, enum_name, {})
+        if enum_name.strip() == "":
+            enum_name = f"__anonymous_enum"
+        enum_name = self._lifter.unique_name_provider.get_unique_name(enum_name)
+        enum = Enum(binja_enum.width * self.BYTE_SIZE, enum_name, hash(binja_enum), {})
         for member in binja_enum.members:
             enum.add_member(self._lifter.lift(member))
         self._lifter.complex_types.add(enum)
@@ -87,6 +90,11 @@ class TypeHandler(Handler):
         return ComplexTypeMember(size=0, name=enum_member.name, offset=-1, type=Integer(32), value=int(enum_member.value))
 
     def lift_struct(self, struct: StructureType, name: str = None, **kwargs) -> Union[Struct, ComplexTypeName]:
+        type_id = hash(struct)
+        cached_type = self._lifter.complex_types.retrieve_by_id(type_id)
+        if cached_type is not None:
+            return cached_type
+
         """Lift struct or union type."""
         if struct.type == StructureVariant.StructStructureType:
             keyword, type, members = "struct", Struct, {}
@@ -100,11 +108,8 @@ class TypeHandler(Handler):
         type_name = name if name else self._get_data_type_name(struct, keyword=keyword)
         if type_name.strip() == "":
             type_name = f"__anonymous_{keyword}"
-        lifted_struct = type(struct.width * self.BYTE_SIZE, type_name, hash(struct), members)
-
-        cached_type = self._lifter.complex_types.retrieve_by_name(lifted_struct.complex_type_name)
-        if cached_type is not None:
-            return cached_type
+        type_name = self._lifter.unique_name_provider.get_unique_name(type_name)
+        lifted_struct = type(struct.width * self.BYTE_SIZE, type_name, type_id, members)
 
         self._lifter.complex_types.add(lifted_struct)
         for member in struct.members:

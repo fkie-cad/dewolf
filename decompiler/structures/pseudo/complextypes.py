@@ -73,7 +73,11 @@ class _BaseStruct(ComplexType):
 
     @property
     def complex_type_name(self):
-        return ComplexTypeName(0, self.name, self.type_id)
+        return ComplexTypeName(0, self.name)
+
+    @property
+    def complex_type_id(self):
+        return self.type_id
 
 
 @dataclass(frozen=True, order=True)
@@ -107,11 +111,16 @@ class Union(ComplexType):
 
     @property
     def complex_type_name(self):
-        return ComplexTypeName(0, self.name, self.type_id)
+        return ComplexTypeName(0, self.name)
+
+    @property
+    def complex_type_id(self):
+        return self.type_id
 
 
 @dataclass(frozen=True, order=True)
 class Enum(ComplexType):
+    type_id: int
     members: Dict[int, ComplexTypeMember] = field(compare=False)
     type_specifier = ComplexTypeSpecifier.ENUM
 
@@ -126,6 +135,14 @@ class Enum(ComplexType):
         members = ",\n\t".join(f"{x.name} = {x.value}" for x in self.members.values())
         return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}}"
 
+    @property
+    def complex_type_name(self):
+        return ComplexTypeName(0, self.name)
+
+    @property
+    def complex_type_id(self):
+        return self.type_id
+
 
 @dataclass(frozen=True, order=True)
 class ComplexTypeName(Type):
@@ -133,10 +150,22 @@ class ComplexTypeName(Type):
     struct(...) members of the same complex type"""
 
     name: str
-    id: Any
 
     def __str__(self) -> str:
         return self.name
+
+
+class UniqueNameProvider:
+    def __init__(self):
+        self._name_to_count: Dict[str, int] = {}
+    
+    def get_unique_name(self, name):
+        if name not in self._name_to_count:
+            self._name_to_count[name] = 1
+            return name
+        else:
+            self._name_to_count[name] += 1
+            return f"{name}__{self._name_to_count[name]}"
 
 
 class ComplexTypeMap:
@@ -144,13 +173,18 @@ class ComplexTypeMap:
 
     def __init__(self):
         self._name_to_type_map: Dict[ComplexTypeName, ComplexType] = {}
+        self._id_to_type_map: Dict[int, ComplexType] = {}
 
     def retrieve_by_name(self, typename: ComplexTypeName) -> Optional[ComplexType]:
         """Get complex type by name; used to avoid recursion."""
         return self._name_to_type_map.get(typename, None)
 
+    def retrieve_by_id(self, id: int) -> Optional[ComplexType]:
+        return self._id_to_type_map.get(id, None)
+
     def add(self, complex_type: ComplexType):
         """Add complex type to the mapping."""
+        self._id_to_type_map[complex_type.complex_type_id] = complex_type
         self._name_to_type_map[complex_type.complex_type_name] = complex_type
 
     def pretty_print(self):
