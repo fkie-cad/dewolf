@@ -141,7 +141,7 @@ class UniqueNameProvider:
     def __init__(self):
         self._name_to_count: Dict[str, int] = {}
 
-    def get_unique_name(self, name: str):
+    def get_unique_name(self, name: str) -> str:
         """ This method returns the input name if it was unique so far.
         Otherwise it returns the name with an added incrementing suffix.
         In any case, the name occurence of the name is counted.
