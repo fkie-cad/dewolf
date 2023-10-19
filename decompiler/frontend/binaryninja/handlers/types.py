@@ -88,21 +88,24 @@ class TypeHandler(Handler):
 
     def lift_struct(self, struct: StructureType, name: str = None, **kwargs) -> Union[Struct, ComplexTypeName]:
         """Lift struct or union type."""
-        complex_type_name = ComplexTypeName(0, name)
-        cached_type = self._lifter.complex_types.retrieve_by_name(complex_type_name)
-        if cached_type is not None:
-            return cached_type
         if struct.type == StructureVariant.StructStructureType:
-            type_name = name if name else self._get_data_type_name(struct, keyword="struct")
-            lifted_struct = Struct(struct.width * self.BYTE_SIZE, type_name, {})
+            keyword, type, members = "struct", Struct, {}
         elif struct.type == StructureVariant.UnionStructureType:
-            type_name = name if name else self._get_data_type_name(struct, keyword="union")
-            lifted_struct = Union_(struct.width * self.BYTE_SIZE, type_name, [])
+            keyword, type, members = "union", Union_, []
         elif struct.type == StructureVariant.ClassStructureType:
-            type_name = name if name else self._get_data_type_name(struct, keyword="class")
-            lifted_struct = Class(struct.width * self.BYTE_SIZE, type_name, {})
+            keyword, type, members = "class", Class, {}
         else:
             raise RuntimeError(f"Unknown struct type {struct.type.name}")
+
+        type_name = name if name else self._get_data_type_name(struct, keyword=keyword)
+        if type_name.strip() == "":
+            type_name = f"__anonymous_{keyword}"
+        lifted_struct = type(struct.width * self.BYTE_SIZE, type_name, hash(struct), members)
+
+        cached_type = self._lifter.complex_types.retrieve_by_name(lifted_struct.complex_type_name)
+        if cached_type is not None:
+            return cached_type
+
         self._lifter.complex_types.add(lifted_struct)
         for member in struct.members:
             lifted_struct.add_member(self.lift_struct_member(member, type_name))
@@ -124,7 +127,8 @@ class TypeHandler(Handler):
         else:
             # if member is an embedded struct/union, the name is already available
             member_type = self._lifter.lift(member.type, name=member.name)
-        return ComplexTypeMember(0, name=member.name, offset=member.offset, type=member_type)
+            # This is still wrong for Pointers...
+        return ComplexTypeMember(member_type.size, name=member.name, offset=member.offset, type=member_type)
 
     @abstractmethod
     def _get_member_pointer_on_the_parent_struct(self, member: StructureMember, parent_struct_name: str) -> ComplexTypeMember:

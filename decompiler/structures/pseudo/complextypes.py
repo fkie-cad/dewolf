@@ -2,7 +2,7 @@ import copy
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from decompiler.structures.pseudo.typing import Type
 
@@ -57,6 +57,7 @@ class ComplexTypeMember(ComplexType):
 class _BaseStruct(ComplexType):
     """Class representing a struct type."""
 
+    type_id: int
     members: Dict[int, ComplexTypeMember] = field(compare=False)
     type_specifier: ComplexTypeSpecifier
 
@@ -69,6 +70,10 @@ class _BaseStruct(ComplexType):
     def declaration(self) -> str:
         members = ";\n\t".join(self.members[k].declaration() for k in sorted(self.members.keys())) + ";"
         return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}}"
+
+    @property
+    def complex_type_name(self):
+        return ComplexTypeName(0, self.name, self.type_id)
 
 
 @dataclass(frozen=True, order=True)
@@ -83,6 +88,7 @@ class Class(_BaseStruct):
 
 @dataclass(frozen=True, order=True)
 class Union(ComplexType):
+    type_id: int
     members: List[ComplexTypeMember] = field(compare=False)
     type_specifier = ComplexTypeSpecifier.UNION
 
@@ -98,6 +104,10 @@ class Union(ComplexType):
         for member in self.members:
             if member.type == _type:
                 return member
+
+    @property
+    def complex_type_name(self):
+        return ComplexTypeName(0, self.name, self.type_id)
 
 
 @dataclass(frozen=True, order=True)
@@ -123,6 +133,7 @@ class ComplexTypeName(Type):
     struct(...) members of the same complex type"""
 
     name: str
+    id: Any
 
     def __str__(self) -> str:
         return self.name
@@ -134,13 +145,13 @@ class ComplexTypeMap:
     def __init__(self):
         self._name_to_type_map: Dict[ComplexTypeName, ComplexType] = {}
 
-    def retrieve_by_name(self, typename: ComplexTypeName) -> ComplexType:
+    def retrieve_by_name(self, typename: ComplexTypeName) -> Optional[ComplexType]:
         """Get complex type by name; used to avoid recursion."""
         return self._name_to_type_map.get(typename, None)
 
     def add(self, complex_type: ComplexType):
         """Add complex type to the mapping."""
-        self._name_to_type_map[ComplexTypeName(0, complex_type.name)] = complex_type
+        self._name_to_type_map[complex_type.complex_type_name] = complex_type
 
     def pretty_print(self):
         for t in self._name_to_type_map.values():
