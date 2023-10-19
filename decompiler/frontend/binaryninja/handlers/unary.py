@@ -99,7 +99,12 @@ class UnaryOperationHandler(Handler):
         struct_variable = self._lifter.lift(instruction.src)
         struct_ptr: Pointer = self._lifter.lift(instruction.src.expr_type)
         struct_member = struct_ptr.type.get_member_by_offset(instruction.offset)
-        return MemberAccess(vartype=struct_ptr, operands=[struct_variable], offset=struct_member.offset, member_name=struct_member.name)
+        if struct_member is not None:
+            name = struct_member.name
+        else:
+            name = f"__offset_{instruction.offset}"
+            name.replace("-", "minus_")
+        return MemberAccess(vartype=struct_ptr, operands=[struct_variable], offset=instruction.offset, member_name=name)
 
     def _lift_ftrunc(self, instruction: mediumlevelil.MediumLevelILFtrunc, **kwargs) -> UnaryOperation:
         """Lift a MLIL_FTRUNC operation."""

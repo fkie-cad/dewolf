@@ -6,7 +6,7 @@ from binaryninja import BinaryView, MediumLevelILInstruction, Type
 from decompiler.frontend.lifter import ObserverLifter
 from decompiler.structures.pseudo import DataflowObject, Tag, UnknownExpression, UnknownType
 
-from ...structures.pseudo.complextypes import ComplexTypeMap
+from ...structures.pseudo.complextypes import ComplexTypeMap, UniqueNameProvider
 from .handlers import HANDLERS
 
 
@@ -17,6 +17,7 @@ class BinaryninjaLifter(ObserverLifter):
         self.no_bit_masks = no_bit_masks
         self.bv: BinaryView = bv
         self.complex_types: ComplexTypeMap = ComplexTypeMap()
+        self.unique_name_provider: UniqueNameProvider = UniqueNameProvider()
         for handler in HANDLERS:
             handler(self).register()
 
