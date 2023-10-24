@@ -1,11 +1,12 @@
 from functools import reduce
 from typing import Iterator
 
-from decompiler.pipeline.controlflowanalysis.expression_simplification.constant_folding import constant_fold
+from decompiler.pipeline.controlflowanalysis.expression_simplification.constant_folding import FOLDABLE_OPERATIONS, constant_fold
 from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.rule import SimplificationRule
 from decompiler.structures.pseudo import Constant, Expression, Operation, OperationType, Type
 from decompiler.structures.pseudo.operations import COMMUTATIVE_OPERATIONS
 
+_COLLAPSIBLE_OPERATIONS = COMMUTATIVE_OPERATIONS & FOLDABLE_OPERATIONS
 
 class CollapseNestedConstants(SimplificationRule):
     """
@@ -14,7 +15,7 @@ class CollapseNestedConstants(SimplificationRule):
     This stage exploits associativity and is the only stage doing so. Therefore, it cannot be replaced by a combination of `TermOrder` and `CollapseConstants`.
     """
     def apply(self, operation: Operation) -> list[tuple[Expression, Expression]]:
-        if operation.operation not in COMMUTATIVE_OPERATIONS:
+        if operation.operation not in _COLLAPSIBLE_OPERATIONS:
             return []
         if not isinstance(operation, Operation):
             raise TypeError(f"Expected Operation, got {type(operation)}")

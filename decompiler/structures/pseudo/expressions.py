@@ -193,7 +193,10 @@ class Constant(Expression[DecompiledType]):
         Constants of type Enum are represented as strings (corresponding enumerator identifiers).
         """
         if isinstance(self._type, Enum):
-            return self._type.get_name_by_value(self.value)
+            name = self._type.get_name_by_value(self.value)
+            if name is not None:
+                return name
+            # otherwise, i.e. if value is not found in Enum class, fall through
         if self._type.is_boolean:
             return "true" if self.value else "false"
         if isinstance(self.value, str):
