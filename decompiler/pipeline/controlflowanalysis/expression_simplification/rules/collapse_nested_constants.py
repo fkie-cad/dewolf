@@ -1,8 +1,13 @@
 from functools import reduce
 from typing import Iterator
 
-from decompiler.pipeline.controlflowanalysis.expression_simplification.constant_folding import FOLDABLE_OPERATIONS, constant_fold
-from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.rule import SimplificationRule
+from decompiler.pipeline.controlflowanalysis.expression_simplification.constant_folding import (
+    FOLDABLE_OPERATIONS,
+    IncompatibleOperandCount,
+    UnsupportedValueType,
+    constant_fold,
+)
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.rule import MalformedData, SimplificationRule
 from decompiler.structures.pseudo import Constant, Expression, Operation, OperationType, Type
 from decompiler.structures.pseudo.operations import COMMUTATIVE_OPERATIONS
 
@@ -19,8 +24,6 @@ class CollapseNestedConstants(SimplificationRule):
     def apply(self, operation: Operation) -> list[tuple[Expression, Expression]]:
         if operation.operation not in _COLLAPSIBLE_OPERATIONS:
             return []
-        if not isinstance(operation, Operation):
-            raise TypeError(f"Expected Operation, got {type(operation)}")
 
         constants = list(_collect_constants(operation))
         if len(constants) <= 1:
@@ -28,7 +31,14 @@ class CollapseNestedConstants(SimplificationRule):
 
         first, *rest = constants
 
-        folded_constant = reduce(lambda c0, c1: constant_fold(operation.operation, [c0, c1]), rest, first)
+        # We don't need to catch UnsupportedOperationType, because check that operation is in _COLLAPSIBLE_OPERATIONS
+        # We don't need to catch UnsupportedMismatchedSizes, because '_collect_constants' only returns constants of the same type
+        try:
+            folded_constant = reduce(lambda c0, c1: constant_fold(operation.operation, [c0, c1], operation.type), rest, first)
+        except UnsupportedValueType:
+            return []
+        except IncompatibleOperandCount as e:
+            raise MalformedData() from e
 
         identity_constant = _identity_constant(operation.operation, operation.type)
         return [(first, folded_constant), *((constant, identity_constant) for constant in rest)]
@@ -51,7 +61,7 @@ def _collect_constants(operation: Operation) -> Iterator[Constant]:
         current_operation = context_stack.pop()
 
         for i, operand in enumerate(current_operation.operands):
-            if operand.type != operand_type:
+            if operand.type != operand_type:  # This check could potentially be relaxed to only check for equal size
                 continue
 
             if isinstance(operand, Operation):
@@ -72,6 +82,11 @@ def _identity_constant(operation: OperationType, var_type: Type) -> Constant:
         case OperationType.multiply | OperationType.multiply_us:
             return Constant(1, var_type)
         case OperationType.bitwise_and:
-            return constant_fold(OperationType.bitwise_not, [Constant(0, var_type)])
+            # Should not throw any exception because:
+            # - OperationType.bitwise_not is foldable (UnsupportedOperationType)
+            # - constant has integer value, which is supported (UnsupportedValueType)
+            # - with only 1 constant there cant be mismatched sizes (UnsupportedMismatchedSizes)
+            # - bitwise_not has exactly one operand (IncompatibleOperandCount)
+            return constant_fold(OperationType.bitwise_not, [Constant(0, var_type)], var_type)
         case _:
             raise NotImplementedError()
