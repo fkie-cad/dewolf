@@ -5,6 +5,11 @@ from typing import Callable, Optional
 from decompiler.structures.pseudo import Constant, Integer, OperationType, Type
 from decompiler.util.integer_util import normalize_int
 
+# Exceptions of these three types indicate that an operation is not suitable for constant folding.
+# They do NOT indicate that the input was malformed in any way.
+# The idea is that the caller of constant_fold does not need to verify that folding is possible.
+# If malformed input was provided, a ValueError will used raised instead.
+
 
 class UnsupportedOperationType(Exception):
     """Indicates that the specified Operation is not supported"""
@@ -27,13 +32,15 @@ def constant_fold(operation: OperationType, constants: list[Constant], result_ty
 
     :param operation: The operation.
     :param constants: All constant operands of the operation.
+        Count of operands must be compatible with the specified operation type.
     :param result_type: What type the folded constant should have.
     :return: A constant representing the result of the operation.
     :raises:
         UnsupportedOperationType: Thrown if the specified operation is not supported.
         UnsupportedValueType: Thrown if constants contain value of types not supported. Currently only ints are supported.
-        UnsupportedMismatchedValueSizes: Thrown if constants types have different sizes and folding of different sized
+        UnsupportedMismatchedSizes: Thrown if constants types have different sizes and folding of different sized
             constants is not supported for the specified operation.
+        ValueError: Thrown on malformed input.
     """
 
     if not constants:
@@ -70,6 +77,10 @@ def _constant_fold_arithmetic_binary(
         - True: normalize inputs, interpreted as signed values
         - False: normalize inputs, interpreted as unsigned values
     :return: The result of the operation.
+    :raises:
+        UnsupportedMismatchedSizes: Thrown if constants types have different sizes and folding of different sized
+            constants is not supported for the specified operation.
+        ValueError: Thrown on malformed input.
     """
 
     if len(constants) != 2:
@@ -95,6 +106,8 @@ def _constant_fold_arithmetic_unary(constants: list[Constant], fun: Callable[[in
     :param constants: A list containing a single constant operand.
     :param fun: The unary function to perform on the constant.
     :return: The result of the operation.
+    :raises:
+        ValueError: Thrown on malformed input.
     """
 
     if len(constants) != 1:
@@ -112,6 +125,8 @@ def _constant_fold_shift(constants: list[Constant], fun: Callable[[int, int], in
     :param signed: Boolean flag indicating whether the shift is signed.
     This is used to normalize the sign of the input constant to simulate unsigned shifts.
     :return: The result of the operation.
+    :raises:
+        ValueError: Thrown on malformed input.
     """
 
     if len(constants) != 2:
