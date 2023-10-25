@@ -15,8 +15,6 @@ class CollapseConstants(SimplificationRule):
     """
 
     def apply(self, operation: Operation) -> list[tuple[Expression, Expression]]:
-        if not operation.operands:
-            return []  # Is this even allowed?
         if not all(isinstance(o, Constant) for o in operation.operands):
             return []
 
