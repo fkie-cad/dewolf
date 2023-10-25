@@ -7,6 +7,7 @@ from decompiler.util.options import Options
 
 class CompilerIdiomsTagging:
     """Generates binary view tags for the matched compiler idioms."""
+
     TAG_SYMBOL = "⚙"
     TAG_PREFIX = "compiler_idiom: "
 
@@ -33,8 +34,9 @@ class CompilerIdiomsTagging:
 
         for match in matches:
             for address in match.addresses:
-                self._set_tag(self._bv, tag_name=f"{self.TAG_PREFIX}{match.operation}", address=address,
-                              text=f"{match.operand},{match.constant}")
+                self._set_tag(
+                    self._bv, tag_name=f"{self.TAG_PREFIX}{match.operation}", address=address, text=f"{match.operand},{match.constant}"
+                )
 
     @staticmethod
     def _set_tag(binary_view: BinaryView, tag_name: str, address: int, text: str):

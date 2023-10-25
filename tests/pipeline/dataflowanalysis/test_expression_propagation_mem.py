@@ -25,45 +25,45 @@ int64 = Integer.int64_t()
 
 def test_postponed_aliased_propagation_handles_aliases_correctly():
     """
-     +--------------------------------+
-    |               0.               |
-    |      var_18#1 = var_18#0       |
-    |             func()             |
-    |      var_18#2 = var_18#1       |
-    |     var_28#1 = &(var_18#2)     |
-    |        scanf(var_28#1)         |
-    |      var_18#3 -> var_18#2      |
-    |        eax#1 = var_18#3        |
-    |        var_14#4 = eax#1        |<--------var_14 is now an alias of var_18
-    |             func()             |
-    |      var_18#4 = var_18#3       |
-    |     var_10#1 = &(var_18#4)     |
-    |       *(var_10#1) = 0x7        |<--------var_18 is changed via deref, so does var_14, since they are aliases
-    |      var_18#5 -> var_18#4      |
-    |      var_14#5 = var_14#4       |<--------do not propagate old value of var_14 here, cause of change above
-    |       eax_2#3 = var_18#5       |
-    | return (&(var_14#5)) + eax_2#3 |
-    +--------------------------------+
+         +--------------------------------+
+        |               0.               |
+        |      var_18#1 = var_18#0       |
+        |             func()             |
+        |      var_18#2 = var_18#1       |
+        |     var_28#1 = &(var_18#2)     |
+        |        scanf(var_28#1)         |
+        |      var_18#3 -> var_18#2      |
+        |        eax#1 = var_18#3        |
+        |        var_14#4 = eax#1        |<--------var_14 is now an alias of var_18
+        |             func()             |
+        |      var_18#4 = var_18#3       |
+        |     var_10#1 = &(var_18#4)     |
+        |       *(var_10#1) = 0x7        |<--------var_18 is changed via deref, so does var_14, since they are aliases
+        |      var_18#5 -> var_18#4      |
+        |      var_14#5 = var_14#4       |<--------do not propagate old value of var_14 here, cause of change above
+        |       eax_2#3 = var_18#5       |
+        | return (&(var_14#5)) + eax_2#3 |
+        +--------------------------------+
 
+        +---------------------------------+
+        |               0.                |
+        |       var_18#1 = var_18#0       |
+        |             func()              |
+        |       var_18#2 = var_18#0       |
+        |     var_28#1 = &(var_18#2)      |
+        |       scanf(&(var_18#2))        |
+        |      var_18#3 -> var_18#2       |
+        |        eax#1 = var_18#3         |
+        |       var_14#4 = var_18#3       |
+        |             func()              |
+        |       var_18#4 = var_18#3       |
+        |     var_10#1 = &(var_18#4)      |
+        |        *(var_10#1) = 0x7        |
+        |      var_18#5 -> var_18#4       |
+        |       var_14#5 = var_14#4       |<--------this instruction should not be changed after epm
+        |       eax_2#3 = var_18#5        |
+        | return (&(var_14#5)) + var_18#5 |
     +---------------------------------+
-    |               0.                |
-    |       var_18#1 = var_18#0       |
-    |             func()              |
-    |       var_18#2 = var_18#0       |
-    |     var_28#1 = &(var_18#2)      |
-    |       scanf(&(var_18#2))        |
-    |      var_18#3 -> var_18#2       |
-    |        eax#1 = var_18#3         |
-    |       var_14#4 = var_18#3       |
-    |             func()              |
-    |       var_18#4 = var_18#3       |
-    |     var_10#1 = &(var_18#4)      |
-    |        *(var_10#1) = 0x7        |
-    |      var_18#5 -> var_18#4       |
-    |       var_14#5 = var_14#4       |<--------this instruction should not be changed after epm
-    |       eax_2#3 = var_18#5        |
-    | return (&(var_14#5)) + var_18#5 |
-+---------------------------------+
     """
     input_cfg, output_cfg = graphs_with_aliases()
     _run_expression_propagation(input_cfg)
@@ -71,7 +71,6 @@ def test_postponed_aliased_propagation_handles_aliases_correctly():
 
 
 def graphs_with_aliases():
-
     var_18 = vars("var_18", 6, aliased=True)
     var_14 = vars("var_14", 6, aliased=True)
     var_28 = vars("var_28", 2, type=Pointer(int32))
@@ -82,23 +81,24 @@ def graphs_with_aliases():
 
     in_n0 = BasicBlock(
         0,
-        [_assign(var_18[1], var_18[0]),
-         _call("func", [], []),
-         _assign(var_18[2], var_18[1]),
-         _assign(var_28[1], _addr(var_18[2])),
-         _call("scanf", [], [var_28[1]]),
-         Relation(var_18[3], var_18[2]),
-         _assign(eax[1], var_18[3]),
-         _assign(var_14[4], eax[1]),
-         _call("func", [], []),
-         _assign(var_18[4], var_18[3]),
-         _assign(var_10[1], _addr(var_18[4])),
-         _assign(_deref(var_10[1]), c[7]),
-         Relation(var_18[5], var_18[4]),
-         _assign(var_14[5], var_14[4]),
-         _assign(eax_2[3], var_18[5]),
-         _ret(_add(_addr(var_14[5]), eax_2[3]))
-         ]
+        [
+            _assign(var_18[1], var_18[0]),
+            _call("func", [], []),
+            _assign(var_18[2], var_18[1]),
+            _assign(var_28[1], _addr(var_18[2])),
+            _call("scanf", [], [var_28[1]]),
+            Relation(var_18[3], var_18[2]),
+            _assign(eax[1], var_18[3]),
+            _assign(var_14[4], eax[1]),
+            _call("func", [], []),
+            _assign(var_18[4], var_18[3]),
+            _assign(var_10[1], _addr(var_18[4])),
+            _assign(_deref(var_10[1]), c[7]),
+            Relation(var_18[5], var_18[4]),
+            _assign(var_14[5], var_14[4]),
+            _assign(eax_2[3], var_18[5]),
+            _ret(_add(_addr(var_14[5]), eax_2[3])),
+        ],
     )
     in_cfg = ControlFlowGraph()
     in_cfg.add_node(in_n0)
@@ -106,23 +106,24 @@ def graphs_with_aliases():
     out_cfg.add_node(
         BasicBlock(
             0,
-            [_assign(var_18[1], var_18[0]),
-             _call("func", [], []),
-             _assign(var_18[2], var_18[0]),
-             _assign(var_28[1], _addr(var_18[2])),
-             _call("scanf", [], [_addr(var_18[2])]),
-             Relation(var_18[3], var_18[2]),
-             _assign(eax[1], var_18[3]),
-             _assign(var_14[4], var_18[3]),
-             _call("func", [], []),
-             _assign(var_18[4], var_18[3]),
-             _assign(var_10[1], _addr(var_18[4])),
-             _assign(_deref(var_10[1]), c[7]),
-             Relation(var_18[5], var_18[4]),
-             _assign(var_14[5], var_14[4]),
-             _assign(eax_2[3], var_18[5]),
-             _ret(_add(_addr(var_14[5]), var_18[5]))
-             ]
+            [
+                _assign(var_18[1], var_18[0]),
+                _call("func", [], []),
+                _assign(var_18[2], var_18[0]),
+                _assign(var_28[1], _addr(var_18[2])),
+                _call("scanf", [], [_addr(var_18[2])]),
+                Relation(var_18[3], var_18[2]),
+                _assign(eax[1], var_18[3]),
+                _assign(var_14[4], var_18[3]),
+                _call("func", [], []),
+                _assign(var_18[4], var_18[3]),
+                _assign(var_10[1], _addr(var_18[4])),
+                _assign(_deref(var_10[1]), c[7]),
+                Relation(var_18[5], var_18[4]),
+                _assign(var_14[5], var_14[4]),
+                _assign(eax_2[3], var_18[5]),
+                _ret(_add(_addr(var_14[5]), var_18[5])),
+            ],
         )
     )
     return in_cfg, out_cfg
@@ -130,40 +131,40 @@ def graphs_with_aliases():
 
 def test_address_propagation_does_not_break_relations_between_aliased_versions():
     """
-        +------------------+
-        |        0.        |
-        |    x#0 = 0x0     |
-        |    y#0 = 0x0     | <--- DO NOT propagate
-        | ptr_x#1 = &(x#0) | <--- can propagate
-        | ptr_y#1 = &(y#0) | <--- can propagate
-        |  func(ptr_x#1)   |
-        |    y#1 = y#0     | <--- propagation will cause connection loss between lhs and rhs variable
-        |    x#1 -> x#0    |
-        |  func(ptr_y#1)   |
-        |    y#2 -> y#1    |
-        |    x#2 = x#1     |
-        |    x#3 = x#2     | <--- can propagate (aliased) definition x#2=x#1 here, as x#2 is not used anywhere else
-        |    y#3 = y#2     |
-        | return x#3 + y#3 |
-        +------------------+
+    +------------------+
+    |        0.        |
+    |    x#0 = 0x0     |
+    |    y#0 = 0x0     | <--- DO NOT propagate
+    | ptr_x#1 = &(x#0) | <--- can propagate
+    | ptr_y#1 = &(y#0) | <--- can propagate
+    |  func(ptr_x#1)   |
+    |    y#1 = y#0     | <--- propagation will cause connection loss between lhs and rhs variable
+    |    x#1 -> x#0    |
+    |  func(ptr_y#1)   |
+    |    y#2 -> y#1    |
+    |    x#2 = x#1     |
+    |    x#3 = x#2     | <--- can propagate (aliased) definition x#2=x#1 here, as x#2 is not used anywhere else
+    |    y#3 = y#2     |
+    | return x#3 + y#3 |
+    +------------------+
 
-        After:
-        +------------------+
-        |        0.        |
-        |    x#0 = 0x0     |
-        |    y#0 = 0x0     |
-        | ptr_x#1 = &(x#0) |
-        | ptr_y#1 = &(y#0) |
-        |   func(&(x#0))   |
-        |    y#1 = y#0     |
-        |    x#1 -> x#0    |
-        |   func(&(y#0))   |
-        |    y#2 -> y#1    |
-        |    x#2 = x#1     |
-        |    x#3 = x#1     |
-        |    y#3 = y#2     |
-        | return x#1 + y#2 |
-        +------------------+
+    After:
+    +------------------+
+    |        0.        |
+    |    x#0 = 0x0     |
+    |    y#0 = 0x0     |
+    | ptr_x#1 = &(x#0) |
+    | ptr_y#1 = &(y#0) |
+    |   func(&(x#0))   |
+    |    y#1 = y#0     |
+    |    x#1 -> x#0    |
+    |   func(&(y#0))   |
+    |    y#2 -> y#1    |
+    |    x#2 = x#1     |
+    |    x#3 = x#1     |
+    |    y#3 = y#2     |
+    | return x#1 + y#2 |
+    +------------------+
     """
     input_cfg, output_cfg = graphs_with_address_propagation_does_not_break_relations_between_aliased_versions()
     _run_expression_propagation(input_cfg)
@@ -179,20 +180,21 @@ def graphs_with_address_propagation_does_not_break_relations_between_aliased_ver
 
     in_n0 = BasicBlock(
         0,
-        [_assign(x[0], c[0]),
-         _assign(y[0], c[0]),
-         _assign(ptr_x[1], _addr(x[0])),
-         _assign(ptr_y[1], _addr(y[0])),
-         _call("func", [], [ptr_x[1]]),
-         _assign(y[1], y[0]),
-         Relation(x[1], x[0]),
-         _call("func", [], [ptr_y[1]]),
-         Relation(y[2], y[1]),
-         _assign(x[2], x[1]),
-         _assign(x[3], x[2]),
-         _assign(y[3], y[2]),
-         _ret(_add(x[3], y[3])),
-         ]
+        [
+            _assign(x[0], c[0]),
+            _assign(y[0], c[0]),
+            _assign(ptr_x[1], _addr(x[0])),
+            _assign(ptr_y[1], _addr(y[0])),
+            _call("func", [], [ptr_x[1]]),
+            _assign(y[1], y[0]),
+            Relation(x[1], x[0]),
+            _call("func", [], [ptr_y[1]]),
+            Relation(y[2], y[1]),
+            _assign(x[2], x[1]),
+            _assign(x[3], x[2]),
+            _assign(y[3], y[2]),
+            _ret(_add(x[3], y[3])),
+        ],
     )
     in_cfg = ControlFlowGraph()
     in_cfg.add_node(in_n0)
@@ -200,23 +202,25 @@ def graphs_with_address_propagation_does_not_break_relations_between_aliased_ver
     out_cfg.add_node(
         BasicBlock(
             0,
-            [_assign(x[0], c[0]),
-             _assign(y[0], c[0]),
-             _assign(ptr_x[1], _addr(x[0])),
-             _assign(ptr_y[1], _addr(y[0])),
-             _call("func", [], [_addr(x[0])]),
-             _assign(y[1], y[0]),
-             Relation(x[1], x[0]),
-             _call("func", [], [_addr(y[0])]),
-             Relation(y[2], y[1]),
-             _assign(x[2], x[1]),
-             _assign(x[3], x[1]),
-             _assign(y[3], y[2]),
-             _ret(_add(x[1], y[2])),
-             ],
+            [
+                _assign(x[0], c[0]),
+                _assign(y[0], c[0]),
+                _assign(ptr_x[1], _addr(x[0])),
+                _assign(ptr_y[1], _addr(y[0])),
+                _call("func", [], [_addr(x[0])]),
+                _assign(y[1], y[0]),
+                Relation(x[1], x[0]),
+                _call("func", [], [_addr(y[0])]),
+                Relation(y[2], y[1]),
+                _assign(x[2], x[1]),
+                _assign(x[3], x[1]),
+                _assign(y[3], y[2]),
+                _ret(_add(x[1], y[2])),
+            ],
         )
     )
     return in_cfg, out_cfg
+
 
 def test_assignments_with_dereference_subexpressions_on_rhs_are_propagated_when_no_modification_between_def_and_use():
     """

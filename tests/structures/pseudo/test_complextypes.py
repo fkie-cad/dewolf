@@ -190,7 +190,7 @@ def blue():
 class TestComplexTypeMap:
     def test_declarations(self, complex_types: ComplexTypeMap, book: Struct, color: Enum, record_id: Union):
         assert complex_types.declarations() == f"{book.declaration()};\n{color.declaration()};\n{record_id.declaration()};"
-        complex_types.add(book)
+        complex_types.add(book, 0)
         assert complex_types.declarations() == f"{book.declaration()};\n{color.declaration()};\n{record_id.declaration()};"
 
     def test_retrieve_by_name(self, complex_types: ComplexTypeMap, book: Struct, color: Enum, record_id: Union):
@@ -201,7 +201,7 @@ class TestComplexTypeMap:
     @pytest.fixture
     def complex_types(self, book: Struct, color: Enum, record_id: Union):
         complex_types = ComplexTypeMap()
-        complex_types.add(book)
-        complex_types.add(color)
-        complex_types.add(record_id)
+        complex_types.add(book, 0)
+        complex_types.add(color, 1)
+        complex_types.add(record_id, 2)
         return complex_types

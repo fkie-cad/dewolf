@@ -20,6 +20,7 @@ class CollapseNestedConstants(SimplificationRule):
     The first constant of the tree is replaced with the folded result and all remaining constants are replaced with the identity.
     This stage exploits associativity and is the only stage doing so. Therefore, it cannot be replaced by a combination of `TermOrder` and `CollapseConstants`.
     """
+
     def apply(self, operation: Operation) -> list[tuple[Expression, Expression]]:
         if operation.operation not in _COLLAPSIBLE_OPERATIONS:
             return []
@@ -44,10 +45,7 @@ class CollapseNestedConstants(SimplificationRule):
             raise MalformedData() from e
 
         identity_constant = _identity_constant(operation.operation, operation.type)
-        return [
-            (first, folded_constant),
-            *((constant, identity_constant) for constant in rest)
-        ]
+        return [(first, folded_constant), *((constant, identity_constant) for constant in rest)]
 
 
 def _collect_constants(operation: Operation) -> Iterator[Constant]:

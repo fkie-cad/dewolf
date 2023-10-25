@@ -20,7 +20,7 @@ class DecompilerTask:
         options: Optional[Options] = None,
         function_return_type: Type = Integer(32),
         function_parameters: Optional[List[Variable]] = None,
-        complex_types: Optional[ComplexTypeMap] = None
+        complex_types: Optional[ComplexTypeMap] = None,
     ):
         """
         Init a new decompiler task.

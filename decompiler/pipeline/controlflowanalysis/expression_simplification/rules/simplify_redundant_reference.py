@@ -12,8 +12,7 @@ class SimplifyRedundantReference(SimplificationRule):
     def apply(self, operation: Operation) -> list[tuple[Expression, Expression]]:
         match operation:
             case UnaryOperation(
-                operation=OperationType.dereference,
-                operand=UnaryOperation(operation=OperationType.address, operand=inner_operand)
+                operation=OperationType.dereference, operand=UnaryOperation(operation=OperationType.address, operand=inner_operand)
             ):
                 return [(operation, inner_operand)]
             case _:

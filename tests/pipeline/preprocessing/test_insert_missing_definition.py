@@ -413,7 +413,6 @@ def construct_graph_aliased(number: int) -> (List[Instruction], List[Variable], 
         return list_instructions, aliased_variables, task
 
     if number == 8:
-
         list_instructions[23].value._writes_memory = 7
         nodes[2].instructions = [i.copy() for i in list_instructions[15:17]] + [
             list_instructions[23].copy(),
@@ -1089,7 +1088,9 @@ def test_relation_and_assignment_insertion_after_memory_changing_instructions():
     b = [Variable("b", Integer.int32_t(), i, is_aliased=True) for i in range(10)]
     instruction_0 = Assignment(a[1], Constant(0x1))
     instruction_1 = Assignment(b[2], UnaryOperation(OperationType.address, [a[1]], writes_memory=2))
-    instruction_2 = Assignment(ListOperation([]), Call(function_symbol("scanf"), [UnaryOperation(OperationType.address, [a[2]])], writes_memory=3))
+    instruction_2 = Assignment(
+        ListOperation([]), Call(function_symbol("scanf"), [UnaryOperation(OperationType.address, [a[2]])], writes_memory=3)
+    )
     cfg = ControlFlowGraph()
     cfg.add_node(BasicBlock(0, [instruction_0, instruction_1, instruction_2]))
     task = DecompilerTask("test", cfg)
@@ -1106,4 +1107,3 @@ def test_relation_and_assignment_insertion_after_memory_changing_instructions():
     # test last 2 inserted definitions separately
     # since I am not sure if the definitions insertion order is deterministic
     assert {Relation(a[3], a[2]), Assignment(b[3], b[2])} == set(task.graph.nodes[0].instructions[-2:])
-

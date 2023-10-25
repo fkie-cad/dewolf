@@ -26,7 +26,6 @@ from decompiler.task import DecompilerTask
 
 
 class _ExpressionSimplificationBase(PipelineStage, ABC):
-
     def run(self, task: DecompilerTask):
         max_iterations = task.options.getint("expression-simplification.max_iterations")
         debug = task.options.getboolean("pipeline.debug", fallback=False)
@@ -175,7 +174,4 @@ _rules: list[SimplificationRule] = [
     CollapseConstants(),
     CollapseNestedConstants(),
 ]
-_post_rules: list[SimplificationRule] = [
-    CollapseAddNeg(),
-    PositiveConstants()
-]
+_post_rules: list[SimplificationRule] = [CollapseAddNeg(), PositiveConstants()]

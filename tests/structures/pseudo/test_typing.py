@@ -4,6 +4,7 @@ from decompiler.structures.pseudo.typing import CustomType, Float, Integer, Poin
 
 SIZEOF_BOOL = 8
 
+
 def test_representation():
     """Test the text representation of various types."""
     # Integer tests
@@ -64,9 +65,11 @@ def test_is_bool():
     assert not CustomType.void().is_boolean
     assert not Integer.int32_t().is_boolean
 
+
 def test_bool_size():
     """Test if bool has the correct size"""
     assert CustomType.bool().size == SIZEOF_BOOL
+
 
 def test_type_parser():
     """Test the type parser to support basic type guessing."""

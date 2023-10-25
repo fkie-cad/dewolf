@@ -60,7 +60,7 @@ class BinaryninjaParser(Parser):
 
     def _recover_switch_edge_cases(self, edge: BasicBlockEdge, lookup_table: dict):
         """
-        If edge.target.source_block.start address is not in lookup table, 
+        If edge.target.source_block.start address is not in lookup table,
         try to recover matching address by inspecting addresses used in edge.target.
         Return matched case list for edge.target.
         """

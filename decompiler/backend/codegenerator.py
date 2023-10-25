@@ -39,10 +39,9 @@ class CodeGenerator:
         return self.TEMPLATE.substitute(
             return_type=task.function_return_type,
             name=task.name,
-            parameters=", ".join(map(
-                lambda param: CExpressionGenerator.format_variables_declaration(param.type, [param.name]),
-                task.function_parameters
-            )),
+            parameters=", ".join(
+                map(lambda param: CExpressionGenerator.format_variables_declaration(param.type, [param.name]), task.function_parameters)
+            ),
             local_declarations=LocalDeclarationGenerator.from_task(task) if not task.failed else "",
             function_body=CodeVisitor(task).visit(task.syntax_tree.root) if not task.failed else task.failure_message,
         )

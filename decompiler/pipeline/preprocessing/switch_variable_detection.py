@@ -123,7 +123,7 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
         for usage in self._use_map.get(value):
             if isinstance(usage, Assignment) and isinstance(usage.value, Condition) and usage.requirements == [value]:
                 return True
-        return False 
+        return False
 
     def _is_used_in_branch(self, value: Variable):
         """

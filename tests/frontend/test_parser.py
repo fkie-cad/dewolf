@@ -161,6 +161,7 @@ class MockFixedJump(Mock):
         self.dest.constant = address
         self.dest.function = MockFunction([])  # need .function.view to lift
 
+
 class MockTailcall(Mock):
     """Mock object representing a constant jump."""
 
@@ -314,6 +315,7 @@ def test_convert_indirect_edge_to_unconditional_no_valid_edge(parser):
     assert (cfg_edge.source.address, cfg_edge.sink.address) == (0, 42)
     assert not isinstance(cfg_edge, UnconditionalEdge)
     assert len(list(cfg.instructions)) == 1
+
 
 def test_tailcall_address_recovery(parser):
     """
