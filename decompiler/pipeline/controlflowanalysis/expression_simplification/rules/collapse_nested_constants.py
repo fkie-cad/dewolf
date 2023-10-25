@@ -1,7 +1,13 @@
+import logging
 from functools import reduce
 from typing import Iterator
 
-from decompiler.pipeline.controlflowanalysis.expression_simplification.constant_folding import FOLDABLE_OPERATIONS, constant_fold
+from decompiler.pipeline.controlflowanalysis.expression_simplification.constant_folding import (
+    FOLDABLE_OPERATIONS,
+    MalformedInput,
+    UnsupportedValueType,
+    constant_fold,
+)
 from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.rule import SimplificationRule
 from decompiler.structures.pseudo import Constant, Expression, Operation, OperationType, Type
 from decompiler.structures.pseudo.operations import COMMUTATIVE_OPERATIONS
@@ -25,13 +31,19 @@ class CollapseNestedConstants(SimplificationRule):
 
         first, *rest = constants
 
-        # We don't need to catch any errors of 'constant_fold', because '_collect_constants' only returns constants
-        # which have the same type as 'operation.type' and we check that operation.operation is foldable.
-        folded_constant = reduce(
-            lambda c0, c1: constant_fold(operation.operation, [c0, c1], operation.type),
-            rest,
-            first
-        )
+        # We don't need to catch UnsupportedOperationType, because check that operation is in _COLLAPSIBLE_OPERATIONS
+        # We don't need to catch UnsupportedMismatchedSizes, because '_collect_constants' only returns constants of the same type
+        try:
+            folded_constant = reduce(
+                lambda c0, c1: constant_fold(operation.operation, [c0, c1], operation.type),
+                rest,
+                first
+            )
+        except UnsupportedValueType:
+            return []
+        except MalformedInput as e:
+            logging.warning(f"Encountered malformed operation '{operation}': {e}")
+            return []
 
         identity_constant = _identity_constant(operation.operation, operation.type)
         return [
