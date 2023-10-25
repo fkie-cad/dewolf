@@ -90,6 +90,11 @@ def _identity_constant(operation: OperationType, var_type: Type) -> Constant:
         case OperationType.multiply | OperationType.multiply_us:
             return Constant(1, var_type)
         case OperationType.bitwise_and:
+            # Should not throw any exception because:
+            # - OperationType.bitwise_not is foldable (UnsupportedOperationType)
+            # - constant has integer value, which is supported (UnsupportedValueType)
+            # - with only 1 constant there cant be mismatched sizes (UnsupportedMismatchedSizes)
+            # - input is not malformed (MalformedInput)
             return constant_fold(OperationType.bitwise_not, [Constant(0, var_type)], var_type)
         case _:
             raise NotImplementedError()
