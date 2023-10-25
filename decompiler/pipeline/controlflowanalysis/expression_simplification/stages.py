@@ -25,10 +25,6 @@ from decompiler.structures.visitors.substitute_visitor import SubstituteVisitor
 from decompiler.task import DecompilerTask
 
 
-class _SimplificationException(Exception):
-    pass
-
-
 class _ExpressionSimplificationBase(PipelineStage, ABC):
 
     def run(self, task: DecompilerTask):
@@ -48,26 +44,21 @@ class _ExpressionSimplificationBase(PipelineStage, ABC):
             ("rules", _rules),
             ("post-rules", _post_rules)
         ]
-        try:
-            for rule_name, rule_set in rule_sets:
-                # max_iterations is counted per rule_set
-                iteration_count = cls._simplify_instructions_with_rule_set(instructions, rule_set, max_iterations)
-                if iteration_count <= max_iterations:
-                    logging.info(f"Expression simplification took {iteration_count} iterations for {rule_name}")
-                else:
-                    logging.warning(f"Exceeded max iteration count for {rule_name}")
-        except _SimplificationException as e:
-            if debug:
-                raise  # re-raises the exception
+        for rule_name, rule_set in rule_sets:
+            # max_iterations is counted per rule_set
+            iteration_count = cls._simplify_instructions_with_rule_set(instructions, rule_set, max_iterations, debug)
+            if iteration_count <= max_iterations:
+                logging.info(f"Expression simplification took {iteration_count} iterations for {rule_name}")
             else:
-                logging.exception(f"An unexpected error occurred while simplifying: {e}")
+                logging.warning(f"Exceeded max iteration count for {rule_name}")
 
     @classmethod
     def _simplify_instructions_with_rule_set(
             cls,
             instructions: list[Instruction],
             rule_set: list[SimplificationRule],
-            max_iterations: int
+            max_iterations: int,
+            debug: bool
     ) -> int:
         iteration_count = 0
 
@@ -77,7 +68,7 @@ class _ExpressionSimplificationBase(PipelineStage, ABC):
 
             for rule in rule_set:
                 for instruction in instructions:
-                    additional_iterations = cls._simplify_instruction_with_rule(instruction, rule, max_iterations - iteration_count)
+                    additional_iterations = cls._simplify_instruction_with_rule(instruction, rule, max_iterations - iteration_count, debug)
                     if additional_iterations > 0:
                         changes = True
 
@@ -92,7 +83,8 @@ class _ExpressionSimplificationBase(PipelineStage, ABC):
             cls,
             instruction: Instruction,
             rule: SimplificationRule,
-            max_iterations: int
+            max_iterations: int,
+            debug: bool
     ) -> int:
         iteration_count = 0
         for expression in instruction.subexpressions():
@@ -106,10 +98,14 @@ class _ExpressionSimplificationBase(PipelineStage, ABC):
                 try:
                     substitutions = rule.apply(expression)
                 except Exception as e:
-                    raise _SimplificationException(e)
+                    if debug:
+                        raise  # re-raise the exception
+                    else:
+                        logging.exception(f"An unexpected error occurred while simplifying: {e}")
+                        break  # continue with next subexpression
 
                 if not substitutions:
-                    break
+                    break  # continue with next subexpression
 
                 iteration_count += 1
 
