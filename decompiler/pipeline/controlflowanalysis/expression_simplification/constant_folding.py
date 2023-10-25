@@ -22,9 +22,7 @@ def constant_fold(operation: OperationType, constants: list[Constant]) -> Consta
 
 
 def _constant_fold_arithmetic_binary(
-        constants: list[Constant],
-        fun: Callable[[int, int], int],
-        norm_sign: Optional[bool] = None
+    constants: list[Constant], fun: Callable[[int, int], int], norm_sign: Optional[bool] = None
 ) -> Constant:
     """
     Fold an arithmetic binary operation with constants as operands.
@@ -53,10 +51,7 @@ def _constant_fold_arithmetic_binary(
         left_value = normalize_int(left_value, left.type.size, norm_sign)
         right_value = normalize_int(right_value, right.type.size, norm_sign)
 
-    return Constant(
-        normalize_int(fun(left_value, right_value), left.type.size, left.type.signed),
-        left.type
-    )
+    return Constant(normalize_int(fun(left_value, right_value), left.type.size, left.type.signed), left.type)
 
 
 def _constant_fold_arithmetic_unary(constants: list[Constant], fun: Callable[[int], int]) -> Constant:
@@ -94,14 +89,8 @@ def _constant_fold_shift(constants: list[Constant], fun: Callable[[int, int], in
 
     left, right = constants
 
-    shifted_value = fun(
-        normalize_int(left.value, left.type.size, left.type.signed and signed),
-        right.value
-    )
-    return Constant(
-        normalize_int(shifted_value, left.type.size, left.type.signed),
-        left.type
-    )
+    shifted_value = fun(normalize_int(left.value, left.type.size, left.type.signed and signed), right.value)
+    return Constant(normalize_int(shifted_value, left.type.size, left.type.signed), left.type)
 
 
 _OPERATION_TO_FOLD_FUNCTION: dict[OperationType, Callable[[list[Constant]], Constant]] = {

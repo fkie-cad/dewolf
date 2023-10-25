@@ -18,6 +18,7 @@ class FoldedCase:
     """
     Class for storing information of folded case.
     """
+
     basic_block: BasicBlock
     switch_variable: Expression
     case_values: List[int]

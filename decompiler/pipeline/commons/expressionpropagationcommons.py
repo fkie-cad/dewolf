@@ -172,7 +172,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         We can propagate this in case the variable is used once (in the example used twice). This way we revert insertion of redundant missing definition.
         If possible, such propagation is done after everything else is propagated.
         """
-        if self._is_aliased_variable(aliased:=definition.destination):
+        if self._is_aliased_variable(aliased := definition.destination):
             if self._is_aliased_redefinition(aliased, target):
                 self._postponed_aliased.add(aliased)
                 return True
@@ -319,7 +319,6 @@ class ExpressionPropagationBase(PipelineStage, ABC):
             raise RuntimeError(f"Same definition {definition} in multiple blocks")
         definition_block, definition_index = list(definition_block_info)[0]
         for target_block, target_index in self._blocks_map[str(target)]:
-
             if target_block == definition_block:
                 # then one of dangerous uses should lie between definition and target in the same block
                 for use in dangerous_uses:
@@ -493,7 +492,6 @@ class ExpressionPropagationBase(PipelineStage, ABC):
             and expression.contraction
             and expression.operand.complexity == 1
         )
-
 
     def _is_aliased_redefinition(self, aliased_variable: Variable, instruction: Instruction):
         """

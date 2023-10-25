@@ -133,7 +133,7 @@ class ComplexTypeName(Type):
 
 
 class UniqueNameProvider:
-    """ The purpose of this class is to provide unique names for types, as duplicate names can potentially be encountered in the lifting stage (especially anonymous structs, etc.)
+    """The purpose of this class is to provide unique names for types, as duplicate names can potentially be encountered in the lifting stage (especially anonymous structs, etc.)
     This class keeps track of all the names already used. If duplicates are found, they are renamed by appending suffixes with incrementing numbers.
     E.g. `classname`, `classname__2`, `classname__3`, ...
     """
@@ -142,7 +142,7 @@ class UniqueNameProvider:
         self._name_to_count: Dict[str, int] = {}
 
     def get_unique_name(self, name: str) -> str:
-        """ This method returns the input name if it was unique so far.
+        """This method returns the input name if it was unique so far.
         Otherwise it returns the name with an added incrementing suffix.
         In any case, the name occurence of the name is counted.
         """

@@ -458,6 +458,7 @@ def test10():
     run_array_access_detection(input_cfg)
     assert graphs_equal(input_cfg, output_cfg)
 
+
 def test11():
     """Test array-access-detection when array type is bool
     -> RuntimeError: Unexpected size 1
@@ -2042,6 +2043,7 @@ def graphs_test10():
     )
     return cfg, out_cfg
 
+
 def graphs_test11():
     bl = CustomType.bool()
     cfg = ControlFlowGraph()
@@ -2055,10 +2057,7 @@ def graphs_test11():
                         [
                             BinaryOperation(
                                 OperationType.plus,
-                                [
-                                    base := Variable("arg1", Pointer(bl, 32), 0, False),
-                                    index := Variable("var_11", Integer.int64_t())
-                                ],
+                                [base := Variable("arg1", Pointer(bl, 32), 0, False), index := Variable("var_11", Integer.int64_t())],
                             ),
                         ],
                     ),
@@ -2078,13 +2077,11 @@ def graphs_test11():
                         [
                             BinaryOperation(
                                 OperationType.plus,
-                                [
-                                    Variable("arg1", Pointer(bl, 32), 0, False),
-                                    Variable("var_11", Integer.int64_t())
-                                ],
+                                [Variable("arg1", Pointer(bl, 32), 0, False), Variable("var_11", Integer.int64_t())],
                             ),
                         ],
-                    array_info=ArrayInfo(base, index, True)),
+                        array_info=ArrayInfo(base, index, True),
+                    ),
                     Constant(10),
                 )
             ],

@@ -180,12 +180,13 @@ def test_used_variables():
         Variable("w", Integer.int32_t(), 1),
     }
 
+
 def test_use_map_remove_use():
     instruction_list, use_map = define_use_map()
     assert use_map.get(Variable("v", Integer.int32_t(), 3)) == {instruction_list[1], instruction_list[2]}
-    #remove existing use
+    # remove existing use
     use_map.remove_use(Variable("v", Integer.int32_t(), 3), instruction_list[1])
-    #remove non-existing use
+    # remove non-existing use
     use_map.remove_use(Variable("v", Integer.int32_t(), 3), instruction_list[4])
     assert use_map._map == {
         Variable("u", Integer.int32_t()): {instruction_list[0], instruction_list[2]},
@@ -195,5 +196,3 @@ def test_use_map_remove_use():
         Variable("v", Integer.int32_t(), 2): {instruction_list[4]},
         Variable("w", Integer.int32_t(), 1): {instruction_list[5]},
     }
-
-

@@ -20,11 +20,13 @@ class CollapseAddNeg(SimplificationRule):
         if not isinstance(right, UnaryOperation) or right.operation != OperationType.negate:
             return []
 
-        return [(
-            operation,
-            BinaryOperation(
-                OperationType.minus if operation.operation == OperationType.plus else OperationType.plus,
-                [operation.left, right.operand],
-                operation.type
+        return [
+            (
+                operation,
+                BinaryOperation(
+                    OperationType.minus if operation.operation == OperationType.plus else OperationType.plus,
+                    [operation.left, right.operand],
+                    operation.type,
+                ),
             )
-        )]
+        ]

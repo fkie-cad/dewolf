@@ -32,8 +32,8 @@ _b = Variable("b", Integer.int32_t(), 1)
         (ListOperation([_a, _b]), [_a, _b]),
         (BinaryOperation(OperationType.plus, [_a, _b]), [_a, _b]),
         (Call(_a, [_b]), [_a, _b]),
-        (BinaryOperation(OperationType.plus, [_a, _a]), [_a, _a])
-    ]
+        (BinaryOperation(OperationType.plus, [_a, _a]), [_a, _a]),
+    ],
 )
 def test_requirements(obj: DataflowObject, expected_requirements: list[Variable]):
     assert list(obj.requirements_iter) == expected_requirements

@@ -262,12 +262,13 @@ class ExternFunctionPointer(Constant):
 
 class NotUseableConstant(Constant):
     """Represents a non useable constant like 'inf' or 'NaN' as a string"""
+
     def __init__(self, value: str, tags: Optional[Tuple[Tag, ...]] = None):
         super().__init__(value, CustomType("double", 0), tags=tags)
 
     def __str__(self) -> str:
         """Return a string because NotUseableConstant are string only"""
-        return self.value 
+        return self.value
 
     def __repr__(self):
         """Return the non usable constant."""

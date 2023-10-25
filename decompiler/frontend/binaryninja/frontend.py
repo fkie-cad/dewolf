@@ -130,13 +130,16 @@ class BinaryninjaFrontend(Frontend):
         try:
             cfg, complex_types = self._extract_cfg(function.function, options)
             task = DecompilerTask(
-                function.name, cfg, function_return_type=function.return_type, function_parameters=function.params,
-                options=options, complex_types=complex_types
+                function.name,
+                cfg,
+                function_return_type=function.return_type,
+                function_parameters=function.params,
+                options=options,
+                complex_types=complex_types,
             )
         except Exception as e:
             task = DecompilerTask(
-                function.name, None, function_return_type=function.return_type, function_parameters=function.params,
-                options=options
+                function.name, None, function_return_type=function.return_type, function_parameters=function.params, options=options
             )
             task.fail(origin="CFG creation")
             logging.error(f"Failed to decompile {task.name}, error during CFG creation: {e}")

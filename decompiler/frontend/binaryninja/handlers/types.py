@@ -112,7 +112,7 @@ class TypeHandler(Handler):
         return lifted_struct
 
     @abstractmethod
-    def _get_data_type_name(self, complex_type: Union[StructureType, EnumerationType], keyword: str, provided_name:str) -> str:
+    def _get_data_type_name(self, complex_type: Union[StructureType, EnumerationType], keyword: str, provided_name: str) -> str:
         """Parse out the name of complex type. Empty and duplicate names are changed.
         Calling this function has the side effect of incrementing a counter in the UniqueNameProvider."""
         if provided_name:
