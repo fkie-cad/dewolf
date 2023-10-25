@@ -8,7 +8,7 @@ from decompiler.util.integer_util import normalize_int
 # Exceptions of these three types indicate that an operation is not suitable for constant folding.
 # They do NOT indicate that the input was malformed in any way.
 # The idea is that the caller of constant_fold does not need to verify that folding is possible.
-# If malformed input was provided, a ValueError will used raised instead.
+# If malformed input was provided, a MalformedInput will be raised instead.
 
 
 class UnsupportedOperationType(Exception):
