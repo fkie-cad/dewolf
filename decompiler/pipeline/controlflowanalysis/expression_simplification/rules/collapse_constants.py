@@ -1,4 +1,7 @@
+import logging
+
 from decompiler.pipeline.controlflowanalysis.expression_simplification.constant_folding import (
+    MalformedInput,
     UnsupportedMismatchedSizes,
     UnsupportedOperationType,
     UnsupportedValueType,
@@ -22,6 +25,9 @@ class CollapseConstants(SimplificationRule):
         try:
             folded_constant = constant_fold(operation.operation, operation.operands, operation.type)
         except (UnsupportedOperationType, UnsupportedValueType, UnsupportedMismatchedSizes):
+            return []
+        except MalformedInput as e:
+            logging.warning(f"Encountered malformed operation '{operation}': {e}")
             return []
 
         return [(operation, folded_constant)]
