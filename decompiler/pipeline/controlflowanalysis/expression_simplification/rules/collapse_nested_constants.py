@@ -1,14 +1,13 @@
-import logging
 from functools import reduce
 from typing import Iterator
 
 from decompiler.pipeline.controlflowanalysis.expression_simplification.constant_folding import (
     FOLDABLE_OPERATIONS,
-    MalformedInput,
+    IncompatibleOperandCount,
     UnsupportedValueType,
     constant_fold,
 )
-from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.rule import SimplificationRule
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.rule import MalformedData, SimplificationRule
 from decompiler.structures.pseudo import Constant, Expression, Operation, OperationType, Type
 from decompiler.structures.pseudo.operations import COMMUTATIVE_OPERATIONS
 
@@ -41,9 +40,8 @@ class CollapseNestedConstants(SimplificationRule):
             )
         except UnsupportedValueType:
             return []
-        except MalformedInput as e:
-            logging.warning(f"Encountered malformed operation '{operation}': {e}")
-            return []
+        except IncompatibleOperandCount as e:
+            raise MalformedData() from e
 
         identity_constant = _identity_constant(operation.operation, operation.type)
         return [

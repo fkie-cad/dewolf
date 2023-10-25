@@ -16,5 +16,12 @@ class SimplificationRule(ABC):
         :param operation: The operation to which the simplification rule should be applied.
         :return: A list of tuples, each containing a pair of expressions representing the original
             and simplified versions resulting from applying the simplification rule to the given operation.
+        :raises:
+            MalformedData: Thrown inf malformed data, like a dereference operation with two operands, is encountered.
         """
         pass
+
+
+class MalformedData(Exception):
+    """Used to indicate that malformed data was encountered"""
+    pass

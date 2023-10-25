@@ -5,10 +5,9 @@ from typing import Callable, Optional
 from decompiler.structures.pseudo import Constant, Integer, OperationType, Type
 from decompiler.util.integer_util import normalize_int
 
-# Exceptions of these three types indicate that an operation is not suitable for constant folding.
+# The first three exception types indicate that an operation is not suitable for constant folding.
 # They do NOT indicate that the input was malformed in any way.
 # The idea is that the caller of constant_fold does not need to verify that folding is possible.
-# If malformed input was provided, a MalformedInput will be raised instead.
 
 
 class UnsupportedOperationType(Exception):
@@ -26,8 +25,8 @@ class UnsupportedMismatchedSizes(Exception):
     pass
 
 
-class MalformedInput(Exception):
-    """Indicates that the input is malformed in some way."""
+class IncompatibleOperandCount(Exception):
+    """Indicates that the specified operation type is not defined for the number of constants specified"""
     pass
 
 
@@ -45,7 +44,7 @@ def constant_fold(operation: OperationType, constants: list[Constant], result_ty
         UnsupportedValueType: Thrown if constants contain value of types not supported. Currently only ints are supported.
         UnsupportedMismatchedSizes: Thrown if constants types have different sizes and folding of different sized
             constants is not supported for the specified operation.
-        MalformedInput: Thrown on malformed input.
+        IncompatibleOperandCount: Thrown if the specified operation type is not defined for the number of constants in `constants`.
     """
 
     if operation not in _OPERATION_TO_FOLD_FUNCTION:
@@ -82,11 +81,11 @@ def _constant_fold_arithmetic_binary(
     :raises:
         UnsupportedMismatchedSizes: Thrown if constants types have different sizes and folding of different sized
             constants is not supported for the specified operation.
-        MalformedInput: Thrown on malformed input.
+        IncompatibleOperandCount: Thrown if the number of constants is not equal to 2.
     """
 
     if len(constants) != 2:
-        raise MalformedInput(f"Expected exactly 2 constants to fold, got {len(constants)}.")
+        raise IncompatibleOperandCount(f"Expected exactly 2 constants to fold, got {len(constants)}.")
     if not all(constant.type.size == constants[0].type.size for constant in constants):
         raise UnsupportedMismatchedSizes(f"Can not fold constants with different sizes: {[constant.type for constant in constants]}")
 
@@ -109,11 +108,11 @@ def _constant_fold_arithmetic_unary(constants: list[Constant], fun: Callable[[in
     :param fun: The unary function to perform on the constant.
     :return: The result of the operation.
     :raises:
-        MalformedInput: Thrown on malformed input.
+        IncompatibleOperandCount: Thrown if the number of constants is not equal to 1.
     """
 
     if len(constants) != 1:
-        raise MalformedInput("Expected exactly 1 constant to fold")
+        raise IncompatibleOperandCount("Expected exactly 1 constant to fold")
 
     return fun(constants[0].value)
 
@@ -128,11 +127,11 @@ def _constant_fold_shift(constants: list[Constant], fun: Callable[[int, int], in
     This is used to normalize the sign of the input constant to simulate unsigned shifts.
     :return: The result of the operation.
     :raises:
-        MalformedInput: Thrown on malformed input.
+        IncompatibleOperandCount: Thrown if the number of constants is not equal to 2.
     """
 
     if len(constants) != 2:
-        raise MalformedInput("Expected exactly 2 constants to fold")
+        raise IncompatibleOperandCount("Expected exactly 2 constants to fold")
 
     left, right = constants
 
