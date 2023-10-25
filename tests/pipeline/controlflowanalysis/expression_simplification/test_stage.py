@@ -57,17 +57,8 @@ def _v_i32(name: str) -> Variable:
         ),
     ],
 )
-def test_simplify_instructions_with_rule_set(
-        rule_set: list[SimplificationRule],
-        instruction: Instruction,
-        expected_result: Instruction
-):
-    _ExpressionSimplificationBase._simplify_instructions_with_rule_set(
-        [instruction],
-        rule_set,
-        100,
-        True
-    )
+def test_simplify_instructions_with_rule_set(rule_set: list[SimplificationRule], instruction: Instruction, expected_result: Instruction):
+    _ExpressionSimplificationBase._simplify_instructions_with_rule_set([instruction], rule_set, 100, True)
     assert instruction == expected_result
 
 
@@ -81,10 +72,5 @@ def test_simplify_instructions_with_rule_set(
 def test_simplify_instructions_with_rule_set_max_iterations(
     rule_set: list[SimplificationRule], instruction: Instruction, max_iterations: int, expect_exceed_max_iterations: bool
 ):
-    iterations = _ExpressionSimplificationBase._simplify_instructions_with_rule_set(
-        [instruction],
-        rule_set,
-        max_iterations,
-        True
-    )
+    iterations = _ExpressionSimplificationBase._simplify_instructions_with_rule_set([instruction], rule_set, max_iterations, True)
     assert (iterations > max_iterations) == expect_exceed_max_iterations

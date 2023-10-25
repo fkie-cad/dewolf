@@ -12,21 +12,26 @@ from decompiler.util.integer_util import normalize_int
 
 class UnsupportedOperationType(Exception):
     """Indicates that the specified Operation is not supported"""
+
     pass
 
 
 class UnsupportedValueType(Exception):
+
     """Indicates that the value type of one constant is not supported."""
+
     pass
 
 
 class UnsupportedMismatchedSizes(Exception):
     """Indicates that folding of different sized constants is not supported for the specified operation."""
+
     pass
 
 
 class IncompatibleOperandCount(Exception):
     """Indicates that the specified operation type is not defined for the number of constants specified"""
+
     pass
 
 
@@ -55,19 +60,13 @@ def constant_fold(operation: OperationType, constants: list[Constant], result_ty
 
     return Constant(
         normalize_int(
-            _OPERATION_TO_FOLD_FUNCTION[operation](constants),
-            result_type.size,
-            isinstance(result_type, Integer) and result_type.signed
+            _OPERATION_TO_FOLD_FUNCTION[operation](constants), result_type.size, isinstance(result_type, Integer) and result_type.signed
         ),
-        result_type
+        result_type,
     )
 
 
-def _constant_fold_arithmetic_binary(
-        constants: list[Constant],
-        fun: Callable[[int, int], int],
-        norm_sign: Optional[bool] = None
-) -> int:
+def _constant_fold_arithmetic_binary(constants: list[Constant], fun: Callable[[int, int], int], norm_sign: Optional[bool] = None) -> int:
     """
     Fold an arithmetic binary operation with constants as operands.
 
@@ -135,10 +134,7 @@ def _constant_fold_shift(constants: list[Constant], fun: Callable[[int, int], in
 
     left, right = constants
 
-    return fun(
-        normalize_int(left.value, left.type.size, left.type.signed and signed),
-        right.value
-    )
+    return fun(normalize_int(left.value, left.type.size, left.type.signed and signed), right.value)
 
 
 _OPERATION_TO_FOLD_FUNCTION: dict[OperationType, Callable[[list[Constant]], int]] = {

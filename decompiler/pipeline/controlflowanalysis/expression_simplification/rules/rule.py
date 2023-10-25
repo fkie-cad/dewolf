@@ -24,4 +24,5 @@ class SimplificationRule(ABC):
 
 class MalformedData(Exception):
     """Used to indicate that malformed data was encountered"""
+
     pass
