@@ -8,12 +8,14 @@ from decompiler.structures.pseudo.operations import COMMUTATIVE_OPERATIONS
 
 _COLLAPSIBLE_OPERATIONS = COMMUTATIVE_OPERATIONS & FOLDABLE_OPERATIONS
 
+
 class CollapseNestedConstants(SimplificationRule):
     """
     This rule walks the dafaflow tree and collects and folds constants in commutative operations.
     The first constant of the tree is replaced with the folded result and all remaining constants are replaced with the identity.
     This stage exploits associativity and is the only stage doing so. Therefore, it cannot be replaced by a combination of `TermOrder` and `CollapseConstants`.
     """
+
     def apply(self, operation: Operation) -> list[tuple[Expression, Expression]]:
         if operation.operation not in _COLLAPSIBLE_OPERATIONS:
             return []
@@ -26,17 +28,10 @@ class CollapseNestedConstants(SimplificationRule):
 
         first, *rest = constants
 
-        folded_constant = reduce(
-            lambda c0, c1: constant_fold(operation.operation, [c0, c1]),
-            rest,
-            first
-        )
+        folded_constant = reduce(lambda c0, c1: constant_fold(operation.operation, [c0, c1]), rest, first)
 
         identity_constant = _identity_constant(operation.operation, operation.type)
-        return [
-            (first, folded_constant),
-            *((constant, identity_constant) for constant in rest)
-        ]
+        return [(first, folded_constant), *((constant, identity_constant) for constant in rest)]
 
 
 def _collect_constants(operation: Operation) -> Iterator[Constant]:

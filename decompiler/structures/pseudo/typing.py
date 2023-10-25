@@ -191,7 +191,7 @@ class CustomType(Type):
     @classmethod
     def bool(cls) -> CustomType:
         """Return a boolean type representing either TRUE or FALSE."""
-        return cls("bool", 8) # BN bool has size 8
+        return cls("bool", 8)  # BN bool has size 8
 
     @classmethod
     def void(cls) -> CustomType:

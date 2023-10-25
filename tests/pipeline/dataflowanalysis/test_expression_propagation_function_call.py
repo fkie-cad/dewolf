@@ -196,10 +196,7 @@ def test_single_instruction_multiple_propagations():
     +-------------+
     """
 
-    instructions = [
-        _assign(x, _func("f", [])),
-        Return([_func("g", [x, x])])
-    ]
+    instructions = [_assign(x, _func("f", [])), Return([_func("g", [x, x])])]
     cfg = ControlFlowGraph()
     cfg.add_node(BasicBlock(0, copy.deepcopy(instructions)))
 

@@ -44,10 +44,4 @@ CFG_STAGES = [
     EdgePruner,
 ]
 
-AST_STAGES = [
-    ReadabilityBasedRefinement,
-    ExpressionSimplificationAst,
-    InstructionLengthHandler,
-    VariableNameGeneration,
-    LoopNameGenerator
-]
+AST_STAGES = [ReadabilityBasedRefinement, ExpressionSimplificationAst, InstructionLengthHandler, VariableNameGeneration, LoopNameGenerator]

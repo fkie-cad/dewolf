@@ -26,7 +26,6 @@ from decompiler.task import DecompilerTask
 
 
 class _ExpressionSimplificationBase(PipelineStage, ABC):
-
     def run(self, task: DecompilerTask):
         max_iterations = task.options.getint("expression-simplification.max_iterations")
         self._simplify_instructions(self._get_instructions(task), max_iterations)
@@ -37,11 +36,7 @@ class _ExpressionSimplificationBase(PipelineStage, ABC):
 
     @classmethod
     def _simplify_instructions(cls, instructions: list[Instruction], max_iterations: int):
-        rule_sets = [
-            ("pre-rules", _pre_rules),
-            ("rules", _rules),
-            ("post-rules", _post_rules)
-        ]
+        rule_sets = [("pre-rules", _pre_rules), ("rules", _rules), ("post-rules", _post_rules)]
         for rule_name, rule_set in rule_sets:
             # max_iterations is counted per rule_set
             iteration_count = cls._simplify_instructions_with_rule_set(instructions, rule_set, max_iterations)
@@ -52,10 +47,7 @@ class _ExpressionSimplificationBase(PipelineStage, ABC):
 
     @classmethod
     def _simplify_instructions_with_rule_set(
-            cls,
-            instructions: list[Instruction],
-            rule_set: list[SimplificationRule],
-            max_iterations: int
+        cls, instructions: list[Instruction], rule_set: list[SimplificationRule], max_iterations: int
     ) -> int:
         iteration_count = 0
 
@@ -76,12 +68,7 @@ class _ExpressionSimplificationBase(PipelineStage, ABC):
         return iteration_count
 
     @classmethod
-    def _simplify_instruction_with_rule(
-            cls,
-            instruction: Instruction,
-            rule: SimplificationRule,
-            max_iterations: int
-    ) -> int:
+    def _simplify_instruction_with_rule(cls, instruction: Instruction, rule: SimplificationRule, max_iterations: int) -> int:
         iteration_count = 0
         for expression in instruction.subexpressions():
             while True:
@@ -163,7 +150,4 @@ _rules: list[SimplificationRule] = [
     CollapseConstants(),
     CollapseNestedConstants(),
 ]
-_post_rules: list[SimplificationRule] = [
-    CollapseAddNeg(),
-    PositiveConstants()
-]
+_post_rules: list[SimplificationRule] = [CollapseAddNeg(), PositiveConstants()]

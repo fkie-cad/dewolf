@@ -31,8 +31,7 @@ class SimplifyTrivialArithmetic(SimplificationRule):
             case BinaryOperation(operation=OperationType.multiply | OperationType.multiply_us, right=Constant(value=0)):
                 return [(operation, Constant(0, operation.type))]
             case BinaryOperation(
-                operation=OperationType.multiply | OperationType.multiply_us | OperationType.divide,
-                right=Constant(value=-1)
+                operation=OperationType.multiply | OperationType.multiply_us | OperationType.divide, right=Constant(value=-1)
             ):
                 return [(operation, UnaryOperation(OperationType.negate, [operation.left]))]
             case _:

@@ -152,10 +152,7 @@ class SubstituteVisitor(DataflowObjectVisitorInterface[Optional[DataflowObject]]
 
     def visit_call(self, op: Call) -> Optional[DataflowObject]:
         if (function_replacement := op.function.accept(self)) is not None:
-            op._function = _assert_type(
-                function_replacement,
-                Union[FunctionSymbol, ImportedFunctionSymbol, IntrinsicSymbol, Variable]
-            )
+            op._function = _assert_type(function_replacement, Union[FunctionSymbol, ImportedFunctionSymbol, IntrinsicSymbol, Variable])
 
         return self._visit_operation(op)
 

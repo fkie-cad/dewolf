@@ -160,7 +160,7 @@ COMMUTATIVE_OPERATIONS = {
     OperationType.logical_or,
     OperationType.logical_and,
     OperationType.equal,
-    OperationType.not_equal
+    OperationType.not_equal,
 }
 
 NON_COMPOUNDABLE_OPERATIONS = {
@@ -172,7 +172,7 @@ NON_COMPOUNDABLE_OPERATIONS = {
     OperationType.logical_or,
     OperationType.logical_and,
     OperationType.equal,
-    OperationType.not_equal
+    OperationType.not_equal,
 }
 
 

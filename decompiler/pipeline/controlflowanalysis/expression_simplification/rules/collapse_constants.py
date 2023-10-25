@@ -14,7 +14,4 @@ class CollapseConstants(SimplificationRule):
         if operation.operation not in FOLDABLE_OPERATIONS:
             return []
 
-        return [(
-            operation,
-            constant_fold(operation.operation, operation.operands)
-        )]
+        return [(operation, constant_fold(operation.operation, operation.operands))]

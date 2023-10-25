@@ -167,7 +167,8 @@ class TestCodeGeneration:
         code_node = ast._add_code_node([])
         ast._add_edge(root, code_node)
         assert self._regex_matches(
-            r"^\s*int +test_function\(\s*int +\(\*\s*p\)\(int\)\s*,\s*int +\(\*\s*p0\)\(int\)\s*\){\s*}\s*$", self._task(ast, params=[var_fun_p.copy(), var_fun_p0.copy()])
+            r"^\s*int +test_function\(\s*int +\(\*\s*p\)\(int\)\s*,\s*int +\(\*\s*p0\)\(int\)\s*\){\s*}\s*$",
+            self._task(ast, params=[var_fun_p.copy(), var_fun_p0.copy()]),
         )
 
     def test_function_with_instruction(self):
@@ -465,7 +466,6 @@ class TestCodeGeneration:
         regex = r"^%int +test_function\(\)%{(?s).*if%\(%COND_STR%\)%{%return%0%;%}%}%$"
         assert self._regex_matches(regex.replace("COND_STR", expected).replace("%", "\\s*"), self._task(ast))
 
-
     def test_loop_declaration_ListOp(self):
         """
         a = 5;
@@ -483,7 +483,11 @@ class TestCodeGeneration:
                 Assignment(Variable("a"), Constant(5)),
             ]
         )
-        loop_node = ast.factory.create_for_loop_node(Assignment(ListOperation([Variable("b")]), Call(ImportedFunctionSymbol("foo", 0), [])), logic_cond("x1", context), Assignment(Variable("b"), BinaryOperation(OperationType.plus, [Variable("b"), Constant(1)])))
+        loop_node = ast.factory.create_for_loop_node(
+            Assignment(ListOperation([Variable("b")]), Call(ImportedFunctionSymbol("foo", 0), [])),
+            logic_cond("x1", context),
+            Assignment(Variable("b"), BinaryOperation(OperationType.plus, [Variable("b"), Constant(1)])),
+        )
         loop_node_body = ast._add_code_node(
             [
                 Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Variable("1")])),
