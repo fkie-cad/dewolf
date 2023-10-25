@@ -92,7 +92,7 @@ def _identity_constant(operation: OperationType, var_type: Type) -> Constant:
             # - OperationType.bitwise_not is foldable (UnsupportedOperationType)
             # - constant has integer value, which is supported (UnsupportedValueType)
             # - with only 1 constant there cant be mismatched sizes (UnsupportedMismatchedSizes)
-            # - input is not malformed (MalformedInput)
+            # - bitwise_not has exactly one operand (IncompatibleOperandCount)
             return constant_fold(OperationType.bitwise_not, [Constant(0, var_type)], var_type)
         case _:
             raise NotImplementedError()
