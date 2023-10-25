@@ -26,6 +26,11 @@ class UnsupportedMismatchedSizes(Exception):
     pass
 
 
+class MalformedInput(Exception):
+    """Indicates that the input is malformed in some way."""
+    pass
+
+
 def constant_fold(operation: OperationType, constants: list[Constant], result_type: Type) -> Constant:
     """
     Fold operation with constants as operands.
@@ -40,11 +45,8 @@ def constant_fold(operation: OperationType, constants: list[Constant], result_ty
         UnsupportedValueType: Thrown if constants contain value of types not supported. Currently only ints are supported.
         UnsupportedMismatchedSizes: Thrown if constants types have different sizes and folding of different sized
             constants is not supported for the specified operation.
-        ValueError: Thrown on malformed input.
+        MalformedInput: Thrown on malformed input.
     """
-
-    if not constants:
-        raise ValueError(f"Constants list may not be empty")
 
     if operation not in _OPERATION_TO_FOLD_FUNCTION:
         raise UnsupportedOperationType(f"Constant folding not implemented for operation '{operation}'.")
@@ -80,11 +82,11 @@ def _constant_fold_arithmetic_binary(
     :raises:
         UnsupportedMismatchedSizes: Thrown if constants types have different sizes and folding of different sized
             constants is not supported for the specified operation.
-        ValueError: Thrown on malformed input.
+        MalformedInput: Thrown on malformed input.
     """
 
     if len(constants) != 2:
-        raise ValueError(f"Expected exactly 2 constants to fold, got {len(constants)}.")
+        raise MalformedInput(f"Expected exactly 2 constants to fold, got {len(constants)}.")
     if not all(constant.type.size == constants[0].type.size for constant in constants):
         raise UnsupportedMismatchedSizes(f"Can not fold constants with different sizes: {[constant.type for constant in constants]}")
 
@@ -107,11 +109,11 @@ def _constant_fold_arithmetic_unary(constants: list[Constant], fun: Callable[[in
     :param fun: The unary function to perform on the constant.
     :return: The result of the operation.
     :raises:
-        ValueError: Thrown on malformed input.
+        MalformedInput: Thrown on malformed input.
     """
 
     if len(constants) != 1:
-        raise ValueError("Expected exactly 1 constant to fold")
+        raise MalformedInput("Expected exactly 1 constant to fold")
 
     return fun(constants[0].value)
 
@@ -126,11 +128,11 @@ def _constant_fold_shift(constants: list[Constant], fun: Callable[[int, int], in
     This is used to normalize the sign of the input constant to simulate unsigned shifts.
     :return: The result of the operation.
     :raises:
-        ValueError: Thrown on malformed input.
+        MalformedInput: Thrown on malformed input.
     """
 
     if len(constants) != 2:
-        raise ValueError("Expected exactly 2 constants to fold")
+        raise MalformedInput("Expected exactly 2 constants to fold")
 
     left, right = constants
 
