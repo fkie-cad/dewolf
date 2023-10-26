@@ -16,6 +16,7 @@ class AstInstruction:
     position: int
     node: CodeNode
 
+
 def _is_single_instruction_loop_node(loop_node: LoopNode) -> bool:
     """
     Check if the loop body contains only one instruction.

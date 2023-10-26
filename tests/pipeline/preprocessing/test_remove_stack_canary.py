@@ -52,6 +52,7 @@ def test_trivial_no_change():
     assert isinstance(cfg.get_edge(n1, n2), TrueCase)
     assert isinstance(cfg.get_edge(n1, n3), FalseCase)
 
+
 def test_no_change_to_single_block_function():
     """
     +--------------------+
@@ -67,6 +68,7 @@ def test_no_change_to_single_block_function():
     )
     _run_remove_stack_canary(cfg)
     assert set(cfg) == {b}
+
 
 def test_one_branch_to_stack_fail():
     """
@@ -261,7 +263,7 @@ def test_multiple_returns_one_stackcheck():
 
 def test_one_branch_single_empty_block_between_stack_fail():
     """
-    Check if one Branch to stack fail gets removed. 
+    Check if one Branch to stack fail gets removed.
     One empty block between __stack_chk_fail, should be removed as well.
                         +--------------------+
                         |         0.         |
@@ -305,10 +307,9 @@ def test_one_branch_single_empty_block_between_stack_fail():
     assert isinstance(cfg.get_edge(n1, n2), UnconditionalEdge)
 
 
-
 def test_single_branch_multiple_empty_blocks_between_stack_fail():
     """
-    Check if one Branch to stack fail gets removed. 
+    Check if one Branch to stack fail gets removed.
     Multiple empty blocks in the __stack_chk_fail branch should all be removed.
                         +--------------------+
                         |         0.         |
@@ -351,13 +352,15 @@ def test_single_branch_multiple_empty_blocks_between_stack_fail():
             n5 := BasicBlock(5, instructions=[Assignment(ListOperation([]), Call(ImportedFunctionSymbol("__stack_chk_fail", 0), []))]),
         ]
     )
-    cfg.add_edges_from([UnconditionalEdge(n0, n1), TrueCase(n1, n2), FalseCase(n1, n3), UnconditionalEdge(n3, n4), \
-                        UnconditionalEdge(n4, n5)])
+    cfg.add_edges_from(
+        [UnconditionalEdge(n0, n1), TrueCase(n1, n2), FalseCase(n1, n3), UnconditionalEdge(n3, n4), UnconditionalEdge(n4, n5)]
+    )
     _run_remove_stack_canary(cfg)
     assert set(cfg) == {n0, n1, n2}
     assert n1.instructions == []
     assert isinstance(cfg.get_edge(n0, n1), UnconditionalEdge)
     assert isinstance(cfg.get_edge(n1, n2), UnconditionalEdge)
+
 
 def test_one_branch_single_non_empty_block_between_stack_fail():
     """
@@ -406,6 +409,7 @@ def test_one_branch_single_non_empty_block_between_stack_fail():
         if "did not expect to reach canary check this way" == f"{e}":
             error = True
     assert error is True
+
 
 def test_multiple_returns_multiple_empty_blocks_one_stackcheck():
     """

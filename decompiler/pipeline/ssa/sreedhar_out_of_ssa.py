@@ -136,7 +136,6 @@ class OutOfSsaTranslation(object):
             self._stmt_block_map[instr] = current_block
 
         else:
-
             xnew = expressions.Var(x.name, x.type)
             self._copy_counter += 1
             xnew_copy = expressions.Assignment(x, xnew)

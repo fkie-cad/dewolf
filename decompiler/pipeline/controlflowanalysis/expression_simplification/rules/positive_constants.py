@@ -30,14 +30,13 @@ class PositiveConstants(SimplificationRule):
         if signed_normalized_constant >= 0:
             return []
 
-        neg_constant = Constant(
-            normalize_int(-signed_normalized_constant, constant_type.size, constant_type.signed),
-            constant_type
-        )
-        return [(
-            operation,
-            BinaryOperation(
-                OperationType.plus if operation.operation == OperationType.minus else OperationType.minus,
-                [operation.left, neg_constant]
+        neg_constant = Constant(normalize_int(-signed_normalized_constant, constant_type.size, constant_type.signed), constant_type)
+        return [
+            (
+                operation,
+                BinaryOperation(
+                    OperationType.plus if operation.operation == OperationType.minus else OperationType.minus,
+                    [operation.left, neg_constant],
+                ),
             )
-        )]
+        ]

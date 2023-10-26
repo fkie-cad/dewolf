@@ -60,9 +60,25 @@ class ExpressionPropagationFunctionCall(ExpressionPropagationBase):
         True on exactly one use.
         False otherwise, or Call has more than one return value.
         """
-        if len(return_values := definition.destination.requirements) == 1:
-            return len(self._use_map.get(return_values[0])) == 1
-        return False
+        if len(return_values := definition.destination.requirements) != 1:
+            return False
+
+        [required_variable] = return_values
+        requiring_instructions = self._use_map.get(required_variable)
+
+        if len(requiring_instructions) != 1:
+            return False
+
+        [requiring_instruction] = requiring_instructions
+
+        usages = 0
+        for variable in requiring_instruction.requirements_iter:
+            if variable == required_variable:
+                usages += 1
+            if usages > 1:
+                return False
+
+        return usages == 1
 
     def _definition_can_be_propagated_into_target(self, definition: Assignment, target: Instruction):
         """Tests if propagation is allowed based on set of rules, namely
@@ -85,19 +101,19 @@ class ExpressionPropagationFunctionCall(ExpressionPropagationBase):
             self._is_call_assignment(definition)
             and self._is_call_value_used_exactly_once(definition)
             and not (
-                    self._is_phi(definition)
-                    or self._defines_unknown_expression(definition)
-                    or self._contains_aliased_variables(definition)
-                    or self._is_address_assignment(definition)
-                    or self._contains_global_variable(definition)
-                    or self._operation_is_propagated_in_phi(target, definition)
-                    or self._resulting_instruction_is_too_long(target, definition)
-                    or self._is_invalid_propagation_into_address_operation(target, definition)
-                    or self._is_dereference_assignment(definition)
-                    or self._definition_value_could_be_modified_via_memory_access_between_definition_and_target(definition, target)
-                    or self._pointer_value_used_in_definition_could_be_modified_via_memory_access_between_definition_and_target(
-                        definition, target
-                    )
+                self._is_phi(definition)
+                or self._defines_unknown_expression(definition)
+                or self._contains_aliased_variables(definition)
+                or self._is_address_assignment(definition)
+                or self._contains_global_variable(definition)
+                or self._operation_is_propagated_in_phi(target, definition)
+                or self._resulting_instruction_is_too_long(target, definition)
+                or self._is_invalid_propagation_into_address_operation(target, definition)
+                or self._is_dereference_assignment(definition)
+                or self._definition_value_could_be_modified_via_memory_access_between_definition_and_target(definition, target)
+                or self._pointer_value_used_in_definition_could_be_modified_via_memory_access_between_definition_and_target(
+                    definition, target
+                )
             )
         )
 

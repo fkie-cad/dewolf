@@ -63,7 +63,4 @@ class CollapseAddNeg(SimplificationRule):
         if replacement is None:
             return []
 
-        return [(
-            operation,
-            replacement
-        )]
+        return [(operation, replacement)]

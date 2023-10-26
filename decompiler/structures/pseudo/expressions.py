@@ -30,8 +30,9 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Generic, Iterator, List, Optional, Tuple, TypeVar, Union
+from typing import TYPE_CHECKING, Generic, Iterator, List, Optional, Tuple, TypeVar, Union, final
 
+from ...util.insertion_ordered_set import InsertionOrderedSet
 from .complextypes import Enum
 from .typing import CustomType, Type, UnknownType
 
@@ -85,10 +86,16 @@ class DataflowObject(ABC):
         pass
 
     @property
-    @abstractmethod
+    def requirements_iter(self) -> Iterator[Variable]:
+        """Return an iterator of required variables."""
+        return
+        yield
+
+    @property
+    @final
     def requirements(self) -> List[Variable]:
-        """Return a list of required variables."""
-        pass
+        """Return a list of unique required variables."""
+        return list(InsertionOrderedSet(self.requirements_iter))
 
     def copy(self):
         """Generate a copy of the object."""
@@ -121,11 +128,6 @@ class Expression(DataflowObject, ABC, Generic[DecompiledType]):
     def complexity(self) -> int:
         """Simple expressions like constants and variables have complexity 1"""
         return 1
-
-    @property
-    def requirements(self) -> List[Variable]:
-        """Requirements are empty list by default if not redefined by concrete Expression implementation"""
-        return []
 
     def substitute(self, replacee: Expression, replacement: Expression) -> None:
         """Do nothing: default behavior for simple expressions, like Variables and Constants"""
@@ -191,7 +193,10 @@ class Constant(Expression[DecompiledType]):
         Constants of type Enum are represented as strings (corresponding enumerator identifiers).
         """
         if isinstance(self._type, Enum):
-            return self._type.get_name_by_value(self.value)
+            name = self._type.get_name_by_value(self.value)
+            if name is not None:
+                return name
+            # otherwise, i.e. if value is not found in Enum class, fall through
         if self._type.is_boolean:
             return "true" if self.value else "false"
         if isinstance(self.value, str):
@@ -257,12 +262,13 @@ class ExternFunctionPointer(Constant):
 
 class NotUseableConstant(Constant):
     """Represents a non useable constant like 'inf' or 'NaN' as a string"""
+
     def __init__(self, value: str, tags: Optional[Tuple[Tag, ...]] = None):
         super().__init__(value, CustomType("double", 0), tags=tags)
 
     def __str__(self) -> str:
         """Return a string because NotUseableConstant are string only"""
-        return self.value 
+        return self.value
 
     def __repr__(self):
         """Return the non usable constant."""
@@ -379,9 +385,9 @@ class Variable(Expression[DecompiledType]):
         return self._name
 
     @property
-    def requirements(self) -> List["Variable"]:
+    def requirements_iter(self) -> Iterator["Variable"]:
         """A variable depends on itself"""
-        return [self]
+        yield self
 
     @property
     def type(self) -> DecompiledType:
@@ -507,12 +513,14 @@ class RegisterPair(Variable):
         return self._low
 
     @property
-    def requirements(self) -> List[Variable]:
+    def requirements_iter(self) -> Iterator[Variable]:
         """Pairs depend on their components and itself in case when being used as a single variable
         e.g. 0: (eax:edx) = 0x666667 * ebx
              1: edx = (eax:edx) - 2
         """
-        return [self, self._high, self._low]
+        yield self
+        yield self._high
+        yield self._low
 
     @property
     def type(self) -> Type:

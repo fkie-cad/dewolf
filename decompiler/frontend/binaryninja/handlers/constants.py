@@ -7,6 +7,7 @@ from decompiler.structures.pseudo import Constant, GlobalVariable, Integer, NotU
 
 BYTE_SIZE = 8
 
+
 class ConstantHandler(Handler):
     def register(self):
         """Register the handler at its parent lifter."""
@@ -24,7 +25,7 @@ class ConstantHandler(Handler):
 
     def lift_constant(self, constant: mediumlevelil.MediumLevelILConst, **kwargs) -> Constant:
         """Lift the given constant value."""
-        if(constant.constant in [math.inf, -math.inf, math.nan]):
+        if constant.constant in [math.inf, -math.inf, math.nan]:
             return NotUseableConstant(str(constant.constant))
         return Constant(constant.constant, vartype=self._lifter.lift(constant.expr_type))
 
@@ -32,7 +33,6 @@ class ConstantHandler(Handler):
     def lift_integer_literal(value: int, **kwargs) -> Constant:
         """Lift the given literal, which is most likely an artefact from shift operations and the like."""
         return Constant(value, vartype=Integer.int32_t())
-
 
     def lift_constant_data(self, pointer: mediumlevelil.MediumLevelILConstData, **kwargs) -> Constant:
         """Lift const data as a non mute able constant string"""

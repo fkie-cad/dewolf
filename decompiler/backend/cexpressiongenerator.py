@@ -348,7 +348,7 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
 
     @staticmethod
     def format_variables_declaration(var_type: Type, var_names: list[str]) -> str:
-        """ Return a string representation of variable declarations."""
+        """Return a string representation of variable declarations."""
         match var_type:
             case Pointer(type=FunctionTypeDef() as fun_type):
                 parameter_names = ", ".join(str(parameter) for parameter in fun_type.parameters)

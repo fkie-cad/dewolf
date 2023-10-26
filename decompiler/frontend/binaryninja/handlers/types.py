@@ -22,7 +22,7 @@ from binaryninja.types import (
 )
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import CustomType, Float, FunctionTypeDef, Integer, Pointer, UnknownType, Variable
-from decompiler.structures.pseudo.complextypes import ComplexTypeMember, ComplexTypeName, Enum, Struct
+from decompiler.structures.pseudo.complextypes import Class, ComplexTypeMember, ComplexTypeName, Enum, Struct
 from decompiler.structures.pseudo.complextypes import Union as Union_
 
 
@@ -75,39 +75,60 @@ class TypeHandler(Handler):
 
     def lift_enum(self, binja_enum: EnumerationType, name: str = None, **kwargs) -> Enum:
         """Lift enum type."""
-        enum_name = name if name else self._get_data_type_name(binja_enum, keyword="enum")
+        type_id = hash(binja_enum)
+        enum_name = self._get_data_type_name(binja_enum, keyword="enum", provided_name=name)
         enum = Enum(binja_enum.width * self.BYTE_SIZE, enum_name, {})
         for member in binja_enum.members:
             enum.add_member(self._lifter.lift(member))
-        self._lifter.complex_types.add(enum)
+        self._lifter.complex_types.add(enum, type_id)
         return enum
 
     def lift_enum_member(self, enum_member: EnumerationMember, **kwargs) -> ComplexTypeMember:
         """Lift enum member type."""
         return ComplexTypeMember(size=0, name=enum_member.name, offset=-1, type=Integer(32), value=int(enum_member.value))
 
-    def lift_struct(self, struct: StructureType, name: str = None, **kwargs) -> Union[Struct, ComplexTypeName]:
+    def lift_struct(self, struct: StructureType, name: str = None, **kwargs) -> Union[Struct, Union_, Class, ComplexTypeName]:
+        type_id = hash(struct)
+        cached_type = self._lifter.complex_types.retrieve_by_id(type_id)
+        if cached_type is not None:
+            return cached_type
+
         """Lift struct or union type."""
         if struct.type == StructureVariant.StructStructureType:
-            type_name = name if name else self._get_data_type_name(struct, keyword="struct")
-            lifted_struct = Struct(struct.width * self.BYTE_SIZE, type_name, {})
+            keyword, type, members = "struct", Struct, {}
         elif struct.type == StructureVariant.UnionStructureType:
-            type_name = name if name else self._get_data_type_name(struct, keyword="union")
-            lifted_struct = Union_(struct.width * self.BYTE_SIZE, type_name, [])
+            keyword, type, members = "union", Union_, []
+        elif struct.type == StructureVariant.ClassStructureType:
+            keyword, type, members = "class", Class, {}
         else:
             raise RuntimeError(f"Unknown struct type {struct.type.name}")
+
+        type_name = self._get_data_type_name(struct, keyword=keyword, provided_name=name)
+        lifted_struct = type(struct.width * self.BYTE_SIZE, type_name, members)
+
+        self._lifter.complex_types.add(lifted_struct, type_id)
         for member in struct.members:
             lifted_struct.add_member(self.lift_struct_member(member, type_name))
-        self._lifter.complex_types.add(lifted_struct)
         return lifted_struct
 
     @abstractmethod
-    def _get_data_type_name(self, complex_type: Union[StructureType, EnumerationType], keyword: str) -> str:
-        """Parse out the name of complex type."""
-        string = complex_type.get_string()
-        if keyword in string:
-            return complex_type.get_string().split(keyword)[1]
-        return string
+    def _get_data_type_name(self, complex_type: Union[StructureType, EnumerationType], keyword: str, provided_name: str) -> str:
+        """Parse out the name of complex type. Empty and duplicate names are changed.
+        Calling this function has the side effect of incrementing a counter in the UniqueNameProvider."""
+        if provided_name:
+            name = provided_name
+        else:
+            type_string = complex_type.get_string()
+            if keyword in type_string:
+                name = complex_type.get_string().split(keyword)[1]
+            else:
+                name = type_string
+
+        if name.strip() == "":
+            name = f"__anonymous_{keyword}"
+        name = self._lifter.unique_name_provider.get_unique_name(name)
+
+        return name
 
     def lift_struct_member(self, member: StructureMember, parent_struct_name: str = None) -> ComplexTypeMember:
         """Lift struct or union member."""
@@ -117,7 +138,7 @@ class TypeHandler(Handler):
         else:
             # if member is an embedded struct/union, the name is already available
             member_type = self._lifter.lift(member.type, name=member.name)
-        return ComplexTypeMember(0, name=member.name, offset=member.offset, type=member_type)
+        return ComplexTypeMember(member_type.size, name=member.name, offset=member.offset, type=member_type)
 
     @abstractmethod
     def _get_member_pointer_on_the_parent_struct(self, member: StructureMember, parent_struct_name: str) -> ComplexTypeMember:

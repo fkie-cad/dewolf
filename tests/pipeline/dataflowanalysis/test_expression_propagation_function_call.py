@@ -1,3 +1,4 @@
+import copy
 from typing import List
 
 from decompiler.pipeline.dataflowanalysis import ExpressionPropagationFunctionCall
@@ -173,6 +174,35 @@ def test_multiple_propagations():
     _run_expression_propagation(cfg)
     node = cfg.nodes[0]
     assert node.instructions == [_assign(return_x, Constant(0x0)), _assign(return_y, Constant(0x0)), Return([_func("g", [_func("f", [])])])]
+
+
+def test_single_instruction_multiple_propagations():
+    """
+    Test that functions are not propagated if they occur multiple times in a single instruction.
+
+    +-------------+
+    |    0.       |
+    | x = f()     |
+    | y = g(x, x) |
+    | return y    |
+    +-------------+
+
+
+    +-------------+
+    |    0.       |
+    | x = f()     |
+    | y = g(x, x) |
+    | return y    |
+    +-------------+
+    """
+
+    instructions = [_assign(x, _func("f", [])), Return([_func("g", [x, x])])]
+    cfg = ControlFlowGraph()
+    cfg.add_node(BasicBlock(0, copy.deepcopy(instructions)))
+
+    _run_expression_propagation(cfg)
+
+    assert cfg.nodes[0].instructions == instructions
 
 
 def _func(name: str, parameters: List):
