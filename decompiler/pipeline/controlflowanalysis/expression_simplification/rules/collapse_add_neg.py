@@ -17,48 +17,17 @@ class CollapseAddNeg(SimplificationRule):
     def apply(self, operation: Operation) -> list[tuple[Expression, Expression]]:
         replacement: Optional[Expression] = None
         match operation:
-            case BinaryOperation(
-                operation=OperationType.plus,
-                left=e0,
-                right=UnaryOperation(
-                    operation=OperationType.negate,
-                    operand=e1
-                )
-            ):
+            case BinaryOperation(operation=OperationType.plus, left=e0, right=UnaryOperation(operation=OperationType.negate, operand=e1)):
                 replacement = BinaryOperation(OperationType.minus, [e0, e1], operation.type)
 
-            case BinaryOperation(
-                operation=OperationType.minus,
-                left=e0,
-                right=UnaryOperation(
-                    operation=OperationType.negate,
-                    operand=e1
-                )
-            ):
+            case BinaryOperation(operation=OperationType.minus, left=e0, right=UnaryOperation(operation=OperationType.negate, operand=e1)):
                 replacement = BinaryOperation(OperationType.plus, [e0, e1], operation.type)
 
-            case BinaryOperation(
-                operation=OperationType.plus,
-                left=UnaryOperation(
-                    operation=OperationType.negate,
-                    operand=e0
-                ),
-                right=e1
-            ):
+            case BinaryOperation(operation=OperationType.plus, left=UnaryOperation(operation=OperationType.negate, operand=e0), right=e1):
                 replacement = BinaryOperation(OperationType.minus, [e1, e0], operation.type)
 
-            case BinaryOperation(
-                operation=OperationType.minus,
-                left=UnaryOperation(
-                    operation=OperationType.negate,
-                    operand=e0
-                ),
-                right=e1
-            ):
-                replacement = UnaryOperation(
-                    OperationType.negate,
-                    [BinaryOperation(OperationType.plus, [e0, e1], operation.type)]
-                )
+            case BinaryOperation(operation=OperationType.minus, left=UnaryOperation(operation=OperationType.negate, operand=e0), right=e1):
+                replacement = UnaryOperation(OperationType.negate, [BinaryOperation(OperationType.plus, [e0, e1], operation.type)])
 
         if replacement is None:
             return []
