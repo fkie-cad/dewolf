@@ -312,7 +312,9 @@ def test_definition_is_inserted_correctly():
         Assignment(ebx.copy(), Call(FunctionSymbol("foo", 0), [eax.copy()])),
         Assignment(
             Variable("loc_0", Integer.int64_t(), 0),
-            BinaryOperation(OperationType.plus, [eax.copy(), BinaryOperation(OperationType.left_shift, [ebx.copy(), Constant(32, Integer.uint8_t())])]),
+            BinaryOperation(
+                OperationType.plus, [eax.copy(), BinaryOperation(OperationType.left_shift, [ebx.copy(), Constant(32, Integer.uint8_t())])]
+            ),
         ),
         Branch(Condition(OperationType.greater, [eax.copy(), ebx.copy()])),
     ]
