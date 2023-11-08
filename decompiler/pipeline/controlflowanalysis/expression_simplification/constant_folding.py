@@ -133,8 +133,9 @@ def _constant_fold_shift(constants: list[Constant], fun: Callable[[int, int], in
         raise IncompatibleOperandCount("Expected exactly 2 constants to fold")
 
     left, right = constants
+    operand_signed = isinstance(left.type, Integer) and left.type.signed
 
-    return fun(normalize_int(left.value, left.type.size, left.type.signed and signed), right.value)
+    return fun(normalize_int(left.value, left.type.size, operand_signed and signed), right.value)
 
 
 _OPERATION_TO_FOLD_FUNCTION: dict[OperationType, Callable[[list[Constant]], int]] = {
