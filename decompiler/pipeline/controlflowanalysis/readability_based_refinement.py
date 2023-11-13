@@ -19,7 +19,7 @@ from decompiler.structures.ast.ast_nodes import (
 )
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.logic.logic_condition import LogicCondition
-from decompiler.structures.pseudo import Assignment, BinaryOperation, Condition, Constant, Expression, Operation, OperationType, Variable
+from decompiler.structures.pseudo import Assignment, BinaryOperation, Condition, Constant, Expression, Operation, OperationType, UnaryOperation, Variable
 from decompiler.structures.visitors.assignment_visitor import AssignmentVisitor
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
@@ -328,33 +328,58 @@ class WhileLoopReplacer:
         """
         equalizable_nodes = []
         for code_node in (node for node in loop_node.body.get_descendant_code_nodes_interrupting_ancestor_loop() if node.does_end_with_continue):
-            if not self._is_assignment_simple_increment(continuation.instruction):
+            if not self._is_expression_simple_binary_operation(continuation.instruction.value):
                 return None
             if (last_definition_index := _get_last_definition_index_of(code_node, variable_init.instruction.destination)) == -1:
                 return None
             if not (
-                self._is_assignment_simple_increment(code_node.instructions[last_definition_index])
-                or isinstance(code_node.instructions[last_definition_index].value, Constant)
+                isinstance(code_node.instructions[last_definition_index].value, Constant)
+                or self._is_expression_simple_binary_operation(code_node.instructions[last_definition_index].value)
+                and self._get_variable_in_binary_operation(continuation.instruction.value)
+                == self._get_variable_in_binary_operation(code_node.instructions[last_definition_index].value)
             ):
                 return None
+
+            self._unify_binary_operation(continuation.instruction.value)
+            if not isinstance(code_node.instructions[last_definition_index].value, Constant):
+                self._unify_binary_operation(code_node.instructions[last_definition_index].value)
+
             equalizable_nodes.append(code_node)
         return equalizable_nodes
 
-    def _is_assignment_simple_increment(self, assignment: Assignment) -> bool:
-        """
-        Checks if an assignment is a simple incrementation. Meaning that it defines and uses the same variable and which included expression is a binary operation with the used
-        variable and a constant and uses plus or minus as operation. The minus operation is not commutative and is therefore only defined as simple if the variable is the first
-        operand and the constant the second.
-        """
+    def _is_expression_simple_binary_operation(self, expression: Expression) -> bool:
+        """Checks if an expression is a simple binary operation. Meaning it includes a variable and a constant and uses plus or minus as operation type."""
         return (
-            isinstance(assignment.value, BinaryOperation)
-            and assignment.value.operation in {OperationType.plus, OperationType.minus}
-            and any(isinstance(operand, Constant) for operand in assignment.value.operands)
-            and (
-                assignment.destination == assignment.value.left
-                or (assignment.destination == assignment.value.right and assignment.value.operation == OperationType.plus)
-            )
+            isinstance(expression, BinaryOperation)
+            and expression.operation in {OperationType.plus, OperationType.minus}
+            and any(isinstance(operand, Constant) for operand in expression.subexpressions())
+            and any(isinstance(operand, Variable) for operand in expression.subexpressions())
         )
+
+    def _get_variable_in_binary_operation(self, binaryoperation: BinaryOperation) -> Variable:
+        """Returns the used variable of a binary operation if available."""
+        for operand in binaryoperation.subexpressions():
+                if isinstance(operand, Variable):
+                    return operand
+        return None
+
+    def _count_unaryoperations_negations(self, expression: Expression) -> int:
+        """Counts the amount of UnaryOperation negations of an expression."""
+        negations = 0
+        for subexpression in expression.subexpressions():
+            if isinstance(subexpression, UnaryOperation) and subexpression.operation == OperationType.negate:
+                negations += 1
+        return negations
+
+    def _unify_binary_operation(self, binaryoperation: BinaryOperation):
+        """Brings a simple binary operation into a unified representation like 'var + const'."""
+        print(binaryoperation)
+        if not binaryoperation.operation == OperationType.plus:
+            binaryoperation.operation = OperationType.plus
+            binaryoperation.substitute(binaryoperation.right, UnaryOperation(OperationType.negate, [binaryoperation.right]))
+
+        if any(isinstance(operand, Constant) for operand in binaryoperation.left.subexpressions()):
+            binaryoperation.swap_operands()
 
     def _substract_continuation_from_last_definition(self, code_node: CodeNode, continuation: AstInstruction, variable_init: AstInstruction):
         """
@@ -366,20 +391,10 @@ class WhileLoopReplacer:
         :param variable_init: Instruction defining the for-loops declaration
         """
         last_definition = code_node.instructions[_get_last_definition_index_of(code_node, variable_init.instruction.destination)]
-        continuation_operand = continuation.instruction.value.right if isinstance(continuation.instruction.value.right, Constant) else continuation.instruction.value.left
+        last_definition.substitute(last_definition.value, BinaryOperation(OperationType.minus, [last_definition.value, continuation.instruction.value.right]))
 
-        if isinstance(last_definition.value, BinaryOperation):
-            last_definition_operand = last_definition.value.right if isinstance(last_definition.value.right, Constant) else last_definition.value.left
-
-            if continuation.instruction.value.operation == last_definition.value.operation:
-                last_definition_operand.value -= continuation_operand.value
-            else:
-                last_definition_operand.value += continuation_operand.value
-        else:
-            if continuation.instruction.value.operation == OperationType.plus:
-                last_definition.value.value -= continuation_operand.value
-            else:
-                last_definition.value.value += continuation_operand.value
+        if self._count_unaryoperations_negations(continuation.instruction.value.left) % 2 != 0:
+            last_definition.substitute(last_definition.value, UnaryOperation(OperationType.negate, [last_definition.value]))
 
     def _replace_with_for_loop(self, loop_node: WhileLoopNode, continuation: AstInstruction, init: AstInstruction):
         """

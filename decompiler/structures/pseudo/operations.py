@@ -446,6 +446,11 @@ class BinaryOperation(Operation):
         """Return the right-hand-side operand."""
         return self._operands[1]
 
+    @Operation.operation.setter
+    def operation(self, value):
+        """Setter function for operation."""
+        self._operation = value
+
     def copy(self) -> BinaryOperation:
         """Generate a deep copy of the current binary operation."""
         return self.__class__(self._operation, [operand.copy() for operand in self._operands], self._type.copy(), self.tags)
@@ -453,6 +458,10 @@ class BinaryOperation(Operation):
     def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
         """Invoke the appropriate visitor for this Operation."""
         return visitor.visit_binary_operation(self)
+
+    def swap_operands(self):
+        """Swaps left-hand-side with right-hand-side operand."""
+        self._operands[0], self._operands[1] = self._operands[1], self._operands[0]
 
 
 class Call(Operation):
