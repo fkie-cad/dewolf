@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
-from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, CodeNode, ConditionNode, LoopNode, SeqNode, SwitchNode
+from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, CodeNode, ConditionNode, LoopNode, SeqNode, SwitchNode, WhileLoopNode
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.logic.logic_condition import LogicCondition
-from decompiler.structures.pseudo import Assignment, Condition, Variable
+from decompiler.structures.pseudo import Assignment, BinaryOperation, Condition, Constant, Expression, OperationType, UnaryOperation, Variable
 from decompiler.structures.visitors.assignment_visitor import AssignmentVisitor
 
 
@@ -210,3 +210,81 @@ def _requirement_without_reinitialization(ast: AbstractSyntaxTree, node: Abstrac
                 return True
             elif variable in assignment.requirements:
                 return True
+
+def _get_continue_nodes_with_equalizable_definition(loop_node: WhileLoopNode, continuation: AstInstruction, variable_init: AstInstruction) -> List[CodeNode]:
+    """
+    Finds code nodes of a while loop containing continue statements and a definition of the continuation instruction, which can be easily equalized.
+
+    :param loop_node: While-loop to search in
+    :param continuation: Instruction defining the for-loops modification
+    :param variable_init: Instruction defining the for-loops declaration
+    :return: List of continue code nodes that has equalizable definitions, None if at least one continue node does not match the requirements
+    """
+    equalizable_nodes = []
+    for code_node in (node for node in loop_node.body.get_descendant_code_nodes_interrupting_ancestor_loop() if node.does_end_with_continue):
+        if not _is_expression_simple_binary_operation(continuation.instruction.value):
+            return None
+        if (last_definition_index := _get_last_definition_index_of(code_node, variable_init.instruction.destination)) == -1:
+            return None
+        if not (
+            isinstance(code_node.instructions[last_definition_index].value, Constant)
+            or _is_expression_simple_binary_operation(code_node.instructions[last_definition_index].value)
+            and _get_variable_in_binary_operation(continuation.instruction.value)
+            == _get_variable_in_binary_operation(code_node.instructions[last_definition_index].value)
+        ):
+            return None
+
+        _unify_binary_operation(continuation.instruction.value)
+        if not isinstance(code_node.instructions[last_definition_index].value, Constant):
+            _unify_binary_operation(code_node.instructions[last_definition_index].value)
+
+        equalizable_nodes.append(code_node)
+    return equalizable_nodes
+
+def _is_expression_simple_binary_operation(expression: Expression) -> bool:
+    """Checks if an expression is a simple binary operation. Meaning it includes a variable and a constant and uses plus or minus as operation type."""
+    return (
+        isinstance(expression, BinaryOperation)
+        and expression.operation in {OperationType.plus, OperationType.minus}
+        and any(isinstance(operand, Constant) for operand in expression.subexpressions())
+        and any(isinstance(operand, Variable) for operand in expression.subexpressions())
+    )
+
+def _get_variable_in_binary_operation(binaryoperation: BinaryOperation) -> Variable:
+    """Returns the used variable of a binary operation if available."""
+    for operand in binaryoperation.subexpressions():
+            if isinstance(operand, Variable):
+                return operand
+    return None
+
+def _count_unaryoperations_negations(expression: Expression) -> int:
+    """Counts the amount of UnaryOperation negations of an expression."""
+    negations = 0
+    for subexpression in expression.subexpressions():
+        if isinstance(subexpression, UnaryOperation) and subexpression.operation == OperationType.negate:
+            negations += 1
+    return negations
+
+def _unify_binary_operation(binaryoperation: BinaryOperation):
+    """Brings a simple binary operation into a unified representation like 'var + const'."""
+    if not binaryoperation.operation == OperationType.plus:
+        binaryoperation.operation = OperationType.plus
+        binaryoperation.substitute(binaryoperation.right, UnaryOperation(OperationType.negate, [binaryoperation.right]))
+
+    if any(isinstance(operand, Constant) for operand in binaryoperation.left.subexpressions()):
+        binaryoperation.swap_operands()
+
+def _substract_continuation_from_last_definition(code_node: CodeNode, continuation: AstInstruction, variable_init: AstInstruction):
+    """
+    Substracts the value of the continuation instruction from the last definition, which must be a simple binary operation or a constant,
+    defining the same value as the continuation instruction in the given code node.
+
+    :param code_node: Code node whose last instruction is to be changed
+    :param continuation: Instruction defining the for-loops modification
+    :param variable_init: Instruction defining the for-loops declaration
+    """
+    last_definition = code_node.instructions[_get_last_definition_index_of(code_node, variable_init.instruction.destination)]
+    last_definition.substitute(last_definition.value, BinaryOperation(OperationType.minus, [last_definition.value, continuation.instruction.value.right]))
+
+    if _count_unaryoperations_negations(continuation.instruction.value.left) % 2 != 0:
+        last_definition.substitute(last_definition.value, UnaryOperation(OperationType.negate, [last_definition.value]))
