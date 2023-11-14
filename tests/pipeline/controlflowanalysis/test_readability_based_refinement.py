@@ -849,41 +849,6 @@ class TestReadabilityUtils:
 
         assert _initialization_reaches_loop_node(init_code_node, inner_while) is False
 
-    def test_for_loop_variable_generation(self):
-        renamer = ForLoopVariableRenamer(
-            AbstractSyntaxTree(SeqNode(LogicCondition.initialize_true(LogicCondition.generate_new_context())), {}),
-            ["i", "j", "k", "l", "m", "n"]
-        )
-        assert [renamer._get_variable_name() for _ in range(14)] == [
-            "i",
-            "j",
-            "k",
-            "l",
-            "m",
-            "n",
-            "i1",
-            "j1",
-            "k1",
-            "l1",
-            "m1",
-            "n1",
-            "i2",
-            "j2",
-        ]
-
-    def test_while_loop_variable_generation(self):
-        renamer = WhileLoopVariableRenamer(
-            AbstractSyntaxTree(SeqNode(LogicCondition.initialize_true(LogicCondition.generate_new_context())), {})
-        )
-        assert [renamer._get_variable_name() for _ in range(5)] == ["counter", "counter1", "counter2", "counter3", "counter4"]
-
-    def test_declaration_listop(self, ast_call_for_loop):
-        """Test renaming with ListOperation as Declaration"""
-        ForLoopVariableRenamer(ast_call_for_loop, ["i"]).rename()
-        for node in ast_call_for_loop:
-            if isinstance(node, ForLoopNode):
-                assert node.declaration.destination.operands[0].name == "i"
-
     def test_for_loop_recovery_if_continue_in_while_1(self):
         """
         Test for loop recovery if a continue occurs in a while loop and the last definition is a simple binary operation
