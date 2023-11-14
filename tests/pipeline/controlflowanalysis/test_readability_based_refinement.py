@@ -901,7 +901,7 @@ class TestReadabilityUtils:
 
         condition_nodes = list(ast.get_condition_nodes_post_order())
         last_definition = condition_nodes[0].true_branch_child.instructions[_get_last_definition_index_of(condition_nodes[0].true_branch_child, Variable("a"))]
-        assert last_definition == Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))
+        assert last_definition == Assignment(Variable("a"), BinaryOperation(OperationType.minus, [BinaryOperation(OperationType.plus, [Variable("a"), Constant(2)]), Constant(1)]))
 
     def test_for_loop_recovery_if_continue_in_while_2(self):
         """
@@ -956,7 +956,7 @@ class TestReadabilityUtils:
 
         condition_nodes = list(ast.get_condition_nodes_post_order())
         last_definition = condition_nodes[0].true_branch_child.instructions[_get_last_definition_index_of(condition_nodes[0].true_branch_child, Variable("a"))]
-        assert last_definition == Assignment(Variable("a"), Constant(3))
+        assert last_definition == Assignment(Variable("a"), BinaryOperation(OperationType.minus, [Constant(4), Constant(1)]))
 
     def test_for_loop_recovery_if_continue_in_nested_while(self):
         """
@@ -1024,7 +1024,7 @@ class TestReadabilityUtils:
 
         condition_nodes = list(ast.get_condition_nodes_post_order())
         last_definition = condition_nodes[0].true_branch_child.instructions[_get_last_definition_index_of(condition_nodes[0].true_branch_child, Variable("b"))]
-        assert last_definition.value.right.value == 1
+        assert last_definition == Assignment(Variable("b"), BinaryOperation(OperationType.minus, [BinaryOperation(OperationType.plus, [Variable("b"), Constant(2)]), Constant(1)]))
 
     def test_skip_for_loop_recovery_if_continue_in_while_1(self):
         """
