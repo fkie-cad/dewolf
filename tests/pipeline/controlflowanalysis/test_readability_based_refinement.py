@@ -900,8 +900,13 @@ class TestReadabilityUtils:
         assert all(isinstance(loop_node, ForLoopNode) for loop_node in list(ast.get_loop_nodes_post_order()))
 
         condition_nodes = list(ast.get_condition_nodes_post_order())
-        last_definition = condition_nodes[0].true_branch_child.instructions[_get_last_definition_index_of(condition_nodes[0].true_branch_child, Variable("a"))]
-        assert last_definition == Assignment(Variable("a"), BinaryOperation(OperationType.minus, [BinaryOperation(OperationType.plus, [Variable("a"), Constant(2)]), Constant(1)]))
+        last_definition = condition_nodes[0].true_branch_child.instructions[
+            _get_last_definition_index_of(condition_nodes[0].true_branch_child, Variable("a"))
+        ]
+        assert last_definition == Assignment(
+            Variable("a"),
+            BinaryOperation(OperationType.minus, [BinaryOperation(OperationType.plus, [Variable("a"), Constant(2)]), Constant(1)]),
+        )
 
     def test_for_loop_recovery_if_continue_in_while_2(self):
         """
@@ -921,23 +926,20 @@ class TestReadabilityUtils:
             root := SeqNode(true_value),
             condition_map={
                 logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(10)]),
-                logic_cond("x2", context): Condition(OperationType.equal, [Variable("a"), Constant(2)])
-            }
+                logic_cond("x2", context): Condition(OperationType.equal, [Variable("a"), Constant(2)]),
+            },
         )
 
-        true_branch = ast._add_code_node(
-            [
-                Assignment(Variable("a"), Constant(4)),
-                Continue()
-            ]
-        )
+        true_branch = ast._add_code_node([Assignment(Variable("a"), Constant(4)), Continue()])
         if_condition = ast._add_condition_node_with(logic_cond("x2", context), true_branch)
 
         init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
 
         while_loop = ast.factory.create_while_loop_node(logic_cond("x1", context))
         while_loop_body = ast.factory.create_seq_node()
-        while_loop_iteration = ast._add_code_node([Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))])
+        while_loop_iteration = ast._add_code_node(
+            [Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))]
+        )
         ast._add_node(while_loop)
         ast._add_node(while_loop_body)
 
@@ -947,7 +949,7 @@ class TestReadabilityUtils:
                 (root, while_loop),
                 (while_loop, while_loop_body),
                 (while_loop_body, if_condition),
-                (while_loop_body, while_loop_iteration)
+                (while_loop_body, while_loop_iteration),
             ]
         )
 
@@ -955,7 +957,9 @@ class TestReadabilityUtils:
         assert all(isinstance(loop_node, ForLoopNode) for loop_node in list(ast.get_loop_nodes_post_order()))
 
         condition_nodes = list(ast.get_condition_nodes_post_order())
-        last_definition = condition_nodes[0].true_branch_child.instructions[_get_last_definition_index_of(condition_nodes[0].true_branch_child, Variable("a"))]
+        last_definition = condition_nodes[0].true_branch_child.instructions[
+            _get_last_definition_index_of(condition_nodes[0].true_branch_child, Variable("a"))
+        ]
         assert last_definition == Assignment(Variable("a"), BinaryOperation(OperationType.minus, [Constant(4), Constant(1)]))
 
     def test_for_loop_recovery_if_continue_in_nested_while(self):
@@ -1023,8 +1027,13 @@ class TestReadabilityUtils:
         assert all(isinstance(loop_node, ForLoopNode) for loop_node in list(ast.get_loop_nodes_post_order()))
 
         condition_nodes = list(ast.get_condition_nodes_post_order())
-        last_definition = condition_nodes[0].true_branch_child.instructions[_get_last_definition_index_of(condition_nodes[0].true_branch_child, Variable("b"))]
-        assert last_definition == Assignment(Variable("b"), BinaryOperation(OperationType.minus, [BinaryOperation(OperationType.plus, [Variable("b"), Constant(2)]), Constant(1)]))
+        last_definition = condition_nodes[0].true_branch_child.instructions[
+            _get_last_definition_index_of(condition_nodes[0].true_branch_child, Variable("b"))
+        ]
+        assert last_definition == Assignment(
+            Variable("b"),
+            BinaryOperation(OperationType.minus, [BinaryOperation(OperationType.plus, [Variable("b"), Constant(2)]), Constant(1)]),
+        )
 
     def test_skip_for_loop_recovery_if_continue_in_while_1(self):
         """
@@ -1044,15 +1053,12 @@ class TestReadabilityUtils:
             root := SeqNode(true_value),
             condition_map={
                 logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(10)]),
-                logic_cond("x2", context): Condition(OperationType.equal, [Variable("a"), Constant(2)])
-            }
+                logic_cond("x2", context): Condition(OperationType.equal, [Variable("a"), Constant(2)]),
+            },
         )
 
         true_branch = ast._add_code_node(
-            [
-                Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(2)])),
-                Continue()
-            ]
+            [Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(2)])), Continue()]
         )
         if_condition = ast._add_condition_node_with(logic_cond("x2", context), true_branch)
 
@@ -1060,7 +1066,9 @@ class TestReadabilityUtils:
 
         while_loop = ast.factory.create_while_loop_node(logic_cond("x1", context))
         while_loop_body = ast.factory.create_seq_node()
-        while_loop_iteration = ast._add_code_node([Assignment(Variable("a"), BinaryOperation(OperationType.multiply, [Variable("a"), Constant(2)]))])
+        while_loop_iteration = ast._add_code_node(
+            [Assignment(Variable("a"), BinaryOperation(OperationType.multiply, [Variable("a"), Constant(2)]))]
+        )
         ast._add_node(while_loop)
         ast._add_node(while_loop_body)
 
@@ -1070,13 +1078,12 @@ class TestReadabilityUtils:
                 (root, while_loop),
                 (while_loop, while_loop_body),
                 (while_loop_body, if_condition),
-                (while_loop_body, while_loop_iteration)
+                (while_loop_body, while_loop_iteration),
             ]
         )
 
         WhileLoopReplacer(ast, _generate_options()).run()
         assert not any(isinstance(loop_node, ForLoopNode) for loop_node in list(ast.get_loop_nodes_post_order()))
-        
 
     def test_skip_for_loop_recovery_if_continue_in_while_2(self):
         """
@@ -1096,15 +1103,12 @@ class TestReadabilityUtils:
             root := SeqNode(true_value),
             condition_map={
                 logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(10)]),
-                logic_cond("x2", context): Condition(OperationType.equal, [Variable("a"), Constant(2)])
-            }
+                logic_cond("x2", context): Condition(OperationType.equal, [Variable("a"), Constant(2)]),
+            },
         )
 
         true_branch = ast._add_code_node(
-            [
-                Assignment(Variable("a"), BinaryOperation(OperationType.multiply, [Variable("a"), Constant(2)])),
-                Continue()
-            ]
+            [Assignment(Variable("a"), BinaryOperation(OperationType.multiply, [Variable("a"), Constant(2)])), Continue()]
         )
         if_condition = ast._add_condition_node_with(logic_cond("x2", context), true_branch)
 
@@ -1112,7 +1116,9 @@ class TestReadabilityUtils:
 
         while_loop = ast.factory.create_while_loop_node(logic_cond("x1", context))
         while_loop_body = ast.factory.create_seq_node()
-        while_loop_iteration = ast._add_code_node([Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))])
+        while_loop_iteration = ast._add_code_node(
+            [Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))]
+        )
         ast._add_node(while_loop)
         ast._add_node(while_loop_body)
 
@@ -1122,7 +1128,7 @@ class TestReadabilityUtils:
                 (root, while_loop),
                 (while_loop, while_loop_body),
                 (while_loop_body, if_condition),
-                (while_loop_body, while_loop_iteration)
+                (while_loop_body, while_loop_iteration),
             ]
         )
 
@@ -1146,8 +1152,8 @@ class TestReadabilityUtils:
             root := SeqNode(true_value),
             condition_map={
                 logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(10)]),
-                logic_cond("x2", context): Condition(OperationType.equal, [Variable("a"), Constant(2)])
-            }
+                logic_cond("x2", context): Condition(OperationType.equal, [Variable("a"), Constant(2)]),
+            },
         )
 
         true_branch = ast._add_code_node([Continue()])
@@ -1157,7 +1163,9 @@ class TestReadabilityUtils:
 
         while_loop = ast.factory.create_while_loop_node(logic_cond("x1", context))
         while_loop_body = ast.factory.create_seq_node()
-        while_loop_iteration = ast._add_code_node([Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))])
+        while_loop_iteration = ast._add_code_node(
+            [Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))]
+        )
         ast._add_node(while_loop)
         ast._add_node(while_loop_body)
 
@@ -1167,7 +1175,7 @@ class TestReadabilityUtils:
                 (root, while_loop),
                 (while_loop, while_loop_body),
                 (while_loop_body, if_condition),
-                (while_loop_body, while_loop_iteration)
+                (while_loop_body, while_loop_iteration),
             ]
         )
 
