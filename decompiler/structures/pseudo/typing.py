@@ -191,7 +191,7 @@ class CustomType(Type):
     @classmethod
     def bool(cls) -> CustomType:
         """Return a boolean type representing either TRUE or FALSE."""
-        return cls("bool", 8) # BN bool has size 8
+        return cls("bool", 8)  # BN bool has size 8
 
     @classmethod
     def void(cls) -> CustomType:
@@ -211,16 +211,6 @@ class CustomType(Type):
 class FunctionTypeDef(Type):
     return_type: Type
     parameters: Tuple[Type, ...]
-
-    def __str__(self) -> str:
-        """Return an anonymous string representation such as void*(int, int, char*)."""
-        return f"{self.return_type}({', '.join(str(x) for x in self.parameters)})"
-
-
-@dataclass(frozen=True, order=True)
-class FunctionTypeDef(Type):
-    return_type: Type
-    parameters: Tuple[Parameter, ...]
 
     def __str__(self) -> str:
         """Return an anonymous string representation such as void*(int, int, char*)."""

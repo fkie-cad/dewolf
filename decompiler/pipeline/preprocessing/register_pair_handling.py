@@ -194,7 +194,12 @@ class RegisterPairHandling(PipelineStage):
             replacement_variable,
             BinaryOperation(
                 OperationType.plus,
-                [register_pair.low, BinaryOperation(OperationType.left_shift, [register_pair.high, Constant(register_pair.low.type.size)])],
+                [
+                    register_pair.low,
+                    BinaryOperation(
+                        OperationType.left_shift, [register_pair.high, Constant(register_pair.low.type.size, vartype=Integer.uint8_t())]
+                    ),
+                ],
             ),
         )
         location.basic_block.instructions.insert(location.index, assignment_of_replacement_variable)

@@ -18,7 +18,7 @@ from decompiler.structures.pseudo import (
     RegisterPair,
     UnaryOperation,
 )
-from decompiler.structures.pseudo.complextypes import Struct, Union
+from decompiler.structures.pseudo.complextypes import Class, Struct, Union
 from decompiler.structures.pseudo.operations import MemberAccess
 
 
@@ -67,9 +67,9 @@ class AssignmentHandler(Handler):
         """
         # case 1 (struct), avoid set field of named integers:
         dest_type = self._lifter.lift(assignment.dest.type)
-        if isinstance(assignment.dest.type, binaryninja.NamedTypeReferenceType) and not (
-                isinstance(dest_type, Pointer) and isinstance(dest_type.type, Integer)
-        ):
+        if isinstance(assignment.dest.type, binaryninja.NamedTypeReferenceType) and (
+            isinstance(dest_type, Struct) or isinstance(dest_type, Class)
+        ):  # otherwise get_member_by_offset not available
             struct_variable = self._lifter.lift(assignment.dest, is_aliased=True, parent=assignment)
             destination = MemberAccess(
                 offset=assignment.offset,
@@ -95,7 +95,7 @@ class AssignmentHandler(Handler):
         case 1: struct member read access e.g. (x = )book.title
                 lift as (x = ) struct_member(book, title)
         case 2: accessing register portion e.g. (x = )eax.ah
-                lift as (x = ) eax & 0x0000ff00
+                lift as (x = ) (uint8_t)(eax >> 8)
         (x = ) <- for the sake of example, only rhs expression is lifted here.
         """
         source = self._lifter.lift(instruction.src, is_aliased=is_aliased, parent=instruction)
@@ -103,10 +103,10 @@ class AssignmentHandler(Handler):
             return self._get_field_as_member_access(instruction, source, **kwargs)
         cast_type = source.type.resize(instruction.size * self.BYTE_SIZE)
         if instruction.offset:
-            return BinaryOperation(
-                OperationType.bitwise_and,
-                [source, Constant(self._get_all_ones_mask_for_type(instruction.size) << instruction.offset)],
-                vartype=cast_type,
+            return UnaryOperation(
+                OperationType.cast,
+                [BinaryOperation(OperationType.right_shift_us, [source, Constant(instruction.offset, Integer.int32_t())])],
+                cast_type,
             )
         return UnaryOperation(OperationType.cast, [source], vartype=cast_type, contraction=True)
 
@@ -213,8 +213,14 @@ class AssignmentHandler(Handler):
         """Lift a MLIL_STORE_STRUCT_SSA instruction to pseudo (e.g. object->field = x)."""
         vartype = self._lifter.lift(instruction.dest.expr_type)
         struct_variable = self._lifter.lift(instruction.dest, is_aliased=True, parent=instruction)
+        member = vartype.type.get_member_by_offset(instruction.offset)
+        if member is not None:
+            name = member.name
+        else:
+            name = f"__offset_{instruction.offset}"
+            name.replace("-", "minus_")
         struct_member_access = MemberAccess(
-            member_name=vartype.type.members.get(instruction.offset),
+            member_name=name,
             offset=instruction.offset,
             operands=[struct_variable],
             vartype=vartype,

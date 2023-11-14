@@ -153,9 +153,14 @@ SIGNED_OPERATIONS = {
 COMMUTATIVE_OPERATIONS = {
     OperationType.plus,
     OperationType.multiply,
+    OperationType.multiply_us,
     OperationType.bitwise_and,
     OperationType.bitwise_xor,
     OperationType.bitwise_or,
+    OperationType.logical_or,
+    OperationType.logical_and,
+    OperationType.equal,
+    OperationType.not_equal,
 }
 
 NON_COMPOUNDABLE_OPERATIONS = {
@@ -164,6 +169,10 @@ NON_COMPOUNDABLE_OPERATIONS = {
     OperationType.left_rotate,
     OperationType.left_rotate_carry,
     OperationType.power,
+    OperationType.logical_or,
+    OperationType.logical_and,
+    OperationType.equal,
+    OperationType.not_equal,
 }
 
 
@@ -222,9 +231,10 @@ class Operation(Expression, ABC):
         return self._operation
 
     @property
-    def requirements(self) -> List[Variable]:
+    def requirements_iter(self) -> Iterator[Variable]:
         """Operation requires a list of all unique variables required by each of its operands"""
-        return self._collect_required_variables(self.operands)
+        for operand in self._operands:
+            yield from operand.requirements_iter
 
     def substitute(self, replacee: Expression, replacement: Expression) -> None:
         """Substitutes operand directly if possible, then recursively substitutes replacee in operands"""
@@ -346,9 +356,9 @@ class UnaryOperation(Operation):
         return self.operand.complexity
 
     @property
-    def requirements(self):
+    def requirements_iter(self) -> Iterator[Variable]:
         """Return the requirements of the single operand."""
-        return self.operand.requirements
+        return self.operand.requirements_iter
 
     @property
     def writes_memory(self) -> Optional[int]:
@@ -516,10 +526,9 @@ class Call(Operation):
         return self._meta_data
 
     @property
-    def requirements(self) -> List[Variable]:
-        if isinstance(self._function, Variable):
-            return self._collect_required_variables(self.operands + [self.function])
-        return super().requirements
+    def requirements_iter(self) -> Iterator[Variable]:
+        yield from self._function.requirements_iter
+        yield from super().requirements_iter
 
     @property
     def function(self) -> Union[FunctionSymbol, ImportedFunctionSymbol, IntrinsicSymbol, Variable]:

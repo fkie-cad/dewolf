@@ -1,8 +1,10 @@
 """Module defining the available pipelines."""
 
 from decompiler.pipeline.controlflowanalysis import (
-    ExpressionSimplification,
+    ExpressionSimplificationAst,
+    ExpressionSimplificationCfg,
     InstructionLengthHandler,
+    LoopNameGenerator,
     ReadabilityBasedRefinement,
     VariableNameGeneration,
 )
@@ -36,10 +38,10 @@ CFG_STAGES = [
     IdentityElimination,
     CommonSubexpressionElimination,
     ArrayAccessDetection,
-    ExpressionSimplification,
+    ExpressionSimplificationCfg,
     DeadComponentPruner,
     GraphExpressionFolding,
     EdgePruner,
 ]
 
-AST_STAGES = [ReadabilityBasedRefinement, ExpressionSimplification, InstructionLengthHandler, VariableNameGeneration]
+AST_STAGES = [ReadabilityBasedRefinement, ExpressionSimplificationAst, InstructionLengthHandler, VariableNameGeneration, LoopNameGenerator]
