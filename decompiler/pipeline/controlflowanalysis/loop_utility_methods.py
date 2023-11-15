@@ -258,9 +258,6 @@ def _get_continue_nodes_with_equalizable_definition(
             return None
 
         _unify_binary_operation(continuation.instruction.value)
-        if not isinstance(code_node.instructions[last_definition_index].value, Constant):
-            _unify_binary_operation(code_node.instructions[last_definition_index].value)
-
         equalizable_nodes.append(code_node)
     return equalizable_nodes
 
