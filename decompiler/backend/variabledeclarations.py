@@ -4,7 +4,16 @@ from typing import Iterable, Iterator, List
 
 from decompiler.backend.cexpressiongenerator import CExpressionGenerator
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
-from decompiler.structures.pseudo import DataflowObject, ExternConstant, ExternFunctionPointer, GlobalVariable, Operation, Pointer, Variable
+from decompiler.structures.pseudo import (
+    DataflowObject,
+    Expression,
+    ExternConstant,
+    ExternFunctionPointer,
+    GlobalVariable,
+    Operation,
+    Pointer,
+    Variable,
+)
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
@@ -64,7 +73,7 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
             match obj:
                 case GlobalVariable():
                     global_variables.add(obj)
-                    if isinstance(obj.initial_value, GlobalVariable):
+                    if isinstance(obj.initial_value, Expression):
                         handle_obj(obj.initial_value)
 
                 case ExternConstant():
