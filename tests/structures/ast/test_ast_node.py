@@ -1,16 +1,32 @@
+from collections import Counter
+
 import pytest
 from decompiler.structures.ast.ast_nodes import (
+    AbstractSyntaxTreeNode,
     CaseNode,
     CodeNode,
     ConditionNode,
     DoWhileLoopNode,
+    FalseNode,
     ForLoopNode,
     SeqNode,
     SwitchNode,
+    TrueNode,
+    VirtualRootNode,
     WhileLoopNode,
 )
 from decompiler.structures.logic.logic_condition import LogicCondition
-from decompiler.structures.pseudo import Assignment, BinaryOperation, Break, Condition, Constant, ListOperation, OperationType, Variable
+from decompiler.structures.pseudo import (
+    Assignment,
+    BinaryOperation,
+    Break,
+    Condition,
+    Constant,
+    DataflowObject,
+    ListOperation,
+    OperationType,
+    Variable,
+)
 
 
 class TestEquality:
@@ -274,3 +290,46 @@ class TestRequirementsAndDefinitions:
         node = CaseNode(Variable("x"), Constant(0), LogicCondition.initialize_true(context))
         assert list(node.get_required_variables()) == [Variable("x")]
         assert list(node.get_defined_variables()) == []
+
+
+@pytest.mark.parametrize(
+    ["node", "condition_map", "expected_objs"],
+    [
+        (VirtualRootNode(LogicCondition.initialize_true(_context := LogicCondition.generate_new_context())), {}, []),
+        (SeqNode(LogicCondition.initialize_true(_context)), {}, []),
+        (CodeNode([asm := Assignment(Variable("x"), Variable("y"))], LogicCondition.initialize_true(_context)), {}, [asm]),
+        (
+            ConditionNode(lc := LogicCondition.initialize_symbol("c", _context), LogicCondition.initialize_true(_context)),
+            {lc: (c := Condition(OperationType.equal, [Constant(0), Constant(0)]))},
+            [c],
+        ),
+        (TrueNode(LogicCondition.initialize_true(_context)), {}, []),
+        (FalseNode(LogicCondition.initialize_true(_context)), {}, []),
+        (CaseNode(Variable("a"), Constant(0), LogicCondition.initialize_true(_context)), {}, []),
+        (
+            WhileLoopNode(lc := LogicCondition.initialize_symbol("c", _context), LogicCondition.initialize_true(_context)),
+            {lc: (c := Condition(OperationType.equal, [Constant(0), Constant(0)]))},
+            [c],
+        ),
+        (
+            DoWhileLoopNode(lc := LogicCondition.initialize_symbol("c", _context), LogicCondition.initialize_true(_context)),
+            {lc: (c := Condition(OperationType.equal, [Constant(0), Constant(0)]))},
+            [c],
+        ),
+        (
+            ForLoopNode(
+                dec := Assignment(v := Variable("i"), Constant(0)),
+                lc := LogicCondition.initialize_symbol("c", _context),
+                mod := Assignment(v, BinaryOperation(OperationType.plus, [v, Constant(1)])),
+                LogicCondition.initialize_true(_context),
+            ),
+            {lc: (c := Condition(OperationType.less, [v, Constant(10)]))},
+            [dec, mod, c],
+        ),
+        (SwitchNode(v := Variable("a"), LogicCondition.initialize_true(_context)), {}, [v]),
+    ],
+)
+def test_get_dataflow_objects(
+    node: AbstractSyntaxTreeNode, condition_map: dict[LogicCondition, Condition], expected_objs: list[DataflowObject]
+):
+    assert Counter(node.get_dataflow_objets(condition_map)) == Counter(expected_objs)
