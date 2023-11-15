@@ -358,7 +358,9 @@ class TestCodeGeneration:
         ast._code_node_reachability_graph.add_reachability(child_1, body)
 
         assert self._regex_matches(
-            r"^%void +test_function\(%int +a%,%int +b%\)%{%int%c;%int%x;%c%=%5%;%do%{%c%=%c%\+%5%;%}%while%\(%x%==%5%\);%}%$".replace("%", "\\s*"),
+            r"^%void +test_function\(%int +a%,%int +b%\)%{%int%c;%int%x;%c%=%5%;%do%{%c%=%c%\+%5%;%}%while%\(%x%==%5%\);%}%$".replace(
+                "%", "\\s*"
+            ),
             self._task(ast, params=[var_a.copy(), var_b.copy()], return_type=void),
         )
 
@@ -408,7 +410,8 @@ class TestCodeGeneration:
         ast._code_node_reachability_graph.add_reachability(child_1, nested_loop_body)
 
         regex = (
-            r"^%void +test_function\(%int +a%,%int +b%\)%{%int%c;%int%x;%c%=%5%;%" r"while%\(%true%\)%{%while%\(%x%!=%5%\)%{%c%=%c%\+%5%;%}%}%}%$"
+            r"^%void +test_function\(%int +a%,%int +b%\)%{%int%c;%int%x;%c%=%5%;%"
+            r"while%\(%true%\)%{%while%\(%x%!=%5%\)%{%c%=%c%\+%5%;%}%}%}%$"
         )
         assert self._regex_matches(regex.replace("%", r"\s*"), self._task(ast, params=[var_a.copy(), var_b.copy()], return_type=void))
 
@@ -1182,7 +1185,7 @@ class TestGlobalVisitor:
                 [Assignment(var_a, op)],
                 LogicCondition.initialize_true(LogicCondition.generate_new_context()),
             ),
-            {}
+            {},
         )
 
         assert len(GlobalDeclarationGenerator.from_asts([ast])) != 0
@@ -1200,7 +1203,7 @@ class TestGlobalVisitor:
                 [Assignment(var_a, var4)],
                 LogicCondition.initialize_true(LogicCondition.generate_new_context()),
             ),
-            {}
+            {},
         )
 
         global_variables, _ = GlobalDeclarationGenerator._get_global_variables_and_constants([ast])
