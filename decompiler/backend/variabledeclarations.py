@@ -69,12 +69,14 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
         global_variables = InsertionOrderedSet()
         extern_constants = InsertionOrderedSet()
 
+        # if this gets more complex, a visitor pattern should perhaps be used instead
         def handle_obj(obj: DataflowObject):
             match obj:
                 case GlobalVariable():
                     global_variables.add(obj)
                     if isinstance(obj.initial_value, Expression):
-                        handle_obj(obj.initial_value)
+                        for subexpression in obj.initial_value.subexpressions():
+                            handle_obj(subexpression)
 
                 case ExternConstant():
                     extern_constants.add(obj)
