@@ -852,7 +852,7 @@ class TestReadabilityUtils:
 
     def test_for_loop_recovery_if_continue_in_while_1(self):
         """
-        Test for loop recovery if a continue occurs in a while loop and the last definition is a simple binary operation
+        Test for loop recovery if a continue occurs in a while loop and the last definition is a simple binary operation.
 
         a = 0
         while(a < 10) {
@@ -911,7 +911,7 @@ class TestReadabilityUtils:
 
     def test_for_loop_recovery_if_continue_in_while_2(self):
         """
-        Test for loop recovery if a continue occurs in a while loop and the last definition is a contant assignment
+        Test for loop recovery if a continue occurs in a while loop and the last definition is a constant.
 
         a = 0
         while(a < 10) {
@@ -1167,6 +1167,8 @@ class TestReadabilityUtils:
 
     def test_for_loop_recovery_if_continue_in_nested_while(self):
         """
+        Test for loop recovery if a continue occurs in a nested while loop and the last definition is a simple binary operation.
+
         while(a < 5) {
             a = a + b
             while(b < 10) {
@@ -1240,7 +1242,7 @@ class TestReadabilityUtils:
 
     def test_skip_for_loop_recovery_if_continue_in_while_1(self):
         """
-        Test skip of for loop recovery if a continue occurs in a while loop, because the continuation instruction is no simple binary operation
+        Test skip of for loop recovery if a continue occurs in a while loop, because the continuation instruction is no simple binary operation.
 
         a = 0
         while(a < 10) {
@@ -1290,7 +1292,7 @@ class TestReadabilityUtils:
 
     def test_skip_for_loop_recovery_if_continue_in_while_2(self):
         """
-        Test skip of for loop recovery if a continue occurs in a while loop, because the last definition is no simple binary operation
+        Test skip of for loop recovery if a continue occurs in a while loop, because the last definition is no simple binary operation.
 
         a = 0
         while(a < 10) {
@@ -1340,7 +1342,7 @@ class TestReadabilityUtils:
 
     def test_skip_for_loop_recovery_if_continue_in_while_3(self):
         """
-        Test skip of for loop recovery if a continue occurs in a while loop, because no last definition exists
+        Test skip of for loop recovery if a continue occurs in a while loop, because no last definition exists.
 
         a = 0
         while(a < 10) {
@@ -1387,8 +1389,8 @@ class TestReadabilityUtils:
 
     def test_skip_for_loop_recovery_if_continue_in_while_4(self):
         """
-        Test skip of for loop recovery if a continue occurs in a while loop, the continuation-statement and the last definition
-        uses different variables.
+        Test skip of for loop recovery if a continue occurs in a while loop and the continuation-statement and the last definition
+        use different variables.
 
         a = 0
         while(a < 10){
