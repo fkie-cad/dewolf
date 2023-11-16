@@ -26,6 +26,9 @@ from decompiler.structures.pseudo import (
     Variable,
 )
 from decompiler.structures.visitors.assignment_visitor import AssignmentVisitor
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.sub_to_add import SubToAdd
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.term_order import TermOrder
+from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.rule import SimplificationRule
 
 
 @dataclass
@@ -257,7 +260,7 @@ def _get_continue_nodes_with_equalizable_definition(
         ):
             return None
 
-        _unify_binary_operation(continuation.instruction.value)
+        _unify_binary_operation_in_assignment(continuation.instruction)
         equalizable_nodes.append(code_node)
     return equalizable_nodes
 
@@ -289,14 +292,14 @@ def _count_unaryoperations_negations(expression: Expression) -> int:
     return negations
 
 
-def _unify_binary_operation(binaryoperation: BinaryOperation):
-    """Brings a simple binary operation into a unified representation like 'var + const'."""
-    if not binaryoperation.operation == OperationType.plus:
-        binaryoperation.operation = OperationType.plus
-        binaryoperation.substitute(binaryoperation.right, UnaryOperation(OperationType.negate, [binaryoperation.right]))
+def _unify_binary_operation_in_assignment(assignment: Assignment):
+    """Brings a simple binary operation of an assignment into a unified representation like 'var = -var + const' instead of 'var = const - var'."""
+    if not assignment.value.operation == OperationType.plus:
+        assignment.substitute(assignment.value, BinaryOperation(OperationType.plus, [assignment.value.left, assignment.value.right]))
+        assignment.substitute(assignment.value.right, UnaryOperation(OperationType.negate, [assignment.value.right]))
 
-    if any(isinstance(operand, Constant) for operand in binaryoperation.left.subexpressions()):
-        binaryoperation.swap_operands()
+    if any(isinstance(operand, Constant) for operand in assignment.value.left.subexpressions()):
+        assignment.substitute(assignment.value, BinaryOperation(OperationType.plus, [assignment.value.right, assignment.value.left]))
 
 
 def _substract_continuation_from_last_definition(code_node: CodeNode, continuation: AstInstruction, variable_init: AstInstruction):
