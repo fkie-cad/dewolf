@@ -312,5 +312,5 @@ def _substract_continuation_from_last_definition(code_node: CodeNode, continuati
     last_definition.substitute(
         last_definition.value, BinaryOperation(OperationType.minus, [last_definition.value, continuation.instruction.value.right])
     )
-    if _count_unaryoperations_negations(continuation.instruction.value.left) % 2 != 0:
+    if _count_unaryoperations_negations(continuation.instruction.value.left) % 2:
         last_definition.substitute(last_definition.value, UnaryOperation(OperationType.negate, [last_definition.value]))
