@@ -70,6 +70,14 @@ class _BaseStruct(ComplexType):
     def get_member_by_offset(self, offset: int) -> Optional[ComplexTypeMember]:
         return self.members.get(offset)
 
+    def get_member_name_by_offset(self, offset: int) -> str:
+        member = self.get_member_by_offset(offset)
+        if member is not None:
+            return member.name
+        else:
+            logging.warning(f"Cannot get member name for type {self} at offset {offset}")
+            return f"field_{hex(offset)}".replace("-", "minus_")
+    
     def declaration(self) -> str:
         members = ";\n\t".join(self.members[k].declaration() for k in sorted(self.members.keys())) + ";"
         return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}}"
@@ -103,6 +111,13 @@ class Union(ComplexType):
             if member.type == _type:
                 return member
 
+    def get_member_name_by_type(self, _type: Type) -> str:
+        member = self.get_member_by_type(_type)
+        if member is not None:
+            return member.name
+        else:
+            logging.warning(f"Cannot get member name for union {self}")
+            return "unknown_field"
 
 @dataclass(frozen=True, order=True)
 class Enum(ComplexType):

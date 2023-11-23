@@ -73,7 +73,7 @@ class AssignmentHandler(Handler):
             struct_variable = self._lifter.lift(assignment.dest, is_aliased=True, parent=assignment)
             destination = MemberAccess(
                 offset=assignment.offset,
-                member_name=struct_variable.type.get_member_by_offset(assignment.offset).name,
+                member_name=struct_variable.type.get_member_name_by_offset(assignment.offset),
                 operands=[struct_variable],
                 writes_memory=assignment.ssa_memory_version,
             )
@@ -113,10 +113,10 @@ class AssignmentHandler(Handler):
     def _get_field_as_member_access(self, instruction: mediumlevelil.MediumLevelILVarField, source: Expression, **kwargs) -> MemberAccess:
         """Lift MLIL var_field as struct or union member read access."""
         if isinstance(source.type, Struct):
-            member_name = source.type.get_member_by_offset(instruction.offset).name
+            member_name = source.type.get_member_name_by_offset(instruction.offset)
         elif parent := kwargs.get("parent", None):
             parent_type = self._lifter.lift(parent.dest.type)
-            member_name = source.type.get_member_by_type(parent_type).name
+            member_name = source.type.get_member_name_by_type(parent_type)
         else:
             logging.warning(f"Cannot get member name for instruction {instruction}")
             member_name = f"field_{hex(instruction.offset)}"
@@ -213,14 +213,8 @@ class AssignmentHandler(Handler):
         """Lift a MLIL_STORE_STRUCT_SSA instruction to pseudo (e.g. object->field = x)."""
         vartype = self._lifter.lift(instruction.dest.expr_type)
         struct_variable = self._lifter.lift(instruction.dest, is_aliased=True, parent=instruction)
-        member = vartype.type.get_member_by_offset(instruction.offset)
-        if member is not None:
-            name = member.name
-        else:
-            name = f"__offset_{instruction.offset}"
-            name.replace("-", "minus_")
         struct_member_access = MemberAccess(
-            member_name=name,
+            member_name=vartype.type.get_member_name_by_offset(instruction.offset),
             offset=instruction.offset,
             operands=[struct_variable],
             vartype=vartype,
