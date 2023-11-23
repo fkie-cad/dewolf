@@ -15,7 +15,7 @@ def temp_sqlite_db(tmp_path):
 @pytest.fixture
 def test_sample():
     """Fixture for providing a test sample."""
-    return Path("tests/samples/others/bugfinder.test")
+    return Path("tests/samples/others/hello-world")
 
 
 def verify_database_contents(db_file):
