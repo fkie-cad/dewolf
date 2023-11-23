@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Dict, Iterator, List, Optional, Sequence, Tupl
 
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 
-from .expressions import Constant, Expression, FunctionSymbol, ImportedFunctionSymbol, IntrinsicSymbol, Symbol, Tag, Variable
+from .expressions import Constant, Expression, IntrinsicSymbol, Symbol, Tag, Variable
 from .typing import CustomType, Pointer, Type, UnknownType
 
 T = TypeVar("T")
@@ -470,7 +470,7 @@ class Call(Operation):
 
     def __init__(
         self,
-        function: Union[FunctionSymbol, ImportedFunctionSymbol, IntrinsicSymbol, Variable],
+        function: Expression,
         parameter: List[Expression],
         vartype: Type = UnknownType(),
         writes_memory: Optional[int] = None,
@@ -522,7 +522,7 @@ class Call(Operation):
         yield from super().requirements_iter
 
     @property
-    def function(self) -> Union[FunctionSymbol, ImportedFunctionSymbol, IntrinsicSymbol, Variable]:
+    def function(self) -> Expression:
         """Return the name of the function called."""
         return self._function
 
