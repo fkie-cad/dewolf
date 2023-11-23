@@ -99,7 +99,7 @@ class AssignmentHandler(Handler):
         (x = ) <- for the sake of example, only rhs expression is lifted here.
         """
         source = self._lifter.lift(instruction.src, is_aliased=is_aliased, parent=instruction)
-        if isinstance(source.type, Struct) or isinstance(source.type, Union):
+        if isinstance(source.type, Struct) or isinstance(source.type, Class) or isinstance(source.type, Union):
             return self._get_field_as_member_access(instruction, source, **kwargs)
         cast_type = source.type.resize(instruction.size * self.BYTE_SIZE)
         if instruction.offset:
@@ -112,7 +112,7 @@ class AssignmentHandler(Handler):
 
     def _get_field_as_member_access(self, instruction: mediumlevelil.MediumLevelILVarField, source: Expression, **kwargs) -> MemberAccess:
         """Lift MLIL var_field as struct or union member read access."""
-        if isinstance(source.type, Struct):
+        if isinstance(source.type, Struct) or isinstance(source.type, Class):
             member_name = source.type.get_member_name_by_offset(instruction.offset)
         elif parent := kwargs.get("parent", None):
             parent_type = self._lifter.lift(parent.dest.type)
