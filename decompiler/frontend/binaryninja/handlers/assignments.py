@@ -68,7 +68,8 @@ class AssignmentHandler(Handler):
         # case 1 (struct), avoid set field of named integers:
         dest_type = self._lifter.lift(assignment.dest.type)
         if isinstance(assignment.dest.type, binaryninja.NamedTypeReferenceType) and (
-            isinstance(dest_type, Struct) or isinstance(dest_type, Class)
+            isinstance(dest_type, Struct)
+            or isinstance(dest_type, Class)
         ):  # otherwise get_member_by_offset not available
             struct_variable = self._lifter.lift(assignment.dest, is_aliased=True, parent=assignment)
             destination = MemberAccess(
