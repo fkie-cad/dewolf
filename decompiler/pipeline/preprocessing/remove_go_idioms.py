@@ -9,7 +9,7 @@ from decompiler.structures.graphs.branches import ConditionalEdge, FalseCase, Tr
 from decompiler.structures.pseudo.expressions import Constant, Expression, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Comment, Phi
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, OperationType, UnaryOperation
-from decompiler.structures.pseudo.typing import CustomType, Integer
+from decompiler.structures.pseudo.typing import Integer
 from decompiler.task import DecompilerTask
 
 
