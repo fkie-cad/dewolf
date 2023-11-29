@@ -13,8 +13,8 @@ from decompiler.pipeline.preprocessing import (
     MemPhiConverter,
     PhiFunctionFixer,
     RegisterPairHandling,
-    RemoveStackCanary,
     RemoveGoIdioms,
+    RemoveStackCanary,
     SwitchVariableDetection,
 )
 from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
