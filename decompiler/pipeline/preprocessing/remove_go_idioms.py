@@ -306,7 +306,11 @@ class RemoveGoIdioms(PipelineStage):
         if unconditional_in_edges:
             self._dont_crash = True
 
+        ## add comment
         function = self._morestack_instruction.value.function
+        comment = Comment(f"Removed Go function prologue (calling function '{function}').")
+        root.add_instruction_where_possible(comment)
+
         print("removed go prologue for function", function, flush=True)
         with get_shelve() as shelve:
             shelve[self._function_name] = str(function)
