@@ -100,6 +100,7 @@ class ExpressionPropagationFunctionCall(ExpressionPropagationBase):
         return (
             self._is_call_assignment(definition)
             and self._is_call_value_used_exactly_once(definition)
+            and not (
                 self._is_phi(definition)
                 or self._defines_unknown_expression(definition)
                 or self._contains_aliased_variables(definition)
