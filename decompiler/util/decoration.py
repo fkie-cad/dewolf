@@ -90,11 +90,7 @@ class DecoratedGraph:
         type -- a string describing the output type (commonly pdf, png)
         """
         with Popen(
-            ["dot", f"-T{type}", f"-o{path}"],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+            ["dot", f"-T{type}", f"-o{path}"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         ) as proc:
             dot_source: str = ToDotConverter.write(self.graph)
             stdout, stderr = proc.communicate(input=dot_source)
