@@ -21,7 +21,7 @@ class RemoveStackCanary(PipelineStage):
         if task.options.getboolean(f"{self.name}.remove_canary", fallback=False) and task.name != self.STACK_FAIL_STR:
             self._cfg = task.graph
             if len(self._cfg) == 1:
-                return # do not remove the only node
+                return  # do not remove the only node
             for fail_node in list(self._contains_stack_check_fail()):
                 self._patch_canary(fail_node)
 

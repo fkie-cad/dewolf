@@ -73,10 +73,7 @@ class LocalDeclarationGenerator(BaseAstDataflowObjectVisitor):
                 variable_type_mapping[variable.type].append(variable)
         for variable_type, variables in sorted(variable_type_mapping.items(), key=lambda x: str(x)):
             for chunked_variables in self._chunks(variables, self._vars_per_line):
-                yield CExpressionGenerator.format_variables_declaration(
-                    variable_type,
-                    [var.name for var in chunked_variables]
-                ) + ";"
+                yield CExpressionGenerator.format_variables_declaration(variable_type, [var.name for var in chunked_variables]) + ";"
 
     @staticmethod
     def _chunks(lst: List, n: int) -> Iterator[List]:
@@ -134,7 +131,7 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
             return str(variable.initial_value.value)
         if isinstance(variable.initial_value, bytes):
             return str(convert_bytes(variable.initial_value, variable.type))
-        if isinstance(operation:=variable.initial_value, Operation):
+        if isinstance(operation := variable.initial_value, Operation):
             for requirement in operation.requirements:
                 if isinstance(requirement, GlobalVariable):
                     requirement.unsubscript()

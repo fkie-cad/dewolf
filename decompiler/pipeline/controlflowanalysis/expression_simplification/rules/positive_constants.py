@@ -1,6 +1,6 @@
-from decompiler.pipeline.controlflowanalysis.expression_simplification.constant_folding import normalize_int
 from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.rule import SimplificationRule
 from decompiler.structures.pseudo import BinaryOperation, Constant, Expression, Integer, Operation, OperationType
+from decompiler.util.integer_util import normalize_int
 
 
 class PositiveConstants(SimplificationRule):
@@ -30,14 +30,13 @@ class PositiveConstants(SimplificationRule):
         if signed_normalized_constant >= 0:
             return []
 
-        neg_constant = Constant(
-            normalize_int(-signed_normalized_constant, constant_type.size, constant_type.signed),
-            constant_type
-        )
-        return [(
-            operation,
-            BinaryOperation(
-                OperationType.plus if operation.operation == OperationType.minus else OperationType.minus,
-                [operation.left, neg_constant]
+        neg_constant = Constant(normalize_int(-signed_normalized_constant, constant_type.size, constant_type.signed), constant_type)
+        return [
+            (
+                operation,
+                BinaryOperation(
+                    OperationType.plus if operation.operation == OperationType.minus else OperationType.minus,
+                    [operation.left, neg_constant],
+                ),
             )
-        )]
+        ]

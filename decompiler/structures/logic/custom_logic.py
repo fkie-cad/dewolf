@@ -307,7 +307,9 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         return self
 
     @classmethod
-    def get_logic_condition(cls, real_condition: PseudoCustomLogicCondition, condition_handler: ConditionHandler) -> Optional[CustomLogicCondition]:
+    def get_logic_condition(
+        cls, real_condition: PseudoCustomLogicCondition, condition_handler: ConditionHandler
+    ) -> Optional[CustomLogicCondition]:
         """Generate a symbol condition given the real-condition together with the condition handler."""
         context = real_condition.context
         non_logic_operands = {
@@ -318,7 +320,7 @@ class CustomLogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         replacement_dict = dict()
         expression_of_variables: Dict[Variable, pseudo.Expression] = dict()
         for symbol in condition_handler:
-            replacement_dict[condition_handler.get_z3_condition_of(symbol)._condition] =symbol._condition
+            replacement_dict[condition_handler.get_z3_condition_of(symbol)._condition] = symbol._condition
             for operand in [op for op in condition_handler.get_condition_of(symbol) if not isinstance(op, pseudo.Constant)]:
                 expression_of_variables[context.variable(real_condition._variable_name_for(operand))] = operand
 

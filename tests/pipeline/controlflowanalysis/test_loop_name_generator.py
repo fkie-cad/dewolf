@@ -25,8 +25,10 @@ from decompiler.util.options import Options
 
 # Test For/WhileLoop Renamer
 
+
 def logic_cond(name: str, context) -> LogicCondition:
     return LogicCondition.initialize_symbol(name, context)
+
 
 @pytest.fixture
 def ast_call_for_loop() -> AbstractSyntaxTree:
@@ -46,7 +48,11 @@ def ast_call_for_loop() -> AbstractSyntaxTree:
             Assignment(Variable("a"), Constant(5)),
         ]
     )
-    loop_node = ast.factory.create_for_loop_node(Assignment(ListOperation([Variable("b")]), Call(ImportedFunctionSymbol("foo", 0), [])), logic_cond("x1", context), Assignment(Variable("b"), BinaryOperation(OperationType.plus, [Variable("b"), Constant(1)])))
+    loop_node = ast.factory.create_for_loop_node(
+        Assignment(ListOperation([Variable("b")]), Call(ImportedFunctionSymbol("foo", 0), [])),
+        logic_cond("x1", context),
+        Assignment(Variable("b"), BinaryOperation(OperationType.plus, [Variable("b"), Constant(1)])),
+    )
     loop_node_body = ast._add_code_node(
         [
             Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Variable("1")])),
@@ -65,12 +71,12 @@ def test_declaration_listop(ast_call_for_loop):
     for node in ast_call_for_loop:
         if isinstance(node, ForLoopNode):
             assert node.declaration.destination.operands[0].name == "i"
-    
+
 
 def test_for_loop_variable_generation():
     renamer = ForLoopVariableRenamer(
         AbstractSyntaxTree(SeqNode(LogicCondition.initialize_true(LogicCondition.generate_new_context())), {}),
-        ["i", "j", "k", "l", "m", "n"]
+        ["i", "j", "k", "l", "m", "n"],
     )
     assert [renamer._get_variable_name() for _ in range(14)] == [
         "i",
@@ -96,11 +102,20 @@ def test_while_loop_variable_generation():
     )
     assert [renamer._get_variable_name() for _ in range(5)] == ["counter", "counter1", "counter2", "counter3", "counter4"]
 
+
 # Test Readabilitybasedrefinement + LoopNameGenerator together
 
 
-def _generate_options(empty_loops: bool = False, hide_decl: bool = False, rename_for: bool = True, rename_while: bool = True, \
-    max_condition: int = 100, max_modification: int = 100, force_for_loops: bool = False, blacklist : List[str] = []) -> Options:
+def _generate_options(
+    empty_loops: bool = False,
+    hide_decl: bool = False,
+    rename_for: bool = True,
+    rename_while: bool = True,
+    max_condition: int = 100,
+    max_modification: int = 100,
+    force_for_loops: bool = False,
+    blacklist: List[str] = [],
+) -> Options:
     options = Options()
     options.set("readability-based-refinement.keep_empty_for_loops", empty_loops)
     options.set("readability-based-refinement.hide_non_initializing_declaration", hide_decl)
@@ -956,7 +971,6 @@ class TestReadabilityBasedRefinementAndLoopNameGenerator:
         task = DecompilerTask("func", cfg=None, ast=ast, options=options)
         ReadabilityBasedRefinement().run(task)
         LoopNameGenerator().run(task)
-
 
     def test_no_replacement(self, ast_while_true):
         self.run_rbr(ast_while_true)

@@ -150,6 +150,16 @@
                 "argument_name": "--return-complexity-threshold"
             },
             {
+                "dest": "readability-based-refinement.restructure_for_loops",
+                "default": true,
+                "type": "boolean",
+                "title": "Enable for-loop recovery",
+                "description": "If enabled, certain while-loops will be transformed to for-loops. If set to false, no for-loops will be emitted at all.",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--restructure-for-loops"
+            },
+            {
                 "dest": "readability-based-refinement.keep_empty_for_loops",
                 "default": false,
                 "type": "boolean",

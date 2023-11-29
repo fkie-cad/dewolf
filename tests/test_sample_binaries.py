@@ -7,7 +7,7 @@ import pytest
 def test_sample(test_cases):
     """Test the decompiler with the given test case."""
     sample, function_name = test_cases
-    output = subprocess.run(("python", "decompile.py", sample, function_name), check=True, capture_output=True).stdout.decode('utf-8')
+    output = subprocess.run(("python", "decompile.py", sample, function_name), check=True, capture_output=True).stdout.decode("utf-8")
     assert "Failed to decompile due to error during " not in output
 
 
@@ -87,7 +87,7 @@ def test_global_ptr():
     # Assert global pointer correct
     assert output.count("c = 0x0") == 1
     assert output.count("d = 0x0") == 1
-    # Assert call correct 
+    # Assert call correct
     len(re.findall("var_[0-9]+= d", output)) == 1
     len(re.findall("var_[0-9]+= c", output)) == 1
     len(re.findall("_add(var_[0-9]+, var_[0-9]+)", output)) == 1
@@ -162,7 +162,7 @@ def test_global_indirect_ptr2():
     output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
 
     # Assert global variables correct
-    assert output.count("p = 0xffffffbe") == 2 # should be one, still one lifter issue
+    assert output.count("p = 0xffffffbe") == 2  # should be one, still one lifter issue
     assert output.count("o = &(p)") == 1
     assert output.count("n = &(o)") == 1
     assert output.count("m = &(n)") == 1
@@ -215,13 +215,13 @@ def test_global_import_address_symbol():
     assert output.count("g_38 = 0x7cb0be9") == 1
 
     # test types and initial values (dec or hex) are correct in declarations
-    assert re.search(r'unsigned short\s*g_22\s*=\s*54249', output) or re.search(r'unsigned short\s*g_22\s*=\s*0xd3e9', output)
-    assert re.search(r'unsigned char\s*g_26\s*=\s*157', output) or re.search(r'unsigned char\s*g_26\s*=\s*0x9d', output)
-    assert re.search(r'unsigned int\s*g_29\s*=\s*65537', output) or re.search(r'unsigned int\s*g_29\s*=\s*0x10001', output)
-    assert re.search(r'unsigned char\s*g_30\s*=\s*236', output) or re.search(r'unsigned char\s*g_30\s*=\s*0xec', output)
-    assert re.search(r'unsigned int\s*g_32\s*=\s*1578356047', output) or re.search(r'unsigned int\s*g_32\s*=\s*0x5e13cd4f', output)
-    assert re.search(r'unsigned char\s*g_35\s*=\s*255', output) or re.search(r'unsigned char\s*g_35\s*=\s*0xff', output)
-    assert re.search(r'unsigned int\s*g_38\s*=\s*130747369', output) or re.search(r'unsigned int\s*g_38\s*=\s*0x7cb0be9', output)
+    assert re.search(r"unsigned short\s*g_22\s*=\s*54249", output) or re.search(r"unsigned short\s*g_22\s*=\s*0xd3e9", output)
+    assert re.search(r"unsigned char\s*g_26\s*=\s*157", output) or re.search(r"unsigned char\s*g_26\s*=\s*0x9d", output)
+    assert re.search(r"unsigned int\s*g_29\s*=\s*65537", output) or re.search(r"unsigned int\s*g_29\s*=\s*0x10001", output)
+    assert re.search(r"unsigned char\s*g_30\s*=\s*236", output) or re.search(r"unsigned char\s*g_30\s*=\s*0xec", output)
+    assert re.search(r"unsigned int\s*g_32\s*=\s*1578356047", output) or re.search(r"unsigned int\s*g_32\s*=\s*0x5e13cd4f", output)
+    assert re.search(r"unsigned char\s*g_35\s*=\s*255", output) or re.search(r"unsigned char\s*g_35\s*=\s*0xff", output)
+    assert re.search(r"unsigned int\s*g_38\s*=\s*130747369", output) or re.search(r"unsigned int\s*g_38\s*=\s*0x7cb0be9", output)
 
 
 def test_string_with_pointer_compare():
@@ -230,7 +230,7 @@ def test_string_with_pointer_compare():
     args1 = base_args + ["global_string_compare"]
     output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
 
-    assert output.count("Hello Decompiler") == 1 # it's enough to test if the output has the string. Would crash if not possible in if
+    assert output.count("Hello Decompiler") == 1  # it's enough to test if the output has the string. Would crash if not possible in if
 
 
 def test_w_char():
@@ -249,7 +249,7 @@ def test_string_length():
     args1 = base_args + ["global_string_length"]
     output = str(subprocess.run(args1, check=True, capture_output=True).stdout)
 
-    assert output.count('...') == 2
+    assert output.count("...") == 2
 
 
 def test_tailcall_display():
@@ -282,4 +282,4 @@ def test_iat_entries_are_decompiled_correctly():
     args = ["python", "decompile.py", "tests/samples/others/test.exe", "0x401865"]
     subprocess.run(args, check=True)
     output = str(subprocess.run(args, check=True, capture_output=True).stdout)
-    assert re.search(r'=\s*GetModuleHandleW\((0x0|/\* lpModuleName \*/ 0x0\))', output)
+    assert re.search(r"=\s*GetModuleHandleW\((0x0|/\* lpModuleName \*/ 0x0\))", output)

@@ -26,13 +26,13 @@ class ExpressionPropagation(ExpressionPropagationBase):
         :return: true if propagation is allowed false otherwise
         """
         return isinstance(definition, Assignment) and not (
-                self._is_phi(definition)
-                or self._is_call_assignment(definition)
-                or self._defines_unknown_expression(definition)
-                or self._contains_aliased_variables(definition)
-                or self._is_address_assignment(definition)
-                or self._contains_global_variable(definition)
-                or self._operation_is_propagated_in_phi(target, definition)
-                or self._is_invalid_propagation_into_address_operation(target, definition)
-                or self._is_dereference_assignment(definition)
+            self._is_phi(definition)
+            or self._is_call_assignment(definition)
+            or self._defines_unknown_expression(definition)
+            or self._contains_aliased_variables(definition)
+            or self._is_address_assignment(definition)
+            or self._contains_global_variable(definition)
+            or self._operation_is_propagated_in_phi(target, definition)
+            or self._is_invalid_propagation_into_address_operation(target, definition)
+            or self._is_dereference_assignment(definition)
         )

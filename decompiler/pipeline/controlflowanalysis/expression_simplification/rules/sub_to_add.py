@@ -17,11 +17,4 @@ class SubToAdd(SimplificationRule):
 
         neg_op = UnaryOperation(OperationType.negate, [operation.right])
 
-        return [(
-            operation,
-            BinaryOperation(
-                OperationType.plus,
-                [operation.left, neg_op],
-                operation.type
-            )
-        )]
+        return [(operation, BinaryOperation(OperationType.plus, [operation.left, neg_op], operation.type))]

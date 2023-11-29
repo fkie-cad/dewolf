@@ -1,3 +1,5 @@
+from typing import Optional
+
 from decompiler.pipeline.controlflowanalysis.expression_simplification.rules.rule import SimplificationRule
 from decompiler.structures.pseudo import BinaryOperation, Expression, Operation, OperationType, UnaryOperation
 
@@ -8,23 +10,26 @@ class CollapseAddNeg(SimplificationRule):
 
     - `e0 + -(e1) -> e0 - e1`
     - `e0 - -(e1) -> e0 + e1`
+    - `-(e0) + e1 -> e1 - e0`
+    - `-(e0) - e1 -> -(e0 + e1)`
     """
 
     def apply(self, operation: Operation) -> list[tuple[Expression, Expression]]:
-        if operation.operation not in [OperationType.plus, OperationType.minus]:
-            return []
-        if not isinstance(operation, BinaryOperation):
-            raise TypeError(f"Expected BinaryOperation, got {type(operation)}")
+        replacement: Optional[Expression] = None
+        match operation:
+            case BinaryOperation(operation=OperationType.plus, left=e0, right=UnaryOperation(operation=OperationType.negate, operand=e1)):
+                replacement = BinaryOperation(OperationType.minus, [e0, e1], operation.type)
 
-        right = operation.right
-        if not isinstance(right, UnaryOperation) or right.operation != OperationType.negate:
+            case BinaryOperation(operation=OperationType.minus, left=e0, right=UnaryOperation(operation=OperationType.negate, operand=e1)):
+                replacement = BinaryOperation(OperationType.plus, [e0, e1], operation.type)
+
+            case BinaryOperation(operation=OperationType.plus, left=UnaryOperation(operation=OperationType.negate, operand=e0), right=e1):
+                replacement = BinaryOperation(OperationType.minus, [e1, e0], operation.type)
+
+            case BinaryOperation(operation=OperationType.minus, left=UnaryOperation(operation=OperationType.negate, operand=e0), right=e1):
+                replacement = UnaryOperation(OperationType.negate, [BinaryOperation(OperationType.plus, [e0, e1], operation.type)])
+
+        if replacement is None:
             return []
 
-        return [(
-            operation,
-            BinaryOperation(
-                OperationType.minus if operation.operation == OperationType.plus else OperationType.plus,
-                [operation.left, right.operand],
-                operation.type
-            )
-        )]
+        return [(operation, replacement)]
