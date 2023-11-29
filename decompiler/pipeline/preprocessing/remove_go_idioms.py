@@ -1,23 +1,27 @@
 """Module for removing go idioms"""
+import os
+import shelve
 from typing import Callable, Optional, Tuple
+
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.graphs.branches import ConditionalEdge, FalseCase, TrueCase, UnconditionalEdge
 from decompiler.structures.pseudo.expressions import Constant, Expression, Variable
-from decompiler.structures.pseudo.instructions import Assignment, Branch, Phi, Return
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Comment, Phi
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import CustomType, Integer
 from decompiler.task import DecompilerTask
 
 
-import shelve
-
 def get_shelve():
-    return shelve.open("go_prologue_results.shelve")
+    path = os.environ.get("go_shelve_path", "go_prologue_results.shelve")
+    return shelve.open(path)
     # return shelve.open("trash.shelve")
+
 
 with get_shelve() as storage:
     storage.clear()
+
 
 class RemoveGoIdioms(PipelineStage):
     """
@@ -33,7 +37,6 @@ class RemoveGoIdioms(PipelineStage):
     #             print(instruction)
 
     def run(self, task: DecompilerTask):
-
         # from decompiler.util.decoration import DecoratedCFG
         # DecoratedCFG.from_cfg(task.graph).show_plot()
 
@@ -50,8 +53,8 @@ class RemoveGoIdioms(PipelineStage):
                 print("Did not remove go prologue", flush=True)
             # if not self._dont_crash:
             #     raise ValueError("Crash on purpose")
-            raise ValueError("Crash on purpose")
-
+            if os.environ.get("go_eval_only"):
+                raise ValueError("Crash on purpose")
 
     def _is_root_single_indirect_successor(self, node: BasicBlock):
         successors = self._cfg.get_successors(node)
@@ -68,7 +71,6 @@ class RemoveGoIdioms(PipelineStage):
 
         return False
 
-
     def _find_morestack_node(self, node: BasicBlock):
         if len(node.instructions) != 0:
             return node
@@ -80,7 +82,6 @@ class RemoveGoIdioms(PipelineStage):
             return node
 
         return self._find_morestack_node(successor)
-
 
     def _verify_graph_structure(self) -> Optional[Tuple[BasicBlock, BasicBlock]]:
         """
@@ -98,7 +99,7 @@ class RemoveGoIdioms(PipelineStage):
             return None
 
         # root node should only have an incomming edge from morestack_node
-        if (self._cfg.in_degree(root) != 1):
+        if self._cfg.in_degree(root) != 1:
             return None
 
         # root node needs exactly two successors
@@ -122,24 +123,22 @@ class RemoveGoIdioms(PipelineStage):
         # Dont check (self._cfg.in_degree(morestack_node) != 1), because of non-returning functions...
         # however, check that those edges are unconditional
         conditional_in_edges = [edge for edge in self._cfg.get_in_edges(morestack_node) if isinstance(edge, ConditionalEdge)]
-        if len(conditional_in_edges) > 1: # zero is ok, because the graph could be root -> goto_node -> morestack_node
+        if len(conditional_in_edges) > 1:  # zero is ok, because the graph could be root -> goto_node -> morestack_node
             return None
 
         return start_node, morestack_node
-
 
     def _match_r14(self, variable: Variable):
         r14_name = self._cfg.r14
         if r14_name is not None and variable.name == r14_name:
             return True
-        
+
         if variable.name.startswith("r14"):
             return True
-        
+
         return False
 
-
-    def _match_expression(self, expression:Expression, pattern, instr_num=None):
+    def _match_expression(self, expression: Expression, pattern, instr_num=None):
         if not isinstance(pattern, tuple):
             if isinstance(pattern, Callable):
                 return pattern(expression)
@@ -152,20 +151,23 @@ class RemoveGoIdioms(PipelineStage):
         inner_pattern, deref_offset = pattern
         neg_deref_offset = -deref_offset
         match expression:
-            case Variable() if instr_num>0:
-                prev_instruction = self._cfg.root.instructions[instr_num-1]
+            case Variable() if instr_num > 0:
+                prev_instruction = self._cfg.root.instructions[instr_num - 1]
                 if isinstance(prev_instruction, Assignment) and prev_instruction.destination == expression:
                     # important: dont use inner_pattern here
-                    return self._match_expression(prev_instruction.value, pattern, instr_num-1)
-            case UnaryOperation(OperationType.dereference, BinaryOperation(OperationType.plus, inner_expression, Constant(value=deref_offset))):
+                    return self._match_expression(prev_instruction.value, pattern, instr_num - 1)
+            case UnaryOperation(
+                OperationType.dereference, BinaryOperation(OperationType.plus, inner_expression, Constant(value=deref_offset))
+            ):
                 return self._match_expression(inner_expression, inner_pattern, instr_num)
-            case UnaryOperation(OperationType.dereference, BinaryOperation(OperationType.minus, inner_expression, Constant(value=neg_deref_offset))):
+            case UnaryOperation(
+                OperationType.dereference, BinaryOperation(OperationType.minus, inner_expression, Constant(value=neg_deref_offset))
+            ):
                 return self._match_expression(inner_expression, inner_pattern, instr_num)
-            case UnaryOperation(OperationType.dereference, inner_expression) if deref_offset==0:
+            case UnaryOperation(OperationType.dereference, inner_expression) if deref_offset == 0:
                 return self._match_expression(inner_expression, inner_pattern, instr_num)
 
         return False
-
 
     def _check_root_node(self) -> bool:
         # check if root node has an if similar to "if((&(__return_addr)) u<= (*(r14 + 0x10)))"
@@ -194,24 +196,23 @@ class RemoveGoIdioms(PipelineStage):
         right_expression = root_node_if.condition.right
 
         patterns = [
-            (self._match_r14, 0x10),          # 1.17+ (darwin amd64, linux amd64, windows amd64)
-            ((("gsbase", 0), -4), 0x8),       # linux   386   1.5  -1.18
-            (("fsbase", -8), 0x10),           # linux   amd64 1.5  -1.16
-            (("gsbase", 0x468), 0x8),         # darwin  386   1.5  -1.10
-            (("gsbase", 0x18), 0x8),          # darwin  386   1.11 -1.14
-            (("gsbase", 0x8a0), 0x10),        # darwin  amd64 1.5  -1.10
-            (("gsbase", 0x30), 0x10),         # darwin  amd64 1.11 -1.16
-            ((("fsbase",0x14), 0), 0),        # windows 386   1.2.2- 1.3
-            ((("fsbase",0x14), 0), 0x8),      # windows 386   1.4  -1.18
-            ((("gsbase", 0x28), 0), 0),       # windows amd64 1.2.2- 1.3
-            ((("gsbase", 0x28), 0), 0x10),    # windows amd64 1.4  -1.16
+            (self._match_r14, 0x10),  # 1.17+ (darwin amd64, linux amd64, windows amd64)
+            ((("gsbase", 0), -4), 0x8),  # linux   386   1.5  -1.18
+            (("fsbase", -8), 0x10),  # linux   amd64 1.5  -1.16
+            (("gsbase", 0x468), 0x8),  # darwin  386   1.5  -1.10
+            (("gsbase", 0x18), 0x8),  # darwin  386   1.11 -1.14
+            (("gsbase", 0x8A0), 0x10),  # darwin  amd64 1.5  -1.10
+            (("gsbase", 0x30), 0x10),  # darwin  amd64 1.11 -1.16
+            ((("fsbase", 0x14), 0), 0),  # windows 386   1.2.2- 1.3
+            ((("fsbase", 0x14), 0), 0x8),  # windows 386   1.4  -1.18
+            ((("gsbase", 0x28), 0), 0),  # windows amd64 1.2.2- 1.3
+            ((("gsbase", 0x28), 0), 0x10),  # windows amd64 1.4  -1.16
         ]
         for pattern in patterns:
             if self._match_expression(right_expression, pattern):
                 return True
 
         return False
-
 
     def _verify_morestack_instructions(self, morestack_node: BasicBlock) -> bool:
         # check if morestack_node just contains (in this order)
@@ -223,18 +224,18 @@ class RemoveGoIdioms(PipelineStage):
         # Find end of Phi / MemPhi Assignments
         phi_pos = 0
         for i, instruction in enumerate(instructions):
-            if not isinstance(instruction, Phi): #covers MemPhi as well
+            if not isinstance(instruction, Phi):  # covers MemPhi as well
                 phi_pos = i
                 break
-        
+
         # verify there is an odd number of instructions left
-        num_non_phi_instructions = len(instructions)-phi_pos
-        if num_non_phi_instructions%2 == 0:
+        num_non_phi_instructions = len(instructions) - phi_pos
+        if num_non_phi_instructions % 2 == 0:
             return False
-        num_assignments = (num_non_phi_instructions-1)//2
+        num_assignments = (num_non_phi_instructions - 1) // 2
 
         # verify call is in the middle
-        morestack_instruction = instructions[phi_pos+num_assignments]
+        morestack_instruction = instructions[phi_pos + num_assignments]
         if not isinstance(morestack_instruction, Assignment) or not isinstance(morestack_instruction.value, Call):
             return False
 
@@ -257,8 +258,7 @@ class RemoveGoIdioms(PipelineStage):
         self._morestack_instruction = morestack_instruction
         return True
 
-
-    def _remove_go_prologue(self, start_node: BasicBlock, morestack_node:BasicBlock):
+    def _remove_go_prologue(self, start_node: BasicBlock, morestack_node: BasicBlock):
         # get root_node_if
         root = self._cfg.root
         assert root is not None
@@ -275,18 +275,14 @@ class RemoveGoIdioms(PipelineStage):
         root_edges = self._cfg.get_out_edges(root)
         for root_edge in root_edges:
             if isinstance(root_edge, TrueCase):
-                new_condition = (root_edge.sink == start_node)
+                new_condition = root_edge.sink == start_node
                 break
         else:
             # This should never happen
             raise ValueError("If condition with broken out edges")
 
         # TODO: This might cause problems, because Constant != Condition
-        root_node_if.substitute(
-            root_node_if.condition,
-            self._get_constant_condition(new_condition)
-        )
-
+        root_node_if.substitute(root_node_if.condition, self._get_constant_condition(new_condition))
 
         # Handle incoming edges to morestack_node from non-returning functions
         # We can't simply delete edges without causing problems to Phi functions.
@@ -322,7 +318,7 @@ class RemoveGoIdioms(PipelineStage):
             [
                 Constant(1, Integer.int32_t()),
                 Constant(int_value, Integer.int32_t()),
-            ]
+            ],
         )
 
     def _check_and_remove_go_prologue(self):
@@ -332,7 +328,7 @@ class RemoveGoIdioms(PipelineStage):
 
         if (graph_result := self._verify_graph_structure()) is None:
             return False
-        
+
         start_node, morestack_node = graph_result
 
         if not self._check_root_node():
@@ -343,4 +339,3 @@ class RemoveGoIdioms(PipelineStage):
 
         self._remove_go_prologue(start_node, morestack_node)
         return True
-
