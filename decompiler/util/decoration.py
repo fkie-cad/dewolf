@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import textwrap
 from logging import warning
 from re import compile
-from subprocess import CompletedProcess, run
+from subprocess import CompletedProcess, Popen, run
 from sys import stdout
 from tempfile import NamedTemporaryFile
 from typing import Dict, Optional, TextIO
@@ -63,7 +64,7 @@ class DecoratedGraph:
         """Write the graph to the given handle or NamedTemporaryFile."""
         if not handle:
             handle = NamedTemporaryFile(mode="w+")
-        ToDotConverter.write(self._graph, handle)
+        handle.write(ToDotConverter.write(self._graph))
         handle.flush()
         handle.seek(0)
         return handle
@@ -88,10 +89,18 @@ class DecoratedGraph:
         path -- Path to the plot to be created.
         type -- a string describing the output type (commonly pdf, png)
         """
-        with self._write_dot() as handle:
-            result = run(["dot", f"-T{type}", f"-o{path}", f"{handle.name}"], capture_output=True)
-        if result.returncode:
-            raise ValueError(f"Could not plot graph! ({result.stderr.decode('utf-8')}")
+        with Popen(
+            ["dot", f"-T{type}", f"-o{path}"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        ) as proc:
+            dot_source: str = ToDotConverter.write(self.graph)
+            stdout, stderr = proc.communicate(input=dot_source)
+
+            if proc.returncode:
+                raise ValueError(f"Could not plot graph! ({stderr})")
 
 
 class DecoratedCFG(DecoratedGraph):
