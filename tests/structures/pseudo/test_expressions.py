@@ -223,7 +223,7 @@ class TestNotUseableConstant:
         original = NotUseableConstant(str(inf))
         copy = original.copy()
         assert id(original) != id(copy) and original == copy
-        
+
 
 class TestExternConstant:
     def test_copy(self):

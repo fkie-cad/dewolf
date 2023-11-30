@@ -14,7 +14,18 @@ from typing import Dict, Iterator, Union
 # Add project root to path (script located in dewolf/decompiler/util/bugfinder/)
 project_root = Path(__file__).resolve().parents[3]
 sys.path.append(str(project_root))
-from binaryninja import BinaryViewType, Function, core_version
+from binaryninja import Function, core_version
+
+# use binaryninja.load for BN 3.5 up
+version_numbers = core_version().split(".")
+major, minor = int(version_numbers[0]), int(version_numbers[1])
+if major >= 3 and minor >= 5:
+    from binaryninja import load
+else:
+    from binaryninja import BinaryViewType
+
+    load = BinaryViewType.get_view_of_file
+
 from decompile import Decompiler
 from decompiler.frontend import BinaryninjaFrontend
 from decompiler.logger import configure_logging
@@ -124,7 +135,7 @@ class DBConnector:
             "function_size": function.highest_address - function.start,
             "function_arch": str(function.arch),
             "function_platform": str(function.platform),
-            "timestamp": datetime.now()
+            "timestamp": datetime.now(),
         }
 
     @staticmethod
@@ -198,7 +209,7 @@ class DecompilerReporter(Decompiler):
 def store_reports_from_sample(sample: Path, db_reports: DBConnector, max_size: int):
     """Store all reports from sample into database"""
     logging.info(f"processing {sample}")
-    if not (binary_view := BinaryViewType.get_view_of_file(sample)):
+    if not (binary_view := load(sample)):
         logging.warning(f"Could not get BinaryView '{sample}'")
         return
     try:

@@ -1,5 +1,4 @@
 import logging
-from ctypes import c_byte, c_int, c_long, c_short, c_ubyte, c_uint, c_ulong, c_ushort
 from itertools import chain, repeat
 
 from decompiler.structures import pseudo as expressions
@@ -8,6 +7,7 @@ from decompiler.structures.pseudo import instructions as instructions
 from decompiler.structures.pseudo import operations as operations
 from decompiler.structures.pseudo.operations import MemberAccess
 from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInterface
+from decompiler.util.integer_util import normalize_int
 
 
 class CExpressionGenerator(DataflowObjectVisitorInterface):
@@ -78,20 +78,6 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         # Handled in code
         # OperationType.list_op: "list",
         # OperationType.adc: "adc",
-    }
-
-    SIGNED_FORMATS = {
-        8: lambda x: c_byte(x).value,
-        16: lambda x: c_short(x).value,
-        32: lambda x: c_int(x).value,
-        64: lambda x: c_long(x).value,
-    }
-
-    UNSIGNED_FORMATS = {
-        8: lambda x: c_ubyte(x).value,
-        16: lambda x: c_ushort(x).value,
-        32: lambda x: c_uint(x).value,
-        64: lambda x: c_ulong(x).value,
     }
 
     """
@@ -298,13 +284,7 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         Return the right integer value for the given type, assuming that the
         re-compilation host has the same sizes as the decompilation host.
         """
-        if literal.type.is_signed:
-            if handler := self.SIGNED_FORMATS.get(literal.type.size, None):
-                return handler(literal.value)
-        elif literal.value < 0:
-            if handler := self.UNSIGNED_FORMATS.get(literal.type.size, None):
-                return handler(literal.value)
-        return literal.value
+        return normalize_int(literal.value, literal.type.size, literal.type.is_signed)
 
     @staticmethod
     def _interpret_integer_literal_type(value: int) -> Integer:
@@ -368,7 +348,7 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
 
     @staticmethod
     def format_variables_declaration(var_type: Type, var_names: list[str]) -> str:
-        """ Return a string representation of variable declarations."""
+        """Return a string representation of variable declarations."""
         match var_type:
             case Pointer(type=FunctionTypeDef() as fun_type):
                 parameter_names = ", ".join(str(parameter) for parameter in fun_type.parameters)

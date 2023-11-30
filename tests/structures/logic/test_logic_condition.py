@@ -352,9 +352,7 @@ class TestLogicConditionZ3:
             ),
             (
                 logic_x[1].copy() | logic_x[2].copy(),
-                (logic_x[4].copy() | logic_x[5].copy())
-                & logic_x[6].copy()
-                & logic_x[7].copy(),
+                (logic_x[4].copy() | logic_x[5].copy()) & logic_x[6].copy() & logic_x[7].copy(),
             ),
             (
                 (logic_x[1].copy() | logic_x[2].copy() | logic_x[3].copy())

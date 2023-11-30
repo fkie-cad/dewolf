@@ -11,6 +11,7 @@ from decompiler.structures.pseudo import Constant, FunctionSymbol, GlobalVariabl
 MAX_SYMBOL_NAME_LENGTH = 64
 GLOBAL_VARIABLE_PREFIX = "data_"
 
+
 class SymbolHandler(Handler):
     """Handler for phi instructions emitted by binaryninja."""
 
@@ -35,7 +36,11 @@ class SymbolHandler(Handler):
             }
         )
 
-    def lift_symbol(self, symbol: CoreSymbol, **kwargs,) -> Union[GlobalVariable, Constant]:
+    def lift_symbol(
+        self,
+        symbol: CoreSymbol,
+        **kwargs,
+    ) -> Union[GlobalVariable, Constant]:
         """Lift the given symbol from binaryninja MLIL."""
         if not (symbol_type := self.SYMBOL_MAP.get(symbol.type, None)):
             warning(f"[Lifter] Can not handle symbols of type {symbol.type}, falling back to constant lifting.")
@@ -44,11 +49,13 @@ class SymbolHandler(Handler):
 
     def _purge_symbol_name(self, name: str, addr: int) -> str:
         """Purge invalid chars from symbol names or lift as data_addr if name is too long"""
-        if name[:2] == "??" or len(name) > MAX_SYMBOL_NAME_LENGTH: # strip useless PDB debug names which start with `??`
+        if name[:2] == "??" or len(name) > MAX_SYMBOL_NAME_LENGTH:  # strip useless PDB debug names which start with `??`
             return GLOBAL_VARIABLE_PREFIX + f"{hex(addr)}"
-        return name.translate({
-            ord(' '): '_', 
-            ord("'"): "", 
-            ord('.'): "_", 
-            ord('`'): "",
-            })
+        return name.translate(
+            {
+                ord(" "): "_",
+                ord("'"): "",
+                ord("."): "_",
+                ord("`"): "",
+            }
+        )

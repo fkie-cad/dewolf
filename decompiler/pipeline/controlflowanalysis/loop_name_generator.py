@@ -118,6 +118,6 @@ class LoopNameGenerator(PipelineStage):
 
         if rename_while_loops:
             WhileLoopVariableRenamer(task._ast).rename()
-        
+
         if for_loop_names:
             ForLoopVariableRenamer(task._ast, for_loop_names).rename()

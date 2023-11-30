@@ -53,7 +53,7 @@ class CallHandler(Handler):
                 [self._lifter.lift(parameter, parent=call) for parameter in call.params],
                 vartype=dest.type.copy(),
                 writes_memory=call.output_dest_memory if ssa else None,
-                meta_data={"param_names": self._lift_syscall_parameter_names(call)}
+                meta_data={"param_names": self._lift_syscall_parameter_names(call)},
             ),
         )
 
@@ -74,12 +74,15 @@ class CallHandler(Handler):
     @staticmethod
     def _lift_call_parameter_names(instruction: mediumlevelil.MediumLevelILCall) -> List[str]:
         """Lift parameter names of call by iterating over the function parameters where the call is pointing to (if available)"""
-        if instruction.dest.expr_type is None or not isinstance(instruction.dest.expr_type, PointerType) or \
-        not isinstance(instruction.dest.expr_type.target, FunctionType):
+        if (
+            instruction.dest.expr_type is None
+            or not isinstance(instruction.dest.expr_type, PointerType)
+            or not isinstance(instruction.dest.expr_type.target, FunctionType)
+        ):
             return []
         return [param.name for param in instruction.dest.expr_type.target.parameters]
 
-    @staticmethod 
+    @staticmethod
     def _lift_syscall_parameter_names(instruction: mediumlevelil.MediumLevelILSyscall) -> List[str]:
         """Lift syscall identifier (e.G. sys_open) from a syscall instruction"""
-        return [str(instruction).split("syscall(")[1].split(' ')[0]]
+        return [str(instruction).split("syscall(")[1].split(" ")[0]]

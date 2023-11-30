@@ -26,11 +26,11 @@ def _get_potential_guarded_do_while_loops(ast: AbstractSyntaxTree) -> tuple(Unio
 
 
 def remove_guarded_do_while(ast: AbstractSyntaxTree):
-    """ Removes a if statement which guards a do-while loop/while loop when:
-            -> there is nothing in between the if-node and the do-while-node/while-node 
-            -> the if-node has only one branch (true branch)
-            -> the condition of the branch is the same as the condition of the do-while-node
-        Replacement is a WhileLoop, otherwise the control flow would not be correct
+    """Removes a if statement which guards a do-while loop/while loop when:
+        -> there is nothing in between the if-node and the do-while-node/while-node
+        -> the if-node has only one branch (true branch)
+        -> the condition of the branch is the same as the condition of the do-while-node
+    Replacement is a WhileLoop, otherwise the control flow would not be correct
     """
     for do_while_node, condition_node in _get_potential_guarded_do_while_loops(ast):
         if condition_node.false_branch:
@@ -43,40 +43,51 @@ def remove_guarded_do_while(ast: AbstractSyntaxTree):
 
 class WhileLoopReplacer:
     """Convert WhileLoopNodes to ForLoopNodes depending on the configuration.
-        -> keep_empty_for_loops will keep empty for-loops in the code
-        -> force_for_loops will transform every while-loop into a for-loop, worst case with empty declaration/modification statement
-        -> forbidden_condition_types_in_simple_for_loops will not transform trivial for-loop candidates (with only one condition) into for-loops
-            if the operator matches one of the forbidden operator list
-        -> max_condition_complexity_for_loop_recovery will transform for-loop candidates only into for-loops if the condition complexity is 
-            less/equal then the threshold
-        -> max_modification_complexity_for_loop_recovery will transform for-loop candidates only into for-loops if the modification complexity is 
-            less/equal then the threshold
+    -> keep_empty_for_loops will keep empty for-loops in the code
+    -> force_for_loops will transform every while-loop into a for-loop, worst case with empty declaration/modification statement
+    -> forbidden_condition_types_in_simple_for_loops will not transform trivial for-loop candidates (with only one condition) into for-loops
+        if the operator matches one of the forbidden operator list
+    -> max_condition_complexity_for_loop_recovery will transform for-loop candidates only into for-loops if the condition complexity is
+        less/equal then the threshold
+    -> max_modification_complexity_for_loop_recovery will transform for-loop candidates only into for-loops if the modification complexity is
+        less/equal then the threshold
     """
 
     def __init__(self, ast: AbstractSyntaxTree, options: Options):
         self._ast = ast
+        self._restructure_for_loops = options.getboolean("readability-based-refinement.restructure_for_loops", fallback=True)
         self._keep_empty_for_loops = options.getboolean("readability-based-refinement.keep_empty_for_loops", fallback=False)
         self._hide_non_init_decl = options.getboolean("readability-based-refinement.hide_non_initializing_declaration", fallback=False)
         self._force_for_loops = options.getboolean("readability-based-refinement.force_for_loops", fallback=False)
-        self._forbidden_condition_types = options.getlist("readability-based-refinement.forbidden_condition_types_in_simple_for_loops", fallback=[])
-        self._condition_max_complexity = options.getint("readability-based-refinement.max_condition_complexity_for_loop_recovery", fallback=100)
-        self._modification_max_complexity = options.getint("readability-based-refinement.max_modification_complexity_for_loop_recovery", fallback=100)
+        self._forbidden_condition_types = options.getlist(
+            "readability-based-refinement.forbidden_condition_types_in_simple_for_loops", fallback=[]
+        )
+        self._condition_max_complexity = options.getint(
+            "readability-based-refinement.max_condition_complexity_for_loop_recovery", fallback=100
+        )
+        self._modification_max_complexity = options.getint(
+            "readability-based-refinement.max_modification_complexity_for_loop_recovery", fallback=100
+        )
 
     def run(self):
         """For each WhileLoop in AST check the following conditions:
             -> any variable in loop condition has a valid continuation instruction in loop body
             -> variable is initialized
-            -> loop condition complexity < condition complexity 
+            -> loop condition complexity < condition complexity
             -> possible modification complexity < modification complexity
             -> if condition is only a symbol: check condition type for allowed one
-        
-        If 'force_for_loops' is enabled, the complexity options are ignored and every while loop after the 
-        initial transformation will be forced into a for loop with an empty declaration/modification      
-        """
 
+        If 'force_for_loops' is enabled, the complexity options are ignored and every while loop after the
+        initial transformation will be forced into a for loop with an empty declaration/modification
+        """
+        if not self._restructure_for_loops:
+            return
         for loop_node in list(self._ast.get_while_loop_nodes_topological_order()):
-            if loop_node.is_endless_loop or (not self._keep_empty_for_loops and _is_single_instruction_loop_node(loop_node)) \
-            or self._invalid_simple_for_loop_condition_type(loop_node.condition):
+            if (
+                loop_node.is_endless_loop
+                or (not self._keep_empty_for_loops and _is_single_instruction_loop_node(loop_node))
+                or self._invalid_simple_for_loop_condition_type(loop_node.condition)
+            ):
                 continue
 
             if any(node.does_end_with_continue for node in loop_node.body.get_descendant_code_nodes_interrupting_ancestor_loop()):
@@ -100,11 +111,11 @@ class WhileLoopReplacer:
                 self._ast.substitute_loop_node(
                     loop_node,
                     ForLoopNode(
-                    declaration=None,
-                    condition=loop_node.condition,
-                    modification=None,
-                    reaching_condition=loop_node.reaching_condition,
-                    )
+                        declaration=None,
+                        condition=loop_node.condition,
+                        modification=None,
+                        reaching_condition=loop_node.reaching_condition,
+                    ),
                 )
 
     def _replace_with_for_loop(self, loop_node: WhileLoopNode, continuation: AstInstruction, init: AstInstruction):
@@ -139,9 +150,9 @@ class WhileLoopReplacer:
         )
         continuation.node.instructions.remove(continuation.instruction)
         self._ast.clean_up()
-       
+
     def _invalid_simple_for_loop_condition_type(self, logic_condition) -> bool:
-        """ Checks if a logic condition is only a symbol, if true checks condition type of symbol for forbidden ones"""
+        """Checks if a logic condition is only a symbol, if true checks condition type of symbol for forbidden ones"""
         if not logic_condition.is_symbol or not self._forbidden_condition_types:
             return False
 

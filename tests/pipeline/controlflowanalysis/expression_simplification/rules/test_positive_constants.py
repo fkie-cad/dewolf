@@ -19,7 +19,6 @@ var_x_u = Variable("x", Integer.uint32_t())
         ),
         (BinaryOperation(OperationType.plus, [var_x_i, (Constant(3, Integer.int32_t()))]), []),
         (BinaryOperation(OperationType.minus, [var_x_i, (Constant(3, Integer.int32_t()))]), []),
-
         (
             BinaryOperation(OperationType.minus, [var_x_u, (Constant(4294967293, Integer.uint32_t()))]),
             [BinaryOperation(OperationType.plus, [var_x_u, Constant(3, Integer.uint32_t())])],

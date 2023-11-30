@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Dict, Iterator, List, Optional, Sequence, Tupl
 
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 
-from .expressions import Constant, Expression, FunctionSymbol, ImportedFunctionSymbol, IntrinsicSymbol, Symbol, Tag, Variable
+from .expressions import Constant, Expression, IntrinsicSymbol, Symbol, Tag, Variable
 from .typing import CustomType, Pointer, Type, UnknownType
 
 T = TypeVar("T")
@@ -160,7 +160,7 @@ COMMUTATIVE_OPERATIONS = {
     OperationType.logical_or,
     OperationType.logical_and,
     OperationType.equal,
-    OperationType.not_equal
+    OperationType.not_equal,
 }
 
 NON_COMPOUNDABLE_OPERATIONS = {
@@ -172,7 +172,7 @@ NON_COMPOUNDABLE_OPERATIONS = {
     OperationType.logical_or,
     OperationType.logical_and,
     OperationType.equal,
-    OperationType.not_equal
+    OperationType.not_equal,
 }
 
 
@@ -231,9 +231,10 @@ class Operation(Expression, ABC):
         return self._operation
 
     @property
-    def requirements(self) -> List[Variable]:
+    def requirements_iter(self) -> Iterator[Variable]:
         """Operation requires a list of all unique variables required by each of its operands"""
-        return self._collect_required_variables(self.operands)
+        for operand in self._operands:
+            yield from operand.requirements_iter
 
     def substitute(self, replacee: Expression, replacement: Expression) -> None:
         """Substitutes operand directly if possible, then recursively substitutes replacee in operands"""
@@ -355,9 +356,9 @@ class UnaryOperation(Operation):
         return self.operand.complexity
 
     @property
-    def requirements(self):
+    def requirements_iter(self) -> Iterator[Variable]:
         """Return the requirements of the single operand."""
-        return self.operand.requirements
+        return self.operand.requirements_iter
 
     @property
     def writes_memory(self) -> Optional[int]:
@@ -469,7 +470,7 @@ class Call(Operation):
 
     def __init__(
         self,
-        function: Union[FunctionSymbol, ImportedFunctionSymbol, IntrinsicSymbol, Variable],
+        function: Expression,
         parameter: List[Expression],
         vartype: Type = UnknownType(),
         writes_memory: Optional[int] = None,
@@ -516,13 +517,12 @@ class Call(Operation):
         return self._meta_data
 
     @property
-    def requirements(self) -> List[Variable]:
-        if isinstance(self._function, Variable):
-            return self._collect_required_variables(self.operands + [self.function])
-        return super().requirements
+    def requirements_iter(self) -> Iterator[Variable]:
+        yield from self._function.requirements_iter
+        yield from super().requirements_iter
 
     @property
-    def function(self) -> Union[FunctionSymbol, ImportedFunctionSymbol, IntrinsicSymbol, Variable]:
+    def function(self) -> Expression:
         """Return the name of the function called."""
         return self._function
 

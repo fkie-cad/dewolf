@@ -19,13 +19,15 @@ from z3 import BoolRef
 
 def _get_condition_branch(second_operand):
     return Branch(
-        Condition(OperationType.not_equal,
+        Condition(
+            OperationType.not_equal,
             [
                 Constant(42, Integer.int32_t()),
                 second_operand,
             ],
         )
     )
+
 
 def _generate_instr_bool_as_numbers(op: OperationType) -> Branch:
     return Branch(
@@ -64,6 +66,7 @@ def test_instruction_conv(instr):
     assert isinstance(condition, BoolRef)
     # Assert z3 compatible
     logic_converter.check(condition)
+
 
 def test_logic_converter_z3():
     logic_converter: BaseConverter = Z3Converter()

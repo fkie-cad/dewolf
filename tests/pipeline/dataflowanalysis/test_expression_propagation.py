@@ -966,21 +966,21 @@ def test_correct_propagation_relation():
 
 def test_contraction_copy():
     """
-        Original copy error with the following steps:
-            - two different variables have the same contraction as a value
-            ==> will be propagated to both, but both have the same value (same variables in memory)
+    Original copy error with the following steps:
+        - two different variables have the same contraction as a value
+        ==> will be propagated to both, but both have the same value (same variables in memory)
 
-            - later in exp. prop. mem. a part of the value (a third variable; pointer) for the first variable will be propagated by the value of the pointer 
-            ==> because both have the same value and only a subexpr is being propagated, the value will change in both variables 
-            ==> error on the propagation of the second value, because the definition of that variable is not correct anymore
-            
-        Variables affected in 'tr' 'main' for easy reconstruction:
-            - rdi_16#28, rdi_17#31 have the same value after expr. prop. 
-            - rax_55#44 is the part which will be propagated by expr. prop. mem. in rdi_16#28 first and yields the side effect at rdi_17#31
-            ==> rdi_17#31 will yield the error after trying to get a definition 
+        - later in exp. prop. mem. a part of the value (a third variable; pointer) for the first variable will be propagated by the value of the pointer
+        ==> because both have the same value and only a subexpr is being propagated, the value will change in both variables
+        ==> error on the propagation of the second value, because the definition of that variable is not correct anymore
 
-        Test will only check if the value (memory) of the propagated variables is not the same.
-        (Variables itself are no contractions, but still works)
+    Variables affected in 'tr' 'main' for easy reconstruction:
+        - rdi_16#28, rdi_17#31 have the same value after expr. prop.
+        - rax_55#44 is the part which will be propagated by expr. prop. mem. in rdi_16#28 first and yields the side effect at rdi_17#31
+        ==> rdi_17#31 will yield the error after trying to get a definition
+
+    Test will only check if the value (memory) of the propagated variables is not the same.
+    (Variables itself are no contractions, but still works)
     """
     variable0 = Variable("var0", Integer(64))
     variable1 = Variable("var1", Integer(64))

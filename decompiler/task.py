@@ -20,7 +20,7 @@ class DecompilerTask:
         options: Optional[Options] = None,
         function_return_type: Type = Integer(32),
         function_parameters: Optional[List[Variable]] = None,
-        complex_types: Optional[ComplexTypeMap] = None
+        complex_types: Optional[ComplexTypeMap] = None,
     ):
         """
         Init a new decompiler task.
@@ -39,6 +39,7 @@ class DecompilerTask:
         self._failed = False
         self._failure_origin = None
         self._complex_types = complex_types if complex_types else ComplexTypeMap()
+        self._code = None
 
     @property
     def name(self) -> str:
@@ -99,3 +100,13 @@ class DecompilerTask:
     def complex_types(self) -> ComplexTypeMap:
         """Return complex types present in the function (structs, unions, enums, etc.)."""
         return self._complex_types
+
+    @property
+    def code(self) -> str:
+        """Return C-Code representation for the Task."""
+        return self._code
+
+    @code.setter
+    def code(self, value):
+        """Setter function for C-Code representation of the Task"""
+        self._code = value
