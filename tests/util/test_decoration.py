@@ -1,3 +1,5 @@
+from io import StringIO
+
 import pytest
 from binaryninja import HighlightStandardColor
 from decompiler.structures.ast.ast_nodes import SeqNode
@@ -442,9 +444,11 @@ class TestDecoratedAST:
     @pytest.mark.usefixtures("ast_condition")
     def test_dotviz_output(self, ast_condition):
         decorated = DecoratedAST.from_ast(ast_condition)
-        handle = decorated._write_dot()
-        data = handle.read()
-        handle.close()
+
+        with StringIO() as stringIo:
+            decorated._write_dot(stringIo)
+            data = stringIo.getvalue()
+
         assert all(
             [
                 x in data

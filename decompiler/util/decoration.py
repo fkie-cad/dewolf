@@ -9,7 +9,7 @@ from re import compile
 from subprocess import CompletedProcess, Popen, run
 from sys import stdout
 from tempfile import NamedTemporaryFile
-from typing import Dict, Optional, TextIO
+from typing import Dict, TextIO
 
 import z3
 from binaryninja import BranchType, EdgePenStyle, EdgeStyle, FlowGraph, FlowGraphNode, HighlightStandardColor, ThemeColor, show_graph_report
@@ -60,20 +60,16 @@ class DecoratedGraph:
         """Return the graph being decorated."""
         return self._graph
 
-    def _write_dot(self, handle: Optional[TextIO] = None):
-        """Write the graph to the given handle or NamedTemporaryFile."""
-        if not handle:
-            handle = NamedTemporaryFile(mode="w+")
+    def _write_dot(self, handle: TextIO):
+        """Write the graph to the given handle."""
         handle.write(ToDotConverter.write(self._graph))
-        handle.flush()
-        handle.seek(0)
-        return handle
 
     def export_ascii(self) -> str:
         """Export the current graph into an ascii representation."""
         if not GRAPH_EASY_INSTALLED:
             warning(f"Invoking graph-easy although it seems like it is not installed on the system.")
-        with self._write_dot() as handle:
+        with NamedTemporaryFile(mode="w+") as handle:
+            self._write_dot(handle)
             result: CompletedProcess = run(["graph-easy", "--as=ascii", handle.name], capture_output=True)
         return result.stdout.decode("utf-8")
 
