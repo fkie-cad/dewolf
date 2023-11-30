@@ -1,3 +1,4 @@
+import os
 from io import StringIO
 
 import pytest
@@ -215,6 +216,22 @@ class TestDecoratedCFG:
 1 -> 2 [color="blue"]; 
 }"""
         )
+
+    def test_png_export(self, simple_graph, png_magic):
+        decorated = DecoratedCFG.from_cfg(simple_graph)
+        export_path = "_test_cfg.png"
+        # remove potential left over file
+        try:
+            os.remove(export_path)
+        except OSError:
+            pass
+        # export plot
+        decorated.export_plot(export_path)
+        # check if exported plot has correct value (and implicitly if it exists)
+        with open(export_path, "rb") as file:
+            assert file.read(len(png_magic)) == png_magic
+        # remove file
+        os.remove(export_path)
 
 
 class TestDecoratedAST:
@@ -612,6 +629,22 @@ class TestDecoratedAST:
 }"""
         )
 
+    def test_png_export(self, ast_for_loop, png_magic):
+        decorated = DecoratedAST.from_ast(ast_for_loop)
+        export_path = "_test_ast.png"
+        # remove potential left over file
+        try:
+            os.remove(export_path)
+        except OSError:
+            pass
+        # export plot
+        decorated.export_plot(export_path)
+        # check if exported plot has correct value (and implicitly if it exists)
+        with open(export_path, "rb") as file:
+            assert file.read(len(png_magic)) == png_magic
+        # remove file
+        os.remove(export_path)
+
 
 class TestDecoratedCode:
     @pytest.fixture
@@ -644,3 +677,8 @@ class TestDecoratedCode:
         html_code = decorated.export_html()
         assert len(html_code) > 100
         assert r"\*" not in html_code
+
+
+@pytest.fixture
+def png_magic():
+    return bytes.fromhex("89 50 4e 47 0d 0a 1a 0a")
