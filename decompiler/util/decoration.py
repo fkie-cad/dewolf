@@ -70,6 +70,7 @@ class DecoratedGraph:
             warning(f"Invoking graph-easy although it seems like it is not installed on the system.")
         with NamedTemporaryFile(mode="w+") as handle:
             self._write_dot(handle)
+            handle.flush()
             result: CompletedProcess = run(["graph-easy", "--as=ascii", handle.name], capture_output=True)
         return result.stdout.decode("utf-8")
 
