@@ -71,6 +71,7 @@ class _BaseStruct(ComplexType):
         return self.members.get(offset)
 
     def get_member_name_by_offset(self, offset: int) -> str:
+        """Get the name of a member by its offset and gracefully handle unknown offsets."""
         member = self.get_member_by_offset(offset)
         if member is not None:
             return member.name
@@ -112,6 +113,7 @@ class Union(ComplexType):
                 return member
 
     def get_member_name_by_type(self, _type: Type) -> str:
+        """Get the name of a member of a union by its type and gracefully handle unknown types."""
         member = self.get_member_by_type(_type)
         if member is not None:
             return member.name
