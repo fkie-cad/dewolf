@@ -4,7 +4,7 @@ from tempfile import NamedTemporaryFile
 
 
 @contextmanager
-def closeable_temporary_file(**kwargs):
+def CloseableNamedTemporaryFile(**kwargs):
     """
     Context manager wrapper for NamedTemporaryFile, which allows
     closing the file handle without deleting the underling file.

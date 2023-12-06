@@ -28,7 +28,7 @@ from decompiler.structures.ast.syntaxgraph import AbstractSyntaxInterface
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.graphs.cfg import BasicBlock, BasicBlockEdge, BasicBlockEdgeCondition, ControlFlowGraph
 from decompiler.structures.pseudo.operations import Condition
-from decompiler.util.CloseableNamedTemporaryFile import closeable_temporary_file
+from decompiler.util.closeable_named_temporary_file import CloseableNamedTemporaryFile
 from decompiler.util.to_dot_converter import ToDotConverter
 from networkx import DiGraph
 from pygments import highlight
@@ -68,7 +68,7 @@ class DecoratedGraph:
         if not GRAPH_EASY_INSTALLED:
             warning(f"Invoking graph-easy although it seems like it is not installed on the system.")
 
-        with closeable_temporary_file(mode="w", encoding="utf-8") as file:
+        with CloseableNamedTemporaryFile(mode="w", encoding="utf-8") as file:
             self._write_dot(file)
             file.close()
 
@@ -88,7 +88,7 @@ class DecoratedGraph:
         type -- a string describing the output type (commonly pdf, png)
         """
 
-        with closeable_temporary_file(mode="w", encoding="utf-8") as file:
+        with CloseableNamedTemporaryFile(mode="w", encoding="utf-8") as file:
             self._write_dot(file)
             file.close()
 
@@ -346,7 +346,7 @@ class DecoratedCode:
         if not ASTYLE_INSTALLED:
             warning(f"Invoking astyle although it seems like it is not installed on the system.")
 
-        with closeable_temporary_file(mode="w", encoding="utf-8") as file:
+        with CloseableNamedTemporaryFile(mode="w", encoding="utf-8") as file:
             file.write(self._text)
             file.close()
 
