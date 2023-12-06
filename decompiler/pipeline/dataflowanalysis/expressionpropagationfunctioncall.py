@@ -107,7 +107,6 @@ class ExpressionPropagationFunctionCall(ExpressionPropagationBase):
                 or self._is_address_assignment(definition)
                 or self._contains_global_variable(definition)
                 or self._operation_is_propagated_in_phi(target, definition)
-                or self._resulting_instruction_is_too_long(target, definition)
                 or self._is_invalid_propagation_into_address_operation(target, definition)
                 or self._is_dereference_assignment(definition)
                 or self._definition_value_could_be_modified_via_memory_access_between_definition_and_target(definition, target)
