@@ -788,18 +788,17 @@ class TestExpression:
                 MemberAccess(
                     offset=0,
                     member_name="x",
-                    operands=[BinaryOperation(
-                        OperationType.plus,
-                        [
-                            Variable("ptr", Pointer(Integer.int32_t())),
-                            Constant(1, Integer.int32_t())
-                        ],
-                        Pointer(Integer.int32_t())
-                    )],
-                    vartype=Integer.int32_t()
+                    operands=[
+                        BinaryOperation(
+                            OperationType.plus,
+                            [Variable("ptr", Pointer(Integer.int32_t())), Constant(1, Integer.int32_t())],
+                            Pointer(Integer.int32_t()),
+                        )
+                    ],
+                    vartype=Integer.int32_t(),
                 ),
-                "(ptr + 1)->x"
-            )
+                "(ptr + 1)->x",
+            ),
         ],
     )
     def test_member_access(self, operation, result):
@@ -832,7 +831,7 @@ class TestExpression:
                 ),
                 "foo(/* param1 */ x, /* param2 */ y, z)",
             ),
-            (Assignment(ListOperation([]), Call(UnaryOperation(OperationType.dereference, [var_x]), [])), "(*x)()")
+            (Assignment(ListOperation([]), Call(UnaryOperation(OperationType.dereference, [var_x]), [])), "(*x)()"),
         ],
     )
     def test_call(self, expr, result):
