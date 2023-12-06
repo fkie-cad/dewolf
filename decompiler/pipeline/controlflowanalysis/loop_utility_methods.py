@@ -231,7 +231,7 @@ def _requirement_without_reinitialization(ast: AbstractSyntaxTree, node: Abstrac
 
 
 def _get_continue_nodes_with_equalizable_definition(
-    loop_node: WhileLoopNode, continuation: AstInstruction, variable_init: AstInstruction
+    loop_node: WhileLoopNode, continuation: AstInstruction
 ) -> List[CodeNode]:
     """
     Finds code nodes of a while loop containing continue statements and a definition of the continuation instruction, which can be easily equalized.
@@ -247,7 +247,7 @@ def _get_continue_nodes_with_equalizable_definition(
     ):
         if not _is_expression_simple_binary_operation(continuation.instruction.value):
             return None
-        if (last_definition_index := _get_last_definition_index_of(code_node, variable_init.instruction.destination)) == -1:
+        if (last_definition_index := _get_last_definition_index_of(code_node, continuation.instruction.destination)) == -1:
             return None
         if not (
             isinstance(code_node.instructions[last_definition_index].value, Constant)
@@ -267,26 +267,27 @@ def _is_expression_simple_binary_operation(expression: Expression) -> bool:
     return (
         isinstance(expression, BinaryOperation)
         and expression.operation in {OperationType.plus, OperationType.minus}
-        and any(isinstance(operand, Constant) for operand in expression.subexpressions())
-        and any(isinstance(operand, Variable) for operand in expression.subexpressions())
+        and any(isinstance(operand, Constant) or _is_negated_constant_variable(operand, Constant) for operand in expression.operands)
+        and any(isinstance(operand, Variable) or _is_negated_constant_variable(operand, Variable) for operand in expression.operands)
+    )
+
+
+def _is_negated_constant_variable(operand: Expression, expression: Constant | Variable) -> bool:
+    return (
+        isinstance(operand, UnaryOperation)
+        and operand.operation == OperationType.negate
+        and isinstance(operand.operand, expression)
     )
 
 
 def _get_variable_in_binary_operation(binaryoperation: BinaryOperation) -> Variable:
     """Returns the used variable of a binary operation if available."""
-    for operand in binaryoperation.subexpressions():
+    for operand in binaryoperation.operands:
         if isinstance(operand, Variable):
             return operand
+        if _is_negated_constant_variable(operand, Variable):
+            return operand.operand
     return None
-
-
-def _count_unaryoperations_negations(expression: Expression) -> int:
-    """Counts the amount of UnaryOperation negations of an expression."""
-    negations = 0
-    for subexpression in expression.subexpressions():
-        if isinstance(subexpression, UnaryOperation) and subexpression.operation == OperationType.negate:
-            negations += 1
-    return negations
 
 
 def _unify_binary_operation_in_assignment(assignment: Assignment):
@@ -299,7 +300,7 @@ def _unify_binary_operation_in_assignment(assignment: Assignment):
         assignment.substitute(assignment.value, BinaryOperation(OperationType.plus, [assignment.value.right, assignment.value.left]))
 
 
-def _substract_continuation_from_last_definition(code_node: CodeNode, continuation: AstInstruction, variable_init: AstInstruction):
+def _substract_continuation_from_last_definition(code_node: CodeNode, continuation: AstInstruction):
     """
     Substracts the value of the continuation instruction from the last definition, which must be a simple binary operation or a constant,
     defining the same value as the continuation instruction in the given code node.
@@ -308,9 +309,9 @@ def _substract_continuation_from_last_definition(code_node: CodeNode, continuati
     :param continuation: Instruction defining the for-loops modification
     :param variable_init: Instruction defining the for-loops declaration
     """
-    last_definition = code_node.instructions[_get_last_definition_index_of(code_node, variable_init.instruction.destination)]
+    last_definition = code_node.instructions[_get_last_definition_index_of(code_node, continuation.instruction.destination)]
     last_definition.substitute(
         last_definition.value, BinaryOperation(OperationType.minus, [last_definition.value, continuation.instruction.value.right])
     )
-    if _count_unaryoperations_negations(continuation.instruction.value.left) % 2:
+    if _is_negated_constant_variable(continuation.instruction.value.left, Variable):
         last_definition.substitute(last_definition.value, UnaryOperation(OperationType.negate, [last_definition.value]))

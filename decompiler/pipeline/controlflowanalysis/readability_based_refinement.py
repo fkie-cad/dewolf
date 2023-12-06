@@ -104,11 +104,11 @@ class WhileLoopReplacer:
                 if not self._force_for_loops and continuation.instruction.complexity > self._modification_max_complexity:
                     continue
                 if (
-                    equalizable_continue_nodes := _get_continue_nodes_with_equalizable_definition(loop_node, continuation, variable_init)
+                    equalizable_continue_nodes := _get_continue_nodes_with_equalizable_definition(loop_node, continuation)
                 ) is None:
-                    break
+                    continue
                 for node in equalizable_continue_nodes:
-                    _substract_continuation_from_last_definition(node, continuation, variable_init)
+                    _substract_continuation_from_last_definition(node, continuation)
                 self._replace_with_for_loop(loop_node, continuation, variable_init)
                 break
 
