@@ -1,3 +1,4 @@
+import os
 from contextlib import contextmanager
 from tempfile import NamedTemporaryFile
 
@@ -16,4 +17,7 @@ def closeable_temporary_file(**kwargs):
 
     kwargs["delete"] = False
     with NamedTemporaryFile(**kwargs) as file:
-        yield file
+        try:
+            yield file
+        finally:
+            os.remove(file.name)
