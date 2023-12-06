@@ -4,8 +4,8 @@ from typing import Dict, Generator, Optional, Tuple, Union
 
 from decompiler.pipeline.preprocessing.util import _init_basicblocks_of_definition, _init_maps
 from decompiler.pipeline.stage import PipelineStage
-from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, GraphEdgeInterface
-from decompiler.structures.graphs.interface import GraphInterface
+from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
+from decompiler.structures.graphs.interface import GraphEdgeInterface, GraphInterface
 from decompiler.structures.maps import DefMap, UseMap
 from decompiler.structures.pseudo.delogic_logic import DelogicConverter
 from decompiler.structures.pseudo.expressions import Constant, Variable
