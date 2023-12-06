@@ -230,9 +230,7 @@ def _requirement_without_reinitialization(ast: AbstractSyntaxTree, node: Abstrac
                 return True
 
 
-def _get_continue_nodes_with_equalizable_definition(
-    loop_node: WhileLoopNode, continuation: AstInstruction
-) -> List[CodeNode]:
+def _get_continue_nodes_with_equalizable_definition(loop_node: WhileLoopNode, continuation: AstInstruction) -> List[CodeNode]:
     """
     Finds code nodes of a while loop containing continue statements and a definition of the continuation instruction, which can be easily equalized.
 
@@ -273,11 +271,8 @@ def _is_expression_simple_binary_operation(expression: Expression) -> bool:
 
 
 def _is_negated_constant_variable(operand: Expression, expression: Constant | Variable) -> bool:
-    return (
-        isinstance(operand, UnaryOperation)
-        and operand.operation == OperationType.negate
-        and isinstance(operand.operand, expression)
-    )
+    """Checks if an operand (constant or variable) is negated."""
+    return isinstance(operand, UnaryOperation) and operand.operation == OperationType.negate and isinstance(operand.operand, expression)
 
 
 def _get_variable_in_binary_operation(binaryoperation: BinaryOperation) -> Variable:
