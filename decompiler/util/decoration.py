@@ -31,9 +31,10 @@ from decompiler.structures.pseudo.operations import Condition
 from decompiler.util.CloseableNamedTemporaryFile import closeable_temporary_file
 from decompiler.util.to_dot_converter import ToDotConverter
 from networkx import DiGraph
-from pygments import format, lex
+from pygments import highlight
 from pygments.formatters.html import HtmlFormatter
-from pygments.lexers.c_like import CLexer
+from pygments.formatters.terminal import TerminalFormatter
+from pygments.lexers.c_cpp import CppLexer
 
 try:
     run(["graph-easy", "-v"], capture_output=True)
@@ -355,17 +356,11 @@ class DecoratedCode:
                 self._text = output.read()
 
     def export_ascii(self) -> str:
-        with closeable_temporary_file(mode="w", encoding="utf-8") as file:
-            file.write(self._text)
-            file.close()
-
-            result: CompletedProcess = run(["pygmentize", "-l", "cpp", f"-O style={self._style}", file.name], capture_output=True)
-            return result.stdout.decode("ascii")
+        return highlight(self._text, CppLexer(), TerminalFormatter(style=self._style))
 
     def export_html(self) -> str:
         """Export an html representation of the current code."""
-        tokens = lex(self._text, CLexer())
-        html = format(tokens, HtmlFormatter(full=True, style=self._style))
+        html = highlight(self._text, CppLexer(), HtmlFormatter(full=True, style=self._style))
         return self._filter_css_comments(html)
 
     @staticmethod
