@@ -1,14 +1,11 @@
 """Module handling plotting and pretty printing."""
 from __future__ import annotations
 
-import os
-import subprocess
 import textwrap
 from logging import warning
 from re import compile
-from subprocess import CompletedProcess, Popen, run
+from subprocess import CompletedProcess, run
 from sys import stdout
-from tempfile import NamedTemporaryFile
 from typing import Dict, TextIO
 
 import z3
@@ -31,6 +28,7 @@ from decompiler.structures.ast.syntaxgraph import AbstractSyntaxInterface
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.graphs.cfg import BasicBlock, BasicBlockEdge, BasicBlockEdgeCondition, ControlFlowGraph
 from decompiler.structures.pseudo.operations import Condition
+from decompiler.util.CloseableNamedTemporaryFile import closeable_temporary_file
 from decompiler.util.to_dot_converter import ToDotConverter
 from networkx import DiGraph
 from pygments import format, lex
@@ -68,11 +66,13 @@ class DecoratedGraph:
         """Export the current graph into an ascii representation."""
         if not GRAPH_EASY_INSTALLED:
             warning(f"Invoking graph-easy although it seems like it is not installed on the system.")
-        with NamedTemporaryFile(mode="w+") as handle:
-            self._write_dot(handle)
-            handle.flush()
-            result: CompletedProcess = run(["graph-easy", "--as=ascii", handle.name], capture_output=True)
-        return result.stdout.decode("utf-8")
+
+        with closeable_temporary_file(mode="w", encoding="utf-8") as file:
+            self._write_dot(file)
+            file.close()
+
+            result: CompletedProcess = run(["graph-easy", "--as=ascii", file.name], capture_output=True)
+            return result.stdout.decode("utf-8")
 
     def export_dot(self, path: str):
         """Export the graph into a dotfile at the given location."""
@@ -86,14 +86,14 @@ class DecoratedGraph:
         path -- Path to the plot to be created.
         type -- a string describing the output type (commonly pdf, png)
         """
-        with Popen(
-            ["dot", f"-T{type}", f"-o{path}"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-        ) as proc:
-            dot_source: str = ToDotConverter.write(self.graph)
-            stdout, stderr = proc.communicate(input=dot_source)
 
-            if proc.returncode:
-                raise ValueError(f"Could not plot graph! ({stderr})")
+        with closeable_temporary_file(mode="w", encoding="utf-8") as file:
+            self._write_dot(file)
+            file.close()
+
+            result = run(["dot", f"-T{type}", f"-o{path}", f"{file.name}"], capture_output=True)
+            if result.returncode:
+                raise ValueError(f"Could not plot graph! ({result.stderr.decode('utf-8')}")
 
 
 class DecoratedCFG(DecoratedGraph):
@@ -303,22 +303,6 @@ class DecoratedAST(DecoratedGraph):
 class DecoratedCode:
     """Class representing C code ready for pretty printing."""
 
-    class TempFile:
-        """Context manager to write content to NamedTemporaryFile and release for windows, returns file name"""
-
-        def __init__(self, content: str):
-            self.tmpf = NamedTemporaryFile(mode="w", delete=False)
-            self.tmpf.write(content)
-            self.name = self.tmpf.name
-            self.tmpf.flush()
-            self.tmpf.close()
-
-        def __enter__(self) -> str:
-            return self.name
-
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            os.unlink(self.name)
-
     def __init__(self, code: str, style="paraiso-dark"):
         """Generate an object handling code decoration."""
         self._text = code
@@ -360,15 +344,23 @@ class DecoratedCode:
         """Call astyle on command line to reformat the code."""
         if not ASTYLE_INSTALLED:
             warning(f"Invoking astyle although it seems like it is not installed on the system.")
-        with self.TempFile(self._text) as filename:
-            run(["astyle", "-z2", "-n", filename], check=True, capture_output=True)
-            with open(filename, "r") as output:
+
+        with closeable_temporary_file(mode="w", encoding="utf-8") as file:
+            file.write(self._text)
+            file.close()
+
+            run(["astyle", "-z2", "-n", file.name], check=True, capture_output=True)
+
+            with open(file.name, "r") as output:
                 self._text = output.read()
 
     def export_ascii(self) -> str:
-        with self.TempFile(self._text) as filename:
-            result: CompletedProcess = run(["pygmentize", "-l", "cpp", f"-O style={self._style}", filename], capture_output=True)
-        return result.stdout.decode("ascii")
+        with closeable_temporary_file(mode="w", encoding="utf-8") as file:
+            file.write(self._text)
+            file.close()
+
+            result: CompletedProcess = run(["pygmentize", "-l", "cpp", f"-O style={self._style}", file.name], capture_output=True)
+            return result.stdout.decode("ascii")
 
     def export_html(self) -> str:
         """Export an html representation of the current code."""
