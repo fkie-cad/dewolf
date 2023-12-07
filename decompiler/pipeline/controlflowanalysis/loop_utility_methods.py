@@ -236,7 +236,6 @@ def _get_equalizable_last_definitions(loop_node: WhileLoopNode, continuation: As
 
     :param loop_node: While-loop to search in
     :param continuation: Instruction defining the for-loops modification
-    :param variable_init: Instruction defining the for-loops declaration
     :return: List of equalizable last definitions, None if at least one continue node does not match the requirements
     """
     equalizable_nodes = []
@@ -302,9 +301,8 @@ def _substract_continuation_from_last_definition(last_definition: Assignment, co
     Substracts the value of the continuation instruction from the last definition, which must be a simple binary operation or a constant,
     defining the same value as the continuation instruction in the given code node.
 
-    :param code_node: Code node whose last instruction is to be changed
+    :param last_definition: Last definition that is to be changed
     :param continuation: Instruction defining the for-loops modification
-    :param variable_init: Instruction defining the for-loops declaration
     """
     last_definition.substitute(
         last_definition.value, BinaryOperation(OperationType.minus, [last_definition.value, continuation.instruction.value.right])
