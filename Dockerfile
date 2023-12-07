@@ -22,6 +22,7 @@ RUN apt -y update && apt -y upgrade && apt install -y --no-install-recommends \
     virtualenv \
     unzip \
 	astyle \
+    graphviz \
     # plotting ascii graphs for debug purposes
     libgraph-easy-perl \
     z3
