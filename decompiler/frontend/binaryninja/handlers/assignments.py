@@ -75,7 +75,7 @@ class AssignmentHandler(Handler):
                 offset=assignment.offset,
                 member_name=struct_variable.type.get_member_name_by_offset(assignment.offset),
                 operands=[struct_variable],
-                writes_memory=assignment.ssa_memory_version + 1,
+                writes_memory=assignment.dest.version,
             )
             value = self._lifter.lift(assignment.src)
         # case 2 (contraction):
