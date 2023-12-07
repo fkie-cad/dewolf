@@ -6,7 +6,7 @@ from typing import Union
 from decompiler.pipeline.controlflowanalysis.loop_utility_methods import (
     AstInstruction,
     _find_continuation_instruction,
-    _get_continue_nodes_with_equalizable_definition,
+    _get_equalizable_last_definitions,
     _get_variable_initialisation,
     _initialization_reaches_loop_node,
     _is_single_instruction_loop_node,
@@ -103,10 +103,10 @@ class WhileLoopReplacer:
                     continue
                 if not self._force_for_loops and continuation.instruction.complexity > self._modification_max_complexity:
                     continue
-                if (equalizable_continue_nodes := _get_continue_nodes_with_equalizable_definition(loop_node, continuation)) is None:
+                if (equalizable_last_definitions := _get_equalizable_last_definitions(loop_node, continuation)) is None:
                     continue
-                for node in equalizable_continue_nodes:
-                    _substract_continuation_from_last_definition(node, continuation)
+                for last_definition in equalizable_last_definitions:
+                    _substract_continuation_from_last_definition(last_definition, continuation)
                 self._replace_with_for_loop(loop_node, continuation, variable_init)
                 break
 

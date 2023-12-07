@@ -230,14 +230,14 @@ def _requirement_without_reinitialization(ast: AbstractSyntaxTree, node: Abstrac
                 return True
 
 
-def _get_continue_nodes_with_equalizable_definition(loop_node: WhileLoopNode, continuation: AstInstruction) -> List[CodeNode]:
+def _get_equalizable_last_definitions(loop_node: WhileLoopNode, continuation: AstInstruction) -> List[CodeNode]:
     """
-    Finds code nodes of a while loop containing continue statements and a definition of the continuation instruction, which can be easily equalized.
+    Finds equalizable last definitions of the continuation instruction in the code nodes of a while loop containing continue statements.
 
     :param loop_node: While-loop to search in
     :param continuation: Instruction defining the for-loops modification
     :param variable_init: Instruction defining the for-loops declaration
-    :return: List of continue code nodes that has equalizable definitions, None if at least one continue node does not match the requirements
+    :return: List of equalizable last definitions, None if at least one continue node does not match the requirements
     """
     equalizable_nodes = []
     for code_node in (
@@ -247,16 +247,18 @@ def _get_continue_nodes_with_equalizable_definition(loop_node: WhileLoopNode, co
             return None
         if (last_definition_index := _get_last_definition_index_of(code_node, continuation.instruction.destination)) == -1:
             return None
+        else:
+            last_definition = code_node.instructions[last_definition_index]
         if not (
-            isinstance(code_node.instructions[last_definition_index].value, Constant)
-            or _is_expression_simple_binary_operation(code_node.instructions[last_definition_index].value)
+            isinstance(last_definition.value, Constant)
+            or _is_expression_simple_binary_operation(last_definition.value)
             and _get_variable_in_binary_operation(continuation.instruction.value)
-            == _get_variable_in_binary_operation(code_node.instructions[last_definition_index].value)
+            == _get_variable_in_binary_operation(last_definition.value)
         ):
             return None
 
         _unify_binary_operation_in_assignment(continuation.instruction)
-        equalizable_nodes.append(code_node)
+        equalizable_nodes.append(last_definition)
     return equalizable_nodes
 
 
@@ -295,7 +297,7 @@ def _unify_binary_operation_in_assignment(assignment: Assignment):
         assignment.substitute(assignment.value, BinaryOperation(OperationType.plus, [assignment.value.right, assignment.value.left]))
 
 
-def _substract_continuation_from_last_definition(code_node: CodeNode, continuation: AstInstruction):
+def _substract_continuation_from_last_definition(last_definition: Assignment, continuation: AstInstruction):
     """
     Substracts the value of the continuation instruction from the last definition, which must be a simple binary operation or a constant,
     defining the same value as the continuation instruction in the given code node.
@@ -304,7 +306,6 @@ def _substract_continuation_from_last_definition(code_node: CodeNode, continuati
     :param continuation: Instruction defining the for-loops modification
     :param variable_init: Instruction defining the for-loops declaration
     """
-    last_definition = code_node.instructions[_get_last_definition_index_of(code_node, continuation.instruction.destination)]
     last_definition.substitute(
         last_definition.value, BinaryOperation(OperationType.minus, [last_definition.value, continuation.instruction.value.right])
     )
