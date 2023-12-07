@@ -20,4 +20,10 @@ def CloseableNamedTemporaryFile(**kwargs):
         try:
             yield file
         finally:
+            # Close the file to be sure that it can be removed.
+            # It's ok if the file was already closed because NamedTemporaryFile's close method is idempotent.
+            file.close()
+            # If file was already deleted outside of this contextmanager, this will crash
+            # (just like the original NamedTemporaryFile).
+            # On NT, this might also crash if another handle to this file is still open
             os.remove(file.name)
