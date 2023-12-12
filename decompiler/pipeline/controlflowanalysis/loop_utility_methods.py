@@ -251,7 +251,8 @@ def _get_equalizable_last_definitions(loop_node: WhileLoopNode, continuation: As
         if not (
             isinstance(last_definition.value, Constant)
             or _is_expression_simple_binary_operation(last_definition.value)
-            and _get_variable_in_binary_operation(continuation.instruction.value)
+            and continuation.instruction.destination
+            == _get_variable_in_binary_operation(continuation.instruction.value)
             == _get_variable_in_binary_operation(last_definition.value)
         ):
             return None
