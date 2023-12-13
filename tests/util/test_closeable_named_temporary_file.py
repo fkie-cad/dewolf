@@ -5,10 +5,10 @@ from decompiler.util.closeable_named_temporary_file import CloseableNamedTempora
 
 class TestCloseableNamedTemporaryFile:
     def test_usage_after_closing(self):
-        with CloseableNamedTemporaryFile(mode="w") as file:
+        with CloseableNamedTemporaryFile(mode="w", encoding="utf-8") as file:
             file.write("test")
             file.close()
-            with open(file.name, "r") as reopened_file:
+            with open(file.name, "r", encoding="utf-8") as reopened_file:
                 assert reopened_file.read() == "test"
 
     def test_deletion_with_close(self):
