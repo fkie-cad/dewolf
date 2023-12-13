@@ -259,23 +259,22 @@ class TestCodeGeneration:
     def test_function_with_ifelseif(self):
         context = LogicCondition.generate_new_context()
         root = SeqNode(LogicCondition.initialize_true(context))
-        ast = AbstractSyntaxTree(root, {
-            x1_symbol(context): Condition(OperationType.less, [var_a, const_3]),
-            x2_symbol(context): Condition(OperationType.less, [var_a, const_5])
-        })
+        ast = AbstractSyntaxTree(
+            root,
+            {
+                x1_symbol(context): Condition(OperationType.less, [var_a, const_3]),
+                x2_symbol(context): Condition(OperationType.less, [var_a, const_5]),
+            },
+        )
 
         x2_true_node = ast._add_code_node([instructions.Return([const_1])])
         x2_false_node = ast._add_code_node([instructions.Return([const_2])])
         x1_true_node = ast._add_code_node([instructions.Return([const_0])])
         x1_false_node = ast._add_condition_node_with(
-            condition=x2_symbol(ast.factory.logic_context),
-            true_branch=x2_true_node,
-            false_branch=x2_false_node
+            condition=x2_symbol(ast.factory.logic_context), true_branch=x2_true_node, false_branch=x2_false_node
         )
         condition_node = ast._add_condition_node_with(
-            condition=x1_symbol(ast.factory.logic_context),
-            true_branch=x1_true_node,
-            false_branch=x1_false_node
+            condition=x1_symbol(ast.factory.logic_context), true_branch=x1_true_node, false_branch=x1_false_node
         )
 
         ast._add_edges_from([(root, condition_node)])
@@ -290,23 +289,22 @@ class TestCodeGeneration:
     def test_function_with_ifelseif_swapped(self):
         context = LogicCondition.generate_new_context()
         root = SeqNode(LogicCondition.initialize_true(context))
-        ast = AbstractSyntaxTree(root, {
-            x1_symbol(context): Condition(OperationType.greater_or_equal, [var_a, const_3]),
-            x2_symbol(context): Condition(OperationType.less, [var_a, const_5])
-        })
+        ast = AbstractSyntaxTree(
+            root,
+            {
+                x1_symbol(context): Condition(OperationType.greater_or_equal, [var_a, const_3]),
+                x2_symbol(context): Condition(OperationType.less, [var_a, const_5]),
+            },
+        )
 
         x2_true_node = ast._add_code_node([instructions.Return([const_1])])
         x2_false_node = ast._add_code_node([instructions.Return([const_2])])
         x1_true_node = ast._add_condition_node_with(
-            condition=x2_symbol(ast.factory.logic_context),
-            true_branch=x2_true_node,
-            false_branch=x2_false_node
+            condition=x2_symbol(ast.factory.logic_context), true_branch=x2_true_node, false_branch=x2_false_node
         )
         x1_false_node = ast._add_code_node([instructions.Return([const_0])])
         condition_node = ast._add_condition_node_with(
-            condition=x1_symbol(ast.factory.logic_context),
-            true_branch=x1_true_node,
-            false_branch=x1_false_node
+            condition=x1_symbol(ast.factory.logic_context), true_branch=x1_true_node, false_branch=x1_false_node
         )
 
         ast._add_edges_from([(root, condition_node)])
