@@ -71,9 +71,19 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
         if node.false_branch is None:
             return f"if ({self._condition_string(node.condition)}) {{{true_str}}}"
         false_str = self.visit(node.false_branch_child)
-        if isinstance(node.false_branch_child, ast_nodes.ConditionNode):
-            return f"if ({self._condition_string(node.condition)}){{{true_str}}} else {false_str}"
-        return f"if ({self._condition_string(node.condition)}){{{true_str}}} else{{{false_str}}}"
+        if isinstance(node.true_branch_child, ast_nodes.ConditionNode) or isinstance(node.false_branch_child, ast_nodes.ConditionNode):
+            negate_condition = isinstance(node.true_branch_child, ast_nodes.ConditionNode) and (
+                    not isinstance(node.false_branch_child, ast_nodes.ConditionNode) or len(false_str) > len(true_str)
+            )
+
+            condition = node.condition
+            if negate_condition:
+                true_str, false_str = false_str, true_str
+                condition = ~condition
+
+            return f"if ({self._condition_string(condition)}) {{{true_str}}} else {false_str}"
+        else:
+            return f"if ({self._condition_string(node.condition)}) {{{true_str}}} else {{{false_str}}}"
 
     def visit_true_node(self, node: ast_nodes.TrueNode) -> str:
         """Generate code for the given TrueNode by evaluating its child (Wrapper)."""

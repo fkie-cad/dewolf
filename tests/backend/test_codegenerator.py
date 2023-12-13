@@ -256,6 +256,68 @@ class TestCodeGeneration:
             self._task(ast, params=[var_a.copy(), var_b.copy()]),
         )
 
+    def test_function_with_ifelseif(self):
+        context = LogicCondition.generate_new_context()
+        root = SeqNode(LogicCondition.initialize_true(context))
+        ast = AbstractSyntaxTree(root, {
+            x1_symbol(context): Condition(OperationType.less, [var_a, const_3]),
+            x2_symbol(context): Condition(OperationType.less, [var_a, const_5])
+        })
+
+        x2_true_node = ast._add_code_node([instructions.Return([const_1])])
+        x2_false_node = ast._add_code_node([instructions.Return([const_2])])
+        x1_true_node = ast._add_code_node([instructions.Return([const_0])])
+        x1_false_node = ast._add_condition_node_with(
+            condition=x2_symbol(ast.factory.logic_context),
+            true_branch=x2_true_node,
+            false_branch=x2_false_node
+        )
+        condition_node = ast._add_condition_node_with(
+            condition=x1_symbol(ast.factory.logic_context),
+            true_branch=x1_true_node,
+            false_branch=x1_false_node
+        )
+
+        ast._add_edges_from([(root, condition_node)])
+
+        assert self._regex_matches(
+            r"^%int +test_function\(%int +a%,%int +b%\)%{%if%\(%a%<%3%\)%{%return%0%;%}%else +if%\(%a%<%5%\)%{%return%1%;%}%else%{%return%2%;%}%}%$".replace(
+                "%", "\\s*"
+            ),
+            self._task(ast, params=[var_a.copy(), var_b.copy()]),
+        )
+
+    def test_function_with_ifelseif_swapped(self):
+        context = LogicCondition.generate_new_context()
+        root = SeqNode(LogicCondition.initialize_true(context))
+        ast = AbstractSyntaxTree(root, {
+            x1_symbol(context): Condition(OperationType.greater_or_equal, [var_a, const_3]),
+            x2_symbol(context): Condition(OperationType.less, [var_a, const_5])
+        })
+
+        x2_true_node = ast._add_code_node([instructions.Return([const_1])])
+        x2_false_node = ast._add_code_node([instructions.Return([const_2])])
+        x1_true_node = ast._add_condition_node_with(
+            condition=x2_symbol(ast.factory.logic_context),
+            true_branch=x2_true_node,
+            false_branch=x2_false_node
+        )
+        x1_false_node = ast._add_code_node([instructions.Return([const_0])])
+        condition_node = ast._add_condition_node_with(
+            condition=x1_symbol(ast.factory.logic_context),
+            true_branch=x1_true_node,
+            false_branch=x1_false_node
+        )
+
+        ast._add_edges_from([(root, condition_node)])
+
+        assert self._regex_matches(
+            r"^%int +test_function\(%int +a%,%int +b%\)%{%if%\(%a%<%3%\)%{%return%0%;%}%else +if%\(%a%<%5%\)%{%return%1%;%}%else%{%return%2%;%}%}%$".replace(
+                "%", "\\s*"
+            ),
+            self._task(ast, params=[var_a.copy(), var_b.copy()]),
+        )
+
     def test_function_with_switch(self):
         root_switch_node = SwitchNode(
             expression=var_a.copy(), reaching_condition=LogicCondition.initialize_true(LogicCondition.generate_new_context())
