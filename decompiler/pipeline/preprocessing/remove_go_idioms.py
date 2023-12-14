@@ -2,6 +2,7 @@
 import os
 import shelve
 from typing import Callable, Optional, Tuple
+from decompiler.pipeline.preprocessing.util import match_expression
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.basicblock import BasicBlock
@@ -138,37 +139,6 @@ class RemoveGoIdioms(PipelineStage):
 
         return False
 
-    def _match_expression(self, expression: Expression, pattern, instr_num=None):
-        if not isinstance(pattern, tuple):
-            if isinstance(pattern, Callable):
-                return pattern(expression)
-            else:
-                return isinstance(expression, Variable) and expression.name == pattern
-
-        if instr_num is None:
-            instr_num = len(self._cfg.root.instructions) - 1
-
-        inner_pattern, deref_offset = pattern
-        neg_deref_offset = -deref_offset
-        match expression:
-            case Variable() if instr_num > 0:
-                prev_instruction = self._cfg.root.instructions[instr_num - 1]
-                if isinstance(prev_instruction, Assignment) and prev_instruction.destination == expression:
-                    # important: dont use inner_pattern here
-                    return self._match_expression(prev_instruction.value, pattern, instr_num - 1)
-            case UnaryOperation(
-                OperationType.dereference, BinaryOperation(OperationType.plus, inner_expression, Constant(value=deref_offset))
-            ):
-                return self._match_expression(inner_expression, inner_pattern, instr_num)
-            case UnaryOperation(
-                OperationType.dereference, BinaryOperation(OperationType.minus, inner_expression, Constant(value=neg_deref_offset))
-            ):
-                return self._match_expression(inner_expression, inner_pattern, instr_num)
-            case UnaryOperation(OperationType.dereference, inner_expression) if deref_offset == 0:
-                return self._match_expression(inner_expression, inner_pattern, instr_num)
-
-        return False
-
     def _check_root_node(self) -> bool:
         # check if root node has an if similar to "if((&(__return_addr)) u<= (*(r14 + 0x10)))"
         # or "if((&(__return_addr)) u<= (*(*(fsbase -8) + 0x10)))".
@@ -209,7 +179,7 @@ class RemoveGoIdioms(PipelineStage):
             ((("gsbase", 0x28), 0), 0x10),  # windows amd64 1.4  -1.16
         ]
         for pattern in patterns:
-            if self._match_expression(right_expression, pattern):
+            if match_expression(root, right_expression, pattern):
                 return True
 
         return False
