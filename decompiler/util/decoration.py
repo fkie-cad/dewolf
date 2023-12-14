@@ -77,7 +77,7 @@ class DecoratedGraph:
 
     def export_dot(self, path: str):
         """Export the graph into a dotfile at the given location."""
-        with open(path, "w") as outfile:
+        with open(path, "w", encoding="utf-8") as outfile:
             self._write_dot(outfile)
 
     def export_plot(self, path: str, type="png"):
@@ -352,7 +352,7 @@ class DecoratedCode:
 
             run(["astyle", "-z2", "-n", file.name], check=True, capture_output=True)
 
-            with open(file.name, "r") as output:
+            with open(file.name, "r", encoding="utf-8") as output:
                 self._text = output.read()
 
     def export_ascii(self) -> str:

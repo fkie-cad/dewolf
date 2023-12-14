@@ -70,7 +70,7 @@ def _discover_system_tests() -> Dict[pathlib.Path, List[str]]:
 
 def _discover_coreutils_tests() -> List[Tuple[pathlib.Path, str]]:
     """Returns list of (binary, func_name) from a text file for the coreutils binaries."""
-    with pathlib.Path("tests/coreutils/functions.txt").open("r") as f:
+    with pathlib.Path("tests/coreutils/functions.txt").open("r", encoding="utf-8") as f:
         funcs_contents = f.readlines()
     files = []
     for line in funcs_contents:
@@ -98,7 +98,7 @@ def _discover_test_functions_in_sample_code(sample: pathlib.Path) -> List[str]:
     """Discover test functions in the given source file.
     Test function to be included have to be named 'testN' where 'N' has to be an integer."""
     test_names = list()
-    with sample.open("r") as f:
+    with sample.open("r", encoding="utf-8") as f:
         for line in f.readlines():
             if match := re.match(r"\w+ (?P<test_name>test\d+)\(.*\)", line):
                 test_names.append(match.group("test_name"))
@@ -109,7 +109,7 @@ def _parse_makefile() -> Dict[str, pathlib.Path]:
     """Parse from Makefile path to systemtests sources and binaries as well as
     path to extended tests sources and binaries"""
     makefile = dict()
-    with pathlib.Path("Makefile").open("r") as f:
+    with pathlib.Path("Makefile").open("r", encoding="utf-8") as f:
         mkfile_contents = f.readlines()
     for line in mkfile_contents:
         if match := re.match(r"^SYSTEM_TESTS_BIN_PATH\s:=\s(.*)$", line):
