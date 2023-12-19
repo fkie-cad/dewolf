@@ -297,7 +297,7 @@ def _unify_binary_operation_in_assignment(assignment: Assignment):
     if not assignment.value.operation == OperationType.plus:
         assignment.substitute(
             assignment.value,
-            BinaryOperation(OperationType.plus, [assignment.value.left, UnaryOperation(OperationType.negate, assignment.value.right)]),
+            BinaryOperation(OperationType.plus, [assignment.value.left, UnaryOperation(OperationType.negate, [assignment.value.right])]),
         )
 
     if any(isinstance(operand, Constant) for operand in assignment.value.left.subexpressions()):
