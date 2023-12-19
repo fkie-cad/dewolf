@@ -295,8 +295,10 @@ def _get_variable_in_binary_operation(binaryoperation: BinaryOperation) -> Varia
 def _unify_binary_operation_in_assignment(assignment: Assignment):
     """Brings a simple binary operation of an assignment into a unified representation like 'var = -var + const' instead of 'var = const - var'."""
     if not assignment.value.operation == OperationType.plus:
-        assignment.substitute(assignment.value, BinaryOperation(OperationType.plus, [assignment.value.left, assignment.value.right]))
-        assignment.value.substitute(assignment.value.right, UnaryOperation(OperationType.negate, [assignment.value.right]))
+        assignment.substitute(
+            assignment.value,
+            BinaryOperation(OperationType.plus, [assignment.value.left, UnaryOperation(OperationType.negate, assignment.value.right)]),
+        )
 
     if any(isinstance(operand, Constant) for operand in assignment.value.left.subexpressions()):
         assignment.substitute(assignment.value, BinaryOperation(OperationType.plus, [assignment.value.right, assignment.value.left]))
