@@ -312,8 +312,8 @@ def _substract_continuation_from_last_definition(last_definition: Assignment, co
     :param last_definition: Last definition that is to be changed
     :param continuation: Instruction defining the for-loops modification
     """
-    last_definition.substitute(
-        last_definition.value, BinaryOperation(OperationType.minus, [last_definition.value, continuation.instruction.value.right])
-    )
+    substracted_binary_operation = BinaryOperation(OperationType.minus, [last_definition.value, continuation.instruction.value.right])
     if _is_negated_constant_variable(continuation.instruction.value.left, Variable):
-        last_definition.substitute(last_definition.value, UnaryOperation(OperationType.negate, [last_definition.value]))
+        last_definition.substitute(last_definition.value, UnaryOperation(OperationType.negate, [substracted_binary_operation]))
+    else:
+        last_definition.substitute(last_definition.value, substracted_binary_operation)
