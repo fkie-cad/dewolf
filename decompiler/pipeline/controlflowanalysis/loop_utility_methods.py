@@ -238,23 +238,18 @@ def _get_equalizable_last_definitions(loop_node: WhileLoopNode, continuation: As
     :param continuation: Instruction defining the for-loops modification
     :return: List of equalizable last definitions, None if at least one continue node does not match the requirements
     """
+    if not (_is_assignment_with_simple_binary_operation(continuation.instruction)):
+        return None
+
     equalizable_nodes = []
     for code_node in (
         node for node in loop_node.body.get_descendant_code_nodes_interrupting_ancestor_loop() if node.does_end_with_continue
     ):
-        if not _is_expression_simple_binary_operation(continuation.instruction.value):
-            return None
         if (last_definition_index := _get_last_definition_index_of(code_node, continuation.instruction.destination)) == -1:
             return None
         else:
             last_definition = code_node.instructions[last_definition_index]
-        if not (
-            isinstance(last_definition.value, Constant)
-            or _is_expression_simple_binary_operation(last_definition.value)
-            and continuation.instruction.destination
-            == _get_variable_in_binary_operation(continuation.instruction.value)
-            == _get_variable_in_binary_operation(last_definition.value)
-        ):
+        if not (isinstance(last_definition.value, Constant) or _is_assignment_with_simple_binary_operation(last_definition)):
             return None
 
         _unify_binary_operation_in_assignment(continuation.instruction)
@@ -262,13 +257,17 @@ def _get_equalizable_last_definitions(loop_node: WhileLoopNode, continuation: As
     return equalizable_nodes
 
 
-def _is_expression_simple_binary_operation(expression: Expression) -> bool:
-    """Checks if an expression is a simple binary operation. Meaning it includes a variable and a constant and uses plus or minus as operation type."""
+def _is_assignment_with_simple_binary_operation(assignment: Assignment) -> bool:
+    """
+    Checks if an assignment has a simple binary operation as value and the used and defined variable is the same. A simple binary
+    operation means that it includes a variable and a constant and uses plus or minus as operation type.
+    """
     return (
-        isinstance(expression, BinaryOperation)
-        and expression.operation in {OperationType.plus, OperationType.minus}
-        and any(isinstance(operand, Constant) or _is_negated_constant_variable(operand, Constant) for operand in expression.operands)
-        and any(isinstance(operand, Variable) or _is_negated_constant_variable(operand, Variable) for operand in expression.operands)
+        isinstance(assignment.value, BinaryOperation)
+        and assignment.value.operation in {OperationType.plus, OperationType.minus}
+        and any(isinstance(operand, Constant) or _is_negated_constant_variable(operand, Constant) for operand in assignment.value.operands)
+        and any(isinstance(operand, Variable) or _is_negated_constant_variable(operand, Variable) for operand in assignment.value.operands)
+        and assignment.destination == _get_variable_in_binary_operation(assignment.value)
     )
 
 
