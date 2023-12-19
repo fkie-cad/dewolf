@@ -898,7 +898,10 @@ class TestReadabilityUtils:
         )
 
         WhileLoopReplacer(ast, _generate_options()).run()
-        assert all(isinstance(loop_node, ForLoopNode) for loop_node in list(ast.get_loop_nodes_post_order()))
+
+        for loop_node in list(ast.get_loop_nodes_post_order()):
+            assert isinstance(loop_node, ForLoopNode)
+            assert loop_node.modification == Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))
 
         condition_nodes = list(ast.get_condition_nodes_post_order())
         last_definition = condition_nodes[0].true_branch_child.instructions[
