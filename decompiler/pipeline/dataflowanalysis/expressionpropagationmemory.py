@@ -54,7 +54,6 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
             or self._contains_global_variable(definition)
             or self._operation_is_propagated_in_phi(target, definition)
             or self._is_invalid_propagation_into_address_operation(target, definition)
-            or self._resulting_instruction_is_too_long(target, definition)
             or self._is_aliased_postponed_for_propagation(target, definition)
             or self._definition_value_could_be_modified_via_memory_access_between_definition_and_target(definition, target)
             or self._pointer_value_used_in_definition_could_be_modified_via_memory_access_between_definition_and_target(definition, target)

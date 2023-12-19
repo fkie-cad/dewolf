@@ -76,9 +76,9 @@ class GlobalHandler(Handler):
     ) -> StringSymbol:
         """Lift constant data type (bninja only uses strings) into code"""  # jump table ist auch constant
         if str(variable).find("char const") != -1:
-            string = str(variable.value)[2:-1].rstrip(
-                "\\x00"
-            )  # we want to keep escaped control chars (\n), therefore we take the raw string representation of bytes and purge b""
+            string = str(variable.value.rstrip(b"\x00"))[
+                2:-1
+            ]  # we want to keep escaped control chars (\n), therefore we take the raw string representation of bytes and purge b""
             return StringSymbol(f'"{string}"', variable.address, vartype=Pointer(Integer.char(), view.address_size * BYTE_SIZE))
         return StringSymbol(
             f"&{variable.name}" if variable.name else GLOBAL_VARIABLE_PREFIX + f"{variable.address:x}", variable.address
