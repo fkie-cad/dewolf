@@ -236,19 +236,25 @@ def _get_equalizable_last_definitions(loop_node: WhileLoopNode, continuation: As
 
     :param loop_node: While-loop to search in
     :param continuation: Instruction defining the for-loops modification
-    :return: List of equalizable last definitions, None if at least one continue node does not match the requirements
+    :return: List of equalizable last definitions, Empty list if no continue nodes or no equalizable nodes
+    :return: None if at least one continue node does not match the requirements
     """
+    if not (
+        continue_nodes := [
+            node for node in loop_node.body.get_descendant_code_nodes_interrupting_ancestor_loop() if node.does_end_with_continue
+        ]
+    ):
+        return continue_nodes
+
     if not (_is_assignment_with_simple_binary_operation(continuation.instruction)):
         return None
 
     equalizable_nodes = []
-    for code_node in (
-        node for node in loop_node.body.get_descendant_code_nodes_interrupting_ancestor_loop() if node.does_end_with_continue
-    ):
+    for code_node in continue_nodes:
         if (last_definition_index := _get_last_definition_index_of(code_node, continuation.instruction.destination)) == -1:
             return None
-        else:
-            last_definition = code_node.instructions[last_definition_index]
+
+        last_definition = code_node.instructions[last_definition_index]
         if not (isinstance(last_definition.value, Constant) or _is_assignment_with_simple_binary_operation(last_definition)):
             return None
 
