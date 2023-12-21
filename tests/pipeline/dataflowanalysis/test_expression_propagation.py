@@ -301,58 +301,6 @@ def graphs_no_aliased_propagation():
     return in_cfg, out_cfg
 
 
-def test_do_not_propagate_behind_global_limits():
-    """
-    +-----------------+
-    |       0.        |
-    | x#0 = y#0 * 0x4 |
-    | x#1 = x#0 + 0x2 |
-    | y#1 = x#1 * 0x5 |
-    | x#2 = x#1 + y#1 |
-    |   print(x#2)    |
-    +-----------------+
-
-    Without propagation (limit 0):
-    +-----------------+
-    |       0.        |
-    | x#0 = y#0 * 0x4 |
-    | x#1 = x#0 + 0x2 |
-    | y#1 = x#1 * 0x5 |
-    | x#2 = x#1 + y#1 |
-    |   print(x#2)    |
-    +-----------------+
-    With propagation limit 4:
-    +--------------------------+
-    |            0.            |
-    |     x#0 = y#0 * 0x4      |
-    | x#1 = (y#0 * 0x4) + 0x2  |
-    |     y#1 = x#1 * 0x5      |
-    | x#2 = x#1 + (x#1 * 0x5)  |
-    | print(x#1 + (x#1 * 0x5)) |
-    +--------------------------+
-    With propagation limit 20:
-    +----------------------------------------------------------+
-    |                            0.                            |
-    |                     x#0 = y#0 * 0x4                      |
-    |                 x#1 = (y#0 * 0x4) + 0x2                  |
-    |             y#1 = ((y#0 * 0x4) + 0x2) * 0x5              |
-    | x#2 = ((y#0 * 0x4) + 0x2) + (((y#0 * 0x4) + 0x2) * 0x5)  |
-    | print(((y#0 * 0x4) + 0x2) + (((y#0 * 0x4) + 0x2) * 0x5)) |
-    +----------------------------------------------------------+
-
-    """
-    cfg = graph_single_block_global_limit_0()
-    output_cfg = graph_single_block_global_limit_0()
-    _run_expression_propagation(cfg, _generate_options(instr=0))
-    assert _graphs_equal(cfg, output_cfg)
-    _run_expression_propagation(cfg, _generate_options(instr=4))
-    output_cfg = graph_single_block_global_limit_4()
-    assert _graphs_equal(cfg, output_cfg)
-    _run_expression_propagation(cfg, _generate_options(instr=20))
-    output_cfg = graph_single_block_global_limit_20()
-    assert _graphs_equal(cfg, output_cfg)
-
-
 def graph_single_block_global_limit_0():
     x = vars("x", 6)
     y = vars("y", 6)
@@ -408,91 +356,6 @@ def graph_single_block_global_limit_20():
     cfg = ControlFlowGraph()
     cfg.add_node(n0)
     return cfg
-
-
-def test_specific_propagation_limits():
-    """
-    Call propagation limit:
-    +---------------------+
-    |         0.          |
-    | a = (x * 0x2) + 0x1 |
-    |        b = a        |
-    |       foo(a)        |
-    +---------------------+
-    With global limit 5 and call limit 1:
-    +---------------------+
-    |         0.          |
-    | a = (x * 0x2) + 0x1 |
-    | b = (x * 0x2) + 0x1 |
-    |       foo(a)        |
-    +---------------------+
-
-    Branch propagation limit:
-    +---------------------+
-    |         0.          |
-    | a = (x * 0x2) + 0x1 |
-    |        b = a        |
-    |    if(a <= 0x0)     |
-    +---------------------+
-    With global limit 5 and branch limit 1:
-    +---------------------+
-    |         0.          |
-    | a = (x * 0x2) + 0x1 |
-    | b = (x * 0x2) + 0x1 |
-    |    if(a <= 0x0)     |
-    +---------------------+
-
-    Assignment propagation limit:
-    +---------------------+
-    |         0.          |
-    | a = (x * 0x2) + 0x1 |
-    |        b = a        |
-    |    if(a <= 0x3)     |
-    +---------------------+
-    Assignment limit 1, branch limit 5:
-    +------------------------------+
-    |              0.              |
-    |     a = (x * 0x2) + 0x1      |
-    |            b = a             |
-    | if(((x * 0x2) + 0x1) <= 0x3) |
-    +------------------------------+
-
-
-    """
-    c = const(4)
-    a = Variable("a")
-    b = Variable("b")
-    x = Variable("x")
-    # test call limit
-    instructions = [_assign(a, _add(_mul(x, c[2]), c[1])), _assign(b, a), _call("foo", [], [a])]
-    cfg = ControlFlowGraph()
-    cfg.add_node(BasicBlock(0, instructions))
-    _run_expression_propagation(cfg, _generate_options(instr=5, call=1))
-    assert [i for i in cfg.instructions] == [
-        _assign(a, _add(_mul(x, c[2]), c[1])),
-        _assign(b, _add(_mul(x, c[2]), c[1])),
-        _call("foo", [], [a]),
-    ]
-    # test branch limit
-    instructions = [_assign(a, _add(_mul(x, c[2]), c[1])), _assign(b, a), _if(op.less_or_equal, a, c[0])]
-    cfg = ControlFlowGraph()
-    cfg.add_node(BasicBlock(0, instructions))
-    _run_expression_propagation(cfg, _generate_options(instr=5, branch=1))
-    assert [i for i in cfg.instructions] == [
-        _assign(a, _add(_mul(x, c[2]), c[1])),
-        _assign(b, _add(_mul(x, c[2]), c[1])),
-        _if(op.less_or_equal, a, c[0]),
-    ]
-    # test assignment limit
-    instructions = [_assign(a, _add(_mul(x, c[2]), c[1])), _assign(b, a), _if(op.less_or_equal, a, c[3])]
-    cfg = ControlFlowGraph()
-    cfg.add_node(BasicBlock(0, instructions))
-    _run_expression_propagation(cfg, _generate_options(assignment=1, branch=5))
-    assert [i for i in cfg.instructions] == [
-        _assign(a, _add(_mul(x, c[2]), c[1])),
-        _assign(b, a),
-        _if(op.less_or_equal, _add(_mul(x, c[2]), c[1]), c[3]),
-    ]
 
 
 def test_calls_not_propagated():
@@ -762,45 +625,6 @@ def test_do_not_propagate_into_address():
     input_cfg, output_cfg = graphs_no_ep_in_address()
     _run_expression_propagation(input_cfg)
     assert _graphs_equal(input_cfg, output_cfg)
-
-
-def test_limit_calculation():
-    """
-    Test whether the complexity of an instruction after propagation is calculated correctly.
-
-    +-----------------+
-    |       0.        |
-    | x#0 = y#0 * 0x4 |
-    | x#1 = x#0 + 0x2 |
-    | y#1 = x#1 * 0x5 |
-    | x#2 = y#1 * y#1 |
-    |   print(x#2)    |
-    +-----------------+
-    """
-    cfg = ControlFlowGraph()
-    cfg.add_node(
-        BasicBlock(
-            0,
-            instructions=[
-                Assignment(Variable("x", ssa_label=0), BinaryOperation(OperationType.multiply, [Variable("y", ssa_label=0), Constant(4)])),
-                Assignment(Variable("x", ssa_label=1), BinaryOperation(OperationType.plus, [Variable("x", ssa_label=0), Constant(2)])),
-                Assignment(Variable("y", ssa_label=1), BinaryOperation(OperationType.multiply, [Variable("x", ssa_label=1), Constant(5)])),
-                Assignment(
-                    Variable("x", ssa_label=2),
-                    BinaryOperation(OperationType.multiply, [Variable("y", ssa_label=1), Variable("y", ssa_label=1)]),
-                ),
-                Assignment(ListOperation([]), Call(ImportedFunctionSymbol("print", 0x42), [Variable("x", ssa_label=2)])),
-            ],
-        )
-    )
-    _run_expression_propagation(cfg, _generate_options(instr=3))
-    assert list(cfg.instructions)[-1] == Assignment(
-        ListOperation([]),
-        Call(
-            ImportedFunctionSymbol("print", 0x42),
-            [BinaryOperation(OperationType.multiply, [Variable("y", ssa_label=1), Variable("y", ssa_label=1)])],
-        ),
-    )
 
 
 def graphs_no_ep_in_address():

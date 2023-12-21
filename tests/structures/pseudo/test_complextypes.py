@@ -1,6 +1,7 @@
 import pytest
 from decompiler.structures.pseudo import Float, Integer, Pointer
 from decompiler.structures.pseudo.complextypes import (
+    Class,
     ComplexTypeMap,
     ComplexTypeMember,
     ComplexTypeName,
@@ -8,6 +9,7 @@ from decompiler.structures.pseudo.complextypes import (
     Enum,
     Struct,
     Union,
+    UniqueNameProvider,
 )
 
 
@@ -46,11 +48,83 @@ class TestStruct:
         assert book.get_member_by_offset(4) == num_pages
         assert book.get_member_by_offset(8) == author
 
+    def test_get_member_name_by_offset(self, book, title, num_pages, author):
+        assert book.get_member_name_by_offset(0) == title.name
+        assert book.get_member_name_by_offset(4) == num_pages.name
+        assert book.get_member_name_by_offset(8) == author.name
+        assert book.get_member_name_by_offset(0x100) == "field_0x100"
+        assert book.get_member_name_by_offset(-0x100) == "field_minus_0x100"
+
+    def test_get_complex_type_name(self, book):
+        assert book.complex_type_name == (ComplexTypeName(0, "Book"))
+
+
+class TestClass:
+    def test_declaration(self, class_book: Struct, record_id: Union):
+        assert class_book.declaration() == "class ClassBook {\n\tchar * title;\n\tint num_pages;\n\tchar * author;\n}"
+        # nest complex type
+        class_book.add_member(
+            m := ComplexTypeMember(size=64, name="id", offset=12, type=record_id),
+        )
+        result = f"class ClassBook {{\n\tchar * title;\n\tint num_pages;\n\tchar * author;\n\t{m.declaration()};\n}}"
+        assert class_book.declaration() == result
+
+    def test_str(self, class_book: Struct):
+        assert str(class_book) == "ClassBook"
+
+    def test_copy(self, class_book: Struct):
+        new_class_book: Struct = class_book.copy()
+        assert id(new_class_book) != id(class_book)
+        assert new_class_book.size == class_book.size
+        assert new_class_book.type_specifier == class_book.type_specifier == ComplexTypeSpecifier.CLASS
+        assert id(new_class_book.members) != id(class_book.members)
+        assert new_class_book.get_member_by_offset(0) == class_book.get_member_by_offset(0)
+        assert id(new_class_book.get_member_by_offset(0)) != id(class_book.get_member_by_offset(0))
+        assert len(new_class_book.members) == len(class_book.members)
+
+    def test_add_members(self, class_book, title, num_pages, author):
+        empty_class_book = Class(name="ClassBook", members={}, size=96)
+        empty_class_book.add_member(title)
+        empty_class_book.add_member(author)
+        empty_class_book.add_member(num_pages)
+        assert empty_class_book == class_book
+
+    def test_get_member_by_offset(self, class_book, title, num_pages, author):
+        assert class_book.get_member_by_offset(0) == title
+        assert class_book.get_member_by_offset(4) == num_pages
+        assert class_book.get_member_by_offset(8) == author
+
+    def test_get_member_name_by_offset(self, class_book, title, num_pages, author):
+        assert class_book.get_member_name_by_offset(0) == title.name
+        assert class_book.get_member_name_by_offset(4) == num_pages.name
+        assert class_book.get_member_name_by_offset(8) == author.name
+        assert class_book.get_member_name_by_offset(0x100) == "field_0x100"
+        assert class_book.get_member_name_by_offset(-0x100) == "field_minus_0x100"
+
+    def test_get_complex_type_name(self, class_book):
+        assert class_book.complex_type_name == (ComplexTypeName(0, "ClassBook"))
+
+    def test_class_not_struct(self, class_book, book):
+        assert book != class_book
+
 
 @pytest.fixture
 def book() -> Struct:
     return Struct(
         name="Book",
+        members={
+            0: ComplexTypeMember(size=32, name="title", offset=0, type=Pointer(Integer.char())),
+            4: ComplexTypeMember(size=32, name="num_pages", offset=4, type=Integer.int32_t()),
+            8: ComplexTypeMember(size=32, name="author", offset=8, type=Pointer(Integer.char())),
+        },
+        size=96,
+    )
+
+
+@pytest.fixture
+def class_book() -> Class:
+    return Class(
+        name="ClassBook",
         members={
             0: ComplexTypeMember(size=32, name="title", offset=0, type=Pointer(Integer.char())),
             4: ComplexTypeMember(size=32, name="num_pages", offset=4, type=Integer.int32_t()),
@@ -100,6 +174,15 @@ class TestUnion:
         assert record_id.get_member_by_type(Float.float()) == float_id
         assert record_id.get_member_by_type(Integer.int32_t()) == int_id
         assert record_id.get_member_by_type(Float.double()) == double_id
+
+    def test_get_member_name_by_type(self, record_id, float_id, int_id, double_id):
+        assert record_id.get_member_name_by_type(Float.float()) == float_id.name
+        assert record_id.get_member_name_by_type(Integer.int32_t()) == int_id.name
+        assert record_id.get_member_name_by_type(Float.double()) == double_id.name
+        assert record_id.get_member_name_by_type(record_id) == "unknown_field"
+
+    def test_get_complex_type_name(self, record_id):
+        assert record_id.complex_type_name == (ComplexTypeName(0, "RecordID"))
 
 
 @pytest.fixture
@@ -153,6 +236,9 @@ class TestEnum:
         empty_color.add_member(blue)
         assert empty_color == color
 
+    def test_get_complex_type_name(self, color):
+        assert color.complex_type_name == (ComplexTypeName(0, "Color"))
+
 
 @pytest.fixture
 def color():
@@ -188,20 +274,44 @@ def blue():
 
 
 class TestComplexTypeMap:
-    def test_declarations(self, complex_types: ComplexTypeMap, book: Struct, color: Enum, record_id: Union):
-        assert complex_types.declarations() == f"{book.declaration()};\n{color.declaration()};\n{record_id.declaration()};"
+    def test_declarations(self, complex_types: ComplexTypeMap, book: Struct, class_book: Class, color: Enum, record_id: Union):
+        assert (
+            complex_types.declarations()
+            == f"{book.declaration()};\n{color.declaration()};\n{record_id.declaration()};\n{class_book.declaration()};"
+        )
         complex_types.add(book, 0)
-        assert complex_types.declarations() == f"{book.declaration()};\n{color.declaration()};\n{record_id.declaration()};"
+        assert (
+            complex_types.declarations()
+            == f"{book.declaration()};\n{color.declaration()};\n{record_id.declaration()};\n{class_book.declaration()};"
+        )
 
-    def test_retrieve_by_name(self, complex_types: ComplexTypeMap, book: Struct, color: Enum, record_id: Union):
+    def test_retrieve_by_name(self, complex_types: ComplexTypeMap, book: Struct, class_book: Class, color: Enum, record_id: Union):
         assert complex_types.retrieve_by_name(ComplexTypeName(0, "Book")) == book
         assert complex_types.retrieve_by_name(ComplexTypeName(0, "RecordID")) == record_id
         assert complex_types.retrieve_by_name(ComplexTypeName(0, "Color")) == color
+        assert complex_types.retrieve_by_name(ComplexTypeName(0, "ClassBook")) == class_book
+
+    def test_retrieve_by_id(self, complex_types: ComplexTypeMap, book: Struct, class_book: Class, color: Enum, record_id: Union):
+        assert complex_types.retrieve_by_id(0) == book
+        assert complex_types.retrieve_by_id(1) == color
+        assert complex_types.retrieve_by_id(2) == record_id
+        assert complex_types.retrieve_by_id(3) == class_book
 
     @pytest.fixture
-    def complex_types(self, book: Struct, color: Enum, record_id: Union):
+    def complex_types(self, book: Struct, class_book: Class, color: Enum, record_id: Union):
         complex_types = ComplexTypeMap()
         complex_types.add(book, 0)
         complex_types.add(color, 1)
         complex_types.add(record_id, 2)
+        complex_types.add(class_book, 3)
         return complex_types
+
+
+class TestUniqueNameProvider:
+    def test_unique_names(self):
+        unique_name_provider = UniqueNameProvider()
+        input_names = ["aa", "", "b", "", "c", "c", "d", "c"]
+        excepted_output = ["aa", "", "b", "__2", "c", "c__2", "d", "c__3"]
+        output_names = [unique_name_provider.get_unique_name(name) for name in input_names]
+        assert output_names == excepted_output
+        assert len(set(output_names)) == len(output_names)  # uniqueness

@@ -30,8 +30,6 @@ class ExpressionPropagationBase(PipelineStage, ABC):
     name = "expression-propagation-base"
 
     def __init__(self):
-        self._limit: Optional[int] = None
-        self._limits: Dict[Instruction, int]
         self._use_map: UseMap
         self._def_map: DefMap
         self._pointers_info: Optional[Pointers] = None
@@ -43,7 +41,6 @@ class ExpressionPropagationBase(PipelineStage, ABC):
 
     def run(self, task: DecompilerTask):
         """Execute the expression propagation on the current ControlFlowGraph."""
-        self._parse_options(task)
         iteration = 0
         # execute until there are no more changes
         while self.perform(task.graph, iteration):
@@ -88,15 +85,6 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         :return: true if propagation is allowed false otherwise
         """
         pass
-
-    def _parse_options(self, task: DecompilerTask):
-        """Parse the config options for this pipeline stage."""
-        self._limit = task.options.getint(f"{self.name}.maximum_instruction_complexity")
-        self._limits = {
-            Branch: min(self._limit, task.options.getint(f"{self.name}.maximum_branch_complexity")),
-            Call: min(self._limit, task.options.getint(f"{self.name}.maximum_call_complexity")),
-            Assignment: min(self._limit, task.options.getint(f"{self.name}.maximum_assignment_complexity")),
-        }
 
     def _initialize_maps(self, cfg: ControlFlowGraph) -> None:
         """
@@ -204,22 +192,6 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         """Only constants and variables are propagated in Phi,
         do not allow phi arguments to be unary or binary operations"""
         return isinstance(target, Phi) and isinstance(definition.value, Operation)
-
-    def _resulting_instruction_is_too_long(self, target: Instruction, definition: Assignment) -> bool:
-        """Instruction after expression propagation should not be longer than a given limit
-
-        we already test that only vars and constants are propagated in phi,
-        therefore the length of phi after propagation will be constant;
-        same with propagating instructions like e.g. a = b or a = 10.
-        """
-        if self._is_phi(target) or self._is_copy_assignment(definition):
-            return False
-        limit = self._limits.get(type(target), self._limit)
-        if self._is_call_assignment(target):
-            limit = self._limits[Call]
-        count = len([expr for expr in self._find_subexpressions(target) if expr == definition.destination])
-        propagated_complexity = target.complexity + (definition.value.complexity - definition.destination.complexity) * count
-        return propagated_complexity > limit
 
     def _is_address_assignment(self, definition: Assignment) -> bool:
         """
