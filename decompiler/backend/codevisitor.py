@@ -39,6 +39,7 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
         self._int_repr_scope: int = task.options.getint("code-generator.int_representation_scope", fallback=256)
         self._neg_hex_as_twos_complement: bool = task.options.getboolean("code-generator.negative_hex_as_twos_complement", fallback=True)
         self._aggressive_array_detection: bool = task.options.getboolean("code-generator.aggressive_array_detection", fallback=False)
+        self._preferred_true_branch: str = task.options.getstring("code-generator.preferred_true_branch", fallback="none")
         self.task = task
 
     def visit_seq_node(self, node: ast_nodes.SeqNode) -> str:
@@ -70,16 +71,30 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
         true_str = self.visit(node.true_branch_child)
         if node.false_branch is None:
             return f"if ({self._condition_string(node.condition)}) {{{true_str}}}"
-        false_str = self.visit(node.false_branch_child)
-        if isinstance(node.true_branch_child, ast_nodes.ConditionNode) or isinstance(node.false_branch_child, ast_nodes.ConditionNode):
-            negate_condition = isinstance(node.true_branch_child, ast_nodes.ConditionNode) and not isinstance(
-                node.false_branch_child, ast_nodes.ConditionNode
-            )
 
-            condition = node.condition
-            if negate_condition:
-                true_str, false_str = false_str, true_str
-                condition = ~condition
+        false_str = self.visit(node.false_branch_child)
+
+        condition = node.condition
+        true_child = node.true_branch_child
+        false_child = node.false_branch_child
+
+        def swap_branches():
+            nonlocal condition, true_child, false_child, true_str, false_str
+            condition = ~condition
+            true_child, false_child = false_child, true_child
+            true_str, false_str = false_str, true_str
+
+        length_comparisons = {
+            "none": False,
+            "smallest": len(true_str) > len(false_str),
+            "largest": len(true_str) < len(false_str)
+        }
+        if length_comparisons[self._preferred_true_branch]:
+            swap_branches()
+
+        if isinstance(true_child, ast_nodes.ConditionNode) or isinstance(false_child, ast_nodes.ConditionNode):
+            if not isinstance(false_child, ast_nodes.ConditionNode):
+                swap_branches()
 
             return f"if ({self._condition_string(condition)}) {{{true_str}}} else {false_str}"
         else:

@@ -419,6 +419,26 @@
                 "argument_name": "--variable-declarations-per-line"
             },
             {
+                "dest": "code-generator.preferred_true_branch",
+                "default": "smallest",
+                "title": "Preferred type of true branch in if-else",
+                "type": "string",
+                "enum": [
+                    "smallest",
+                    "largest",
+                    "none"
+                ],
+                "enumDescriptions": [
+                    "smallest",
+                    "largest",
+                    "none"
+                ],
+                "description": "Swap branches of if-else structures based on the given criteria",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--preferred_true_branch"
+            },
+            {
                 "dest": "pattern-independent-restructuring.switch_reconstruction",
                 "default": true,
                 "title": "Reconstruct switch statements",
