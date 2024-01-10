@@ -72,8 +72,8 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
             return f"if ({self._condition_string(node.condition)}) {{{true_str}}}"
         false_str = self.visit(node.false_branch_child)
         if isinstance(node.true_branch_child, ast_nodes.ConditionNode) or isinstance(node.false_branch_child, ast_nodes.ConditionNode):
-            negate_condition = isinstance(node.true_branch_child, ast_nodes.ConditionNode) and (
-                not isinstance(node.false_branch_child, ast_nodes.ConditionNode) or len(false_str) > len(true_str)
+            negate_condition = isinstance(node.true_branch_child, ast_nodes.ConditionNode) and not isinstance(
+                node.false_branch_child, ast_nodes.ConditionNode
             )
 
             condition = node.condition
