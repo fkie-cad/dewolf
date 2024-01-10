@@ -84,11 +84,7 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
             true_child, false_child = false_child, true_child
             true_str, false_str = false_str, true_str
 
-        length_comparisons = {
-            "none": False,
-            "smallest": len(true_str) > len(false_str),
-            "largest": len(true_str) < len(false_str)
-        }
+        length_comparisons = {"none": False, "smallest": len(true_str) > len(false_str), "largest": len(true_str) < len(false_str)}
         if length_comparisons[self._preferred_true_branch]:
             swap_branches()
 
