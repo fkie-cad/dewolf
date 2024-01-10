@@ -41,7 +41,7 @@ class AcyclicRegionRestructurer:
         """Restructure the acyclic transition graph."""
         acyclic_region_finder: AcyclicRegionFinder = AcyclicRegionFinderFactory.create(Strategy.improved_dream)(self.t_cfg)
         while len(self.t_cfg) > 1:
-            for node in self.t_cfg.iter_postorder():
+            for node in self.t_cfg.iter_preorder():
                 if restructurable_region := acyclic_region_finder.find(node):
                     self._construct_ast_for_region(restructurable_region, node)
                     break

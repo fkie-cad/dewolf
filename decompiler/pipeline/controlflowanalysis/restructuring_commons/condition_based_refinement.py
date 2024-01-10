@@ -3,13 +3,13 @@ Module for Condition Based Refinement
 """
 
 from itertools import combinations
-from typing import Iterator, List, Optional, Set, Tuple
 
 from binaryninja import *
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, SeqNode
 from decompiler.structures.ast.reachability_graph import SiblingReachability
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition
+from decompiler.util.decoration import DecoratedAST
 
 
 class ConditionBasedRefinement:
@@ -42,16 +42,46 @@ class ConditionBasedRefinement:
             2. Find nodes that have some factors in common.
         """
         assert isinstance(self.root, SeqNode), f"The root note {self.root} should be a sequence node!"
-        self._refine_code_nodes_with_complementary_conditions()
-        newly_created_sequence_nodes: Set[SeqNode] = {self.root}
 
-        while newly_created_sequence_nodes:
-            for seq_node in self.asforest.get_sequence_nodes_topological_order(self.root):
-                if seq_node not in newly_created_sequence_nodes:
-                    continue
-                newly_added_sequence_nodes = self._structure_sequence_node(seq_node)
-                newly_created_sequence_nodes.update(newly_added_sequence_nodes)
-                newly_created_sequence_nodes.remove(seq_node)
+        iter = 0
+
+        stack: list[SeqNode] = [self.root]
+        while stack:
+            current_node = stack.pop()
+
+            sibling_reachability = self.asforest.get_sibling_reachability_for(current_node.children)
+
+            conditions = set()
+            for node in current_node.children:
+                conditions.update(self._get_logical_and_subexpressions_of(node.reaching_condition))
+
+            if not conditions:
+                continue
+
+            DecoratedAST.from_ast(self.asforest, with_reaching_condition=True).export_plot(f"ast{iter}.png")
+            iter += 1
+
+            groups = {condition: self._cluster_by_condition(condition, current_node) for condition in conditions}
+
+            condition, (true_cluster, false_cluster) = max(groups.items(), key=lambda e: len(e[1][0]) + len(e[1][1]))
+            all_cluster = true_cluster + false_cluster
+            if self._can_place_condition_node_with_branches(all_cluster, sibling_reachability):
+                condition_node = self.asforest.create_condition_node_with(condition, true_cluster, false_cluster)
+                sibling_reachability.merge_siblings_to(condition_node, all_cluster)
+                current_node._sorted_children = sibling_reachability.sorted_nodes()
+
+                true_branch = condition_node.true_branch_child
+                false_branch = condition_node.false_branch_child
+
+                stack.append(current_node)
+                if isinstance(true_branch, SeqNode):
+                    stack.append(true_branch)
+                if isinstance(false_branch, SeqNode):
+                    stack.append(false_branch)
+
+        DecoratedAST.from_ast(self.asforest, with_reaching_condition=True).export_plot(f"ast{iter}.png")
+        iter += 1
+
 
     def _refine_code_nodes_with_complementary_conditions(self) -> None:
         """
