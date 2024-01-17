@@ -256,7 +256,7 @@ class TestCodeGeneration:
             r"^%int +test_function\(%int +a%,%int +b%\)%{%int%c;%if%\(%c%<%5%\)%{%c%=%5%;%return%c%;%}%else%{%return%0%;%}%}%$".replace(
                 "%", "\\s*"
             ),
-            self._task(ast, params=[var_a.copy(), var_b.copy()]),
+            self._task(ast, params=[var_a.copy(), var_b.copy()], options=_generate_options(preferred_true_branch="none")),
         )
 
     def test_function_with_ifelseif(self):
@@ -366,7 +366,7 @@ class TestCodeGeneration:
         ast._add_edges_from([(root, condition_node)])
 
         assert self._regex_matches(
-            r"^%int +test_function\(%int +a%,%int +b%\)%{%if%\(%a%>=%3%\)%{%return%0%;%}%else%{%\/\*%Long comment to pad branch length...%\*\/%return%1%;%}%}%$".replace(
+            r"^%int +test_function\(%int +a%,%int +b%\)%{%if%\(%a%<%3%\)%{%return%0%;%}%else%{%\/\*%Long comment to pad branch length...%\*\/%return%1%;%}%}%$".replace(
                 "%", "\\s*"
             ),
             self._task(ast, params=[var_a.copy(), var_b.copy()]),

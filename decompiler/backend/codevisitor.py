@@ -94,7 +94,7 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
 
             return f"if ({self._condition_string(condition)}) {{{true_str}}} else {false_str}"
         else:
-            return f"if ({self._condition_string(node.condition)}) {{{true_str}}} else {{{false_str}}}"
+            return f"if ({self._condition_string(condition)}) {{{true_str}}} else {{{false_str}}}"
 
     def visit_true_node(self, node: ast_nodes.TrueNode) -> str:
         """Generate code for the given TrueNode by evaluating its child (Wrapper)."""
