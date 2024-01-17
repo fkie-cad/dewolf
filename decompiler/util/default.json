@@ -429,9 +429,9 @@
                     "none"
                 ],
                 "enumDescriptions": [
-                    "smallest",
-                    "largest",
-                    "none"
+                    "Swap branches, so that the true branch is the larger one length wise.",
+                    "Swap branches, so that the true branch is the smaller one length wise.",
+                    "Don't swap branches based on length."
                 ],
                 "description": "Swap branches of if-else structures based on the given criteria",
                 "is_hidden_from_gui": false,
