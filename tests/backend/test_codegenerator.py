@@ -1,5 +1,5 @@
 import re
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import decompiler.structures.pseudo.instructions as instructions
 import decompiler.structures.pseudo.operations as operations
@@ -99,6 +99,7 @@ def _generate_options(
     twos_complement: bool = True,
     array_detection: bool = False,
     var_declarations_per_line: int = 1,
+    preferred_true_branch: str = "smallest",
 ):
     options = Options()
     options.set("code-generator.max_complexity", max_complx)
@@ -111,15 +112,17 @@ def _generate_options(
     options.set("code-generator.negative_hex_as_twos_complement", twos_complement)
     options.set("code-generator.aggressive_array_detection", array_detection)
     options.set("code-generator.variable_declarations_per_line", var_declarations_per_line)
+    options.set("code-generator.preferred_true_branch", preferred_true_branch)
     return options
 
 
 class TestCodeGeneration:
     @staticmethod
-    def _task(ast: AbstractSyntaxTree, params: List[DataflowObject] = None, return_type: Type = int32):
+    def _task(ast: AbstractSyntaxTree, params: List[DataflowObject] = None, return_type: Type = int32, options: Optional[Options] = None):
         if not params:
             params = []
-        options = _generate_options(max_complx=100, compounding=False)
+        if not options:
+            options = _generate_options(compounding=False)
         return DecompilerTask("test_function", None, ast=ast, options=options, function_parameters=params, function_return_type=return_type)
 
     @staticmethod
@@ -286,7 +289,37 @@ class TestCodeGeneration:
             self._task(ast, params=[var_a.copy(), var_b.copy()]),
         )
 
-    def test_function_with_ifelseif_swapped(self):
+    def test_function_with_ifelseif_prioritize_elseif_over_length(self):
+        context = LogicCondition.generate_new_context()
+        root = SeqNode(LogicCondition.initialize_true(context))
+        ast = AbstractSyntaxTree(
+            root,
+            {
+                x1_symbol(context): Condition(OperationType.less, [var_a, const_3]),
+                x2_symbol(context): Condition(OperationType.less, [var_a, const_5]),
+            },
+        )
+
+        x2_true_node = ast._add_code_node([instructions.Return([const_1])])
+        x2_false_node = ast._add_code_node([instructions.Return([const_2])])
+        x1_true_node = ast._add_code_node([instructions.Return([const_0])])
+        x1_false_node = ast._add_condition_node_with(
+            condition=x2_symbol(ast.factory.logic_context), true_branch=x2_true_node, false_branch=x2_false_node
+        )
+        condition_node = ast._add_condition_node_with(
+            condition=x1_symbol(ast.factory.logic_context), true_branch=x1_true_node, false_branch=x1_false_node
+        )
+
+        ast._add_edges_from([(root, condition_node)])
+
+        assert self._regex_matches(
+            r"^%int +test_function\(%int +a%,%int +b%\)%{%if%\(%a%<%3%\)%{%return%0%;%}%else +if%\(%a%<%5%\)%{%return%1%;%}%else%{%return%2%;%}%}%$".replace(
+                "%", "\\s*"
+            ),
+            self._task(ast, params=[var_a.copy(), var_b.copy()], options=_generate_options(preferred_true_branch="largest")),
+        )
+
+    def test_function_with_ifelseif_swapped_because_elseif(self):
         context = LogicCondition.generate_new_context()
         root = SeqNode(LogicCondition.initialize_true(context))
         ast = AbstractSyntaxTree(
@@ -302,6 +335,29 @@ class TestCodeGeneration:
         x1_true_node = ast._add_condition_node_with(
             condition=x2_symbol(ast.factory.logic_context), true_branch=x2_true_node, false_branch=x2_false_node
         )
+        x1_false_node = ast._add_code_node([instructions.Comment("Long comment to pad branch length..."), instructions.Return([const_0])])
+        condition_node = ast._add_condition_node_with(
+            condition=x1_symbol(ast.factory.logic_context), true_branch=x1_true_node, false_branch=x1_false_node
+        )
+
+        ast._add_edges_from([(root, condition_node)])
+
+        assert self._regex_matches(
+            r"^%int +test_function\(%int +a%,%int +b%\)%{%if%\(%a%<%3%\)%{%\/\*%Long comment to pad branch length...%\*\/%return%0%;%}%else +if%\(%a%<%5%\)%{%return%1%;%}%else%{%return%2%;%}%}%$".replace(
+                "%", "\\s*"
+            ),
+            self._task(ast, params=[var_a.copy(), var_b.copy()]),
+        )
+
+    def test_function_with_ifelseif_swapped_because_length(self):
+        context = LogicCondition.generate_new_context()
+        root = SeqNode(LogicCondition.initialize_true(context))
+        ast = AbstractSyntaxTree(
+            root,
+            {x1_symbol(context): Condition(OperationType.greater_or_equal, [var_a, const_3])},
+        )
+
+        x1_true_node = ast._add_code_node([instructions.Comment("Long comment to pad branch length..."), instructions.Return([const_1])])
         x1_false_node = ast._add_code_node([instructions.Return([const_0])])
         condition_node = ast._add_condition_node_with(
             condition=x1_symbol(ast.factory.logic_context), true_branch=x1_true_node, false_branch=x1_false_node
@@ -310,7 +366,7 @@ class TestCodeGeneration:
         ast._add_edges_from([(root, condition_node)])
 
         assert self._regex_matches(
-            r"^%int +test_function\(%int +a%,%int +b%\)%{%if%\(%a%<%3%\)%{%return%0%;%}%else +if%\(%a%<%5%\)%{%return%1%;%}%else%{%return%2%;%}%}%$".replace(
+            r"^%int +test_function\(%int +a%,%int +b%\)%{%if%\(%a%>=%3%\)%{%return%0%;%}%else%{%\/\*%Long comment to pad branch length...%\*\/%return%1%;%}%}%$".replace(
                 "%", "\\s*"
             ),
             self._task(ast, params=[var_a.copy(), var_b.copy()]),
