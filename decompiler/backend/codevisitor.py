@@ -78,20 +78,23 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
         true_child = node.true_branch_child
         false_child = node.false_branch_child
 
-        def swap_branches():
-            nonlocal condition, true_child, false_child, true_str, false_str
+        swap_branches = None
+
+        # if only one branch is a condition node we want to swap
+        if isinstance(false_child, ast_nodes.ConditionNode) != isinstance(true_child, ast_nodes.ConditionNode):
+            swap_branches = swap_branches or not isinstance(false_child, ast_nodes.ConditionNode)
+
+        length_comparisons = {"none": None, "smallest": len(true_str) > len(false_str), "largest": len(true_str) < len(false_str)}
+        # if we haven't already decided on swapping (swap_branches is None), decide by length
+        if swap_branches is None:
+            swap_branches = length_comparisons[self._preferred_true_branch]
+
+        if swap_branches:
             condition = ~condition
-            true_child, false_child = false_child, true_child
             true_str, false_str = false_str, true_str
+            true_child, false_child = false_child, true_child
 
-        length_comparisons = {"none": False, "smallest": len(true_str) > len(false_str), "largest": len(true_str) < len(false_str)}
-        if length_comparisons[self._preferred_true_branch]:
-            swap_branches()
-
-        if isinstance(true_child, ast_nodes.ConditionNode) or isinstance(false_child, ast_nodes.ConditionNode):
-            if not isinstance(false_child, ast_nodes.ConditionNode):
-                swap_branches()
-
+        if isinstance(false_child, ast_nodes.ConditionNode):
             return f"if ({self._condition_string(condition)}) {{{true_str}}} else {false_str}"
         else:
             return f"if ({self._condition_string(condition)}) {{{true_str}}} else {{{false_str}}}"
