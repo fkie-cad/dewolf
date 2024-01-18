@@ -62,6 +62,11 @@ def true_condition(context=None):
     return LogicCondition.initialize_true(context)
 
 
+def false_condition(context=None):
+    context = LogicCondition.generate_new_context() if context is None else context
+    return LogicCondition.initialize_false(context)
+
+
 def logic_cond(name: str, context) -> LogicCondition:
     return LogicCondition.initialize_symbol(name, context)
 
@@ -99,6 +104,7 @@ def _generate_options(
     twos_complement: bool = True,
     array_detection: bool = False,
     var_declarations_per_line: int = 1,
+    simplify_branches: bool = False,
 ):
     options = Options()
     options.set("code-generator.max_complexity", max_complx)
@@ -111,15 +117,15 @@ def _generate_options(
     options.set("code-generator.negative_hex_as_twos_complement", twos_complement)
     options.set("code-generator.aggressive_array_detection", array_detection)
     options.set("code-generator.variable_declarations_per_line", var_declarations_per_line)
+    options.set("code-generator.simplify_branches", simplify_branches)
     return options
 
 
 class TestCodeGeneration:
     @staticmethod
-    def _task(ast: AbstractSyntaxTree, params: List[DataflowObject] = None, return_type: Type = int32):
+    def _task(ast: AbstractSyntaxTree, params: List[DataflowObject] = None, return_type: Type = int32, options: Options = _generate_options(max_complx=100, compounding=False)):
         if not params:
             params = []
-        options = _generate_options(max_complx=100, compounding=False)
         return DecompilerTask("test_function", None, ast=ast, options=options, function_parameters=params, function_return_type=return_type)
 
     @staticmethod
@@ -234,6 +240,100 @@ class TestCodeGeneration:
         assert self._regex_matches(
             r"^%int +test_function\(%int +a%,%int +b%\)%{%int%c;%if%\(%true%\)%{%c%=%5%;%return%c%;%}%}%$".replace("%", "\\s*"),
             self._task(ast, params=[var_a.copy(), var_b.copy()]),
+        )
+
+    def test_function_with_simplified_true_condition(self):
+        """
+        if(true){
+            c = 5
+            return c
+        }
+        """
+        context = LogicCondition.generate_new_context()
+        root = SeqNode(LogicCondition.initialize_true(context))
+        ast = AbstractSyntaxTree(root, {x1_symbol(context): Condition(OperationType.less, [var_c.copy(), const_5.copy()])})
+        seq_node = ast.factory.create_seq_node()
+        ast._add_node(seq_node)
+        code_node = ast._add_code_node([instructions.Assignment(var_c.copy(), const_5.copy()), instructions.Return([var_c.copy()])])
+        condition_node = ast._add_condition_node_with(condition=true_condition(ast.factory.logic_context), true_branch=seq_node)
+        ast._add_edges_from(((root, condition_node), (seq_node, code_node)))
+        assert self._regex_matches(
+            r"^%int +test_function\(%int +a%,%int +b%\)%{%int%c;%c%=%5%;%return%c%;%}%$".replace("%", "\\s*"),
+            self._task(ast, params=[var_a.copy(), var_b.copy()], options=_generate_options(simplify_branches=True)),
+        )
+
+    def test_function_with_simplified_false_condition(self):
+        """
+        if(false){
+            c = 5
+            return c
+        } else {
+            return 0
+        }
+        """
+        context = LogicCondition.generate_new_context()
+        root = SeqNode(LogicCondition.initialize_true(context))
+        ast = AbstractSyntaxTree(root, {x1_symbol(context): Condition(OperationType.less, [var_c.copy(), const_5.copy()])})
+        true_seq_node = ast.factory.create_seq_node()
+        ast._add_node(true_seq_node)
+        true_code_node = ast._add_code_node([instructions.Assignment(var_c.copy(), const_5.copy()), instructions.Return([var_c.copy()])])
+        false_seq_node = ast.factory.create_seq_node()
+        ast._add_node(false_seq_node)
+        false_code_node = ast._add_code_node([instructions.Return([const_0.copy()])])
+        condition_node = ast._add_condition_node_with(condition=false_condition(ast.factory.logic_context), true_branch=true_seq_node, false_branch=false_seq_node)
+        ast._add_edges_from(((root, condition_node), (true_seq_node, true_code_node), (false_seq_node, false_code_node)))
+        assert self._regex_matches(
+            r"^%int +test_function\(%int +a%,%int +b%\)%{%int%c;%return%0%;%}%$".replace("%", "\\s*"),
+            self._task(ast, params=[var_a.copy(), var_b.copy()], options=_generate_options(simplify_branches=True)),
+        )
+
+    def test_function_with_simplified_false_condition_in_true_branch(self):
+        """
+        if(a == 5){
+            if(false){
+                c = 5
+                return c
+            }
+        }
+        """
+        context = LogicCondition.generate_new_context()
+        root = SeqNode(LogicCondition.initialize_true(context))
+        ast = AbstractSyntaxTree(root, {x1_symbol(context): Condition(OperationType.less, [var_c.copy(), const_5.copy()])})
+        seq_node = ast.factory.create_seq_node()
+        ast._add_node(seq_node)
+        code_node = ast._add_code_node([instructions.Assignment(var_c.copy(), const_5.copy()), instructions.Return([var_c.copy()])])
+        false_condition_node = ast._add_condition_node_with(condition=false_condition(ast.factory.logic_context), true_branch=seq_node)
+        condition_node = ast._add_condition_node_with(condition=x1_symbol(ast.factory.logic_context), true_branch=false_condition_node)
+        ast._add_edges_from(((root, condition_node), (seq_node, code_node)))
+        assert self._regex_matches(
+            r"^%int +test_function\(%int +a%,%int +b%\)%{%int%c;%}%$".replace("%", "\\s*"),
+            self._task(ast, params=[var_a.copy(), var_b.copy()], options=_generate_options(simplify_branches=True)),
+        )
+
+    def test_function_with_simplified_false_condition_in_false_branch(self):
+        """
+        if(a == 5){
+            return 0
+        } else {
+            if(false){
+                c = 5
+                return c
+            }
+        }
+        """
+        context = LogicCondition.generate_new_context()
+        root = SeqNode(LogicCondition.initialize_true(context))
+        ast = AbstractSyntaxTree(root, {x1_symbol(context): Condition(OperationType.less, [var_c.copy(), const_5.copy()])})
+        seq_node = ast.factory.create_seq_node()
+        ast._add_node(seq_node)
+        false_condition_code_node = ast._add_code_node([instructions.Assignment(var_c.copy(), const_5.copy()), instructions.Return([var_c.copy()])])
+        false_condition_node = ast._add_condition_node_with(condition=false_condition(ast.factory.logic_context), true_branch=seq_node)
+        code_node = ast._add_code_node([instructions.Return([const_0.copy()])])
+        condition_node = ast._add_condition_node_with(condition=x1_symbol(ast.factory.logic_context), true_branch=code_node, false_branch=false_condition_node)
+        ast._add_edges_from(((root, condition_node), (seq_node, false_condition_code_node)))
+        assert self._regex_matches(
+            r"^%int +test_function\(%int +a%,%int +b%\)%{%int%c;%if%\(%c%<%5%\)%{%return%0%;%}%}%$".replace("%", "\\s*"),
+            self._task(ast, params=[var_a.copy(), var_b.copy()], options=_generate_options(simplify_branches=True)),
         )
 
     def test_function_with_ifelse(self):
