@@ -80,13 +80,13 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
 
         swap_branches = None
 
-        # if only one branch is a condition node we want to swap
+        # if only one branch is a condition node, we want to decide swapping by which branch is a condition node
         if isinstance(false_child, ast_nodes.ConditionNode) != isinstance(true_child, ast_nodes.ConditionNode):
-            swap_branches = swap_branches or not isinstance(false_child, ast_nodes.ConditionNode)
+            swap_branches = not isinstance(false_child, ast_nodes.ConditionNode)
 
-        length_comparisons = {"none": None, "smallest": len(true_str) > len(false_str), "largest": len(true_str) < len(false_str)}
         # if we haven't already decided on swapping (swap_branches is None), decide by length
         if swap_branches is None:
+            length_comparisons = {"none": None, "smallest": len(true_str) > len(false_str), "largest": len(true_str) < len(false_str)}
             swap_branches = length_comparisons[self._preferred_true_branch]
 
         if swap_branches:
