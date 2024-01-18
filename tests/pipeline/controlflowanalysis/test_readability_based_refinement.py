@@ -3,6 +3,7 @@ from typing import List
 import pytest
 from decompiler.pipeline.controlflowanalysis.loop_utility_methods import (
     _find_continuation_instruction,
+    _get_last_definition_index_of,
     _has_deep_requirement,
     _initialization_reaches_loop_node,
 )
@@ -21,6 +22,7 @@ from decompiler.structures.pseudo import (
     ImportedFunctionSymbol,
     ListOperation,
     OperationType,
+    UnaryOperation,
     Variable,
 )
 from decompiler.structures.pseudo.operations import OperationType
@@ -848,8 +850,10 @@ class TestReadabilityUtils:
 
         assert _initialization_reaches_loop_node(init_code_node, inner_while) is False
 
-    def test_skip_for_loop_recovery_if_continue_in_while(self):
+    def test_for_loop_recovery_if_continue_in_while_1(self):
         """
+        Test for loop recovery if a continue occurs in a while loop and the last definition is a simple binary operation.
+
         a = 0
         while(a < 10) {
             if(a == 2) {
@@ -894,10 +898,220 @@ class TestReadabilityUtils:
         )
 
         WhileLoopReplacer(ast, _generate_options()).run()
-        assert not any(isinstance(loop_node, ForLoopNode) for loop_node in list(ast.get_loop_nodes_post_order()))
 
-    def test_skip_for_loop_recovery_if_continue_in_nested_while(self):
+        for loop_node in list(ast.get_loop_nodes_post_order()):
+            assert isinstance(loop_node, ForLoopNode)
+            assert loop_node.modification == Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))
+
+        condition_nodes = list(ast.get_condition_nodes_post_order())
+        last_definition = condition_nodes[0].true_branch_child.instructions[
+            _get_last_definition_index_of(condition_nodes[0].true_branch_child, Variable("a"))
+        ]
+        assert last_definition == Assignment(
+            Variable("a"),
+            BinaryOperation(OperationType.minus, [BinaryOperation(OperationType.plus, [Variable("a"), Constant(2)]), Constant(1)]),
+        )
+
+    def test_for_loop_recovery_if_continue_in_while_2(self):
         """
+        Test for loop recovery if a continue occurs in a while loop and the last definition is a constant.
+
+        a = 0
+        while(a < 10) {
+            if(a == 2) {
+                a = 4
+                continue
+            }
+            a = a + 1
+        }
+        """
+        true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+        ast = AbstractSyntaxTree(
+            root := SeqNode(true_value),
+            condition_map={
+                logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(10)]),
+                logic_cond("x2", context): Condition(OperationType.equal, [Variable("a"), Constant(2)]),
+            },
+        )
+
+        true_branch = ast._add_code_node([Assignment(Variable("a"), Constant(4)), Continue()])
+        if_condition = ast._add_condition_node_with(logic_cond("x2", context), true_branch)
+
+        init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
+
+        while_loop = ast.factory.create_while_loop_node(logic_cond("x1", context))
+        while_loop_body = ast.factory.create_seq_node()
+        while_loop_iteration = ast._add_code_node(
+            [Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))]
+        )
+        ast._add_node(while_loop)
+        ast._add_node(while_loop_body)
+
+        ast._add_edges_from(
+            [
+                (root, init_code_node),
+                (root, while_loop),
+                (while_loop, while_loop_body),
+                (while_loop_body, if_condition),
+                (while_loop_body, while_loop_iteration),
+            ]
+        )
+
+        WhileLoopReplacer(ast, _generate_options()).run()
+        assert all(isinstance(loop_node, ForLoopNode) for loop_node in list(ast.get_loop_nodes_post_order()))
+
+        condition_nodes = list(ast.get_condition_nodes_post_order())
+        last_definition = condition_nodes[0].true_branch_child.instructions[
+            _get_last_definition_index_of(condition_nodes[0].true_branch_child, Variable("a"))
+        ]
+        assert last_definition == Assignment(Variable("a"), BinaryOperation(OperationType.minus, [Constant(4), Constant(1)]))
+
+    def test_for_loop_recovery_if_continue_in_while_3(self):
+        """
+        Test for loop recovery if a continue occurs in a while loop, the last definition is a simple binary operation and
+        the continuation-instruction has a negated used variable.
+
+        a = 0
+        while(a < 10) {
+            if(a == 2) {
+                a = a + 1
+                continue
+            }
+            a = -a + 10
+        }
+        """
+        true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+        ast = AbstractSyntaxTree(
+            root := SeqNode(true_value),
+            condition_map={
+                logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(10)]),
+                logic_cond("x2", context): Condition(OperationType.equal, [Variable("a"), Constant(2)]),
+            },
+        )
+
+        true_branch = ast._add_code_node(
+            [Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)])), Continue()]
+        )
+        if_condition = ast._add_condition_node_with(logic_cond("x2", context), true_branch)
+
+        init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
+
+        while_loop = ast.factory.create_while_loop_node(logic_cond("x1", context))
+        while_loop_body = ast.factory.create_seq_node()
+        while_loop_iteration = ast._add_code_node(
+            [
+                Assignment(
+                    Variable("a"),
+                    BinaryOperation(OperationType.plus, [UnaryOperation(OperationType.negate, [Variable("a")]), Constant(10)]),
+                )
+            ]
+        )
+        ast._add_node(while_loop)
+        ast._add_node(while_loop_body)
+
+        ast._add_edges_from(
+            [
+                (root, init_code_node),
+                (root, while_loop),
+                (while_loop, while_loop_body),
+                (while_loop_body, if_condition),
+                (while_loop_body, while_loop_iteration),
+            ]
+        )
+
+        WhileLoopReplacer(ast, _generate_options()).run()
+        assert all(isinstance(loop_node, ForLoopNode) for loop_node in list(ast.get_loop_nodes_post_order()))
+
+        condition_nodes = list(ast.get_condition_nodes_post_order())
+        last_definition = condition_nodes[0].true_branch_child.instructions[
+            _get_last_definition_index_of(condition_nodes[0].true_branch_child, Variable("a"))
+        ]
+        assert last_definition == Assignment(
+            Variable("a"),
+            UnaryOperation(
+                OperationType.negate,
+                [BinaryOperation(OperationType.minus, [BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]), Constant(10)])],
+            ),
+        )
+
+    def test_for_loop_recovery_if_continue_in_while_4(self):
+        """
+        Test for loop recovery if a continue occurs in a while loop, the last definition is a simple binary operation,
+        the continuation-instruction has a negated constant and a not unified form like 'var = var + const'.
+
+        a = 0;
+        while(a < 10) {
+            if(a == 2) {
+                a = a + 1
+                continue
+            }
+            a = -10 - -a
+        }
+        """
+        true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+        ast = AbstractSyntaxTree(
+            root := SeqNode(true_value),
+            condition_map={
+                logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(10)]),
+                logic_cond("x2", context): Condition(OperationType.equal, [Variable("a"), Constant(2)]),
+            },
+        )
+
+        true_branch = ast._add_code_node(
+            [Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)])), Continue()]
+        )
+        if_condition = ast._add_condition_node_with(logic_cond("x2", context), true_branch)
+
+        init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
+
+        while_loop = ast.factory.create_while_loop_node(logic_cond("x1", context))
+        while_loop_body = ast.factory.create_seq_node()
+        while_loop_iteration = ast._add_code_node(
+            [
+                Assignment(
+                    Variable("a"),
+                    BinaryOperation(OperationType.minus, [Constant(-10), UnaryOperation(OperationType.negate, [Variable("a")])]),
+                )
+            ]
+        )
+        ast._add_node(while_loop)
+        ast._add_node(while_loop_body)
+
+        ast._add_edges_from(
+            [
+                (root, init_code_node),
+                (root, while_loop),
+                (while_loop, while_loop_body),
+                (while_loop_body, if_condition),
+                (while_loop_body, while_loop_iteration),
+            ]
+        )
+
+        WhileLoopReplacer(ast, _generate_options()).run()
+
+        for loop_node in list(ast.get_loop_nodes_post_order()):
+            assert isinstance(loop_node, ForLoopNode)
+            assert loop_node.modification == Assignment(
+                Variable("a"),
+                BinaryOperation(
+                    OperationType.plus,
+                    [UnaryOperation(OperationType.negate, [UnaryOperation(OperationType.negate, [Variable("a")])]), Constant(-10)],
+                ),
+            )
+
+        condition_nodes = list(ast.get_condition_nodes_post_order())
+        last_definition = condition_nodes[0].true_branch_child.instructions[
+            _get_last_definition_index_of(condition_nodes[0].true_branch_child, Variable("a"))
+        ]
+        assert last_definition == Assignment(
+            Variable("a"),
+            BinaryOperation(OperationType.minus, [BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]), Constant(-10)]),
+        )
+
+    def test_for_loop_recovery_if_continue_in_nested_while(self):
+        """
+        Test for loop recovery if a continue occurs in a nested while loop and the last definition is a simple binary operation.
+
         while(a < 5) {
             a = a + b
             while(b < 10) {
@@ -958,5 +1172,260 @@ class TestReadabilityUtils:
         )
 
         WhileLoopReplacer(ast, _generate_options()).run()
-        loop_nodes = list(ast.get_loop_nodes_post_order())
-        assert not isinstance(loop_nodes[0], ForLoopNode) and isinstance(loop_nodes[1], ForLoopNode)
+        assert all(isinstance(loop_node, ForLoopNode) for loop_node in list(ast.get_loop_nodes_post_order()))
+
+        condition_nodes = list(ast.get_condition_nodes_post_order())
+        last_definition = condition_nodes[0].true_branch_child.instructions[
+            _get_last_definition_index_of(condition_nodes[0].true_branch_child, Variable("b"))
+        ]
+        assert last_definition == Assignment(
+            Variable("b"),
+            BinaryOperation(OperationType.minus, [BinaryOperation(OperationType.plus, [Variable("b"), Constant(2)]), Constant(1)]),
+        )
+
+    def test_skip_for_loop_recovery_if_continue_in_while_1(self):
+        """
+        Test skip of for loop recovery if a continue occurs in a while loop, because the continuation instruction is no simple binary operation.
+
+        a = 0
+        while(a < 10) {
+            if(a == 2) {
+                a = a + 2
+                continue
+            }
+            a = a * 2
+        }
+        """
+        true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+        ast = AbstractSyntaxTree(
+            root := SeqNode(true_value),
+            condition_map={
+                logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(10)]),
+                logic_cond("x2", context): Condition(OperationType.equal, [Variable("a"), Constant(2)]),
+            },
+        )
+
+        true_branch = ast._add_code_node(
+            [Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(2)])), Continue()]
+        )
+        if_condition = ast._add_condition_node_with(logic_cond("x2", context), true_branch)
+
+        init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
+
+        while_loop = ast.factory.create_while_loop_node(logic_cond("x1", context))
+        while_loop_body = ast.factory.create_seq_node()
+        while_loop_iteration = ast._add_code_node(
+            [Assignment(Variable("a"), BinaryOperation(OperationType.multiply, [Variable("a"), Constant(2)]))]
+        )
+        ast._add_node(while_loop)
+        ast._add_node(while_loop_body)
+
+        ast._add_edges_from(
+            [
+                (root, init_code_node),
+                (root, while_loop),
+                (while_loop, while_loop_body),
+                (while_loop_body, if_condition),
+                (while_loop_body, while_loop_iteration),
+            ]
+        )
+
+        WhileLoopReplacer(ast, _generate_options()).run()
+        assert not any(isinstance(loop_node, ForLoopNode) for loop_node in list(ast.get_loop_nodes_post_order()))
+
+    def test_skip_for_loop_recovery_if_continue_in_while_2(self):
+        """
+        Test skip of for loop recovery if a continue occurs in a while loop, because the last definition is no simple binary operation.
+
+        a = 0
+        while(a < 10) {
+            if(a == 2) {
+                a = a * 2
+                continue
+            }
+            a = a + 1
+        }
+        """
+        true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+        ast = AbstractSyntaxTree(
+            root := SeqNode(true_value),
+            condition_map={
+                logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(10)]),
+                logic_cond("x2", context): Condition(OperationType.equal, [Variable("a"), Constant(2)]),
+            },
+        )
+
+        true_branch = ast._add_code_node(
+            [Assignment(Variable("a"), BinaryOperation(OperationType.multiply, [Variable("a"), Constant(2)])), Continue()]
+        )
+        if_condition = ast._add_condition_node_with(logic_cond("x2", context), true_branch)
+
+        init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
+
+        while_loop = ast.factory.create_while_loop_node(logic_cond("x1", context))
+        while_loop_body = ast.factory.create_seq_node()
+        while_loop_iteration = ast._add_code_node(
+            [Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))]
+        )
+        ast._add_node(while_loop)
+        ast._add_node(while_loop_body)
+
+        ast._add_edges_from(
+            [
+                (root, init_code_node),
+                (root, while_loop),
+                (while_loop, while_loop_body),
+                (while_loop_body, if_condition),
+                (while_loop_body, while_loop_iteration),
+            ]
+        )
+
+        WhileLoopReplacer(ast, _generate_options()).run()
+        assert not any(isinstance(loop_node, ForLoopNode) for loop_node in list(ast.get_loop_nodes_post_order()))
+
+    def test_skip_for_loop_recovery_if_continue_in_while_3(self):
+        """
+        Test skip of for loop recovery if a continue occurs in a while loop, because no last definition exists.
+
+        a = 0
+        while(a < 10) {
+            if(a == 2) {
+                continue
+            }
+            a = a + 1
+        }
+        """
+        true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+        ast = AbstractSyntaxTree(
+            root := SeqNode(true_value),
+            condition_map={
+                logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(10)]),
+                logic_cond("x2", context): Condition(OperationType.equal, [Variable("a"), Constant(2)]),
+            },
+        )
+
+        true_branch = ast._add_code_node([Continue()])
+        if_condition = ast._add_condition_node_with(logic_cond("x2", context), true_branch)
+
+        init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
+
+        while_loop = ast.factory.create_while_loop_node(logic_cond("x1", context))
+        while_loop_body = ast.factory.create_seq_node()
+        while_loop_iteration = ast._add_code_node(
+            [Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)]))]
+        )
+        ast._add_node(while_loop)
+        ast._add_node(while_loop_body)
+
+        ast._add_edges_from(
+            [
+                (root, init_code_node),
+                (root, while_loop),
+                (while_loop, while_loop_body),
+                (while_loop_body, if_condition),
+                (while_loop_body, while_loop_iteration),
+            ]
+        )
+
+        WhileLoopReplacer(ast, _generate_options()).run()
+        assert not any(isinstance(loop_node, ForLoopNode) for loop_node in list(ast.get_loop_nodes_post_order()))
+
+    def test_skip_for_loop_recovery_if_continue_in_while_4(self):
+        """
+        Test skip of for loop recovery if a continue occurs in a while loop and the continuation-statement defines
+        and uses different variables.
+
+        a = 0
+        while(a < 10){
+            if(a == 2) {
+                a = a + 3
+                continue
+            }
+            a = b + 2
+        }
+        """
+        true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+        ast = AbstractSyntaxTree(
+            root := SeqNode(true_value),
+            condition_map={
+                logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(10)]),
+                logic_cond("x2", context): Condition(OperationType.equal, [Variable("a"), Constant(2)]),
+            },
+        )
+
+        true_branch = ast._add_code_node(
+            [Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(3)])), Continue()]
+        )
+        if_condition = ast._add_condition_node_with(logic_cond("x2", context), true_branch)
+
+        init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
+
+        while_loop = ast.factory.create_while_loop_node(logic_cond("x1", context))
+        while_loop_body = ast.factory.create_seq_node()
+        while_loop_iteration = ast._add_code_node(
+            [Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("b"), Constant(2)]))]
+        )
+        ast._add_node(while_loop)
+        ast._add_node(while_loop_body)
+
+        ast._add_edges_from(
+            [
+                (root, init_code_node),
+                (root, while_loop),
+                (while_loop, while_loop_body),
+                (while_loop_body, if_condition),
+                (while_loop_body, while_loop_iteration),
+            ]
+        )
+
+        WhileLoopReplacer(ast, _generate_options()).run()
+        assert not any(isinstance(loop_node, ForLoopNode) for loop_node in list(ast.get_loop_nodes_post_order()))
+
+    def test_skip_for_loop_recovery_if_continue_in_while_5(self):
+        """
+        Test skip of for loop recovery if a continue occurs in a while loop, because the continuation instruction is
+        an assignment with a constant and is therefore not a simple binary operation.
+
+        a = 0
+        while(a < 10){
+            if(a == 2) {
+                a = a + 1
+                continue
+            }
+            a = 4
+        }
+        """
+        true_value = LogicCondition.initialize_true(context := LogicCondition.generate_new_context())
+        ast = AbstractSyntaxTree(
+            root := SeqNode(true_value),
+            condition_map={
+                logic_cond("x1", context): Condition(OperationType.less, [Variable("a"), Constant(10)]),
+                logic_cond("x2", context): Condition(OperationType.equal, [Variable("a"), Constant(2)]),
+            },
+        )
+
+        true_branch = ast._add_code_node(
+            [Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), Constant(1)])), Continue()]
+        )
+        if_condition = ast._add_condition_node_with(logic_cond("x2", context), true_branch)
+
+        init_code_node = ast._add_code_node([Assignment(Variable("a"), Constant(0))])
+
+        while_loop = ast.factory.create_while_loop_node(logic_cond("x1", context))
+        while_loop_body = ast.factory.create_seq_node()
+        while_loop_iteration = ast._add_code_node([Assignment(Variable("a"), Constant(4))])
+        ast._add_node(while_loop)
+        ast._add_node(while_loop_body)
+
+        ast._add_edges_from(
+            [
+                (root, init_code_node),
+                (root, while_loop),
+                (while_loop, while_loop_body),
+                (while_loop_body, if_condition),
+                (while_loop_body, while_loop_iteration),
+            ]
+        )
+
+        WhileLoopReplacer(ast, _generate_options()).run()
+        assert not any(isinstance(loop_node, ForLoopNode) for loop_node in list(ast.get_loop_nodes_post_order()))
