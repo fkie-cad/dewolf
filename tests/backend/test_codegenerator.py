@@ -123,7 +123,12 @@ def _generate_options(
 
 class TestCodeGeneration:
     @staticmethod
-    def _task(ast: AbstractSyntaxTree, params: List[DataflowObject] = None, return_type: Type = int32, options: Options = _generate_options(max_complx=100, compounding=False)):
+    def _task(
+        ast: AbstractSyntaxTree,
+        params: List[DataflowObject] = None,
+        return_type: Type = int32,
+        options: Options = _generate_options(max_complx=100, compounding=False),
+    ):
         if not params:
             params = []
         return DecompilerTask("test_function", None, ast=ast, options=options, function_parameters=params, function_return_type=return_type)
@@ -280,7 +285,9 @@ class TestCodeGeneration:
         false_seq_node = ast.factory.create_seq_node()
         ast._add_node(false_seq_node)
         false_code_node = ast._add_code_node([instructions.Return([const_0.copy()])])
-        condition_node = ast._add_condition_node_with(condition=false_condition(ast.factory.logic_context), true_branch=true_seq_node, false_branch=false_seq_node)
+        condition_node = ast._add_condition_node_with(
+            condition=false_condition(ast.factory.logic_context), true_branch=true_seq_node, false_branch=false_seq_node
+        )
         ast._add_edges_from(((root, condition_node), (true_seq_node, true_code_node), (false_seq_node, false_code_node)))
         assert self._regex_matches(
             r"^%int +test_function\(%int +a%,%int +b%\)%{%int%c;%return%0%;%}%$".replace("%", "\\s*"),
@@ -326,10 +333,14 @@ class TestCodeGeneration:
         ast = AbstractSyntaxTree(root, {x1_symbol(context): Condition(OperationType.less, [var_c.copy(), const_5.copy()])})
         seq_node = ast.factory.create_seq_node()
         ast._add_node(seq_node)
-        false_condition_code_node = ast._add_code_node([instructions.Assignment(var_c.copy(), const_5.copy()), instructions.Return([var_c.copy()])])
+        false_condition_code_node = ast._add_code_node(
+            [instructions.Assignment(var_c.copy(), const_5.copy()), instructions.Return([var_c.copy()])]
+        )
         false_condition_node = ast._add_condition_node_with(condition=false_condition(ast.factory.logic_context), true_branch=seq_node)
         code_node = ast._add_code_node([instructions.Return([const_0.copy()])])
-        condition_node = ast._add_condition_node_with(condition=x1_symbol(ast.factory.logic_context), true_branch=code_node, false_branch=false_condition_node)
+        condition_node = ast._add_condition_node_with(
+            condition=x1_symbol(ast.factory.logic_context), true_branch=code_node, false_branch=false_condition_node
+        )
         ast._add_edges_from(((root, condition_node), (seq_node, false_condition_code_node)))
         assert self._regex_matches(
             r"^%int +test_function\(%int +a%,%int +b%\)%{%int%c;%if%\(%c%<%5%\)%{%return%0%;%}%}%$".replace("%", "\\s*"),
