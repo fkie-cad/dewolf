@@ -419,6 +419,16 @@
                 "argument_name": "--variable-declarations-per-line"
             },
             {
+                "dest": "code-generator.simplify_branches",
+                "default": false,
+                "title": "Simplify branches with true or false conditions",
+                "type": "boolean",
+                "description": "Removes branches in the output that wont be reached because of a 'true' or 'false' condition",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--simplify-branches"
+            },
+            {
                 "dest": "pattern-independent-restructuring.switch_reconstruction",
                 "default": true,
                 "title": "Reconstruct switch statements",
