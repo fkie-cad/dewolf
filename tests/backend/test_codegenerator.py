@@ -341,7 +341,7 @@ class TestCodeGeneration:
         ast._add_edges_from(((root, child_1), (root, child_2), (child_2, body)))
         ast._code_node_reachability_graph.add_reachability(child_1, body)
 
-        regex = r"^%void +test_function\(%int +a%,%int +b%\)%{%int%c;%c%=%5%;%while%\(%x%==%5%\)%{%c%=%c%\+%5%;%}%}%$"
+        regex = r"^%void +test_function\(%int +a%,%int +b%\)%{%int%c;%int%x;%c%=%5%;%while%\(%x%==%5%\)%{%c%=%c%\+%5%;%}%}%$"
         assert self._regex_matches(regex.replace("%", "\\s*"), self._task(ast, params=[var_a.copy(), var_b.copy()], return_type=void))
 
     def test_function_with_do_while_condition_loop(self):
@@ -358,7 +358,9 @@ class TestCodeGeneration:
         ast._code_node_reachability_graph.add_reachability(child_1, body)
 
         assert self._regex_matches(
-            r"^%void +test_function\(%int +a%,%int +b%\)%{%int%c;%c%=%5%;%do%{%c%=%c%\+%5%;%}%while%\(%x%==%5%\);%}%$".replace("%", "\\s*"),
+            r"^%void +test_function\(%int +a%,%int +b%\)%{%int%c;%int%x;%c%=%5%;%do%{%c%=%c%\+%5%;%}%while%\(%x%==%5%\);%}%$".replace(
+                "%", "\\s*"
+            ),
             self._task(ast, params=[var_a.copy(), var_b.copy()], return_type=void),
         )
 
@@ -408,7 +410,8 @@ class TestCodeGeneration:
         ast._code_node_reachability_graph.add_reachability(child_1, nested_loop_body)
 
         regex = (
-            r"^%void +test_function\(%int +a%,%int +b%\)%{%int%c;%c%=%5%;%" r"while%\(%true%\)%{%while%\(%x%!=%5%\)%{%c%=%c%\+%5%;%}%}%}%$"
+            r"^%void +test_function\(%int +a%,%int +b%\)%{%int%c;%int%x;%c%=%5%;%"
+            r"while%\(%true%\)%{%while%\(%x%!=%5%\)%{%c%=%c%\+%5%;%}%}%}%$"
         )
         assert self._regex_matches(regex.replace("%", r"\s*"), self._task(ast, params=[var_a.copy(), var_b.copy()], return_type=void))
 
@@ -421,7 +424,7 @@ class TestCodeGeneration:
         ast._add_edge(root, condition_node)
 
         assert self._regex_matches(
-            r"^%bool +test_function\(%\)%{%if%\(%c%\)%{return%c%;%}%}%$".replace("%", "\\s*"), self._task(ast, return_type=bool1)
+            r"^%bool +test_function\(%\)%{%int%c;%if%\(%c%\)%{return%c%;%}%}%$".replace("%", "\\s*"), self._task(ast, return_type=bool1)
         )
 
     @pytest.mark.parametrize(
@@ -1156,25 +1159,7 @@ class TestExpression:
 
 class TestLocalDeclarationGenerator:
     @pytest.mark.parametrize(
-        "op, expected",
-        [
-            (ListOperation([]), []),
-            (ListOperation([var_x.copy()]), []),
-            (UnaryOperation(OperationType.negate, [var_x.copy()]), []),
-            (BinaryOperation(OperationType.minus, [var_x.copy(), const_3.copy()]), []),
-            (BinaryOperation(OperationType.minus, [var_x.copy(), var_y.copy()]), []),
-            (Assignment(var_x.copy(), Constant(3)), ["int x;"]),
-            (Assignment(ListOperation([var_x.copy(), var_y.copy()]), Call(FunctionSymbol("foo", 0), [var_x.copy()])), ["int x;", "int y;"]),
-        ],
-    )
-    def test_operation(self, op, expected):
-        """Ensure variables are generated for operations."""
-        var_visitor = LocalDeclarationGenerator()
-        var_visitor.visit_subexpressions(op)
-        assert list(var_visitor.generate()) == expected
-
-    @pytest.mark.parametrize(
-        "vars_per_line, variables, expected",
+        ["vars_per_line", "variables", "expected"],
         [
             (1, [var_x.copy(), var_y.copy()], "int x;\nint y;"),
             (2, [var_x.copy(), var_y.copy()], "int x, y;"),
@@ -1192,7 +1177,7 @@ class TestLocalDeclarationGenerator:
         options = _generate_options(var_declarations_per_line=vars_per_line)
         ast = AbstractSyntaxTree(
             CodeNode(
-                ListOperation([Assignment(var, const_1.copy()) for var in variables]),
+                [Assignment(var, const_1.copy()) for var in variables],
                 LogicCondition.initialize_true(LogicCondition.generate_new_context()),
             ),
             {},
@@ -1211,16 +1196,31 @@ class TestGlobalVisitor:
     )
     def test_operation(self, op):
         """Ensure that GlobalVariable and ExternConstant are generated for global printing"""
-        global_visitor = GlobalDeclarationGenerator()
-        global_visitor.visit_subexpressions(op)
-        assert len(list(global_visitor.generate())) != 0
+        ast = AbstractSyntaxTree(
+            CodeNode(
+                [Assignment(var_a, op)],
+                LogicCondition.initialize_true(LogicCondition.generate_new_context()),
+            ),
+            {},
+        )
+
+        assert len(GlobalDeclarationGenerator.from_asts([ast])) != 0
 
     def test_nested_global_variable(self):
         """Ensure that GlobalVariableVisitor can visit global variables nested within a global variable"""
+
         var1 = ExternFunctionPointer("ExternFunction")
         var2 = GlobalVariable("var_glob1", initial_value=var1)
         var3 = GlobalVariable("var_glob2", initial_value=var2)
         var4 = GlobalVariable("var_glob3", initial_value=var3)
-        global_visitor = GlobalDeclarationGenerator()
-        global_visitor.visit_subexpressions(ListOperation([var2, var3, var4]))
-        assert len(global_visitor._global_variables) == 3
+
+        ast = AbstractSyntaxTree(
+            CodeNode(
+                [Assignment(var_a, var4)],
+                LogicCondition.initialize_true(LogicCondition.generate_new_context()),
+            ),
+            {},
+        )
+
+        global_variables, _ = GlobalDeclarationGenerator._get_global_variables_and_constants([ast])
+        assert len(global_variables) == 3
