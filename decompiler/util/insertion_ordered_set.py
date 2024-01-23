@@ -62,7 +62,7 @@ class InsertionOrderedSet(dict, Generic[T], MutableSet):
 
     def __or__(self, other: AbstractSet[Any]) -> InsertionOrderedSet:
         return InsertionOrderedSet(super().__or__(other))
- 
+
     difference = property(lambda self: self.__sub__)
     difference_update = property(lambda self: self.__isub__)
     intersection = property(lambda self: self.__and__)
