@@ -150,7 +150,7 @@ class InsertMissingDefinitions(PipelineStage):
 
         -> We assume that every aliased variable has to be defined for every memory version.
         """
-        undefined_variables: InsertionOrderedSet[Variable] = self._use_map.used_variables - self._def_map.defined_variables
+        undefined_variables = self._use_map.used_variables - self._def_map.defined_variables
         all_variables = self._use_map.used_variables | self._def_map.defined_variables
         aliased_variables = {variable for variable in all_variables if variable.is_aliased}
 
