@@ -1,4 +1,5 @@
 """Module for finding variable relevant to switch"""
+import pysnooper
 from typing import Optional
 
 from decompiler.pipeline.stage import PipelineStage
@@ -8,6 +9,7 @@ from decompiler.structures.pseudo.expressions import Expression, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, IndirectBranch, Instruction
 from decompiler.structures.pseudo.operations import Condition, OperationType, UnaryOperation
 from decompiler.task import DecompilerTask
+from decompiler.util.decoration import DecoratedCFG
 
 
 def is_dereference(expression: Expression) -> bool:
@@ -72,6 +74,7 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
         self._def_map: DefMap
         self._use_map: UseMap
         self._dereferences_used_in_branches: set
+        self._undefined_variables: set
 
     def run(self, task: DecompilerTask):
         """
@@ -87,6 +90,8 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
         Overcomes issues with dummy heuristic.
         """
         self._init_map(task.graph)
+        self._undefined_variables = task.graph.get_undefined_variables()
+        # DecoratedCFG.from_cfg(task.graph).export_plot("switch.png")
         for switch_block in {edge.source for edge in task.graph.edges if isinstance(edge, SwitchCase)}:
             self._handle_switch_block(switch_block)
 
@@ -106,6 +111,7 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
         switch_expression = self.find_switch_expression(switch_instruction)
         switch_instruction.substitute(switch_instruction.expression, switch_expression)
 
+    @pysnooper.snoop()
     def find_switch_expression(self, switch_instruction: Instruction):
         """Try to deduce the variable utilized for the switch instruction."""
         traced_variable = (
@@ -153,6 +159,7 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
             return isinstance(definition.value, Variable)
         return False
 
+
     def _is_bounds_checked(self, value: Variable) -> bool:
         """
         Check if variable can be used in switch expression.
@@ -163,6 +170,7 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
                 self._is_used_in_condition_assignment(value),
                 self._is_used_in_branch(value),
                 self._is_predecessor_dereferenced_in_branch(value),
+                value in self._undefined_variables,
             ]
         )
 
