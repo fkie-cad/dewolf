@@ -9,7 +9,18 @@ from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.structures.ast.reachability_graph import CaseDependencyGraph, SiblingReachability
 from decompiler.structures.graphs.interface import GraphNodeInterface
 from decompiler.structures.logic.logic_condition import LogicCondition
-from decompiler.structures.pseudo import Assignment, Break, Condition, Constant, Continue, Expression, Instruction, Return, Variable
+from decompiler.structures.pseudo import (
+    Assignment,
+    Break,
+    Condition,
+    Constant,
+    Continue,
+    DataflowObject,
+    Expression,
+    Instruction,
+    Return,
+    Variable,
+)
 
 if TYPE_CHECKING:
     from decompiler.structures.ast.syntaxgraph import AbstractSyntaxInterface
@@ -206,6 +217,10 @@ class AbstractSyntaxTreeNode(BaseAbstractSyntaxTreeNode, ABC):
     def get_defined_variables(self, condition_map: Optional[Dict[LogicCondition, Condition]] = None) -> Iterable[Variable]:
         """Return all variables that are defined in this node."""
         yield from ()
+
+    def get_dataflow_objets(self, condition_map: Optional[Dict[LogicCondition, Condition]] = None) -> Iterable[DataflowObject]:
+        return
+        yield
 
 
 class VirtualRootNode(AbstractSyntaxTreeNode):
@@ -451,6 +466,9 @@ class CodeNode(AbstractSyntaxTreeNode):
         for instruction in self.instructions:
             yield from instruction.definitions
 
+    def get_dataflow_objets(self, condition_map: Optional[Dict[LogicCondition, Condition]] = None) -> Iterable[DataflowObject]:
+        yield from self.instructions
+
 
 class ConditionNode(AbstractSyntaxTreeNode):
     """
@@ -596,6 +614,16 @@ class ConditionNode(AbstractSyntaxTreeNode):
                 logging.warning("LogicCondition not in condition map.")
                 continue
             yield from condition_map[symbol].requirements
+
+    def get_dataflow_objets(self, condition_map: Optional[Dict[LogicCondition, Condition]] = None) -> Iterable[DataflowObject]:
+        if not condition_map:
+            return
+
+        for symbol in self.condition.get_symbols():
+            if symbol in condition_map:
+                yield condition_map[symbol]
+            else:
+                logging.warning("LogicCondition not in condition map.")
 
 
 class ConditionalNode(AbstractSyntaxTreeNode, ABC):
@@ -766,6 +794,16 @@ class LoopNode(AbstractSyntaxTreeNode, ABC):
                 continue
             yield from condition_map[symbol].requirements
 
+    def get_dataflow_objets(self, condition_map: Optional[Dict[LogicCondition, Condition]] = None) -> Iterable[DataflowObject]:
+        if not condition_map:
+            return
+
+        for symbol in self.condition.get_symbols():
+            if symbol in condition_map:
+                yield condition_map[symbol]
+            else:
+                logging.warning("LogicCondition not in condition map.")
+
 
 class WhileLoopNode(LoopNode):
     """Class for While Loops."""
@@ -871,6 +909,11 @@ class ForLoopNode(LoopNode):
         if self.declaration and isinstance(self.declaration, Assignment):
             yield from self.declaration.definitions
         yield from self.modification.definitions
+
+    def get_dataflow_objets(self, condition_map: Optional[Dict[LogicCondition, Condition]] = None) -> Iterable[DataflowObject]:
+        yield self.declaration
+        yield self.modification
+        yield from super().get_dataflow_objets(condition_map)
 
 
 class SwitchNode(AbstractSyntaxTreeNode):
@@ -991,6 +1034,9 @@ class SwitchNode(AbstractSyntaxTreeNode):
 
     def get_required_variables(self, condition_map: Optional[Dict[LogicCondition, Condition]] = None) -> Iterable[Variable]:
         yield from self.expression.requirements
+
+    def get_dataflow_objets(self, condition_map: Optional[Dict[LogicCondition, Condition]] = None) -> Iterable[DataflowObject]:
+        yield self.expression
 
 
 class CaseNode(ConditionalNode):

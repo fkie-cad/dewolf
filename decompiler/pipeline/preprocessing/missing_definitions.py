@@ -10,6 +10,7 @@ from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Instruction, Phi, Relation
 from decompiler.structures.pseudo.operations import Call, ListOperation, OperationType, UnaryOperation
 from decompiler.task import DecompilerTask
+from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 from networkx import DiGraph
 
 from .util import _init_basicblocks_of_definition, _init_basicblocks_usages_variable, _init_maps
@@ -129,7 +130,7 @@ class InsertMissingDefinitions(PipelineStage):
         - Depending whether the memory-changing instruction changes the aliased-variable we insert the definition as an assignment
           (no change) or a relation (change).
         """
-        undefined_variables: Set[Variable] = self._get_undefined_variables()
+        undefined_variables: InsertionOrderedSet[Variable] = self._get_undefined_variables()
         variable_copies: _VariableCopyPool = _VariableCopyPool(undefined_variables | self._def_map.defined_variables)
         variable_copies.sort_copies_of(*undefined_variables)
 
@@ -143,7 +144,7 @@ class InsertMissingDefinitions(PipelineStage):
                 self._insert_definition_if_undefined(variable, previous_ssa_labels, undefined_variables)
                 previous_ssa_labels.add(variable.ssa_label)
 
-    def _get_undefined_variables(self) -> Set[Variable]:
+    def _get_undefined_variables(self) -> InsertionOrderedSet[Variable]:
         """
         Compute the set of undefined variables.
 
@@ -160,7 +161,9 @@ class InsertMissingDefinitions(PipelineStage):
                     undefined_variables.add(aliased_variable)
         return undefined_variables
 
-    def _insert_definition_if_undefined(self, variable: Variable, previous_ssa_labels: Set[int], undefined_variables: Set[Variable]):
+    def _insert_definition_if_undefined(
+        self, variable: Variable, previous_ssa_labels: Set[int], undefined_variables: InsertionOrderedSet[Variable]
+    ):
         """Insert definition for the given variable if it is undefined or raises an error when it is a not an aliased variable."""
         if variable in undefined_variables:
             if not variable.is_aliased:
