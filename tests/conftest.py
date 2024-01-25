@@ -34,15 +34,19 @@ def pytest_generate_tests(metafunc):
             test_cases = _discover_full_tests()
         else:
             test_cases = _discover_system_tests()
+
         params = list()
+        ids = list()
         for sample_name, functions in test_cases.items():
             for f in functions:
                 params.append((sample_name, f))
-        metafunc.parametrize("test_cases", params)
+                ids.append(f"{sample_name}::{f}")
+
+        metafunc.parametrize("test_cases", params, ids=ids)
 
     if "coreutils_tests" in metafunc.fixturenames:
         coreutils_tests = _discover_coreutils_tests()
-        metafunc.parametrize("coreutils_tests", coreutils_tests)
+        metafunc.parametrize("coreutils_tests", coreutils_tests, ids=map(lambda t: f"{t[0]}::{t[1]}", coreutils_tests))
 
 
 def _discover_full_tests() -> Dict[pathlib.Path, List[str]]:
