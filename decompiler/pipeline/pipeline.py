@@ -14,6 +14,7 @@ from decompiler.pipeline.preprocessing import (
     PhiFunctionFixer,
     RegisterPairHandling,
     RemoveGoPrologue,
+    RemoveNoreturnBoilerplate,
     RemoveStackCanary,
     SwitchVariableDetection,
 )
@@ -30,6 +31,7 @@ from .stage import PipelineStage
 PREPROCESSING_STAGES = [
     CompilerIdiomHandling,
     RemoveGoPrologue,
+    RemoveNoreturnBoilerplate,
     RemoveStackCanary,
     RegisterPairHandling,
     Coherence,
