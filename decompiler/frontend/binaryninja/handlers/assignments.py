@@ -79,6 +79,7 @@ class AssignmentHandler(Handler):
                 writes_memory=assignment.dest.version,
             )
             value = self._lifter.lift(assignment.src)
+        # TODO: does ComplexTypeName occur as well? If so does it need to be treated differently?
         # case 2 (contraction):
         elif assignment.offset == 0 and self._lifter.is_omitting_masks:
             destination = self._lift_contraction(assignment, is_aliased=is_aliased, parent=assignment)

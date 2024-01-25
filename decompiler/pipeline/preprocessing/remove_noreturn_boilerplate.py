@@ -32,7 +32,7 @@ class RemoveNoreturnBoilerplate(PipelineStage):
     #             print(instruction)
 
     def run(self, task: DecompilerTask):
-        # TODO: remove True
+        # TODO: remove True, make really configurable
         if task.options.getboolean(f"{self.name}.remove_noreturn_boilerplate", fallback=False) or True:
             self._cfg = task.graph
             self._aggressive_removal_postdominators_merged_sinks()
@@ -176,6 +176,7 @@ class RemoveNoreturnBoilerplate(PipelineStage):
         noreturn_nodes = list(self._get_noreturn_nodes())
         leaf_nodes = [x for x in self._cfg.nodes if self._cfg.out_degree(x) == 0]
         virtual_end_node = BasicBlock(address=-1)
+        # TODO: MultiDiGraph or DiGraph?
         reversed_cfg_view: MultiDiGraph = self._cfg._graph.reverse(copy=False)
         reversed_cfg_shallow_copy = MultiDiGraph(reversed_cfg_view)
         reversed_cfg_shallow_copy.add_node(virtual_end_node)
@@ -200,6 +201,7 @@ class RemoveNoreturnBoilerplate(PipelineStage):
         returning_leaf_nodes = [node for node in leaf_nodes if node not in noreturn_nodes]
         virtual_end_node = BasicBlock(address=-1)
         virtual_merged_noreturn_node = BasicBlock(address=-2)
+        # TODO: MultiDiGraph or DiGraph?
         reversed_cfg_view: MultiDiGraph = self._cfg._graph.reverse(copy=False)
         reversed_cfg_shallow_copy = MultiDiGraph(reversed_cfg_view)
         reversed_cfg_shallow_copy.add_node(virtual_end_node)
