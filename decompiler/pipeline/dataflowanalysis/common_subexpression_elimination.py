@@ -23,6 +23,11 @@ class CfgInstruction:
     dataclass in charge of tracking the location of Instruction objects in the cfg
 
     -> The considered instruction, where block is the basic block where it is contained and index the position in the basic block.
+
+    Note: eq=True would probably be nicer to use, but we don't actually create instances with the same data
+    multiple times.
+    This way, eq and hash are way more performant, because at the time of writing this, eq and hash are very
+    expensive on big instructions
     """
 
     instruction: Instruction
