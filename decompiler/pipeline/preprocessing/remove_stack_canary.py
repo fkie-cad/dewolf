@@ -25,7 +25,6 @@ class RemoveStackCanary(PipelineStage):
 
 
     def run(self, task: DecompilerTask):
-        self._get_cfg = lambda symbol: task.lift_other_function(symbol)[0]
         if task.options.getboolean(f"{self.name}.remove_canary", fallback=False) and task.name != self.STACK_FAIL_STR:
             self._cfg = task.graph
             if len(self._cfg) == 1:
