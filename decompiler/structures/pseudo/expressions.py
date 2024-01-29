@@ -26,6 +26,7 @@ unknown          <-  string_constant("error_message")
 constant         <-  string_constant | numeric_constant
 
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

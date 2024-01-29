@@ -1,4 +1,5 @@
 """Module implementing the DeadLoopElimination pipeline stage."""
+
 from logging import info, warning
 from typing import Dict, Generator, Optional, Tuple, Union
 

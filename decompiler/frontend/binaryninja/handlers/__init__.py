@@ -1,4 +1,5 @@
 """Main module containing all binaryninja handlers."""
+
 from .assignments import AssignmentHandler
 from .binary import BinaryOperationHandler
 from .calls import CallHandler

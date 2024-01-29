@@ -1,4 +1,5 @@
 """Module implementing the DeadPathElimination pipeline stage."""
+
 from logging import info, warning
 from typing import Iterator, Optional, Set, Union
 

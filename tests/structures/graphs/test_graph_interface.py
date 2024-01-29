@@ -1,4 +1,5 @@
 """Implementing tests for the GraphInterface."""
+
 from typing import List, Tuple
 
 import pytest

@@ -1,4 +1,5 @@
 """Module to compute graph slices."""
+
 from __future__ import annotations
 
 from typing import Iterator, List, Set

@@ -1,4 +1,5 @@
 """Module defining the edge interface linking node objects."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

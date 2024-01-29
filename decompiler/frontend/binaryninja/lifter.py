@@ -1,4 +1,5 @@
 """Module implementing the BinaryNinjaLifter of the binaryninja frontend."""
+
 from logging import warning
 from typing import Optional, Tuple, Union
 

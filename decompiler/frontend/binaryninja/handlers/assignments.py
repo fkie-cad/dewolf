@@ -1,4 +1,5 @@
 """Module implementing the AssignmentHandler for binaryninja."""
+
 import logging
 from functools import partial
 

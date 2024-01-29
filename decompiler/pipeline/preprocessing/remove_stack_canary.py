@@ -1,4 +1,5 @@
 """Module for removing ELF stack canaries."""
+
 from typing import Iterator
 
 from decompiler.pipeline.stage import PipelineStage

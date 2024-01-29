@@ -1,4 +1,5 @@
 """Module implementing tests for the ClassifiedGraph class."""
+
 from decompiler.structures.graphs.basic import BasicEdge, BasicNode
 from decompiler.structures.graphs.classifiedgraph import ClassifiedGraph, EdgeProperty
 

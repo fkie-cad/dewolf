@@ -1,4 +1,5 @@
 """Class implementing the main binaryninja frontend interface."""
+
 from __future__ import annotations
 
 import logging

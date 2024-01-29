@@ -1,4 +1,5 @@
 """Module defining the parser interface."""
+
 from abc import ABC, abstractmethod
 
 from decompiler.structures.graphs.cfg import ControlFlowGraph
