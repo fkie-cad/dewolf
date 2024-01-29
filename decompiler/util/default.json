@@ -420,7 +420,7 @@
             },
             {
                 "dest": "code-generator.simplify_branches",
-                "default": false,
+                "default": true,
                 "title": "Simplify branches with true or false conditions",
                 "type": "boolean",
                 "description": "Removes branches in the output that wont be reached because of a 'true' or 'false' condition",

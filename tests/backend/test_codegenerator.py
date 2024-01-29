@@ -104,7 +104,7 @@ def _generate_options(
     twos_complement: bool = True,
     array_detection: bool = False,
     var_declarations_per_line: int = 1,
-    simplify_branches: bool = False,
+    simplify_branches: bool = True,
 ):
     options = Options()
     options.set("code-generator.max_complexity", max_complx)
@@ -244,7 +244,7 @@ class TestCodeGeneration:
         ast._add_edges_from(((root, condition_node), (seq_node, code_node)))
         assert self._regex_matches(
             r"^%int +test_function\(%int +a%,%int +b%\)%{%int%c;%if%\(%true%\)%{%c%=%5%;%return%c%;%}%}%$".replace("%", "\\s*"),
-            self._task(ast, params=[var_a.copy(), var_b.copy()]),
+            self._task(ast, params=[var_a.copy(), var_b.copy()], options=_generate_options(simplify_branches=False)),
         )
 
     def test_function_with_simplified_true_condition(self):
@@ -264,7 +264,7 @@ class TestCodeGeneration:
         ast._add_edges_from(((root, condition_node), (seq_node, code_node)))
         assert self._regex_matches(
             r"^%int +test_function\(%int +a%,%int +b%\)%{%int%c;%c%=%5%;%return%c%;%}%$".replace("%", "\\s*"),
-            self._task(ast, params=[var_a.copy(), var_b.copy()], options=_generate_options(simplify_branches=True)),
+            self._task(ast, params=[var_a.copy(), var_b.copy()]),
         )
 
     def test_function_with_simplified_false_condition(self):
@@ -291,7 +291,7 @@ class TestCodeGeneration:
         ast._add_edges_from(((root, condition_node), (true_seq_node, true_code_node), (false_seq_node, false_code_node)))
         assert self._regex_matches(
             r"^%int +test_function\(%int +a%,%int +b%\)%{%int%c;%return%0%;%}%$".replace("%", "\\s*"),
-            self._task(ast, params=[var_a.copy(), var_b.copy()], options=_generate_options(simplify_branches=True)),
+            self._task(ast, params=[var_a.copy(), var_b.copy()]),
         )
 
     def test_function_with_simplified_false_condition_in_true_branch(self):
@@ -314,7 +314,7 @@ class TestCodeGeneration:
         ast._add_edges_from(((root, condition_node), (seq_node, code_node)))
         assert self._regex_matches(
             r"^%int +test_function\(%int +a%,%int +b%\)%{%int%c;%}%$".replace("%", "\\s*"),
-            self._task(ast, params=[var_a.copy(), var_b.copy()], options=_generate_options(simplify_branches=True)),
+            self._task(ast, params=[var_a.copy(), var_b.copy()]),
         )
 
     def test_function_with_simplified_false_condition_in_false_branch(self):
@@ -344,7 +344,7 @@ class TestCodeGeneration:
         ast._add_edges_from(((root, condition_node), (seq_node, false_condition_code_node)))
         assert self._regex_matches(
             r"^%int +test_function\(%int +a%,%int +b%\)%{%int%c;%if%\(%c%<%5%\)%{%return%0%;%}%}%$".replace("%", "\\s*"),
-            self._task(ast, params=[var_a.copy(), var_b.copy()], options=_generate_options(simplify_branches=True)),
+            self._task(ast, params=[var_a.copy(), var_b.copy()]),
         )
 
     def test_function_with_ifelse(self):
