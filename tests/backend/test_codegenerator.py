@@ -1,5 +1,5 @@
 import re
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import decompiler.structures.pseudo.instructions as instructions
 import decompiler.structures.pseudo.operations as operations
@@ -105,6 +105,7 @@ def _generate_options(
     array_detection: bool = False,
     var_declarations_per_line: int = 1,
     simplify_branches: bool = True,
+    preferred_true_branch: str = "smallest",
 ):
     options = Options()
     options.set("code-generator.max_complexity", max_complx)
@@ -118,19 +119,17 @@ def _generate_options(
     options.set("code-generator.aggressive_array_detection", array_detection)
     options.set("code-generator.variable_declarations_per_line", var_declarations_per_line)
     options.set("code-generator.simplify_branches", simplify_branches)
+    options.set("code-generator.preferred_true_branch", preferred_true_branch)
     return options
 
 
 class TestCodeGeneration:
     @staticmethod
-    def _task(
-        ast: AbstractSyntaxTree,
-        params: List[DataflowObject] = None,
-        return_type: Type = int32,
-        options: Options = _generate_options(max_complx=100, compounding=False),
-    ):
+    def _task(ast: AbstractSyntaxTree, params: List[DataflowObject] = None, return_type: Type = int32, options: Optional[Options] = None):
         if not params:
             params = []
+        if not options:
+            options = _generate_options(compounding=False)
         return DecompilerTask("test_function", None, ast=ast, options=options, function_parameters=params, function_return_type=return_type)
 
     @staticmethod
@@ -364,6 +363,119 @@ class TestCodeGeneration:
             r"^%int +test_function\(%int +a%,%int +b%\)%{%int%c;%if%\(%c%<%5%\)%{%c%=%5%;%return%c%;%}%else%{%return%0%;%}%}%$".replace(
                 "%", "\\s*"
             ),
+            self._task(ast, params=[var_a.copy(), var_b.copy()], options=_generate_options(preferred_true_branch="none")),
+        )
+
+    def test_function_with_ifelseif(self):
+        context = LogicCondition.generate_new_context()
+        root = SeqNode(LogicCondition.initialize_true(context))
+        ast = AbstractSyntaxTree(
+            root,
+            {
+                x1_symbol(context): Condition(OperationType.less, [var_a, const_3]),
+                x2_symbol(context): Condition(OperationType.less, [var_a, const_5]),
+            },
+        )
+
+        x2_true_node = ast._add_code_node([instructions.Return([const_1])])
+        x2_false_node = ast._add_code_node([instructions.Return([const_2])])
+        x1_true_node = ast._add_code_node([instructions.Return([const_0])])
+        x1_false_node = ast._add_condition_node_with(
+            condition=x2_symbol(ast.factory.logic_context), true_branch=x2_true_node, false_branch=x2_false_node
+        )
+        condition_node = ast._add_condition_node_with(
+            condition=x1_symbol(ast.factory.logic_context), true_branch=x1_true_node, false_branch=x1_false_node
+        )
+
+        ast._add_edges_from([(root, condition_node)])
+
+        assert self._regex_matches(
+            r"^%int +test_function\(%int +a%,%int +b%\)%{%if%\(%a%<%3%\)%{%return%0%;%}%else +if%\(%a%<%5%\)%{%return%1%;%}%else%{%return%2%;%}%}%$".replace(
+                "%", "\\s*"
+            ),
+            self._task(ast, params=[var_a.copy(), var_b.copy()]),
+        )
+
+    def test_function_with_ifelseif_prioritize_elseif_over_length(self):
+        context = LogicCondition.generate_new_context()
+        root = SeqNode(LogicCondition.initialize_true(context))
+        ast = AbstractSyntaxTree(
+            root,
+            {
+                x1_symbol(context): Condition(OperationType.less, [var_a, const_3]),
+                x2_symbol(context): Condition(OperationType.less, [var_a, const_5]),
+            },
+        )
+
+        x2_true_node = ast._add_code_node([instructions.Return([const_1])])
+        x2_false_node = ast._add_code_node([instructions.Return([const_2])])
+        x1_true_node = ast._add_code_node([instructions.Return([const_0])])
+        x1_false_node = ast._add_condition_node_with(
+            condition=x2_symbol(ast.factory.logic_context), true_branch=x2_true_node, false_branch=x2_false_node
+        )
+        condition_node = ast._add_condition_node_with(
+            condition=x1_symbol(ast.factory.logic_context), true_branch=x1_true_node, false_branch=x1_false_node
+        )
+
+        ast._add_edges_from([(root, condition_node)])
+
+        assert self._regex_matches(
+            r"^%int +test_function\(%int +a%,%int +b%\)%{%if%\(%a%<%3%\)%{%return%0%;%}%else +if%\(%a%<%5%\)%{%return%1%;%}%else%{%return%2%;%}%}%$".replace(
+                "%", "\\s*"
+            ),
+            self._task(ast, params=[var_a.copy(), var_b.copy()], options=_generate_options(preferred_true_branch="largest")),
+        )
+
+    def test_function_with_ifelseif_swapped_because_elseif(self):
+        context = LogicCondition.generate_new_context()
+        root = SeqNode(LogicCondition.initialize_true(context))
+        ast = AbstractSyntaxTree(
+            root,
+            {
+                x1_symbol(context): Condition(OperationType.greater_or_equal, [var_a, const_3]),
+                x2_symbol(context): Condition(OperationType.less, [var_a, const_5]),
+            },
+        )
+
+        x2_true_node = ast._add_code_node([instructions.Return([const_1])])
+        x2_false_node = ast._add_code_node([instructions.Return([const_2])])
+        x1_true_node = ast._add_condition_node_with(
+            condition=x2_symbol(ast.factory.logic_context), true_branch=x2_true_node, false_branch=x2_false_node
+        )
+        x1_false_node = ast._add_code_node([instructions.Comment("Long comment to pad branch length..."), instructions.Return([const_0])])
+        condition_node = ast._add_condition_node_with(
+            condition=x1_symbol(ast.factory.logic_context), true_branch=x1_true_node, false_branch=x1_false_node
+        )
+
+        ast._add_edges_from([(root, condition_node)])
+
+        assert self._regex_matches(
+            r"^%int +test_function\(%int +a%,%int +b%\)%{%if%\(%a%<%3%\)%{%\/\*%Long comment to pad branch length...%\*\/%return%0%;%}%else +if%\(%a%<%5%\)%{%return%1%;%}%else%{%return%2%;%}%}%$".replace(
+                "%", "\\s*"
+            ),
+            self._task(ast, params=[var_a.copy(), var_b.copy()]),
+        )
+
+    def test_function_with_ifelseif_swapped_because_length(self):
+        context = LogicCondition.generate_new_context()
+        root = SeqNode(LogicCondition.initialize_true(context))
+        ast = AbstractSyntaxTree(
+            root,
+            {x1_symbol(context): Condition(OperationType.greater_or_equal, [var_a, const_3])},
+        )
+
+        x1_true_node = ast._add_code_node([instructions.Comment("Long comment to pad branch length..."), instructions.Return([const_1])])
+        x1_false_node = ast._add_code_node([instructions.Return([const_0])])
+        condition_node = ast._add_condition_node_with(
+            condition=x1_symbol(ast.factory.logic_context), true_branch=x1_true_node, false_branch=x1_false_node
+        )
+
+        ast._add_edges_from([(root, condition_node)])
+
+        assert self._regex_matches(
+            r"^%int +test_function\(%int +a%,%int +b%\)%{%if%\(%a%<%3%\)%{%return%0%;%}%else%{%\/\*%Long comment to pad branch length...%\*\/%return%1%;%}%}%$".replace(
+                "%", "\\s*"
+            ),
             self._task(ast, params=[var_a.copy(), var_b.copy()]),
         )
 
@@ -452,7 +564,7 @@ class TestCodeGeneration:
         ast._add_edges_from(((root, child_1), (root, child_2), (child_2, body)))
         ast._code_node_reachability_graph.add_reachability(child_1, body)
 
-        regex = r"^%void +test_function\(%int +a%,%int +b%\)%{%int%c;%c%=%5%;%while%\(%x%==%5%\)%{%c%=%c%\+%5%;%}%}%$"
+        regex = r"^%void +test_function\(%int +a%,%int +b%\)%{%int%c;%int%x;%c%=%5%;%while%\(%x%==%5%\)%{%c%=%c%\+%5%;%}%}%$"
         assert self._regex_matches(regex.replace("%", "\\s*"), self._task(ast, params=[var_a.copy(), var_b.copy()], return_type=void))
 
     def test_function_with_do_while_condition_loop(self):
@@ -469,7 +581,9 @@ class TestCodeGeneration:
         ast._code_node_reachability_graph.add_reachability(child_1, body)
 
         assert self._regex_matches(
-            r"^%void +test_function\(%int +a%,%int +b%\)%{%int%c;%c%=%5%;%do%{%c%=%c%\+%5%;%}%while%\(%x%==%5%\);%}%$".replace("%", "\\s*"),
+            r"^%void +test_function\(%int +a%,%int +b%\)%{%int%c;%int%x;%c%=%5%;%do%{%c%=%c%\+%5%;%}%while%\(%x%==%5%\);%}%$".replace(
+                "%", "\\s*"
+            ),
             self._task(ast, params=[var_a.copy(), var_b.copy()], return_type=void),
         )
 
@@ -519,7 +633,8 @@ class TestCodeGeneration:
         ast._code_node_reachability_graph.add_reachability(child_1, nested_loop_body)
 
         regex = (
-            r"^%void +test_function\(%int +a%,%int +b%\)%{%int%c;%c%=%5%;%" r"while%\(%true%\)%{%while%\(%x%!=%5%\)%{%c%=%c%\+%5%;%}%}%}%$"
+            r"^%void +test_function\(%int +a%,%int +b%\)%{%int%c;%int%x;%c%=%5%;%"
+            r"while%\(%true%\)%{%while%\(%x%!=%5%\)%{%c%=%c%\+%5%;%}%}%}%$"
         )
         assert self._regex_matches(regex.replace("%", r"\s*"), self._task(ast, params=[var_a.copy(), var_b.copy()], return_type=void))
 
@@ -532,7 +647,7 @@ class TestCodeGeneration:
         ast._add_edge(root, condition_node)
 
         assert self._regex_matches(
-            r"^%bool +test_function\(%\)%{%if%\(%c%\)%{return%c%;%}%}%$".replace("%", "\\s*"), self._task(ast, return_type=bool1)
+            r"^%bool +test_function\(%\)%{%int%c;%if%\(%c%\)%{return%c%;%}%}%$".replace("%", "\\s*"), self._task(ast, return_type=bool1)
         )
 
     @pytest.mark.parametrize(
@@ -1267,25 +1382,7 @@ class TestExpression:
 
 class TestLocalDeclarationGenerator:
     @pytest.mark.parametrize(
-        "op, expected",
-        [
-            (ListOperation([]), []),
-            (ListOperation([var_x.copy()]), []),
-            (UnaryOperation(OperationType.negate, [var_x.copy()]), []),
-            (BinaryOperation(OperationType.minus, [var_x.copy(), const_3.copy()]), []),
-            (BinaryOperation(OperationType.minus, [var_x.copy(), var_y.copy()]), []),
-            (Assignment(var_x.copy(), Constant(3)), ["int x;"]),
-            (Assignment(ListOperation([var_x.copy(), var_y.copy()]), Call(FunctionSymbol("foo", 0), [var_x.copy()])), ["int x;", "int y;"]),
-        ],
-    )
-    def test_operation(self, op, expected):
-        """Ensure variables are generated for operations."""
-        var_visitor = LocalDeclarationGenerator()
-        var_visitor.visit_subexpressions(op)
-        assert list(var_visitor.generate()) == expected
-
-    @pytest.mark.parametrize(
-        "vars_per_line, variables, expected",
+        ["vars_per_line", "variables", "expected"],
         [
             (1, [var_x.copy(), var_y.copy()], "int x;\nint y;"),
             (2, [var_x.copy(), var_y.copy()], "int x, y;"),
@@ -1303,7 +1400,7 @@ class TestLocalDeclarationGenerator:
         options = _generate_options(var_declarations_per_line=vars_per_line)
         ast = AbstractSyntaxTree(
             CodeNode(
-                ListOperation([Assignment(var, const_1.copy()) for var in variables]),
+                [Assignment(var, const_1.copy()) for var in variables],
                 LogicCondition.initialize_true(LogicCondition.generate_new_context()),
             ),
             {},
@@ -1322,16 +1419,31 @@ class TestGlobalVisitor:
     )
     def test_operation(self, op):
         """Ensure that GlobalVariable and ExternConstant are generated for global printing"""
-        global_visitor = GlobalDeclarationGenerator()
-        global_visitor.visit_subexpressions(op)
-        assert len(list(global_visitor.generate())) != 0
+        ast = AbstractSyntaxTree(
+            CodeNode(
+                [Assignment(var_a, op)],
+                LogicCondition.initialize_true(LogicCondition.generate_new_context()),
+            ),
+            {},
+        )
+
+        assert len(GlobalDeclarationGenerator.from_asts([ast])) != 0
 
     def test_nested_global_variable(self):
         """Ensure that GlobalVariableVisitor can visit global variables nested within a global variable"""
+
         var1 = ExternFunctionPointer("ExternFunction")
         var2 = GlobalVariable("var_glob1", initial_value=var1)
         var3 = GlobalVariable("var_glob2", initial_value=var2)
         var4 = GlobalVariable("var_glob3", initial_value=var3)
-        global_visitor = GlobalDeclarationGenerator()
-        global_visitor.visit_subexpressions(ListOperation([var2, var3, var4]))
-        assert len(global_visitor._global_variables) == 3
+
+        ast = AbstractSyntaxTree(
+            CodeNode(
+                [Assignment(var_a, var4)],
+                LogicCondition.initialize_true(LogicCondition.generate_new_context()),
+            ),
+            {},
+        )
+
+        global_variables, _ = GlobalDeclarationGenerator._get_global_variables_and_constants([ast])
+        assert len(global_variables) == 3
