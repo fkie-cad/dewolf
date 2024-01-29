@@ -1,4 +1,5 @@
 """Module implementing edge classification for NetworkXGraph."""
+
 from __future__ import annotations
 
 from collections import defaultdict

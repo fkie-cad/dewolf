@@ -1,4 +1,5 @@
 """Module defining the various branches between BasicBlocks used in ControlFlowGraphs."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

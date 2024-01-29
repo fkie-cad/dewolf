@@ -1,4 +1,5 @@
 """Module describing tasks to be handled by the decompiler pipleline."""
+
 from typing import Dict, List, Optional
 
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree

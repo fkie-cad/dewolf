@@ -1,4 +1,5 @@
 """Module implementing the interface for different frontends."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

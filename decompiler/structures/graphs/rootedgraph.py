@@ -1,4 +1,5 @@
 """Module implementing a rooted graph with buffered dominator tree."""
+
 from __future__ import annotations
 
 from typing import Iterable, Optional, Tuple

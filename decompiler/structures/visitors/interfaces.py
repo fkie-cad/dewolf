@@ -1,4 +1,5 @@
 """Module for visitor ABCs."""
+
 from abc import ABC, abstractmethod
 from typing import Generic, TypeVar
 

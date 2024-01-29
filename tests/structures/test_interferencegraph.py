@@ -1,4 +1,5 @@
 """Pytest for the Interference Graph."""
+
 from typing import List, Tuple
 
 import pytest

@@ -1,4 +1,5 @@
 """Module containing the visitors used to generate variable declarations."""
+
 from collections import defaultdict
 from typing import Iterable, Iterator, List
 

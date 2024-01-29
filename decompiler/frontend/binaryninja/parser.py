@@ -1,4 +1,5 @@
 """Implements the parser for the binaryninja frontend."""
+
 from logging import info, warning
 from typing import Dict, Iterator, List, Tuple
 

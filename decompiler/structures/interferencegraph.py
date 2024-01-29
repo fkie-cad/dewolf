@@ -1,4 +1,5 @@
 """Class for the Interference Graph"""
+
 from __future__ import annotations
 
 from itertools import combinations

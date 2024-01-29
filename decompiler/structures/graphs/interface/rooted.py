@@ -1,4 +1,5 @@
 """Module defining the interface for rooted graphs."""
+
 from abc import ABC, abstractmethod
 from typing import Optional
 

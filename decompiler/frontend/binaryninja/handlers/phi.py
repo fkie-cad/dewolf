@@ -1,4 +1,5 @@
 """Module implementing lifting of phi and memphi instructions."""
+
 from typing import List
 
 from binaryninja import MediumLevelILMemPhi, MediumLevelILVarPhi

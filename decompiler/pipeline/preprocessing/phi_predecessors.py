@@ -1,4 +1,5 @@
 """Module fixing the Control Glow Graph such that it contains all information we need for our analysis."""
+
 from typing import Dict, List, Optional
 
 from decompiler.pipeline.stage import PipelineStage

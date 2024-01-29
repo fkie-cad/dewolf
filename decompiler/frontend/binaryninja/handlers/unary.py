@@ -1,4 +1,5 @@
 """Module implementing the UnaryOperationHandler."""
+
 import logging
 from functools import partial
 from typing import Union
