@@ -1,4 +1,5 @@
 """Module implementing the serialization of AbstractSyntaxTreeNode subclasses."""
+
 from abc import ABC
 from typing import Dict, Optional
 

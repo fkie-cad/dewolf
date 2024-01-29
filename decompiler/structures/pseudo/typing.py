@@ -1,4 +1,5 @@
 """Module implementing the typing system for the pseudo language."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

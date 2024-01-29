@@ -1,4 +1,5 @@
 """Module implementing tests for the BasicBlock class pseudo instruction container."""
+
 from functools import partial
 
 import pytest

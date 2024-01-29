@@ -1,4 +1,5 @@
 """Pytest for Dependency Graph in Out of SSA."""
+
 from typing import List
 
 import pytest

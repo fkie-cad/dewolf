@@ -1,4 +1,5 @@
 """Module handling plotting and pretty printing."""
+
 from __future__ import annotations
 
 import textwrap

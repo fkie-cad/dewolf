@@ -1,4 +1,5 @@
 """Module implementing the handler for binaryninja's binary operations."""
+
 from functools import partial
 
 from binaryninja import MediumLevelILInstruction, mediumlevelil

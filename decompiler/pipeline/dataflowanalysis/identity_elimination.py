@@ -1,4 +1,5 @@
 """Module implementing a pipeline stage eliminating congruent variables."""
+
 from __future__ import annotations
 
 from collections import defaultdict, namedtuple

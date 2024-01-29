@@ -1,4 +1,5 @@
 """Module testing whether dewolf is still threadsafe and z3 does not generate segmentationfaults anymore."""
+
 import faulthandler
 from concurrent.futures import ThreadPoolExecutor
 

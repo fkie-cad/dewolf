@@ -1,4 +1,5 @@
 """Pytest for Liveness Analysis."""
+
 from typing import List, Tuple
 
 import pytest

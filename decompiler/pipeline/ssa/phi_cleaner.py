@@ -1,4 +1,5 @@
 """Module for removing unnecessary Phi-functions in Out of SSA."""
+
 from typing import Dict, Iterator, List
 
 from decompiler.pipeline.ssa.phi_dependency_graph import PhiDependencyGraph

@@ -1,4 +1,5 @@
 """Module dedicated to insert definitions for otherwise definitionless values."""
+
 from collections import defaultdict
 from logging import error
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple, Union

@@ -1,4 +1,5 @@
 """Module in charge of logger initialization and settings."""
+
 import logging.config
 from typing import Optional
 

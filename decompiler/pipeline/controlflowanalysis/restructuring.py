@@ -1,6 +1,7 @@
 """
 Module for pattern independent restructuring
 """
+
 from __future__ import annotations
 
 import logging

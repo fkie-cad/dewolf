@@ -1,4 +1,5 @@
 """Module modeling all pseudo code instructions."""
+
 from __future__ import annotations
 
 import logging

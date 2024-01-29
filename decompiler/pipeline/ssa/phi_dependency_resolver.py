@@ -1,4 +1,5 @@
 """Module for removing circular dependency of Phi-functions in Out of SSA."""
+
 import logging
 from typing import Dict, List
 

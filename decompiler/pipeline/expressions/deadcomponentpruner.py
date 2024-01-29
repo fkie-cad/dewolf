@@ -1,4 +1,5 @@
 """Module implementing Dead code elimination based on ExpressionGraphs."""
+
 from typing import Iterator
 
 from decompiler.pipeline.stage import PipelineStage

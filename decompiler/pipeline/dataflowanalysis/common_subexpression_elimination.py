@@ -1,4 +1,5 @@
 """Module implementing common subexpression elimination."""
+
 from __future__ import annotations
 
 from collections import Counter, defaultdict, deque

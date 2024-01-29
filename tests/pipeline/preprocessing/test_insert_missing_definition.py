@@ -1,4 +1,5 @@
 """Pytest for InsertingMissingDefinitions."""
+
 from typing import List
 
 import pytest

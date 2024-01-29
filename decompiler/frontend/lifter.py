@@ -1,4 +1,5 @@
 """Interface for frontend lifters."""
+
 from abc import ABC, abstractmethod
 from typing import Callable, Dict, Type, TypeVar
 
