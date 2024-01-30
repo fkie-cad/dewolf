@@ -25,10 +25,11 @@ class CfgInstruction:
 
     -> The considered instruction, where block is the basic block where it is contained and index the position in the basic block.
 
-    Note: eq=True would probably be nicer to use, but we don't actually create instances with the same data
-    multiple times.
+    Note: Two instances with the same data will not be equal (because of eq=False).
     This way, eq and hash are way more performant, because at the time of writing this, eq and hash are very
-    expensive on big instructions
+    expensive on big instructions.
+    eq=True would probably be nicer to use, but we don't actually create instances with the same data
+    multiple times.
     """
 
     instruction: Instruction
