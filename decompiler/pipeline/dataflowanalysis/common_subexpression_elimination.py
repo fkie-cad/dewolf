@@ -6,7 +6,7 @@ from collections import Counter, defaultdict, deque
 from dataclasses import dataclass
 from itertools import chain
 from logging import info, warning
-from typing import DefaultDict, Deque, Dict, Iterator, List, Optional, Set, Tuple
+from typing import DefaultDict, Deque, Dict, Iterable, Iterator, List, Optional, Set, Tuple
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
@@ -246,7 +246,7 @@ class DefinitionGenerator:
         candidate: BasicBlock = next(iter(usage_blocks))
         while not self._is_common_dominator(candidate, usage_blocks) or self._is_invalid_dominator(candidate, expression):
             candidate = self._dominator_tree.get_predecessors(candidate)[0]
-        return candidate, self._find_insertion_index(candidate, self._usages[expression].keys())  # not a set...
+        return candidate, self._find_insertion_index(candidate, self._usages[expression].keys())
 
     def _is_common_dominator(self, candidate: BasicBlock, basic_blocks: Set[BasicBlock]) -> bool:
         """Check if the given candidate is the common dominator all of given basic blocks."""
@@ -269,7 +269,7 @@ class DefinitionGenerator:
             self._usages[subexpression][definition] += 1
 
     @staticmethod
-    def _find_insertion_index(basic_block: BasicBlock, usages: Set[CfgInstruction]) -> int:
+    def _find_insertion_index(basic_block: BasicBlock, usages: Iterable[CfgInstruction]) -> int:
         """Find the first index in the given basic block where a definition could be inserted."""
         usage = min((usage for usage in usages if usage.block == basic_block), default=None, key=lambda x: x.index)
         if usage:
