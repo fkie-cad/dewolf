@@ -1,4 +1,5 @@
 """Module implementing networkx as a graph backend."""
+
 from __future__ import annotations
 
 from typing import Dict, Iterator, Optional, Tuple, TypeVar

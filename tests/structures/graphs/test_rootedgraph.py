@@ -1,4 +1,5 @@
 """Module implementing tests for the RootedGraph implementation."""
+
 from typing import Tuple
 
 from decompiler.structures.graphs.basic import BasicEdge, BasicNode

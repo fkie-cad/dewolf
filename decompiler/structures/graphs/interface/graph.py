@@ -1,4 +1,5 @@
 """Defines a generic graph interface suitable for multiple graph backends."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

@@ -1,4 +1,5 @@
 """Module implementing lifting of binaryninja symbols."""
+
 from logging import warning
 from typing import Union
 

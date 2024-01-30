@@ -1,4 +1,5 @@
 """Module defining a control flow graph with the graph interface."""
+
 from __future__ import annotations
 
 from itertools import chain

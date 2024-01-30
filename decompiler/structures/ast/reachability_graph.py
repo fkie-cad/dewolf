@@ -1,4 +1,5 @@
 """Module to handle the reaches attribute using graphs."""
+
 from __future__ import annotations
 
 from itertools import chain, permutations, product

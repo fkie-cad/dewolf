@@ -17,7 +17,6 @@ class UnsupportedOperationType(Exception):
 
 
 class UnsupportedValueType(Exception):
-
     """Indicates that the value type of one constant is not supported."""
 
     pass

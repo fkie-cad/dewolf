@@ -1,4 +1,5 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
+
 from typing import Callable, Optional, Tuple, Union
 
 from binaryninja import BinaryView, DataVariable, Endianness, MediumLevelILInstruction, Type

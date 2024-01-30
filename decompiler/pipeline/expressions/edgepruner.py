@@ -1,4 +1,5 @@
 """Module implementing common subexpression elimination on ExpressionGraphs."""
+
 from typing import Iterator, List
 
 from decompiler.pipeline.stage import PipelineStage

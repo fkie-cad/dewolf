@@ -1,4 +1,5 @@
 """Module implementing variable lifting for the binaryninja observer lifer."""
+
 from typing import Optional
 
 from binaryninja import (

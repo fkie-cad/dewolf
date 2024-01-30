@@ -1,4 +1,5 @@
 """ Tests for the AbstractSyntaxTree base class."""
+
 import pytest
 from decompiler.structures.ast.ast_nodes import CodeNode, SeqNode, VirtualRootNode
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree

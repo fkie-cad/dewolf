@@ -1,4 +1,5 @@
 """ Tests for the PatternIndependentRestructuring pipeline stage condition aware refinement."""
+
 from itertools import combinations
 from typing import List, Tuple, Union
 

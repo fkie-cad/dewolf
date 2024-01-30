@@ -1,4 +1,5 @@
 """Module for finding variable relevant to switch"""
+
 from typing import Optional
 
 from decompiler.pipeline.stage import PipelineStage

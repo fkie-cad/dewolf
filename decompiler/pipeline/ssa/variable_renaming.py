@@ -1,4 +1,5 @@
 """Module for renaming variables in Out of SSA."""
+
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field

@@ -1,4 +1,5 @@
 """Implements translating psuedo instructions into logic statements."""
+
 from __future__ import annotations
 
 import logging

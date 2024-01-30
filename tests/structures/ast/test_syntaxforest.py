@@ -1,4 +1,5 @@
 """ Tests for the AbstractSyntaxTree base class."""
+
 from itertools import combinations
 
 from decompiler.structures.ast.ast_comparator import ASTComparator

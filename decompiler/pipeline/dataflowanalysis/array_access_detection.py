@@ -1,4 +1,5 @@
 """Module implementing detection of array element accesses"""
+
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field

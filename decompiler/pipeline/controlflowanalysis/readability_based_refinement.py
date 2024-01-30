@@ -1,4 +1,5 @@
 """Module implementing various readability based refinements."""
+
 from __future__ import annotations
 
 from typing import Union

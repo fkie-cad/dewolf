@@ -1,4 +1,5 @@
 """Module to structure Loops"""
+
 from typing import Optional
 
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.ast_processor import LoopProcessor

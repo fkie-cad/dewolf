@@ -1,4 +1,5 @@
 """Module implementing the PipelineStage interface."""
+
 from abc import ABC, abstractmethod
 
 from decompiler.task import DecompilerTask

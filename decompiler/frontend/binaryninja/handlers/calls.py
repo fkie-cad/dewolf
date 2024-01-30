@@ -1,4 +1,5 @@
 """Module implementing the binaryninja CallHandler."""
+
 from functools import partial
 from typing import List
 

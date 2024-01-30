@@ -1,4 +1,5 @@
 """Module defining the BasicBlock class utilized in ControlFlowGraphs."""
+
 from __future__ import annotations
 
 from enum import Enum

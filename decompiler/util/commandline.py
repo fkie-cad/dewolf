@@ -1,4 +1,5 @@
 """Command line interface for the decompiler."""
+
 from argparse import SUPPRESS, ArgumentParser
 from enum import Enum
 from os import isatty

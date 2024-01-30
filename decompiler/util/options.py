@@ -1,4 +1,5 @@
 """File in charge of managing config and commandline options for decompilation."""
+
 import json
 import logging
 from argparse import ArgumentParser, BooleanOptionalAction, Namespace

@@ -1,4 +1,5 @@
 """Module implementing frontend data harmonization."""
+
 from itertools import chain
 from logging import info
 from typing import Dict, Iterator, List

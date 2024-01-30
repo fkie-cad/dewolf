@@ -1,4 +1,5 @@
 """Module containing pipeline definitions for the decompiler."""
+
 from __future__ import annotations
 
 from logging import debug, error, warning

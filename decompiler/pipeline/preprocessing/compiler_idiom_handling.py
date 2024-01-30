@@ -1,4 +1,5 @@
 """Module for handling compiler idioms that have already been marked in BinaryNinja"""
+
 import logging
 from dataclasses import dataclass
 from typing import Iterable, List, Optional
