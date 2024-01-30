@@ -28,8 +28,10 @@ class CfgInstruction:
     Note: Two instances with the same data will not be equal (because of eq=False).
     This way, eq and hash are way more performant, because at the time of writing this, eq and hash are very
     expensive on big instructions.
+
     eq=True would probably be nicer to use, but we don't actually create instances with the same data
-    multiple times.
+    multiple times. (Rationale: initially just one instance is created per (block, index) pair.
+    All further instances with the same (block, index) will have a less complex instruction than before)
     """
 
     instruction: Instruction
