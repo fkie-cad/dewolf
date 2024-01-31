@@ -45,7 +45,7 @@ def pytest_generate_tests(metafunc: Metafunc):
         metafunc.parametrize("coreutils_tests", _create_params(coreutils_tests))
 
 
-def _create_params(cases: Iterator[(pathlib.Path, str)]) -> list[ParameterSet]:
+def _create_params(cases: Iterator[tuple[pathlib.Path, str]]) -> list[ParameterSet]:
     """
     Accepts an iterator of sample binaries paired with a function name to test.
     Returns a list of ParameterSet objects to be used with metafunc.parametrize.
@@ -58,7 +58,7 @@ def _create_params(cases: Iterator[(pathlib.Path, str)]) -> list[ParameterSet]:
     return sorted(test_cases, key=lambda p: p.id)
 
 
-def _discover_full_tests() -> Iterator[(pathlib.Path, str)]:
+def _discover_full_tests() -> Iterator[tuple[pathlib.Path, str]]:
     """Discover test source files and the test functions in these files.
 
     All files with a .c extension that contain at least one test function are considered as test files.
@@ -72,7 +72,7 @@ def _discover_full_tests() -> Iterator[(pathlib.Path, str)]:
             yield sample_path, function
 
 
-def _discover_system_tests() -> Iterator[(pathlib.Path, str)]:
+def _discover_system_tests() -> Iterator[tuple[pathlib.Path, str]]:
     """Returns a mapping of system tests binaries to the lists of function names contained in those binaries"""
     makefile = _parse_makefile()
     test_code_files = makefile["system_tests_src_path"].glob("*.c")
@@ -82,7 +82,7 @@ def _discover_system_tests() -> Iterator[(pathlib.Path, str)]:
             yield sample_path, function_name
 
 
-def _discover_coreutils_tests() -> Iterator[(pathlib.Path, str)]:
+def _discover_coreutils_tests() -> Iterator[tuple[pathlib.Path, str]]:
     """Returns list of (binary, func_name) from a text file for the coreutils binaries."""
     with pathlib.Path("tests/coreutils/functions.txt").open("r", encoding="utf-8") as f:
         funcs_contents = f.readlines()
