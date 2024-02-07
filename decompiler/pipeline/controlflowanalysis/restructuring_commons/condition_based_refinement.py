@@ -236,9 +236,7 @@ class ConditionBasedRefinement:
         :param sibling_reachability:
         :return:
         """
-        copy_sibling_reachability = sibling_reachability.copy()
-        copy_sibling_reachability.merge_siblings_to(SeqNode(LogicCondition.generate_new_context()), branches)
-        return copy_sibling_reachability.sorted_nodes() is not None
+        return sibling_reachability.can_group_siblings(branches)
 
     @staticmethod
     def _all_subsets(arguments: List[LogicCondition]) -> Iterator[Tuple[LogicCondition]]:

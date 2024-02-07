@@ -3406,14 +3406,12 @@ def test_too_nested(task):
     PatternIndependentRestructuring().run(task)
 
     # initial part
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 12
+    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 5
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(cond_node := seq_node.children[1], ConditionNode)
-    assert all(
-        isinstance(child, ConditionNode) and child.false_branch is None and isinstance(child.true_branch_child, CodeNode)
-        for child in seq_node.children[2:11]
-    )
-    assert isinstance(seq_node.children[11], CodeNode) and seq_node.children[11].instructions == vertices[3].instructions
+    assert isinstance(switch1 := seq_node.children[2], SwitchNode)
+    assert isinstance(switch2 := seq_node.children[3], SwitchNode)
+    assert isinstance(seq_node.children[4], CodeNode) and seq_node.children[4].instructions == vertices[3].instructions
 
     # condition node
     if (cond := cond_node.condition).is_symbol:
@@ -3430,59 +3428,45 @@ def test_too_nested(task):
     # before_switch branch
     assert isinstance(switch_branch, CodeNode) and switch_branch.instructions == vertices[2].instructions[:-1]
 
-    # all switch-cases
-    assert seq_node.children[2].true_branch_child.instructions == vertices[4].instructions
-    assert task._ast.condition_map[seq_node.children[2].condition] == Condition(
-        OperationType.equal, [var_1_1, Constant(0, Integer(32, True))]
+    # switch1
+    assert switch1.expression == var_1_1 and len(switch1.children) == 5
+    assert isinstance(case1 := switch1.cases[0], CaseNode) and case1.constant == Constant(0, Integer(32, True)) and case1.break_case
+    assert isinstance(case2 := switch1.cases[1], CaseNode) and case2.constant == Constant(1, Integer(32, True)) and case2.break_case
+    assert (
+        isinstance(case3 := switch1.cases[2], CaseNode) and case3.constant == Constant(3, Integer(32, True)) and case3.break_case is False
     )
-    assert seq_node.children[3].true_branch_child.instructions == vertices[5].instructions
-    assert task._ast.condition_map[seq_node.children[3].condition] == Condition(
-        OperationType.equal, [var_1_1, Constant(1, Integer(32, True))]
+    assert isinstance(case4 := switch1.cases[3], CaseNode) and case4.constant == Constant(4, Integer(32, True)) and case4.break_case
+    assert isinstance(case5 := switch1.cases[4], CaseNode) and case5.constant == Constant(5, Integer(32, True)) and case5.break_case
+
+    # children of cases
+    assert isinstance(case1.child, CodeNode) and case1.child.instructions == vertices[4].instructions
+    assert isinstance(case2.child, CodeNode) and case2.child.instructions == vertices[5].instructions
+    assert isinstance(case3.child, CodeNode) and case3.child.instructions == vertices[7].instructions
+    assert isinstance(case4.child, CodeNode) and case4.child.instructions == vertices[8].instructions
+    assert isinstance(case5.child, CodeNode) and case5.child.instructions == vertices[12].instructions
+
+    # switch2
+    assert switch2.expression == var_1_1 and len(switch2.children) == 5
+    assert (
+        isinstance(case1 := switch2.cases[0], CaseNode) and case1.constant == Constant(0, Integer(32, True)) and case1.break_case is False
     )
-    assert seq_node.children[4].true_branch_child.instructions == vertices[12].instructions
-    assert task._ast.condition_map[seq_node.children[4].condition] == Condition(
-        OperationType.equal, [var_1_1, Constant(5, Integer(32, True))]
+    assert (
+        isinstance(case2 := switch2.cases[1], CaseNode) and case2.constant == Constant(1, Integer(32, True)) and case2.break_case is False
     )
-    assert seq_node.children[5].true_branch_child.instructions == vertices[7].instructions
-    assert task._ast.condition_map[seq_node.children[5].condition] == Condition(
-        OperationType.equal, [var_1_1, Constant(3, Integer(32, True))]
+    assert (
+        isinstance(case3 := switch2.cases[2], CaseNode) and case3.constant == Constant(2, Integer(32, True)) and case3.break_case is False
     )
-    assert seq_node.children[6].true_branch_child.instructions == vertices[11].instructions
-    assert seq_node.children[6].condition.is_disjunction and len(arguments := seq_node.children[6].condition.operands) == 2
-    assert {task._ast.condition_map[arg] for arg in arguments} == {
-        Condition(OperationType.equal, [var_1_1, Constant(0, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(1, Integer(32, True))]),
-    }
-    assert seq_node.children[7].true_branch_child.instructions == vertices[8].instructions
-    assert seq_node.children[7].condition.is_disjunction and len(arguments := seq_node.children[7].condition.operands) == 2
-    assert {task._ast.condition_map[arg] for arg in arguments} == {
-        Condition(OperationType.equal, [var_1_1, Constant(3, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(4, Integer(32, True))]),
-    }
-    assert seq_node.children[8].true_branch_child.instructions == vertices[6].instructions
-    assert seq_node.children[8].condition.is_disjunction and len(arguments := seq_node.children[8].condition.operands) == 3
-    assert {task._ast.condition_map[arg] for arg in arguments} == {
-        Condition(OperationType.equal, [var_1_1, Constant(0, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(1, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(2, Integer(32, True))]),
-    }
-    assert seq_node.children[9].true_branch_child.instructions == vertices[9].instructions
-    assert seq_node.children[9].condition.is_disjunction and len(arguments := seq_node.children[9].condition.operands) == 4
-    assert {task._ast.condition_map[arg] for arg in arguments} == {
-        Condition(OperationType.equal, [var_1_1, Constant(0, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(1, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(2, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(6, Integer(32, True))]),
-    }
-    assert seq_node.children[10].true_branch_child.instructions == vertices[10].instructions
-    assert seq_node.children[10].condition.is_disjunction and len(arguments := seq_node.children[10].condition.operands) == 5
-    assert {task._ast.condition_map[arg] for arg in arguments} == {
-        Condition(OperationType.equal, [var_1_1, Constant(0, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(1, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(2, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(5, Integer(32, True))]),
-        Condition(OperationType.equal, [var_1_1, Constant(6, Integer(32, True))]),
-    }
+    assert (
+        isinstance(case4 := switch2.cases[3], CaseNode) and case4.constant == Constant(6, Integer(32, True)) and case4.break_case is False
+    )
+    assert isinstance(case5 := switch2.cases[4], CaseNode) and case5.constant == Constant(5, Integer(32, True)) and case5.break_case
+
+    # children of cases
+    assert isinstance(case1.child, CodeNode) and case1.child.instructions == []
+    assert isinstance(case2.child, CodeNode) and case2.child.instructions == vertices[11].instructions
+    assert isinstance(case3.child, CodeNode) and case3.child.instructions == vertices[6].instructions
+    assert isinstance(case4.child, CodeNode) and case4.child.instructions == vertices[9].instructions
+    assert isinstance(case5.child, CodeNode) and case5.child.instructions == vertices[10].instructions
 
 
 def test_combine_switch_nodes(task):
@@ -5668,3 +5652,86 @@ def test_nested_cases_unnecessary_condition_not_all_irrelevant_2(task):
     assert isinstance(case5.child, CodeNode) and case5.child.instructions == vertices[12].instructions
     assert isinstance(case6.child, CodeNode) and case6.child.instructions == vertices[14].instructions
     assert isinstance(case7.child, CodeNode) and case7.child.instructions == vertices[16].instructions
+
+
+def test_intersecting_cases(task):
+    """test_condition test18"""
+    var_0_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 0, True, None))
+    var_0_2 = Variable("var_0", Integer(32, True), None, True, Variable("var_10", Integer(32, True), 2, True, None))
+    arg1_0 = Variable("arg1", Integer(32, True), None, True, Variable("arg1", Integer(32, True), 0, True, None))
+    arg1_1 = Variable("arg1", Integer(32, True), None, True, Variable("arg1", Integer(32, True), 1, True, None))
+    arg1_2 = Variable("arg1", Integer(32, True), None, True, Variable("arg1", Integer(32, True), 2, True, None))
+    task.graph.add_nodes_from(
+        vertices := [
+            BasicBlock(
+                0,
+                [
+                    Assignment(ListOperation([]), print_call("Enter week number(1-7): ", 1)),
+                    Assignment(
+                        ListOperation([]),
+                        scanf_call(
+                            UnaryOperation(OperationType.address, [var_0_0], Pointer(Integer(32, True), 32), None, False), 0x134524965, 2
+                        ),
+                    ),
+                    Branch(Condition(OperationType.not_equal, [var_0_2, Constant(1, Integer(32, True))], CustomType("bool", 1))),
+                ],
+            ),
+            BasicBlock(1, [Branch(Condition(OperationType.not_equal, [var_0_2, Constant(2, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(
+                2,
+                [
+                    Assignment(ListOperation([]), print_call("Possible switch case but not the one we want", 1)),
+                    Branch(Condition(OperationType.greater, [arg1_0, Constant(5, Integer(32, True))], CustomType("bool", 1))),
+                ],
+            ),
+            BasicBlock(3, [Branch(Condition(OperationType.not_equal, [var_0_2, Constant(3, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(6, [Assignment(arg1_1, BinaryOperation(OperationType.plus, [arg1_0, Constant(5, Integer.int32_t())]))]),
+            BasicBlock(7, [Branch(Condition(OperationType.not_equal, [var_0_2, Constant(4, Integer(32, True))], CustomType("bool", 1)))]),
+            BasicBlock(
+                9,
+                [
+                    Assignment(ListOperation([]), print_call("Tuesday", 1)),
+                    Branch(Condition(OperationType.less_or_equal, [arg1_2, Constant(10, Integer(32, True))], CustomType("bool", 1))),
+                ],
+            ),
+            BasicBlock(10, [Assignment(ListOperation([]), print_call("Monday", 3))]),
+            BasicBlock(
+                13,
+                [
+                    Assignment(ListOperation([]), print_call("Wednesday", 1)),
+                    Branch(Condition(OperationType.not_equal, [var_0_2, Constant(1, Integer(32, True))], CustomType("bool", 1))),
+                ],
+            ),
+            BasicBlock(16, [Return(ListOperation([Constant(0, Integer(32, True))]))]),
+            BasicBlock(17, [Assignment(ListOperation([]), print_call("Thursday", 3))]),
+        ]
+    )
+    task.graph.add_edges_from(
+        [
+            TrueCase(vertices[0], vertices[1]),
+            FalseCase(vertices[0], vertices[2]),
+            TrueCase(vertices[1], vertices[3]),
+            FalseCase(vertices[1], vertices[6]),
+            TrueCase(vertices[2], vertices[7]),
+            FalseCase(vertices[2], vertices[4]),
+            TrueCase(vertices[3], vertices[5]),
+            FalseCase(vertices[3], vertices[8]),
+            UnconditionalEdge(vertices[4], vertices[6]),
+            TrueCase(vertices[5], vertices[9]),
+            FalseCase(vertices[5], vertices[10]),
+            TrueCase(vertices[6], vertices[9]),
+            FalseCase(vertices[6], vertices[8]),
+            UnconditionalEdge(vertices[7], vertices[9]),
+            TrueCase(vertices[8], vertices[10]),
+            FalseCase(vertices[8], vertices[7]),
+            UnconditionalEdge(vertices[10], vertices[9]),
+        ]
+    )
+
+    PatternIndependentRestructuring().run(task)
+
+    assert len(list(task._ast.get_switch_nodes_post_order())) == 2
+    assert isinstance(seq_node := task._ast.root, SeqNode) and len(children := seq_node.children) == 6
+    assert isinstance(children[0], CodeNode) and isinstance(children[5], CodeNode)
+    assert all(isinstance(child, ConditionNode) for child in children[1:4])
+    assert isinstance(children[4], SwitchNode) and isinstance(children[3].true_branch_child, SwitchNode)

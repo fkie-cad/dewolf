@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Set, Tuple
 
 from decompiler.structures.pseudo.expressions import Constant
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
-from networkx import DiGraph, NetworkXUnfeasible, has_path, topological_sort, weakly_connected_components
+from networkx import DiGraph, NetworkXUnfeasible, has_path, topological_sort, transitive_closure, weakly_connected_components
 
 if TYPE_CHECKING:
     from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, CodeNode, SwitchNode
@@ -102,6 +102,15 @@ class SiblingReachability:
             return tuple(topological_sort(self._sibling_reachability_graph))
         except NetworkXUnfeasible:
             return None
+
+    def transitive_closure(self) -> SiblingReachability:
+        return SiblingReachability(transitive_closure(self._sibling_reachability_graph))
+
+    def can_group_siblings(self, grouping_siblings: List[AbstractSyntaxTreeNode]):
+        """Check whether the given siblings can be grouped into one node."""
+        copy_sibling_reachability = self.copy()
+        copy_sibling_reachability.merge_siblings_to("X", grouping_siblings)
+        return copy_sibling_reachability.sorted_nodes() is not None
 
 
 class ReachabilityGraph:
@@ -307,7 +316,7 @@ class SiblingReachabilityGraph:
         """
         Returns a list of all cross nodes of the reachability graph that are contained in the given set of AST-nodes.
 
-        -> A cross node is a node where the in-degree or out-degree is larger then one.
+        -> A cross node is a node where the in-degree or out-degree is larger than one.
         """
         return [case for case in considered_nodes if self.in_degree(case) > 1 or self.out_degree(case) > 1]
 
