@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import DefaultDict, Dict, Iterator, Optional, Set
+from typing import DefaultDict, Iterator, Optional, Set
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
@@ -9,7 +9,6 @@ from decompiler.structures.maps import DefMap, UseMap
 from decompiler.structures.pointers import Pointers
 from decompiler.structures.pseudo import (
     Assignment,
-    Branch,
     Call,
     DataflowObject,
     Expression,
@@ -24,6 +23,7 @@ from decompiler.structures.pseudo import (
     Variable,
 )
 from decompiler.task import DecompilerTask
+from decompiler.util.iteration_util import all_equal
 
 
 class ExpressionPropagationBase(PipelineStage, ABC):
@@ -57,6 +57,8 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         # block map is updated after substitution in EPM, in EP does nothing
         # use map is updated after substitution in EPM, in EP does nothing
         """
+        self._remove_redundant_phis(graph)
+
         is_changed = False
         self._cfg = graph
         self._initialize_maps(graph)
@@ -73,6 +75,22 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                             if not is_changed:
                                 is_changed = old != str(instruction)
         return is_changed
+
+    def _remove_redundant_phis(self, graph: ControlFlowGraph) -> bool:
+        changes = False
+        for basic_block in graph.nodes:
+            for index, instruction in enumerate(basic_block.instructions):
+                if not isinstance(instruction, Phi):
+                    continue
+                if not all_equal(instruction.value.operands):
+                    continue
+
+                basic_block.replace_instruction(
+                    instruction,
+                    Assignment(instruction.destination, instruction.value.operands[0])
+                )
+                changes |= True
+        return changes
 
     @abstractmethod
     def _definition_can_be_propagated_into_target(self, definition: Assignment, target: Instruction) -> bool:
