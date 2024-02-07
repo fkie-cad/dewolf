@@ -1,7 +1,10 @@
+from itertools import groupby
+from typing import Iterable
+
 from decompiler.pipeline.commons.expressionpropagationcommons import ExpressionPropagationBase
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.pointers import Pointers
-from decompiler.structures.pseudo import Variable
+from decompiler.structures.pseudo import Phi, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Instruction
 from decompiler.task import DecompilerTask
 
@@ -27,6 +30,7 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
         """
         is_changed = super().perform(graph, iteration)
         self._propagate_postponed_aliased_definitions()
+        is_changed |= self._remove_redundant_phis(graph)
         return is_changed
 
     def _definition_can_be_propagated_into_target(self, definition: Assignment, target: Instruction):
@@ -108,3 +112,24 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
                     instruction.substitute(var, definition.value.copy())
                     self._update_use_map(var, instruction)
                     self._update_block_map(old_instr, str(instruction), block, index)
+
+    def _remove_redundant_phis(self, graph: ControlFlowGraph) -> bool:
+        changes = False
+        for basic_block in graph.nodes:
+            for index, instruction in enumerate(basic_block.instructions):
+                if not isinstance(instruction, Phi):
+                    continue
+                if not all_equal(instruction.value.operands):
+                    continue
+
+                basic_block.replace_instruction(
+                    instruction,
+                    Assignment(instruction.destination, instruction.value.operands[0])
+                )
+                changes |= True
+        return changes
+
+
+def all_equal(iterable: Iterable):
+    g = groupby(iterable)
+    return next(g, True) and not next(g, False)
