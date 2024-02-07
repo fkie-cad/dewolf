@@ -1,4 +1,5 @@
 """Module implementing Out of SSA."""
+
 import logging
 from collections import defaultdict
 from configparser import NoOptionError

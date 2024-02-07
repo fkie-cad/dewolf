@@ -1,4 +1,5 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
+
 import math
 
 from binaryninja import BinaryView, DataVariable, SectionSemantics, SymbolType, Type, mediumlevelil

@@ -1,6 +1,7 @@
 """
 Module for Condition Based Refinement
 """
+
 from itertools import combinations
 from typing import Iterator, List, Optional, Set, Tuple
 

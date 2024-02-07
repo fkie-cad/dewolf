@@ -1,4 +1,5 @@
 """Tests for the pipeline system."""
+
 import pytest
 from decompiler.pipeline.default import AST_STAGES, CFG_STAGES
 from decompiler.pipeline.pipeline import DecompilerPipeline

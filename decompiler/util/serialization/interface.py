@@ -1,4 +1,5 @@
 """Module implementing the base interface for all serializers."""
+
 from abc import ABC, abstractmethod
 from typing import Dict, Generic, TypeVar
 

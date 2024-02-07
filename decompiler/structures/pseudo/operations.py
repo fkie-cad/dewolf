@@ -1,4 +1,5 @@
 """Module declaring all valid IR operations."""
+
 from __future__ import annotations
 
 import logging

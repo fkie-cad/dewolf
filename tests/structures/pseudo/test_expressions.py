@@ -2,6 +2,7 @@ from math import inf, nan
 
 import pytest
 from decompiler.structures.pseudo import OperationType, UnaryOperation
+from decompiler.structures.pseudo.complextypes import ComplexTypeMember, Enum
 from decompiler.structures.pseudo.expressions import (
     Constant,
     ExternConstant,
@@ -374,3 +375,24 @@ class TestImportedFunctionSymbol:
         original = ImportedFunctionSymbol("foo", 0x42)
         copy = original.copy()
         assert id(original) != id(copy) and original == copy
+
+
+@pytest.fixture
+def color():
+    return Enum(
+        0,
+        "Color",
+        {
+            0: ComplexTypeMember(0, "red", value=0, offset=0, type=Integer.int32_t()),
+            1: ComplexTypeMember(0, "green", value=1, offset=0, type=Integer.int32_t()),
+            2: ComplexTypeMember(0, "blue", value=2, offset=0, type=Integer.int32_t()),
+        },
+    )
+
+
+class TestEnumConstant:
+    def test_available_value(self, color):
+        assert str(Constant(value=1, vartype=color)) == "green"
+
+    def test_unavailable_value(self, color):
+        assert str(Constant(value=0xFFFF, vartype=color)) == str(Constant(0xFFFF, vartype=i32))

@@ -1,4 +1,5 @@
 """Pytest for Out of SSA."""
+
 from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.structures.graphs.cfg import BasicBlockEdgeCondition
 from decompiler.structures.pseudo import Expression, Type, UnknownExpression

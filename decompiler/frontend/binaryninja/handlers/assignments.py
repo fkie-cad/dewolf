@@ -1,4 +1,5 @@
 """Module implementing the AssignmentHandler for binaryninja."""
+
 import logging
 from functools import partial
 
@@ -73,9 +74,9 @@ class AssignmentHandler(Handler):
             struct_variable = self._lifter.lift(assignment.dest, is_aliased=True, parent=assignment)
             destination = MemberAccess(
                 offset=assignment.offset,
-                member_name=struct_variable.type.get_member_by_offset(assignment.offset).name,
+                member_name=struct_variable.type.get_member_name_by_offset(assignment.offset),
                 operands=[struct_variable],
-                writes_memory=assignment.ssa_memory_version,
+                writes_memory=assignment.dest.version,
             )
             value = self._lifter.lift(assignment.src)
         # case 2 (contraction):
@@ -99,7 +100,7 @@ class AssignmentHandler(Handler):
         (x = ) <- for the sake of example, only rhs expression is lifted here.
         """
         source = self._lifter.lift(instruction.src, is_aliased=is_aliased, parent=instruction)
-        if isinstance(source.type, Struct) or isinstance(source.type, Union):
+        if isinstance(source.type, Struct) or isinstance(source.type, Class) or isinstance(source.type, Union):
             return self._get_field_as_member_access(instruction, source, **kwargs)
         cast_type = source.type.resize(instruction.size * self.BYTE_SIZE)
         if instruction.offset:
@@ -112,11 +113,11 @@ class AssignmentHandler(Handler):
 
     def _get_field_as_member_access(self, instruction: mediumlevelil.MediumLevelILVarField, source: Expression, **kwargs) -> MemberAccess:
         """Lift MLIL var_field as struct or union member read access."""
-        if isinstance(source.type, Struct):
-            member_name = source.type.get_member_by_offset(instruction.offset).name
+        if isinstance(source.type, Struct) or isinstance(source.type, Class):
+            member_name = source.type.get_member_name_by_offset(instruction.offset)
         elif parent := kwargs.get("parent", None):
             parent_type = self._lifter.lift(parent.dest.type)
-            member_name = source.type.get_member_by_type(parent_type).name
+            member_name = source.type.get_member_name_by_type(parent_type)
         else:
             logging.warning(f"Cannot get member name for instruction {instruction}")
             member_name = f"field_{hex(instruction.offset)}"
@@ -213,14 +214,8 @@ class AssignmentHandler(Handler):
         """Lift a MLIL_STORE_STRUCT_SSA instruction to pseudo (e.g. object->field = x)."""
         vartype = self._lifter.lift(instruction.dest.expr_type)
         struct_variable = self._lifter.lift(instruction.dest, is_aliased=True, parent=instruction)
-        member = vartype.type.get_member_by_offset(instruction.offset)
-        if member is not None:
-            name = member.name
-        else:
-            name = f"__offset_{instruction.offset}"
-            name.replace("-", "minus_")
         struct_member_access = MemberAccess(
-            member_name=name,
+            member_name=vartype.type.get_member_name_by_offset(instruction.offset),
             offset=instruction.offset,
             operands=[struct_variable],
             vartype=vartype,

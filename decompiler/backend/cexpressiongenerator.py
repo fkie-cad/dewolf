@@ -167,10 +167,10 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
 
     def visit_unary_operation(self, op: operations.UnaryOperation) -> str:
         """Return a string representation of the given unary operation (e.g. !a or &a)."""
+        operand = self._visit_bracketed(op.operand) if self._has_lower_precedence(op.operand, op) else self.visit(op.operand)
         if isinstance(op, MemberAccess):
             operator_str = "->" if isinstance(op.struct_variable.type, Pointer) else self.C_SYNTAX[op.operation]
-            return f"{self.visit(op.struct_variable)}{operator_str}{op.member_name}"
-        operand = self._visit_bracketed(op.operand) if self._has_lower_precedence(op.operand, op) else self.visit(op.operand)
+            return f"{operand}{operator_str}{op.member_name}"
         if op.operation == OperationType.cast and op.contraction:
             return f"({int(op.type.size / 8)}: ){operand}"
         if op.operation == OperationType.cast:
@@ -209,10 +209,9 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         Generic labels starting with 'arg' e.g. 'arg1', 'arg2' are being filtered.
         Additionally we filter ellipsis argument '...' that is lifted from type string.
         """
-        func_name = self.visit(op.function)
-        if isinstance(op.function, expressions.Constant):
-            func_name = func_name.strip('"')
-        output = f"{func_name}("
+        func_expr_str = self._visit_bracketed(op.function) if self._has_lower_precedence(op.function, op) else self.visit(op.function)
+
+        output = f"{func_expr_str}("
         if op.meta_data is not None:
             parameter_names = op.meta_data.get("param_names", [])
             is_tailcall = op.meta_data.get("is_tailcall")

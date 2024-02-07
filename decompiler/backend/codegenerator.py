@@ -1,4 +1,5 @@
 """Module in charge of bundling all classes utilized to generate c-code from an AST."""
+
 from string import Template
 from typing import Iterable, List
 

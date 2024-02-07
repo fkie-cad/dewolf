@@ -1,4 +1,5 @@
 """Pytest for lexicographical BFS."""
+
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.util.lexicographical_bfs import LexicographicalBFS
 

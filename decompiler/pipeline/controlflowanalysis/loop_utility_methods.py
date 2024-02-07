@@ -1,12 +1,30 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
-from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, CodeNode, ConditionNode, LoopNode, SeqNode, SwitchNode
+from decompiler.structures.ast.ast_nodes import (
+    AbstractSyntaxTreeNode,
+    CaseNode,
+    CodeNode,
+    ConditionNode,
+    LoopNode,
+    SeqNode,
+    SwitchNode,
+    WhileLoopNode,
+)
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.logic.logic_condition import LogicCondition
-from decompiler.structures.pseudo import Assignment, Condition, Variable
+from decompiler.structures.pseudo import (
+    Assignment,
+    BinaryOperation,
+    Condition,
+    Constant,
+    Expression,
+    OperationType,
+    UnaryOperation,
+    Variable,
+)
 from decompiler.structures.visitors.assignment_visitor import AssignmentVisitor
 
 
@@ -210,3 +228,92 @@ def _requirement_without_reinitialization(ast: AbstractSyntaxTree, node: Abstrac
                 return True
             elif variable in assignment.requirements:
                 return True
+
+
+def _get_equalizable_last_definitions(loop_node: WhileLoopNode, continuation: AstInstruction) -> List[CodeNode]:
+    """
+    Finds equalizable last definitions of the continuation instruction in the code nodes of a while loop containing continue statements.
+
+    :param loop_node: While-loop to search in
+    :param continuation: Instruction defining the for-loops modification
+    :return: List of equalizable last definitions, Empty list if no continue nodes or no equalizable nodes
+    :return: None if at least one continue node does not match the requirements
+    """
+    if not (
+        continue_nodes := [
+            node for node in loop_node.body.get_descendant_code_nodes_interrupting_ancestor_loop() if node.does_end_with_continue
+        ]
+    ):
+        return continue_nodes
+
+    if not (_is_assignment_with_simple_binary_operation(continuation.instruction)):
+        return None
+
+    equalizable_nodes = []
+    for code_node in continue_nodes:
+        if (last_definition_index := _get_last_definition_index_of(code_node, continuation.instruction.destination)) == -1:
+            return None
+
+        last_definition = code_node.instructions[last_definition_index]
+        if not (isinstance(last_definition.value, Constant) or _is_assignment_with_simple_binary_operation(last_definition)):
+            return None
+
+        _unify_binary_operation_in_assignment(continuation.instruction)
+        equalizable_nodes.append(last_definition)
+    return equalizable_nodes
+
+
+def _is_assignment_with_simple_binary_operation(assignment: Assignment) -> bool:
+    """
+    Checks if an assignment has a simple binary operation as value and the used and defined variable is the same. A simple binary
+    operation means that it includes a variable and a constant and uses plus or minus as operation type.
+    """
+    return (
+        isinstance(assignment.value, BinaryOperation)
+        and assignment.value.operation in {OperationType.plus, OperationType.minus}
+        and any(isinstance(operand, Constant) or _is_negated_constant_variable(operand, Constant) for operand in assignment.value.operands)
+        and any(isinstance(operand, Variable) or _is_negated_constant_variable(operand, Variable) for operand in assignment.value.operands)
+        and assignment.destination == _get_variable_in_binary_operation(assignment.value)
+    )
+
+
+def _is_negated_constant_variable(operand: Expression, expression: Constant | Variable) -> bool:
+    """Checks if an operand (constant or variable) is negated."""
+    return isinstance(operand, UnaryOperation) and operand.operation == OperationType.negate and isinstance(operand.operand, expression)
+
+
+def _get_variable_in_binary_operation(binaryoperation: BinaryOperation) -> Variable:
+    """Returns the used variable of a binary operation if available."""
+    for operand in binaryoperation.operands:
+        if isinstance(operand, Variable):
+            return operand
+        if _is_negated_constant_variable(operand, Variable):
+            return operand.operand
+    return None
+
+
+def _unify_binary_operation_in_assignment(assignment: Assignment):
+    """Brings a simple binary operation of an assignment into a unified representation like 'var = -var + const' instead of 'var = const - var'."""
+    if not assignment.value.operation == OperationType.plus:
+        assignment.substitute(
+            assignment.value,
+            BinaryOperation(OperationType.plus, [assignment.value.left, UnaryOperation(OperationType.negate, [assignment.value.right])]),
+        )
+
+    if any(isinstance(operand, Constant) for operand in assignment.value.left.subexpressions()):
+        assignment.substitute(assignment.value, BinaryOperation(OperationType.plus, [assignment.value.right, assignment.value.left]))
+
+
+def _substract_continuation_from_last_definition(last_definition: Assignment, continuation: AstInstruction):
+    """
+    Substracts the value of the continuation instruction from the last definition, which must be a simple binary operation or a constant,
+    defining the same value as the continuation instruction in the given code node.
+
+    :param last_definition: Last definition that is to be changed
+    :param continuation: Instruction defining the for-loops modification
+    """
+    substracted_binary_operation = BinaryOperation(OperationType.minus, [last_definition.value, continuation.instruction.value.right])
+    if _is_negated_constant_variable(continuation.instruction.value.left, Variable):
+        last_definition.substitute(last_definition.value, UnaryOperation(OperationType.negate, [substracted_binary_operation]))
+    else:
+        last_definition.substitute(last_definition.value, substracted_binary_operation)

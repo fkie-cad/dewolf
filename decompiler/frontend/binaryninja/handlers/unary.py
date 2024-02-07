@@ -1,4 +1,5 @@
 """Module implementing the UnaryOperationHandler."""
+
 import logging
 from functools import partial
 from typing import Union
@@ -15,7 +16,7 @@ from decompiler.structures.pseudo import (
     Pointer,
     UnaryOperation,
 )
-from decompiler.structures.pseudo.complextypes import Struct
+from decompiler.structures.pseudo.complextypes import Class, Struct
 from decompiler.structures.pseudo.operations import MemberAccess
 
 
@@ -98,12 +99,9 @@ class UnaryOperationHandler(Handler):
         """Lift a MLIL_LOAD_STRUCT_SSA (struct member access e.g. var#n->x) instruction."""
         struct_variable = self._lifter.lift(instruction.src)
         struct_ptr: Pointer = self._lifter.lift(instruction.src.expr_type)
-        struct_member = struct_ptr.type.get_member_by_offset(instruction.offset)
-        if struct_member is not None:
-            name = struct_member.name
-        else:
-            name = f"__offset_{instruction.offset}"
-            name.replace("-", "minus_")
+        name = f"field_{hex(instruction.offset)}".replace("-", "minus_")
+        if isinstance(struct_ptr.type, Class) or isinstance(struct_ptr.type, Struct):
+            name = struct_ptr.type.get_member_name_by_offset(instruction.offset)
         return MemberAccess(vartype=struct_ptr, operands=[struct_variable], offset=instruction.offset, member_name=name)
 
     def _lift_ftrunc(self, instruction: mediumlevelil.MediumLevelILFtrunc, **kwargs) -> UnaryOperation:

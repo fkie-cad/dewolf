@@ -1,4 +1,5 @@
 """Module implementing the ConditionHandler class."""
+
 from functools import partial
 
 from binaryninja import mediumlevelil
