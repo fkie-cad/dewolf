@@ -27,7 +27,6 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
         """
         is_changed = super().perform(graph, iteration)
         self._propagate_postponed_aliased_definitions()
-        is_changed |= self._remove_redundant_phis(graph)
         return is_changed
 
     def _definition_can_be_propagated_into_target(self, definition: Assignment, target: Instruction):
