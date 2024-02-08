@@ -85,10 +85,8 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                 if not all_equal(instruction.value.operands):
                     continue
 
-                basic_block.replace_instruction(
-                    instruction,
-                    Assignment(instruction.destination, instruction.value.operands[0])
-                )
+                basic_block.remove_instruction(index)
+                basic_block.add_instruction_where_possible(Assignment(instruction.destination, instruction.value.operands[0]))
                 changes |= True
         return changes
 
