@@ -2,12 +2,34 @@ import logging
 from itertools import chain, repeat
 
 from decompiler.structures import pseudo as expressions
-from decompiler.structures.pseudo import Float, FunctionTypeDef, Integer, OperationType, Pointer, StringSymbol, Type
+from decompiler.structures.pseudo import Float, FunctionTypeDef, Integer, OperationType, Pointer, Type, GlobalVariable, CustomType
 from decompiler.structures.pseudo import instructions as instructions
 from decompiler.structures.pseudo import operations as operations
 from decompiler.structures.pseudo.operations import MemberAccess
 from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInterface
 from decompiler.util.integer_util import normalize_int
+
+MAX_GLOBAL_INIT_LENGTH = 128
+
+def print_global_variable_init(var: GlobalVariable):
+    """Print right side of a global variable"""
+    match(var.initial_value):
+        case float(): # Simple float
+            return var.initial_value
+        case int(): # Addr or int
+            return hex(var.initial_value)
+        case str(): # String (implicit pointer)
+            string = var.initial_value if len(var.initial_value) <= MAX_GLOBAL_INIT_LENGTH else var.initial_value[:MAX_GLOBAL_INIT_LENGTH] + '...'
+            match var.type.type:
+                case CustomType(text='wchar16') | CustomType(text='wchar32'): return f'L"{string}"'
+                case _: return f'"{string}"'
+        case bytes(): # Raw memory
+            val = ''.join('\\x{:02x}'.format(x) for x in var.initial_value)
+            return f'"{val}"' if len(val) <= MAX_GLOBAL_INIT_LENGTH else f'"{val[:MAX_GLOBAL_INIT_LENGTH]}..."'
+        case expressions.Expression(): # Expression
+            return CExpressionGenerator().visit(var.initial_value)
+        case _: # Type Hint violation
+            logging.error(f'What the hell is that shit: {type(var.initial_value)}')
 
 
 class CExpressionGenerator(DataflowObjectVisitorInterface):
@@ -148,13 +170,17 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         if isinstance(expr.type, Integer):
             value = self._get_integer_literal_value(expr)
             return self._format_integer_literal(expr.type, value)
-        if isinstance(expr, StringSymbol):
-            return expr.name
         return self._format_string_literal(expr)
 
     def visit_variable(self, expr: expressions.Variable) -> str:
         """Return a string representation of the variable."""
         return f"{expr.name}" if (label := expr.ssa_label) is None else f"{expr.name}_{label}"
+
+    def visit_global_variable(self, expr: expressions.GlobalVariable):
+        """Inline a global variable if its initial value is a string otherwise return name"""
+        if isinstance(expr.initial_value, str):
+            return print_global_variable_init(expr)
+        return expr.name
 
     def visit_register_pair(self, expr: expressions.Variable) -> str:
         """Return a string representation of the register pair and log."""

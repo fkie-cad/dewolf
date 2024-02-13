@@ -75,6 +75,10 @@ class DataflowObjectVisitorInterface(ABC, Generic[T]):
         """Visit a Variable."""
 
     @abstractmethod
+    def visit_global_variable(self, expr: expressions.GlobalVariable):
+        """Visit a GlobalVariable."""
+
+    @abstractmethod
     def visit_register_pair(self, expr: expressions.RegisterPair):
         """Visit a RegisterPair."""
 

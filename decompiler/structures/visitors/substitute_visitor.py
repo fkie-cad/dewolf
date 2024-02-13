@@ -22,6 +22,7 @@ from decompiler.structures.pseudo import (
     UnaryOperation,
     UnknownExpression,
     Variable,
+    GlobalVariable,
 )
 from decompiler.structures.pseudo.operations import ArrayInfo
 from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInterface
@@ -107,6 +108,9 @@ class SubstituteVisitor(DataflowObjectVisitorInterface[Optional[DataflowObject]]
         return self._mapper(expr)
 
     def visit_variable(self, expr: Variable) -> Optional[DataflowObject]:
+        return self._mapper(expr)
+
+    def visit_global_variable(self, expr: GlobalVariable) -> Optional[DataflowObject]:
         return self._mapper(expr)
 
     def visit_register_pair(self, expr: RegisterPair) -> Optional[DataflowObject]:

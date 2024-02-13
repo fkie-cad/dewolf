@@ -89,6 +89,9 @@ class BaseAstDataflowObjectVisitor(AstDataflowObjectVisitor):
     def visit_variable(self, expression: Variable):
         pass
 
+    def visit_global_variable(self, expression: Variable):
+        pass
+
     def visit_register_pair(self, expression: RegisterPair):
         pass
 

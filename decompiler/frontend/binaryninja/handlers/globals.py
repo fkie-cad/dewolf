@@ -25,16 +25,13 @@ from decompiler.structures.pseudo import (
     Integer,
     OperationType,
     Pointer,
-    StringSymbol,
     Symbol,
     UnaryOperation,
 )
 
-MAX_GLOBAL_STRINGBYTES_LENGTH = 129
-
 
 class GlobalHandler(Handler):
-    """Handle for global variables."""
+    """Handler for global variables."""
 
     # Dict translating endianness between the binaryninja enum and pythons literals
     Endian = {Endianness.LittleEndian: "little", Endianness.BigEndian: "big"}
@@ -49,7 +46,7 @@ class GlobalHandler(Handler):
             VoidType: self._lift_void_type,
             ArrayType: self._lift_constant_type,
             PointerType: self._lift_pointer_type,
-            NamedTypeReferenceType: self._lift_named_type_ref,  # Lift DataVariable with type NamedTypeRef
+            NamedTypeReferenceType: self._lift_named_type_ref,
         }
 
     def register(self):
@@ -58,12 +55,13 @@ class GlobalHandler(Handler):
 
     def lift_global_variable(
         self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None, caller_addr: int = None, **kwargs
-    ) -> Union[Symbol, UnaryOperation, GlobalVariable, StringSymbol]:
+    ) -> Union[Symbol, UnaryOperation, GlobalVariable, GlobalVariable]:
         """Lift global variables via datavariable type. Check bninja error case + recursive datavariable first"""
-        if not self._addr_in_section(view, variable.address):
+        variable = view.get_data_var_at(variable.address)
+        if not self._addr_in_section(view, variable.address): # BNinja error case: nullptr/small numbers 
             return Constant(variable.address, vartype=Integer(view.address_size * BYTE_SIZE, False))
 
-        if caller_addr == variable.address:
+        if caller_addr == variable.address: # recursive ptr check (depth 1)
             return (
                 self._lifter.lift(variable.symbol)
                 if variable.symbol
@@ -74,16 +72,15 @@ class GlobalHandler(Handler):
 
     def _lift_constant_type(
         self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None
-    ) -> StringSymbol:
-        """Lift constant data type (bninja only uses strings) into code"""  # jump table ist auch constant
-        if str(variable).find("char const") != -1:
-            string = str(variable.value.rstrip(b"\x00"))[
-                2:-1
-            ]  # we want to keep escaped control chars (\n), therefore we take the raw string representation of bytes and purge b""
-            return StringSymbol(f'"{string}"', variable.address, vartype=Pointer(Integer.char(), view.address_size * BYTE_SIZE))
-        return StringSymbol(
-            f"&{variable.name}" if variable.name else GLOBAL_VARIABLE_PREFIX + f"{variable.address:x}", variable.address
-        )  # Else
+    ) -> GlobalVariable:
+        """Lift constant data type (strings and jump tables) into code"""
+        # TODO: Benötigt ArrayType um eine jump table darzustellen => Gibt kein Konzept dafür im Decompiler
+        return GlobalVariable(
+            name=variable.name if variable.name else GLOBAL_VARIABLE_PREFIX + f"{variable.address:x}",
+            vartype=Pointer(Integer.char(), view.address_size * BYTE_SIZE),
+            ssa_label=parent.ssa_memory_version if parent else 0,
+            initial_value=str(variable.value.rstrip(b"\x00"))[2:-1],
+        )
 
     def _lift_pointer_type(self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None):
         """Lift pointer as:
@@ -153,27 +150,21 @@ class GlobalHandler(Handler):
     def _get_unknown_value(self, addr: int, view: BinaryView, caller_addr: int = 0):
         """Return symbol, datavariable, address, string or raw bytes at given address."""
         if datavariable := view.get_data_var_at(addr):
-            return self._lifter.lift(datavariable, view=view, caller_addr=caller_addr), datavariable.type
+            return self._lifter.lift(datavariable, view=view, caller_addr=caller_addr), datavariable.type 
         if not self._addr_in_section(view, addr):
             return addr, Type.pointer(view.arch, Type.void())
         if (data := self._get_different_string_types_at(addr, view)) and data[0] is not None:
             data, type = data[0], Type.pointer(view.arch, data[1])
         else:
             data, type = self._get_raw_bytes(addr, view), Type.pointer(view.arch, Type.void())
-
-        if len(data) > MAX_GLOBAL_STRINGBYTES_LENGTH:
-            data = data[:MAX_GLOBAL_STRINGBYTES_LENGTH] + '..."'
         return data, type
 
-    def _get_raw_bytes(self, addr: int, view: BinaryView) -> str:
+    def _get_raw_bytes(self, addr: int, view: BinaryView) -> bytes:
         """Returns raw bytes as hex string after a given address to the next data structure or section"""
         if (next_data_var := view.get_next_data_var_after(addr)) is not None:
-            data = view.read(addr, next_data_var.address - addr)
-        else:
-            data = view.read(addr, view.get_sections_at(addr)[0].end)
+            return view.read(addr, next_data_var.address - addr)
+        return view.read(addr, view.get_sections_at(addr)[0].end)
 
-        string = "".join("\\x{:02x}".format(x) for x in data)
-        return f'"{string}"'
 
     def _get_different_string_types_at(self, addr: int, view: BinaryView) -> Tuple[Optional[str], Type]:
         """Extract string with char/wchar16/wchar32 type if there is one"""
@@ -195,13 +186,10 @@ class GlobalHandler(Handler):
         match width:
             case 1:
                 read = view.reader(addr).read8
-                identifier = ""
             case 2:
                 read = view.reader(addr).read16
-                identifier = "L"
             case 4:
                 read = view.reader(addr).read32
-                identifier = "L"
             case _:
                 raise ValueError("Width not supported for reading bytes")
 
@@ -211,10 +199,10 @@ class GlobalHandler(Handler):
             raw_bytes.append(byte)
 
         string = str(raw_bytes)[12:-2]
-        if len(string) < 2 or string.find("\\x") != -1:  # escaped
+        if len(string) < 2 or string.find("\\x") != -1:
             return None
 
-        return identifier + f'"{string}"'
+        return string
 
     def _addr_in_section(self, view: BinaryView, addr: int) -> bool:
         """Returns True if address is contained in a section, False otherwise"""

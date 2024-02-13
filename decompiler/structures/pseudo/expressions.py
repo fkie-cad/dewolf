@@ -229,38 +229,6 @@ class Constant(Expression[DecompiledType]):
         return visitor.visit_constant(self)
 
 
-class ExternConstant(Constant):
-    """Represents an external Constant. eg. stdout/stderr/stdin"""
-
-    def __init__(self, value: Union[str, int, float], vartype: Type = UnknownType(), tags: Optional[Tuple[Tag, ...]] = None):
-        """Init a new constant expression"""
-        super().__init__(value, vartype, tags=tags)
-
-    def __str__(self) -> str:
-        """Return a string as external symbols are already strings"""
-        return self.value
-
-    def copy(self) -> ExternConstant:
-        """Generate an ExternConstant with the same value and type."""
-        return ExternConstant(self.value, self._type.copy(), self.tags)
-
-
-class ExternFunctionPointer(Constant):
-    """Represents an extern fixed function pointer."""
-
-    def __init__(self, value: Union[str, int, float], vartype: Type = UnknownType(), tags: Optional[Tuple[Tag, ...]] = None):
-        """Init a new function pointer expression"""
-        super().__init__(value, vartype, tags=tags)
-
-    def __str__(self) -> str:
-        """Return a string as external symbols are already strings"""
-        return f"{self.value}"
-
-    def copy(self) -> ExternFunctionPointer:
-        """Generate an ExternConstant with the same value and type."""
-        return ExternFunctionPointer(self.value, self._type.copy(), self.tags)
-
-
 class NotUseableConstant(Constant):
     """Represents a non useable constant like 'inf' or 'NaN' as a string"""
 
@@ -305,22 +273,6 @@ class Symbol(Constant):
 
     def copy(self) -> Symbol:
         return Symbol(self.name, self.value, self._type.copy(), self.tags)
-
-
-class StringSymbol(Symbol):
-    """Represents a global string constant (const char[size]). Special chars should be escaped!"""
-
-    def __str__(self):
-        """Return raw string."""
-        return self._name
-
-    def __repr__(self):
-        """Return the global string with its address."""
-        return f"string {self.name} at {self.value}"
-
-    def copy(self) -> StringSymbol:
-        """Generate an StringSymbol with the same name, value and type."""
-        return StringSymbol(self.name, self.value, self._type.copy(), self.tags)
 
 
 class FunctionSymbol(Symbol):
@@ -436,7 +388,7 @@ class GlobalVariable(Variable):
         ssa_label: int = None,
         is_aliased: bool = True,
         ssa_name: Optional[Variable] = None,
-        initial_value: Union[float, int, str, GlobalVariable] = None,
+        initial_value: Union[float, int, str, bytes, Expression] = None,
         tags: Optional[Tuple[Tag, ...]] = None,
     ):
         """Init a new global variable. Compared to Variable, it has an additional field initial_value.
@@ -477,6 +429,10 @@ class GlobalVariable(Variable):
         else:
             initial_value_copy = self.initial_value if not isinstance(self.initial_value, DataflowObject) else self.initial_value.copy()
         return initial_value_copy
+
+    def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
+        """Invoke the appropriate visitor for this Expression."""
+        return visitor.visit_global_variable(self)
 
 
 class RegisterPair(Variable):
