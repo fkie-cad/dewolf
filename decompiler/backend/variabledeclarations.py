@@ -6,19 +6,15 @@ from typing import Iterable, Iterator, List
 from decompiler.backend.cexpressiongenerator import CExpressionGenerator
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.pseudo import (
-    DataflowObject,
     Expression,
-    ExternConstant,
-    ExternFunctionPointer,
     GlobalVariable,
-    Operation,
-    Pointer,
     Variable,
+    UnaryOperation,
 )
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
-from decompiler.util.serialization.bytes_serializer import convert_bytes
+from decompiler.backend.cexpressiongenerator import print_global_variable_init
 
 
 class LocalDeclarationGenerator:
@@ -60,57 +56,35 @@ class LocalDeclarationGenerator:
 
 
 class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
-    @staticmethod
-    def from_asts(asts: Iterable[AbstractSyntaxTree]) -> str:
-        global_variables, extern_constants = GlobalDeclarationGenerator._get_global_variables_and_constants(asts)
-        return "\n".join(GlobalDeclarationGenerator.generate(global_variables.__iter__(), extern_constants))
+    def __init__(self) -> None:
+        self._global_vars = InsertionOrderedSet()
+        super().__init__()
 
     @staticmethod
-    def _get_global_variables_and_constants(asts: Iterable[AbstractSyntaxTree]) -> tuple[set[GlobalVariable], set[ExternConstant]]:
-        global_variables = InsertionOrderedSet()
-        extern_constants = InsertionOrderedSet()
-
-        # if this gets more complex, a visitor pattern should perhaps be used instead
-        def handle_obj(obj: DataflowObject):
-            match obj:
-                case GlobalVariable():
-                    global_variables.add(obj)
-                    if isinstance(obj.initial_value, Expression):
-                        for subexpression in obj.initial_value.subexpressions():
-                            handle_obj(subexpression)
-
-                case ExternConstant():
-                    extern_constants.add(obj)
-
-        for ast in asts:
-            for node in ast.nodes:
-                for obj in node.get_dataflow_objets(ast.condition_map):
-                    for expression in obj.subexpressions():
-                        handle_obj(expression)
-
-        return global_variables, extern_constants
-
-    @staticmethod
-    def generate(global_variables: Iterable[GlobalVariable], extern_constants: Iterable[ExternConstant]) -> Iterator[str]:
+    def _generate_definitions(global_variables: set[GlobalVariable]) -> Iterator[str]:
         """Generate all definitions"""
         for variable in global_variables:
-            yield f"extern {variable.type} {variable.name} = {GlobalDeclarationGenerator.get_initial_value(variable)};"
-        for constant in sorted(extern_constants, key=lambda x: x.value):
-            yield f"extern {constant.type} {constant.value};"
+            yield f"extern {variable.type} {variable.name} = {print_global_variable_init(variable)};"
 
     @staticmethod
-    def get_initial_value(variable: GlobalVariable) -> str:
-        """Get a string representation of the initial value of the given variable."""
-        if isinstance(variable.initial_value, GlobalVariable):
-            return variable.initial_value.name
-        elif isinstance(variable.initial_value, ExternFunctionPointer):
-            return str(variable.initial_value.value)
-        if isinstance(variable.initial_value, bytes):
-            return str(convert_bytes(variable.initial_value, variable.type))
-        if isinstance(operation := variable.initial_value, Operation):
-            for requirement in operation.requirements:
-                if isinstance(requirement, GlobalVariable):
-                    requirement.unsubscript()
-        if isinstance(variable.type, Pointer) and isinstance(variable.initial_value, int):
-            return hex(variable.initial_value)
-        return str(variable.initial_value)
+    def from_asts(asts: Iterable[AbstractSyntaxTree]) -> str:
+        """Generate """
+        globals = InsertionOrderedSet()
+        for ast in asts:
+            globals |= GlobalDeclarationGenerator().visit_ast(ast)
+        return "\n".join(GlobalDeclarationGenerator._generate_definitions(globals))
+
+    def visit_ast(self, ast: AbstractSyntaxTree) -> InsertionOrderedSet:
+        """Visit ast and return all collected global variables"""
+        super().visit_ast(ast)
+        return self._global_vars
+
+    def visit_unary_operation(self, operation: UnaryOperation):
+        """Visit unary operation"""
+        self.visit(operation.operand)
+
+    def visit_global_variable(self, expression: GlobalVariable):
+        """Visit the given global variable. Strip SSA label to remove duplicates"""
+        self._global_vars.add(expression.copy(ssa_label=0, ssa_name=None))
+        if isinstance(expression.initial_value, Expression) and (subexpr := self.visit(expression.initial_value)):
+            self._global_vars.add(subexpr)
