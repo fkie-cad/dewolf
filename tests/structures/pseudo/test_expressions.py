@@ -5,8 +5,6 @@ from decompiler.structures.pseudo import OperationType, UnaryOperation
 from decompiler.structures.pseudo.complextypes import ComplexTypeMember, Enum
 from decompiler.structures.pseudo.expressions import (
     Constant,
-    ExternConstant,
-    ExternFunctionPointer,
     FunctionSymbol,
     GlobalVariable,
     ImportedFunctionSymbol,
@@ -223,22 +221,6 @@ class TestNotUseableConstant:
     def test_copy(self):
         original = NotUseableConstant(str(inf))
         copy = original.copy()
-        assert id(original) != id(copy) and original == copy
-
-
-class TestExternConstant:
-    def test_copy(self):
-        original = ExternConstant("v1")
-        copy = original.copy()
-        assert isinstance(copy, ExternConstant)
-        assert id(original) != id(copy) and original == copy
-
-
-class TestExternFunctionPointer:
-    def test_copy(self):
-        original = ExternFunctionPointer("MyFunction")
-        copy = original.copy()
-        assert isinstance(copy, ExternFunctionPointer)
         assert id(original) != id(copy) and original == copy
 
 
