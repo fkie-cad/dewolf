@@ -55,7 +55,7 @@ class GlobalHandler(Handler):
 
     def lift_global_variable(
         self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None, caller_addr: int = None, **kwargs
-    ) -> Union[Symbol, UnaryOperation, GlobalVariable, GlobalVariable]:
+    ) -> Union[Symbol, UnaryOperation, GlobalVariable]:
         """Lift global variables via datavariable type. Check bninja error case + recursive datavariable first"""
         variable = view.get_data_var_at(variable.address)
         if not self._addr_in_section(view, variable.address): # BNinja error case: nullptr/small numbers 

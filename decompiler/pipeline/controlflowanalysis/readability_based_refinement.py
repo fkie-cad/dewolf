@@ -171,40 +171,6 @@ class WhileLoopReplacer:
 
         return False
 
-from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
-from decompiler.structures.pseudo import Variable, GlobalVariable, Symbol
-from typing import List
-
-class GlobalVariableCollector(BaseAstDataflowObjectVisitor):
-    """Collect all variables in nodes/expressions"""
-
-    def __init__(self):
-        self._globals: List[Variable] = []
-
-    def get_variables(self) -> list[GlobalVariable]:
-        """Get collected variables."""
-        return self._globals
-
-    def visit_variable(self, var: Variable):
-        """Add visited variables to list"""
-        if isinstance(var, GlobalVariable):
-            self._globals.append(var)
-
-
-class GlobalVariableReplacer:
-    def __init__(self, ast: AbstractSyntaxTree) -> None:
-        collector = GlobalVariableCollector()
-        collector.visit_ast(ast)
-        self._globals = collector.get_variables()
-        self._ast = ast
-
-    def run(self):
-        for variable in self._globals:
-            if isinstance(variable.initial_value, str) and variable.initial_value.find('\\x') == -1:
-                self._ast.replace_variable_in_subtree(self._ast.root, variable, Symbol(variable.initial_value, variable.initial_value))
-        pass
-
-
 
 class ReadabilityBasedRefinement(PipelineStage):
     """
@@ -223,4 +189,3 @@ class ReadabilityBasedRefinement(PipelineStage):
 
         remove_guarded_do_while(task.syntax_tree)
         WhileLoopReplacer(task.syntax_tree, task.options).run()
-        GlobalVariableReplacer(task.syntax_tree).run()
