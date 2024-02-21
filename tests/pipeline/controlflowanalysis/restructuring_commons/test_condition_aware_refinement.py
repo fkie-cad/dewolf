@@ -515,7 +515,7 @@ def test_basic_switch(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[-1].instructions
@@ -608,7 +608,7 @@ def test_switch_cases_without_break_and_no_instruction(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[-1].instructions
@@ -772,7 +772,7 @@ def test_switch_one_large_number(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[5].instructions
@@ -955,7 +955,7 @@ def test_switch_two_large_numbers(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[3].instructions
@@ -1070,7 +1070,7 @@ def test_switch_cases_without_break_and_instructions(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[3].instructions
@@ -1189,7 +1189,7 @@ def test_switch_cases_without_break_and_some_instructions(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[7].instructions
@@ -1385,7 +1385,7 @@ def test_switch_condition_node_as_case_node_child(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[9].instructions
@@ -1407,18 +1407,18 @@ def test_switch_condition_node_as_case_node_child(task):
     assert isinstance(cond_node1 := case1.child, ConditionNode)
     assert isinstance(cond_node1.true_branch.child, CodeNode) and isinstance(cond_node1.false_branch.child, CodeNode)
     if cond_node1.condition.is_symbol:
-        assert task._ast.condition_map[cond_node1.condition] == vertices[3].instructions[0].condition
+        assert task.ast.condition_map[cond_node1.condition] == vertices[3].instructions[0].condition
         assert cond_node1.true_branch_child.instructions == vertices[10].instructions
         assert cond_node1.false_branch_child.instructions == vertices[11].instructions
     else:
-        assert task._ast.condition_map[~cond_node1.condition] == vertices[3].instructions[0].condition
+        assert task.ast.condition_map[~cond_node1.condition] == vertices[3].instructions[0].condition
         assert cond_node1.true_branch_child.instructions == vertices[11].instructions
         assert cond_node1.false_branch_child.instructions == vertices[10].instructions
 
     assert isinstance(cond_node2 := case2.child, ConditionNode)
     assert isinstance(cond_node2.true_branch.child, CodeNode) and cond_node2.false_branch is None
     assert cond_node2.condition.is_negation and (~cond_node2.condition).is_symbol
-    assert task._ast.condition_map[~cond_node2.condition] == vertices[4].instructions[0].condition
+    assert task.ast.condition_map[~cond_node2.condition] == vertices[4].instructions[0].condition
     assert cond_node2.true_branch_child.instructions == vertices[12].instructions
 
     assert isinstance(case3.child, CodeNode) and case3.child.instructions == vertices[5].instructions
@@ -1600,7 +1600,7 @@ def test_switch_in_switch_easy(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[-1].instructions
@@ -1781,7 +1781,7 @@ def test_switch_in_switch_long(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[10].instructions
@@ -1983,7 +1983,7 @@ def test_switch_only_if_else(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[-1].instructions
@@ -2071,7 +2071,7 @@ def test_switch_find_case_in_condition(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch_cond := seq_node.children[1], ConditionNode)
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[4].instructions
@@ -2079,7 +2079,7 @@ def test_switch_find_case_in_condition(task):
     # switch condition:
     assert switch_cond.false_branch is None and isinstance(switch := switch_cond.true_branch_child, SwitchNode)
     assert switch_cond.condition.is_literal and not switch_cond.condition.is_symbol
-    assert task._ast.condition_map[~switch_cond.condition] == vertices[1].instructions[-1].condition
+    assert task.ast.condition_map[~switch_cond.condition] == vertices[1].instructions[-1].condition
 
     # switch node:
     assert switch.expression == var_0_2 and len(switch.children) == 7
@@ -2214,7 +2214,7 @@ def test_two_entries_to_one_case(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[-1].instructions
@@ -2245,8 +2245,8 @@ def test_two_entries_to_one_case(task):
         assert (
             cond.condition.is_conjunction and len(operands := cond.condition.operands) == 2 and all(operands[i].is_negation for i in [0, 1])
         )
-        term_1 = task._ast.condition_map[~operands[0]]
-        term_2 = task._ast.condition_map[~operands[1]]
+        term_1 = task.ast.condition_map[~operands[0]]
+        term_2 = task.ast.condition_map[~operands[1]]
         assert {term_1, term_2} == {
             Condition(OperationType.equal, [var_0, Constant(1, Integer(32))]),
             Condition(OperationType.equal, [var_0, Constant(2, Integer(32))]),
@@ -2385,7 +2385,7 @@ def test_two_exits_to_one_case_depend_on_switch(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[-1].instructions
@@ -2414,7 +2414,7 @@ def test_two_exits_to_one_case_depend_on_switch(task):
     # condition nodes exit one:
     for cond, child in [(cond_1, 5), (cond_2, 6)]:
         assert cond.condition.is_negation and ~cond.condition.is_symbol
-        assert task._ast.condition_map[~cond.condition] == Condition(OperationType.equal, [var_0, Constant(2, Integer(32))])
+        assert task.ast.condition_map[~cond.condition] == Condition(OperationType.equal, [var_0, Constant(2, Integer(32))])
         assert (
             isinstance(cond.true_branch_child, CodeNode)
             and cond.true_branch_child.instructions == vertices[child].instructions
@@ -2428,9 +2428,9 @@ def test_two_exits_to_one_case_depend_on_switch(task):
             and len(operands := cond.condition.operands) == 3
             and all(operands[i].is_negation for i in [0, 1, 2])
         )
-        term_1 = task._ast.condition_map[~operands[0]]
-        term_2 = task._ast.condition_map[~operands[1]]
-        term_3 = task._ast.condition_map[~operands[2]]
+        term_1 = task.ast.condition_map[~operands[0]]
+        term_2 = task.ast.condition_map[~operands[1]]
+        term_3 = task.ast.condition_map[~operands[2]]
         assert {term_1, term_2, term_3} == {
             Condition(OperationType.equal, [var_0, Constant(1, Integer(32))]),
             Condition(OperationType.equal, [var_0, Constant(3, Integer(32))]),
@@ -2580,7 +2580,7 @@ def test_two_exits_to_one_case_not_depend_on_switch(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[-1].instructions
@@ -2610,7 +2610,7 @@ def test_two_exits_to_one_case_not_depend_on_switch(task):
     assert cond_1.condition.is_disjunction and len(operands := cond_1.condition.operands) == 2
     assert any((cc_1 := operands[i]).is_symbol for i in [0, 1]) and any((cc_2 := operands[i]).is_negation for i in [0, 1])
     assert (cc_2 := ~cc_2).is_symbol
-    assert [task._ast.condition_map[cc_1], task._ast.condition_map[cc_2]] == [
+    assert [task.ast.condition_map[cc_1], task.ast.condition_map[cc_2]] == [
         Condition(OperationType.equal, [var_0, Constant(3, Integer(32))]),
         Condition(OperationType.not_equal, [var_1, Constant(1, Integer(32, True))]),
     ]
@@ -2623,9 +2623,9 @@ def test_two_exits_to_one_case_not_depend_on_switch(task):
     # condition nodes exit one - cond_2:
     assert cond_2.condition.is_disjunction and len(operands := cond_2.condition.operands) == 3
     assert any((cc_not := operands[i]).is_negation for i in [0, 1, 2]) and (cc := ~cc_not).is_symbol
-    assert task._ast.condition_map[cc] == Condition(OperationType.not_equal, [var_1, Constant(1, Integer(32, True))])
+    assert task.ast.condition_map[cc] == Condition(OperationType.not_equal, [var_1, Constant(1, Integer(32, True))])
     assert all(cc.is_symbol for cc in operands if str(cc) != str(cc_not))
-    assert {task._ast.condition_map[cc] for cc in operands if str(cc) != str(cc_not)} == {
+    assert {task.ast.condition_map[cc] for cc in operands if str(cc) != str(cc_not)} == {
         Condition(OperationType.equal, [var_0, Constant(3, Integer(32))]),
         Condition(OperationType.equal, [var_0, Constant(4, Integer(32))]),
     }
@@ -2641,8 +2641,8 @@ def test_two_exits_to_one_case_not_depend_on_switch(task):
         or_conditions = [arg for arg in operands if arg.is_disjunction]
         not_conditions = [arg for arg in operands if arg.is_negation]
         assert len(not_conditions) == 2
-        term_1 = task._ast.condition_map[~not_conditions[0]]
-        term_2 = task._ast.condition_map[~not_conditions[1]]
+        term_1 = task.ast.condition_map[~not_conditions[0]]
+        term_2 = task.ast.condition_map[~not_conditions[1]]
         assert {term_1, term_2} == {
             Condition(OperationType.equal, [var_0, Constant(3, Integer(32))]),
             Condition(OperationType.equal, [var_0, Constant(4, Integer(32))]),
@@ -2650,15 +2650,15 @@ def test_two_exits_to_one_case_not_depend_on_switch(task):
         assert len(or_conditions) == 1
         or_cond = or_conditions[0]
         assert len(operands := or_cond.operands) == or_args and all(arg.is_symbol for arg in operands)
-        term_1 = task._ast.condition_map[operands[0]]
-        term_2 = task._ast.condition_map[operands[1]]
+        term_1 = task.ast.condition_map[operands[0]]
+        term_2 = task.ast.condition_map[operands[1]]
         if or_args == 2:
             assert {term_1, term_2} == {
                 Condition(OperationType.not_equal, [var_1, Constant(1, Integer(32, True))]),
                 Condition(OperationType.equal, [var_0, Constant(5, Integer(32))]),
             }
         else:
-            term_3 = task._ast.condition_map[operands[2]]
+            term_3 = task.ast.condition_map[operands[2]]
             assert {term_1, term_2, term_3} == {
                 Condition(OperationType.not_equal, [var_1, Constant(1, Integer(32, True))]),
                 Condition(OperationType.equal, [var_0, Constant(5, Integer(32))]),
@@ -2676,7 +2676,7 @@ def test_switch_add_existing_cases(task):
     """test_switch test7_b or 18 -> later: insert case that is already their (but empty)"""
     # print(DecoratedCFG.from_cfg(task.graph).export_ascii())
     # PatternIndependentRestructuring().run(task)
-    # DecoratedAST.from_ast(task._ast).export_plot("/home/eva/Projects/decompiler/AST/out.png")
+    # DecoratedAST.from_ast(task.ast).export_plot("/home/eva/Projects/decompiler/AST/out.png")
     pass
 
 
@@ -2732,26 +2732,26 @@ def test_no_switch_ssa_variable_wrong(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 4
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 4
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(friday_case := seq_node.children[1], ConditionNode) and friday_case.condition.is_literal
     assert isinstance(switch_cond := seq_node.children[2], ConditionNode)
     assert isinstance(seq_node.children[3], CodeNode) and seq_node.children[3].instructions == vertices[11].instructions
 
     # friday case
-    assert task._ast.condition_map[~friday_case.condition] == vertices[0].instructions[-1].condition
+    assert task.ast.condition_map[~friday_case.condition] == vertices[0].instructions[-1].condition
     assert isinstance(branch_seq := friday_case.true_branch_child, SeqNode) and friday_case.false_branch is None
     assert len(branch_seq.children) == 2
     assert isinstance(branch_seq.children[0], CodeNode) and branch_seq.children[0].instructions == vertices[2].instructions[:1]
     assert isinstance(friday := branch_seq.children[1], ConditionNode)
-    assert task._ast.condition_map[~friday.condition] == vertices[2].instructions[-1].condition
+    assert task.ast.condition_map[~friday.condition] == vertices[2].instructions[-1].condition
     assert isinstance(friday.true_branch_child, CodeNode) and friday.false_branch is None
     assert friday.true_branch_child.instructions == vertices[4].instructions
 
     # switch_condition:
     assert switch_cond.false_branch is None and isinstance(switch := switch_cond.true_branch_child, SwitchNode)
     assert switch_cond.condition.is_disjunction and len(switch_cond.condition.operands) == 2
-    assert {task._ast.condition_map[op] for op in switch_cond.condition.operands} == {
+    assert {task.ast.condition_map[op] for op in switch_cond.condition.operands} == {
         vertices[0].instructions[-1].condition,
         vertices[2].instructions[-1].condition,
     }
@@ -2888,7 +2888,7 @@ def test_switch_with_loop1(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
     assert isinstance(return_cond := seq_node.children[2], ConditionNode)
@@ -2909,10 +2909,10 @@ def test_switch_with_loop1(task):
     new_assignment = Assignment(new_variable, Constant(0, Integer.int32_t()))
     assert isinstance(case1.child, CodeNode) and case1.child.instructions == [new_assignment]
     assert isinstance(cn2 := case2.child, ConditionNode) and cn2.false_branch is None
-    assert task._ast.condition_map[~cn2.condition] == Condition(OperationType.equal, [var_0, Constant(1, Integer(32))])
+    assert task.ast.condition_map[~cn2.condition] == Condition(OperationType.equal, [var_0, Constant(1, Integer(32))])
     assert cn2.true_branch_child.instructions == vertices[4].instructions
     assert isinstance(cn3 := case3.child, ConditionNode) and cn3.false_branch is None
-    assert task._ast.condition_map[~cn3.condition] == Condition(OperationType.equal, [var_0, Constant(1, Integer(32))])
+    assert task.ast.condition_map[~cn3.condition] == Condition(OperationType.equal, [var_0, Constant(1, Integer(32))])
     assert cn3.true_branch_child.instructions == [Assignment(new_variable, Constant(1, Integer.int32_t()))]
     assert isinstance(loop_seq := case7.child, SeqNode) and len(loop_seq.children) == 2
     assert isinstance(case4.child, CodeNode) and case4.child.instructions == vertices[6].instructions
@@ -2923,7 +2923,7 @@ def test_switch_with_loop1(task):
     # loop sequence:
     assert isinstance(last_entry := loop_seq.children[0], ConditionNode)
     assert last_entry.condition.is_conjunction and len(operands := last_entry.condition.operands) == 3
-    assert {task._ast.condition_map[~cond] for cond in operands} == {
+    assert {task.ast.condition_map[~cond] for cond in operands} == {
         Condition(OperationType.equal, [var_0, Constant(const, Integer(32))]) for const in {1, 2, 3}
     }
     assert last_entry.false_branch is None and isinstance(last_entry.true_branch_child, CodeNode)
@@ -2950,7 +2950,7 @@ def test_switch_with_loop1(task):
 
     # return condition
     assert return_cond.condition.is_disjunction and len(operands := return_cond.condition.operands) == 5
-    assert {task._ast.condition_map[cond] for cond in operands} == {
+    assert {task.ast.condition_map[cond] for cond in operands} == {
         Condition(OperationType.equal, [var_0, Constant(const, Integer(32))]) for const in {0, 4, 5, 6}
     } | {Condition(OperationType.greater_us, [var_0, Constant(7, Integer(32, True))])}
     assert return_cond.false_branch is None and isinstance(return_cond.true_branch_child, CodeNode)
@@ -3112,7 +3112,7 @@ def test_switch_with_loop2(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[10].instructions
@@ -3133,7 +3133,7 @@ def test_switch_with_loop2(task):
     new_assignment = Assignment(new_variable, Constant(0, Integer.int32_t()))
     assert isinstance(case1.child, CodeNode) and case1.child.instructions == vertices[12].instructions + [new_assignment]
     assert isinstance(cn3 := case3.child, ConditionNode) and cn3.false_branch is None
-    assert task._ast.condition_map[~cn3.condition] == Condition(OperationType.equal, [var_0, Constant(1, Integer(32))])
+    assert task.ast.condition_map[~cn3.condition] == Condition(OperationType.equal, [var_0, Constant(1, Integer(32))])
     assert cn3.true_branch_child.instructions == vertices[13].instructions + [Assignment(new_variable, Constant(1, Integer.int32_t()))]
     assert isinstance(loop_seq := case7.child, SeqNode) and len(loop_seq.children) == 2
     assert isinstance(case2.child, CodeNode) and case2.child.instructions == vertices[4].instructions
@@ -3145,7 +3145,7 @@ def test_switch_with_loop2(task):
     # loop sequence:
     assert isinstance(last_entry := loop_seq.children[0], ConditionNode)
     assert last_entry.condition.is_conjunction and len(operands := last_entry.condition.operands) == 2
-    assert {task._ast.condition_map[~cond] for cond in operands} == {
+    assert {task.ast.condition_map[~cond] for cond in operands} == {
         Condition(OperationType.equal, [var_0, Constant(const, Integer(32))]) for const in {1, 3}
     }
     assert last_entry.false_branch is None and isinstance(last_entry.true_branch_child, CodeNode)
@@ -3178,10 +3178,10 @@ def test_switch_with_loop2(task):
     assert isinstance(case2_2.child, CodeNode) and case2_2.child.instructions == vertices[5].instructions + [new_assignment]
 
     if exit.true_branch_child is None:
-        assert task._ast.condition_map[~exit.condition] == vertices[9].instructions[-1].condition
+        assert task.ast.condition_map[~exit.condition] == vertices[9].instructions[-1].condition
         assert isinstance(exit.false_branch, CodeNode) and exit.false_branch.instructions == [Break()]
     else:
-        assert task._ast.condition_map[exit.condition] == vertices[9].instructions[-1].condition
+        assert task.ast.condition_map[exit.condition] == vertices[9].instructions[-1].condition
         assert (
             isinstance(exit.true_branch_child, CodeNode) and exit.true_branch_child.instructions == [Break()] and exit.false_branch is None
         )
@@ -3391,7 +3391,7 @@ def test_too_nested(task):
     PatternIndependentRestructuring().run(task)
 
     # initial part
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 5
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 5
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(cond_node := seq_node.children[1], ConditionNode)
     assert isinstance(switch1 := seq_node.children[2], SwitchNode)
@@ -3402,11 +3402,11 @@ def test_too_nested(task):
     if (cond := cond_node.condition).is_symbol:
         default_branch = cond_node.true_branch_child
         switch_branch = cond_node.false_branch_child
-        assert task._ast.condition_map[cond] == vertices[0].instructions[-1].condition
+        assert task.ast.condition_map[cond] == vertices[0].instructions[-1].condition
     else:
         default_branch = cond_node.false_branch_child
         switch_branch = cond_node.true_branch_child
-        assert task._ast.condition_map[~cond] == vertices[0].instructions[-1].condition
+        assert task.ast.condition_map[~cond] == vertices[0].instructions[-1].condition
 
     # default branch
     assert isinstance(default_branch, CodeNode) and default_branch.instructions == vertices[1].instructions
@@ -3545,7 +3545,7 @@ def test_combine_switch_nodes(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     if isinstance(switch := seq_node.children[0], SwitchNode):
         assert isinstance(cn := seq_node.children[1], ConditionNode)
     else:
@@ -3658,7 +3658,7 @@ def test_can_not_combine_switch_placement(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 5
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 5
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch1 := seq_node.children[1], SwitchNode)
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[3].instructions[:-1]
@@ -3746,7 +3746,7 @@ def test_can_not_combine_not_same_expression(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 4
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 4
     assert isinstance(switch1 := seq_node.children[0], SwitchNode)
     assert isinstance(seq_node.children[1], CodeNode) and seq_node.children[1].instructions == vertices[3].instructions[:-1]
     assert isinstance(switch2 := seq_node.children[2], SwitchNode)
@@ -3780,7 +3780,7 @@ def test_find_default_if_edge_exists(task):
     var_0 = Variable("var_0", Integer(32, True), None, True, Variable("var_c", Integer(32, True), 0, True, None))
     var_1 = Variable("var_1", Pointer(Integer(32, True), 64), None, False, Variable("rsi", Pointer(Integer(32, True), 64), 1, False, None))
     var_0_1 = Variable("var_0", Integer(32, True), None, True, Variable("var_c", Integer(32, True), 2, True, None))
-    task._cfg.add_nodes_from(
+    task.cfg.add_nodes_from(
         vertices := [
             BasicBlock(
                 0,
@@ -3837,7 +3837,7 @@ def test_find_default_if_edge_exists(task):
             ),
         ]
     )
-    task._cfg.add_edges_from(
+    task.cfg.add_edges_from(
         [
             TrueCase(vertices[0], vertices[1]),
             FalseCase(vertices[0], vertices[2]),
@@ -3862,7 +3862,7 @@ def test_find_default_if_edge_exists(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 2
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 2
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
 
@@ -3905,7 +3905,7 @@ def test_fallthrough_reaching_problem(task):
     var_4 = Variable("var_4", Integer(64, True), None, False, Variable("rcx_1", Integer(64, True), 2, False, None))
     var_5 = Variable("var_5", Integer(64, True), None, False, Variable("rdx_1", Integer(64, True), 2, False, None))
     var_6 = Variable("var_6", Integer(64, True), None, False, Variable("rax_1", Integer(64, True), 2, False, None))
-    task._cfg.add_nodes_from(
+    task.cfg.add_nodes_from(
         vertices := [
             BasicBlock(
                 0,
@@ -3962,7 +3962,7 @@ def test_fallthrough_reaching_problem(task):
             BasicBlock(20, [Assignment(var_3, Constant(1, Integer(32, True)))]),
         ]
     )
-    task._cfg.add_edges_from(
+    task.cfg.add_edges_from(
         [
             TrueCase(vertices[0], vertices[2]),
             FalseCase(vertices[0], vertices[1]),
@@ -4002,7 +4002,7 @@ def test_fallthrough_reaching_problem(task):
     PatternIndependentRestructuring().run(task)
     condition_map = task.syntax_tree.condition_map
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 5
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 5
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(cond := seq_node.children[1], ConditionNode)
     assert isinstance(switch := seq_node.children[2], SwitchNode)
@@ -4151,7 +4151,7 @@ def test_only_one_occurrence_of_each_case(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode) and len(switch.cases) == 7
     assert isinstance(case1 := switch.cases[0], CaseNode) and case1.constant.value == 1 and isinstance(case1_seq := case1.child, SeqNode)
@@ -4508,7 +4508,7 @@ def test_default_disjunction_is_not_true(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 2
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 2
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
 
@@ -5231,7 +5231,7 @@ def test_insert_before_existing_case(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[4].instructions
@@ -5368,7 +5368,7 @@ def test_insert_after_existing_case(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 4
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 4
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
     assert isinstance(cond := seq_node.children[2], ConditionNode) and cond.false_branch is None
@@ -5456,7 +5456,7 @@ def test_nested_cases_unnecessary_condition_all_irrelevant(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(switch := seq_node.children[1], SwitchNode)
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[3].instructions
@@ -5578,14 +5578,14 @@ def test_nested_cases_unnecessary_condition_not_all_irrelevant_2(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 4
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 4
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(cond := seq_node.children[1], ConditionNode)
     assert isinstance(switch := seq_node.children[2], SwitchNode)
     assert isinstance(seq_node.children[3], CodeNode) and seq_node.children[3].instructions == vertices[20].instructions
 
     # condition node:
-    assert cond.condition.is_conjunction and {task._ast.condition_map[l] for l in cond.condition.operands} == {
+    assert cond.condition.is_conjunction and {task.ast.condition_map[l] for l in cond.condition.operands} == {
         vertices[0].instructions[-1].condition,
         vertices[1].instructions[0].condition,
     }
@@ -5715,8 +5715,8 @@ def test_intersecting_cases(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert len(list(task._ast.get_switch_nodes_post_order())) == 2
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(children := seq_node.children) == 6
+    assert len(list(task.ast.get_switch_nodes_post_order())) == 2
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(children := seq_node.children) == 6
     assert isinstance(children[0], CodeNode) and isinstance(children[5], CodeNode)
     assert all(isinstance(child, ConditionNode) for child in children[1:4])
     assert isinstance(children[4], SwitchNode) and isinstance(children[3].true_branch_child, SwitchNode)

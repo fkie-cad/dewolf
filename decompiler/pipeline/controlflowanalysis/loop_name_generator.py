@@ -117,7 +117,7 @@ class LoopNameGenerator(PipelineStage):
         for_loop_names: List[str] = task.options.getlist("loop-name-generator.for_loop_variable_names", fallback=[])
 
         if rename_while_loops:
-            WhileLoopVariableRenamer(task._ast).rename()
+            WhileLoopVariableRenamer(task.ast).rename()
 
         if for_loop_names:
-            ForLoopVariableRenamer(task._ast, for_loop_names).rename()
+            ForLoopVariableRenamer(task.ast, for_loop_names).rename()

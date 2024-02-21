@@ -12,15 +12,13 @@ from decompiler.pipeline.controlflowanalysis.restructuring_options import LoopBr
 from decompiler.structures.ast.ast_nodes import ConditionNode, SeqNode, SwitchNode
 from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.structures.ast.reachability_graph import SiblingReachabilityGraph
-from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
-from decompiler.structures.pseudo.expressions import Constant, ImportedFunctionSymbol, Variable
+from decompiler.structures.pseudo.expressions import Constant, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Return
 from decompiler.structures.pseudo.operations import BinaryOperation, Condition, OperationType
 from decompiler.structures.pseudo.typing import CustomType, Integer
 from decompiler.task import DecompilerTask
-from decompiler.util.decoration import DecoratedCFG
 
 var_b = Variable("b", Integer.int32_t())
 var_c = Variable("c", Integer.int32_t())
@@ -45,7 +43,7 @@ def test_no_crash_missing_case_finder(task):
     var_4 = Variable("var_4", Integer(32, False), ssa_name=Variable("rbx_2", Integer(32, False), 2))
     var_5 = Variable("var_5", Integer(32, False), ssa_name=Variable("rax_1", Integer(32, False), 2))
     var_6 = Variable("var_6", Integer(32, False), ssa_name=Variable("rax_2", Integer(32, False), 2))
-    task._cfg.add_nodes_from(
+    task.cfg.add_nodes_from(
         [
             b0 := BasicBlock(
                 0,
@@ -76,7 +74,7 @@ def test_no_crash_missing_case_finder(task):
             ),
         ]
     )
-    task._cfg.add_edges_from(
+    task.cfg.add_edges_from(
         [
             TrueCase(b0, b1),
             FalseCase(b0, b3),

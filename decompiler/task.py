@@ -32,11 +32,6 @@ class DecompilerTask:
     graph = property(lambda self: self.cfg, lambda self, v: setattr(self, "cfg", v))
     syntax_tree = property(lambda self: self.ast, lambda self, v: setattr(self, "ast", v))
 
-    # Properties for backwards compatibility. For some reason some code directly accessed these private fields.
-    _cfg = property(lambda self: self.cfg, lambda self, v: setattr(self, "cfg", v))
-    _ast = property(lambda self: self.ast, lambda self, v: setattr(self, "ast", v))
-    _function_parameters = property(lambda self: self.function_parameters, lambda self, v: setattr(self, "function_parameters", v))
-
     def fail(self, origin: str = ""):
         """Sets the task to be failed by setting the failure origin."""
         if self.failure_origin is not None:
