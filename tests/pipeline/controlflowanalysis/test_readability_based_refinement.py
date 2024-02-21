@@ -21,7 +21,6 @@ from decompiler.structures.pseudo import (
     Continue,
     ImportedFunctionSymbol,
     ListOperation,
-    OperationType,
     UnaryOperation,
     Variable,
 )
@@ -283,7 +282,7 @@ class TestForLoopRecovery:
 
     @staticmethod
     def run_rbr(ast: AbstractSyntaxTree, options: Options = _generate_options()):
-        ReadabilityBasedRefinement().run(DecompilerTask("func", cfg=None, ast=ast, options=options))
+        ReadabilityBasedRefinement().run(DecompilerTask(name="func", function_identifier="", cfg=None, ast=ast, options=options))
 
     def test_max_condition_complexity(self, ast_innerWhile_simple_condition_complexity):
         self.run_rbr(ast_innerWhile_simple_condition_complexity, _generate_options(max_condition=2))
@@ -335,7 +334,7 @@ class TestForLoopRecovery:
 class TestGuardedDoWhile:
     @staticmethod
     def run_rbr(ast: AbstractSyntaxTree, options: Options = _generate_options()):
-        ReadabilityBasedRefinement().run(DecompilerTask("func", cfg=None, ast=ast, options=options))
+        ReadabilityBasedRefinement().run(DecompilerTask(name="func", function_identifier="", cfg=None, ast=ast, options=options))
 
     def test_guarded_do_while_if(self, ast_guarded_do_while_if):
         self.run_rbr(ast_guarded_do_while_if, _generate_options())

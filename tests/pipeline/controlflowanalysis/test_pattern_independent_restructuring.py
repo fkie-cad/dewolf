@@ -46,7 +46,7 @@ from decompiler.task import DecompilerTask
 @pytest.fixture
 def task() -> DecompilerTask:
     """A mock task with an empty cfg."""
-    return DecompilerTask("test", ControlFlowGraph())
+    return DecompilerTask(name="test", function_identifier="", cfg=ControlFlowGraph())
 
 
 def variable(name="a", version=0, ssa_name=None) -> Variable:
@@ -2901,9 +2901,7 @@ def test_easy_multiple_entry_loop(task):
         assert cond_node.true_branch_child.instructions == [Assignment(new_variable, Constant(1, Integer.int32_t()))]
         assert cond_node.false_branch_child.instructions == [Assignment(new_variable, Constant(0, Integer.int32_t()))]
     else:
-        assert (
-            isinstance(cond := task._ast.condition_map[cond_node.condition], Condition) and cond == vertices[1].instructions[-1].condition
-        )
+        assert isinstance(cond := task._ast.condition_map[cond_node.condition], Condition) and cond == vertices[1].instructions[-1].condition
         assert cond_node.true_branch_child.instructions == [Assignment(new_variable, Constant(0, Integer.int32_t()))]
         assert cond_node.false_branch_child.instructions == [Assignment(new_variable, Constant(1, Integer.int32_t()))]
 

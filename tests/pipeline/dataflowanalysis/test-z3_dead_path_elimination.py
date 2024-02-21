@@ -11,7 +11,7 @@ def run_dead_path_elimination(cfg):
     options = Options()
     options.set("dead-path-elimination.timeout_satisfiable", 1000)
     options.set("logic-engine.engine", "z3")
-    DeadPathElimination().run(DecompilerTask("test", cfg, options=options))
+    DeadPathElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg, options=options))
 
 
 def test_trivial_no_change():

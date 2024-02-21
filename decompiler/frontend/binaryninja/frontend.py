@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 from binaryninja import BinaryView, Function, load
 from binaryninja.types import SymbolType
@@ -29,7 +29,7 @@ class FunctionObject:
         self._name = self._lifter.lift(self._function.symbol).name
 
     @classmethod
-    def get(cls, bv: BinaryView, identifier: Union[str, Function]) -> FunctionObject:
+    def get(cls, bv: BinaryView, identifier: str | Function) -> FunctionObject:
         """Get a function object from the given identifier."""
         if isinstance(identifier, Function):
             return cls(identifier)
@@ -123,30 +123,31 @@ class BinaryninjaFrontend(Frontend):
         """Create a binaryninja frontend instance based on an initialized binary view."""
         return cls(view)
 
-    def create_task(self, function_identifier: Union[str, Function], options: Options) -> DecompilerTask:
-        """Create a task from the given function identifier."""
-        function = FunctionObject.get(self._bv, function_identifier)
-        tagging = CompilerIdiomsTagging(self._bv, function.function.start, options)
-        tagging.run()
+    def lift(self, task: DecompilerTask):
+        if task.failed:
+            return
+
+        function_identifier = task.function_identifier
+        if not isinstance(function_identifier, str | Function):
+            raise ValueError(f"Binarnyninja frontend can't handle function identifier of type {type(function_identifier)}")
+
         try:
-            cfg, complex_types = self._extract_cfg(function.function, options)
-            task = DecompilerTask(
-                function.name,
-                cfg,
-                function_return_type=function.return_type,
-                function_parameters=function.params,
-                options=options,
-                complex_types=complex_types,
-            )
+            function = FunctionObject.get(self._bv, function_identifier)
+            task.function_return_type = function.return_type
+            task.function_parameters = function.params
+
+            tagging = CompilerIdiomsTagging(self._bv, function.function.start, task.options)
+            tagging.run()
+
+            cfg, complex_types = self._extract_cfg(function.function, task.options)
+            task.cfg = cfg
+            task.complex_types = complex_types
         except Exception as e:
-            task = DecompilerTask(
-                function.name, None, function_return_type=function.return_type, function_parameters=function.params, options=options
-            )
-            task.fail(origin="CFG creation")
-            logging.error(f"Failed to decompile {task.name}, error during CFG creation: {e}")
-            if options.getboolean("pipeline.debug", fallback=False):
+            task.fail("Function lifting")
+            logging.exception(f"Failed to decompile {task.name}, error during function lifting")
+
+            if task.options.getboolean("pipeline.debug", fallback=False):
                 raise e
-        return task
 
     def get_all_function_names(self):
         """Returns the entire list of all function names in the binary. Ignores blacklisted functions and imported functions."""

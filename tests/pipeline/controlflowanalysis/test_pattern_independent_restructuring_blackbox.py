@@ -30,7 +30,7 @@ const = [Constant(i, Integer.int32_t()) for i in range(4)]
 @pytest.fixture
 def task() -> DecompilerTask:
     """A mock task with an empty cfg."""
-    return DecompilerTask("test", ControlFlowGraph())
+    return DecompilerTask(name="test", function_identifier="", cfg=ControlFlowGraph())
 
 
 def test_no_crash_missing_case_finder(task):

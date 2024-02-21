@@ -7,6 +7,7 @@ import pytest
 from decompiler.pipeline.controlflowanalysis.restructuring import PatternIndependentRestructuring
 from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, SeqNode, SwitchNode, WhileLoopNode
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
+from decompiler.structures.pseudo.complextypes import ComplexTypeMap
 from decompiler.structures.pseudo.expressions import Constant, Expression, FunctionSymbol, ImportedFunctionSymbol, StringSymbol, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Break, Continue, IndirectBranch, Return
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
@@ -19,39 +20,23 @@ def imp_function_symbol(name: str, value: int = 0x42, vartype: Type = UnknownTyp
     return ImportedFunctionSymbol(name, value, vartype)
 
 
-class MockDecompilerTask(DecompilerTask):
-    """Mock class for decompilerTasks only containing a cfg."""
-
-    class MockFunction:
-        class FunctionType:
-            def __init__(self):
-                self.return_value = "void"
-                self.parameters = []
-
-        def __init__(self):
-            self.name = "test"
-            self.function_type = self.FunctionType()
-
-    def __init__(self, cfg):
-        super().__init__("test", None)
-        self._cfg = cfg
-        self.set_options()
-        self.function = self.MockFunction()
-
-    def set_options(self):
-        self.options = Options()
-        self.options.set("pattern-independent-restructuring.switch_reconstruction", True)
-        self.options.set("pattern-independent-restructuring.nested_switch_nodes", True)
-        self.options.set("pattern-independent-restructuring.min_switch_case_number", 2)
-
-    def reset(self):
-        pass
-
-
 @pytest.fixture
-def task() -> ControlFlowGraph:
-    """A mock task with an empty cfg."""
-    return MockDecompilerTask(ControlFlowGraph())
+def task() -> DecompilerTask:
+    """A task with an empty cfg."""
+    options = Options()
+    options.set("pattern-independent-restructuring.switch_reconstruction", True)
+    options.set("pattern-independent-restructuring.nested_switch_nodes", True)
+    options.set("pattern-independent-restructuring.min_switch_case_number", 2)
+
+    return DecompilerTask(
+        name="test",
+        function_identifier="",
+        options=options,
+        cfg=ControlFlowGraph(),
+        function_return_type=CustomType.void(),
+        function_parameters=[],
+        complex_types=ComplexTypeMap(),
+    )
 
 
 def print_call(string: str, memory: int) -> Call:

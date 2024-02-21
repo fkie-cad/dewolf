@@ -10,7 +10,7 @@ from decompiler.util.options import Options
 def _run_remove_stack_canary(cfg: ControlFlowGraph):
     options = Options()
     options.set("remove-stack-canary.remove_canary", True)
-    RemoveStackCanary().run(DecompilerTask("test", cfg, options=options))
+    RemoveStackCanary().run(DecompilerTask(name="test", function_identifier="", cfg=cfg, options=options))
 
 
 def test_trivial_no_change():

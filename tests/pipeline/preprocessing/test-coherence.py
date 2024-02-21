@@ -82,6 +82,6 @@ def test_acceptance():
             )
         ]
     )
-    Coherence().run(DecompilerTask("test", cfg))
+    Coherence().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     assert {variable.type for variable in [x01, x02]} == {i32.copy()}
     assert {variable.is_aliased for variable in [x01, x02, x10, x12]} == {True}

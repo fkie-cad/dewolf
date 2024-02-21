@@ -1654,7 +1654,7 @@ def _generate_options(instr: int = 10, branch: int = 10, call: int = 10, assign:
 
 
 def _run_expression_propagation(cfg: ControlFlowGraph, options=_generate_options()) -> None:
-    ExpressionPropagationMemory().run(DecompilerTask("test", cfg, None, options))
+    ExpressionPropagationMemory().run(DecompilerTask(name="test", function_identifier="", cfg=cfg, options=options))
 
 
 def _graphs_equal(g1: ControlFlowGraph, g2: ControlFlowGraph) -> bool:

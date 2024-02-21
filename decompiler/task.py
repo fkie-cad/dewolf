@@ -1,113 +1,58 @@
 """Module describing tasks to be handled by the decompiler pipleline."""
-
-from typing import Dict, List, Optional
+from dataclasses import dataclass, field
+from typing import List
 
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.graphs.cfg import ControlFlowGraph
+from decompiler.structures.pseudo import Integer
 from decompiler.structures.pseudo.complextypes import ComplexTypeMap
 from decompiler.structures.pseudo.expressions import Variable
-from decompiler.structures.pseudo.typing import Integer, Type
+from decompiler.structures.pseudo.typing import Type
 from decompiler.util.options import Options
 
 
+# We set eq=False, so that tasks are only equal when they are the very same instance
+@dataclass(eq=False)
 class DecompilerTask:
     """Represents a task for the decompiler pipeline."""
 
-    def __init__(
-        self,
-        name: str,
-        cfg: ControlFlowGraph = None,
-        ast: Optional[AbstractSyntaxTree] = None,
-        options: Optional[Options] = None,
-        function_return_type: Type = Integer(32),
-        function_parameters: Optional[List[Variable]] = None,
-        complex_types: Optional[ComplexTypeMap] = None,
-    ):
-        """
-        Init a new decompiler task.
+    name: str
+    # We allow fronted specific identifiers here. The fronted should check if it can handle a specific type of identifier
+    function_identifier: object
+    options: Options = field(default_factory=Options.load_default_options)
+    cfg: ControlFlowGraph | None = None
+    ast: AbstractSyntaxTree | None = None
+    function_return_type: Type = Integer.int32_t()
+    function_parameters: List[Variable] = field(default_factory=list)
+    complex_types: ComplexTypeMap = field(default_factory=ComplexTypeMap)
 
-        :param name -- The name of the function or task
-        :param cfg -- The control flow graph of the function
-        :param function_return_type -- The type of the return value of the decompiled function
-        :param function_parameters -- List of function parameters as Variables
-        """
-        self._name = name
-        self._cfg = cfg
-        self._ast = ast
-        self._function_return_type = function_return_type
-        self._function_parameters = function_parameters if function_parameters else []
-        self._options: Options = options if options else Options.load_default_options()
-        self._failed = False
-        self._failure_origin = None
-        self._complex_types = complex_types if complex_types else ComplexTypeMap()
-        self._code = None
+    _failure_origin: str | None = field(default=None, init=False)
 
-    @property
-    def name(self) -> str:
-        """Return the name of the task."""
-        return self._name
+    # Properties for backwards compatibility. Previous code used these properties to access self._ast/self._cfg, which are now public.
+    graph = property(lambda self: self.cfg, lambda self, v: setattr(self, "cfg", v))
+    syntax_tree = property(lambda self: self.ast, lambda self, v: setattr(self, "ast", v))
 
-    @property
-    def graph(self) -> ControlFlowGraph:
-        """Return a graph representing the function control flow."""
-        return self._cfg
+    # Properties for backwards compatibility. For some reason some code directly accessed these private fields.
+    _cfg = property(lambda self: self.cfg, lambda self, v: setattr(self, "cfg", v))
+    _ast = property(lambda self: self.ast, lambda self, v: setattr(self, "ast", v))
+    _function_parameters = property(lambda self: self.function_parameters, lambda self, v: setattr(self, "function_parameters", v))
 
-    @property
-    def syntax_tree(self) -> AbstractSyntaxTree:
-        """Return a syntax tree representing the function."""
-        return self._ast
+    def fail(self, origin: str = ""):
+        """Sets the task to be failed by setting the failure origin."""
+        if self.failure_origin is not None:
+            raise RuntimeError("Tried failing already failed task")
 
-    @property
-    def function_return_type(self) -> Type:
-        """Return the type of the variable returned by the function."""
-        return self._function_return_type
-
-    @property
-    def function_parameters(self) -> List[Variable]:
-        """Return a list of parameters usually passed to the function."""
-        return self._function_parameters
-
-    @property
-    def options(self) -> Options:
-        """Options for various pipeline stages of the task."""
-        return self._options
-
-    @options.setter
-    def options(self, value: Options):
-        """Setter function for task options."""
-        self._options = value
-
-    @property
-    def failed(self) -> bool:
-        """Returns True if an error occurred during a decompilation stage.
-
-        A failed tasks will not produce valid decompiled code but an error message will be shown."""
-        return self._failed
-
-    def fail(self, origin: str = None):
-        """Sets the task to failed and the origin to the name of the stage where failure occurred."""
-        self._failed = True
         self._failure_origin = origin
 
     @property
-    def failure_message(self) -> str:
-        """Returns the message to be shown for a failed task."""
-        msg = f"Failed to decompile"
-        if self._failure_origin:
-            msg += f" due to error during {self._failure_origin}."
-        return msg
+    def failed(self) -> bool:
+        """
+        Returns True if an error occurred during decompilation.
+        A failed task is a task that did not properly finish and is left in an undefined state.
+        Therefore, no valid decompiled code can be generated from it.
+        """
+        return self._failure_origin is not None
 
     @property
-    def complex_types(self) -> ComplexTypeMap:
-        """Return complex types present in the function (structs, unions, enums, etc.)."""
-        return self._complex_types
-
-    @property
-    def code(self) -> str:
-        """Return C-Code representation for the Task."""
-        return self._code
-
-    @code.setter
-    def code(self, value):
-        """Setter function for C-Code representation of the Task"""
-        self._code = value
+    def failure_origin(self) -> str | None:
+        return self._failure_origin
