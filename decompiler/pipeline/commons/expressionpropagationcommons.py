@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import DefaultDict, Iterator, Optional, Set
 
+from decompiler.pipeline.ssa.phi_cleaner import PhiFunctionCleaner
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.maps import DefMap, UseMap
@@ -23,7 +24,6 @@ from decompiler.structures.pseudo import (
     Variable,
 )
 from decompiler.task import DecompilerTask
-from decompiler.util.iteration_util import all_equal
 
 
 class ExpressionPropagationBase(PipelineStage, ABC):
@@ -76,19 +76,9 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                                 is_changed = old != str(instruction)
         return is_changed
 
-    def _remove_redundant_phis(self, graph: ControlFlowGraph) -> bool:
-        changes = False
-        for basic_block in graph.nodes:
-            for index, instruction in enumerate(basic_block.instructions):
-                if not isinstance(instruction, Phi):
-                    continue
-                if not all_equal(instruction.value.operands):
-                    continue
-
-                basic_block.remove_instruction(index)
-                basic_block.add_instruction_where_possible(Assignment(instruction.destination, instruction.value.operands[0]))
-                changes |= True
-        return changes
+    def _remove_redundant_phis(self, graph: ControlFlowGraph):
+        phi_functions_of = {node: [i for i in node.instructions if isinstance(i, Phi)] for node in graph.nodes}
+        PhiFunctionCleaner(phi_functions_of).clean_up()
 
     @abstractmethod
     def _definition_can_be_propagated_into_target(self, definition: Assignment, target: Instruction) -> bool:
