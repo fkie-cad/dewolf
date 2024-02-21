@@ -24,7 +24,7 @@ with get_shelve() as storage:
     storage.clear()
 
 
-class RemoveGoIdioms(PipelineStage):
+class RemoveGoPrologue(PipelineStage):
     """
     RemoveGoIdioms finds and removes go function prologues,
     Caution: this stage changes code semantic
