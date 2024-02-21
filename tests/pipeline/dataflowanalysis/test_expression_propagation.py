@@ -829,20 +829,13 @@ def test_phi_simplifcation():
     var3 = Variable("var3", Integer.int32_t())
     arg0 = Variable("arg0", Integer.int32_t())
 
-    b0 = BasicBlock(0, [
-        Assignment(var0, Constant(42, Integer.int32_t())),
-        Branch(Condition(OperationType.less, [arg0, Constant(0, Integer.int32_t())]))
-    ])
-    b1 = BasicBlock(1, [
-        Assignment(var1, var0)
-    ])
-    b2 = BasicBlock(2, [
-        Assignment(var2, var0)
-    ])
-    b3 = BasicBlock(3, [
-        Phi(var3, [var1, var2], {b1: var1, b2: var2}),
-        ret_ins := Return([var3])
-    ])
+    b0 = BasicBlock(
+        0,
+        [Assignment(var0, Constant(42, Integer.int32_t())), Branch(Condition(OperationType.less, [arg0, Constant(0, Integer.int32_t())]))],
+    )
+    b1 = BasicBlock(1, [Assignment(var1, var0)])
+    b2 = BasicBlock(2, [Assignment(var2, var0)])
+    b3 = BasicBlock(3, [Phi(var3, [var1, var2], {b1: var1, b2: var2}), ret_ins := Return([var3])])
 
     cfg = ControlFlowGraph()
     cfg.add_node(b0)
@@ -857,6 +850,7 @@ def test_phi_simplifcation():
     _run_expression_propagation(cfg)
 
     assert ret_ins.values.operands == [Constant(42, Integer.int32_t())]
+
 
 def _generate_options(instr: int = 10, branch: int = 10, call: int = 10, assignment: int = 10) -> Options:
     options = Options()
