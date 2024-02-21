@@ -1,6 +1,7 @@
 """Module for removing go idioms"""
 import os
 import shelve
+import logging
 from typing import Callable, Optional, Tuple
 from decompiler.pipeline.preprocessing.util import match_expression
 
@@ -14,48 +15,25 @@ from decompiler.structures.pseudo.typing import Integer
 from decompiler.task import DecompilerTask
 
 
-def get_shelve():
-    path = os.environ.get("go_shelve_path", "go_prologue_results.shelve")
-    return shelve.open(path)
-    # return shelve.open("trash.shelve")
-
-
-with get_shelve() as storage:
-    storage.clear()
-
-
 class RemoveGoPrologue(PipelineStage):
     """
-    RemoveGoIdioms finds and removes go function prologues,
+    RemoveGoPrologue finds and removes Go function prologues,
     Caution: this stage changes code semantic
     """
 
     name = "remove-go-idioms"
 
-    # def run(self, task: DecompilerTask):
-    #     for basic_block in task.graph:
-    #         for instruction in basic_block:
-    #             print(instruction)
-
     def run(self, task: DecompilerTask):
-        # from decompiler.util.decoration import DecoratedCFG
-        # DecoratedCFG.from_cfg(task.graph).show_plot()
-
         # TODO: Make a real configurable option
         self._dont_crash = False
-        if True or task.options.getboolean(f"{self.name}.remove_canary", fallback=False) and task.name != self.STACK_FAIL_STR:
+        if True or task.options.getboolean(f"{self.name}.remove_go_prologue", fallback=False):
             self._cfg = task.graph
             self._function_name = task.name
             if self._check_and_remove_go_prologue():
                 pass
             else:
-                with get_shelve() as shelve:
-                    shelve[task.name] = None
-                print("Did not remove go prologue", flush=True)
-            # if not self._dont_crash:
-            #     raise ValueError("Crash on purpose")
-            if os.environ.get("go_eval_only"):
-                raise ValueError("Crash on purpose")
+                logging.info("No Go function prologue found")
+
 
     def _is_root_single_indirect_successor(self, node: BasicBlock):
         successors = self._cfg.get_successors(node)
@@ -278,12 +256,11 @@ class RemoveGoPrologue(PipelineStage):
 
         ## add comment
         function = self._morestack_instruction.value.function
-        comment = Comment(f"Removed Go function prologue (calling function '{function}').")
+        comment_string = f"Removed Go function prologue (calling function '{function}')."
+        comment = Comment(comment_string)
         root.add_instruction_where_possible(comment)
 
-        print("removed go prologue for function", function, flush=True)
-        with get_shelve() as shelve:
-            shelve[self._function_name] = str(function)
+        logging.info(comment_string)
 
     def _get_constant_condition(self, value: bool):
         int_value = 1 if value else 0
