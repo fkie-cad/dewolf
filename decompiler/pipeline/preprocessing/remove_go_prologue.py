@@ -1,16 +1,14 @@
 """Module for removing go idioms"""
-import os
-import shelve
 import logging
-from typing import Callable, Optional, Tuple
+from typing import Optional, Tuple
 from decompiler.pipeline.preprocessing.util import match_expression
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.graphs.branches import ConditionalEdge, FalseCase, TrueCase, UnconditionalEdge
-from decompiler.structures.pseudo.expressions import Constant, Expression, Variable
+from decompiler.structures.pseudo.expressions import Constant, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Comment, Phi
-from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, OperationType, UnaryOperation
+from decompiler.structures.pseudo.operations import Call, Condition, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import Integer
 from decompiler.task import DecompilerTask
 
