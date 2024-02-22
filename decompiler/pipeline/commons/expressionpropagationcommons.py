@@ -429,16 +429,16 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         return isinstance(expression, Variable) and expression.is_aliased
 
     @staticmethod
-    def _contains_global_variable(expression: Assignment) -> bool:
+    def _contains_writeable_global_variable(expression: Assignment) -> bool:
         """
         :param expression: Assignment expression to be tested
         :return: true if any requirement of expression is a GlobalVariable
         """
         for expr in expression.destination.requirements:
-            if isinstance(expr, GlobalVariable):
+            if isinstance(expr, GlobalVariable) and not expr.is_constant:
                 return True
         for expr in expression.value.requirements:
-            if isinstance(expr, GlobalVariable):
+            if isinstance(expr, GlobalVariable) and not expr.is_constant:
                 return True
         return False
 
