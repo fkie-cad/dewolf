@@ -15,6 +15,7 @@ from decompiler.pipeline.preprocessing import (
     RegisterPairHandling,
     RemoveStackCanary,
     SwitchVariableDetection,
+    GetFunctionPointer,
 )
 from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.task import DecompilerTask
@@ -35,6 +36,7 @@ PREPROCESSING_STAGES = [
     MemPhiConverter,
     InsertMissingDefinitions,
     PhiFunctionFixer,
+    GetFunctionPointer,
 ]
 
 POSTPROCESSING_STAGES = [OutOfSsaTranslation, PatternIndependentRestructuring]
