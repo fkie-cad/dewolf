@@ -74,6 +74,7 @@ class BinaryninjaFrontend(Frontend):
             tagging.run()
 
             task.cfg = parser.parse(function)
+            task.function_parameter_locations = self._parameter_locations(function)
             task.complex_types = parser.complex_types
         except Exception as e:
             task.fail("Function lifting")
@@ -81,6 +82,15 @@ class BinaryninjaFrontend(Frontend):
 
             if task.options.getboolean("pipeline.debug", fallback=False):
                 raise e
+
+    def _parameter_locations(self, function: binaryninja.function.Function) -> list[str | None]:
+        raw_parameters = function.type.parameters
+        parameter_locations = []
+        for parameter in raw_parameters:
+            name = parameter.location.name if parameter.location is not None else None
+            parameter_locations.append(name)
+        return parameter_locations
+
 
     def get_all_function_names(self):
         """Returns the entire list of all function names in the binary. Ignores blacklisted functions and imported functions."""

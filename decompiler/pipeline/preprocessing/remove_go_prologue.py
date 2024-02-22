@@ -25,12 +25,22 @@ class RemoveGoPrologue(PipelineStage):
         # TODO: Make a real configurable option
         if True or task.options.getboolean(f"{self.name}.remove_go_prologue", fallback=False):
             self._cfg = task.graph
+            self.r14_name = self._get_r14_name(task)
             self._function_name = task.name
             if self._check_and_remove_go_prologue():
                 pass
             else:
                 logging.info("No Go function prologue found")
 
+    def _get_r14_name(self, task: DecompilerTask):
+        r14_parameter_index = None
+        for i, location in enumerate(task.function_parameter_locations):
+            if location == "r14":
+                r14_parameter_index = i
+                break
+        if r14_parameter_index is None:
+            return None
+        return task.function_parameters[r14_parameter_index].name
 
     def _is_root_single_indirect_successor(self, node: BasicBlock):
         successors = self._cfg.get_successors(node)
@@ -105,8 +115,7 @@ class RemoveGoPrologue(PipelineStage):
         return start_node, morestack_node
 
     def _match_r14(self, variable: Variable):
-        r14_name = self._cfg.r14
-        if r14_name is not None and variable.name == r14_name:
+        if self.r14_name is not None and variable.name == self.r14_name:
             return True
 
         if variable.name.startswith("r14"):
