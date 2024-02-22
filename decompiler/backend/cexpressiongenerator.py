@@ -2,7 +2,7 @@ import logging
 from itertools import chain, repeat
 
 from decompiler.structures import pseudo as expressions
-from decompiler.structures.pseudo import Float, FunctionTypeDef, Integer, OperationType, Pointer, Type, GlobalVariable, CustomType
+from decompiler.structures.pseudo import Float, FunctionTypeDef, Integer, OperationType, Pointer, Type, GlobalVariable, CustomType, NotUseableConstant
 from decompiler.structures.pseudo import instructions as instructions
 from decompiler.structures.pseudo import operations as operations
 from decompiler.structures.pseudo.operations import MemberAccess
@@ -167,10 +167,25 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
 
     def visit_constant(self, expr: expressions.Constant) -> str:
         """Return constant in a format that will be parsed correctly by a compiler."""
-        if isinstance(expr.type, Integer):
-            value = self._get_integer_literal_value(expr)
-            return self._format_integer_literal(expr.type, value)
-        return self._format_string_literal(expr)
+        if isinstance(expr, expressions.NotUseableConstant):
+            return expr.value
+        if isinstance(expr, expressions.Symbol):
+            return expr.name
+        match(expr.value):
+            case float():
+                return expr.value
+            case int():
+                return hex(expr.value)
+            case str():
+                string = expr.value if len(expr.value) <= MAX_GLOBAL_INIT_LENGTH else expr.value[:MAX_GLOBAL_INIT_LENGTH] + '...'
+                match expr.type.type:
+                    case CustomType(text='wchar16') | CustomType(text='wchar32'): return f'L"{string}"'
+                    case _: return f'"{string}"'
+            case bytes():
+                val = ''.join('\\x{:02x}'.format(x) for x in expr.value)
+                return f'"{val}"' if len(val) <= MAX_GLOBAL_INIT_LENGTH else f'"{val[:MAX_GLOBAL_INIT_LENGTH]}..."'
+            case expressions.Symbol(): # TYPE VIOLATION in globals
+                return expr.value.name
 
     def visit_variable(self, expr: expressions.Variable) -> str:
         """Return a string representation of the variable."""
@@ -178,7 +193,7 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
 
     def visit_global_variable(self, expr: expressions.GlobalVariable):
         """Inline a global variable if its initial value is a string otherwise return name"""
-        if isinstance(expr.initial_value, str):
+        if expr.is_constant:
             return print_global_variable_init(expr)
         return expr.name
 
@@ -359,17 +374,6 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         :return: true if array element access false otherwise
         """
         return operation.operation == OperationType.dereference and operation.array_info is not None and operation.operand.complexity > 1
-
-    @staticmethod
-    def _format_string_literal(constant: expressions.Constant) -> str:
-        """Return an escaped version of the given string literal."""
-        string_representation = str(constant)
-        if string_representation.startswith('"') and string_representation.endswith('"'):
-            string_representation = str(constant)[1:-1]
-        if '"' in string_representation:
-            escaped = string_representation.replace('"', '\\"')
-            return f'"{escaped}"'
-        return f"{constant}"
 
     @staticmethod
     def format_variables_declaration(var_type: Type, var_names: list[str]) -> str:

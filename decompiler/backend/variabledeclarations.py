@@ -64,7 +64,7 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
     def _generate_definitions(global_variables: set[GlobalVariable]) -> Iterator[str]:
         """Generate all definitions"""
         for variable in global_variables:
-            yield f"extern {variable.type} {variable.name} = {print_global_variable_init(variable)};"
+            yield f"extern {variable.type} {variable.name} = {CExpressionGenerator().visit(variable.initial_value)};"
 
     @staticmethod
     def from_asts(asts: Iterable[AbstractSyntaxTree]) -> str:
@@ -79,12 +79,7 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
         super().visit_ast(ast)
         return self._global_vars
 
-    def visit_unary_operation(self, operation: UnaryOperation):
-        """Visit unary operation"""
-        self.visit(operation.operand)
-
     def visit_global_variable(self, expression: GlobalVariable):
         """Visit the given global variable. Strip SSA label to remove duplicates"""
-        self._global_vars.add(expression.copy(ssa_label=0, ssa_name=None))
-        if isinstance(expression.initial_value, Expression) and (subexpr := self.visit(expression.initial_value)):
-            self._global_vars.add(subexpr)
+        if not expression.is_constant:
+            self._global_vars.add(expression.copy(ssa_label=0, ssa_name=None))
