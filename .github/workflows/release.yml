@@ -1,0 +1,43 @@
+name: Automatic release
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 1 * *' # Run at midnight on the 1st day of every month
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set git user
+        uses: fregante/setup-git-user@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: 3.x
+
+      - name: Update repository for release
+        id: update
+        run: echo "version=$(python update_for_release.py)" >> "$GITHUB_OUTPUT" # returns new version to output
+
+      - name: Commit changes
+        run: |
+          git add plugin.json
+          git commit -m "Update for release ${{ steps.update.outputs.version }}"
+
+      - name: Push changes and tags
+        run: |
+          git push origin HEAD
+          git push origin --tags
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ steps.update.outputs.version }}
+          body: "Automatic release"
+          tag_name: v${{ steps.update.outputs.version }}
