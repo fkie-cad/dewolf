@@ -9,13 +9,13 @@ from decompiler.pipeline.controlflowanalysis.restructuring import PatternIndepen
 from decompiler.pipeline.preprocessing import (
     Coherence,
     CompilerIdiomHandling,
+    GetFunctionPointer,
     InsertMissingDefinitions,
     MemPhiConverter,
     PhiFunctionFixer,
     RegisterPairHandling,
     RemoveStackCanary,
     SwitchVariableDetection,
-    GetFunctionPointer,
 )
 from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.task import DecompilerTask
