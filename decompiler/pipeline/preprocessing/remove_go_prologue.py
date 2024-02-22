@@ -23,7 +23,6 @@ class RemoveGoPrologue(PipelineStage):
 
     def run(self, task: DecompilerTask):
         # TODO: Make a real configurable option
-        self._dont_crash = False
         if True or task.options.getboolean(f"{self.name}.remove_go_prologue", fallback=False):
             self._cfg = task.graph
             self._function_name = task.name
