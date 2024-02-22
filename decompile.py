@@ -41,7 +41,7 @@ class Decompiler:
         """Create a decompiler instance from existing frontend instance (e.g. a binaryninja view)."""
         return cls(frontend.from_raw(data))
 
-    def _decompile(self, function_ids: Collection[object] | None = None, task_options: Options | None = None) -> Result:
+    def decompile(self, function_ids: Collection[object] | None = None, task_options: Options | None = None) -> Result:
         if function_ids is None:  # decompile all functions when none are specified
             function_ids = self._frontend.get_all_function_names()
         if task_options is None:
@@ -66,17 +66,6 @@ class Decompiler:
             tasks,
             code
         )
-
-    def decompile(self, function_id: object, task_options: Options | None = None) -> DecompilerTask:
-        """Decompile the target function."""
-        output = self._decompile([function_id], task_options)
-        output.tasks[0].code = output.code  # because bad api design...
-        return output.tasks[0]
-
-    def decompile_all(self, task_options: Optional[Options] = None) -> str:
-        """Decompile all functions in the binary"""
-        function_ids = self._frontend.get_all_function_names()
-        return self._decompile(function_ids, task_options).code
 
     @dataclass
     class Result:
