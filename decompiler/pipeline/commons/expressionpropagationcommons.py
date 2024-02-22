@@ -1,15 +1,15 @@
 import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import DefaultDict, Dict, Iterator, Optional, Set
+from typing import DefaultDict, Iterator, Optional, Set
 
+from decompiler.pipeline.ssa.phi_cleaner import PhiFunctionCleaner
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.maps import DefMap, UseMap
 from decompiler.structures.pointers import Pointers
 from decompiler.structures.pseudo import (
     Assignment,
-    Branch,
     Call,
     DataflowObject,
     Expression,
@@ -57,6 +57,8 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         # block map is updated after substitution in EPM, in EP does nothing
         # use map is updated after substitution in EPM, in EP does nothing
         """
+        self._remove_redundant_phis(graph)
+
         is_changed = False
         self._cfg = graph
         self._initialize_maps(graph)
@@ -73,6 +75,10 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                             if not is_changed:
                                 is_changed = old != str(instruction)
         return is_changed
+
+    def _remove_redundant_phis(self, graph: ControlFlowGraph):
+        phi_functions_of = {node: [i for i in node.instructions if isinstance(i, Phi)] for node in graph.nodes}
+        PhiFunctionCleaner(phi_functions_of).clean_up()
 
     @abstractmethod
     def _definition_can_be_propagated_into_target(self, definition: Assignment, target: Instruction) -> bool:
