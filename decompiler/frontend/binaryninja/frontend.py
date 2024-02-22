@@ -100,7 +100,8 @@ class BinaryninjaFrontend(Frontend):
         if function is None:
             raise RuntimeError(f"BNinja frontend could not resolve function with identifier '{function_identifier}'")
 
-        # TODO: Check if function is analyzed, potentially retrying, etc...
+        if function.analysis_skipped:
+            raise RuntimeError(f"BNinja skipped function analysis for function '{function.name}' with reason '{function.analysis_skip_reason.name}'")
 
         return function
 
