@@ -172,7 +172,7 @@ class Constant(Expression[DecompiledType]):
 
     def __init__(
         self,
-        value: Union[int, float, str],
+        value: Union[int, float, str, bytes],
         vartype: DecompiledType = UnknownType(),
         pointee: Optional[Constant] = None,
         tags: Optional[Tuple[Tag, ...]] = None,
@@ -379,22 +379,25 @@ class GlobalVariable(Variable):
     """Represents a global variable that comes from MLIL_CONST_PTR.
     MLIL_CONST_PTR represents the following types of pointers:
         - Pointers in .text/.bss/.rodata/.data/symbol table.
-        - Function call, and thereby function pointers."""
+        - Function call, and thereby function pointers.
+    """
 
     def __init__(
         self,
         name: str,
-        vartype: Type = UnknownType(),
+        vartype: Type,
         ssa_label: int = None,
         is_aliased: bool = True,
         ssa_name: Optional[Variable] = None,
-        initial_value: Union[float, int, str, bytes, Expression] = None,
+        initial_value: Expression = None, # TODO
+        is_constant: bool = False,
         tags: Optional[Tuple[Tag, ...]] = None,
     ):
         """Init a new global variable. Compared to Variable, it has an additional field initial_value.
         :param initial_value: Can be a number, string or GlobalVariable."""
         super().__init__(name, vartype, ssa_label, is_aliased, ssa_name, tags=tags)
         self.initial_value = initial_value
+        self.is_constant = is_constant
 
     def copy(
         self,
@@ -403,7 +406,8 @@ class GlobalVariable(Variable):
         ssa_label: int = None,
         is_aliased: bool = None,
         ssa_name: Optional[Variable] = None,
-        initial_value: Union[float, int, str, GlobalVariable] = None,
+        initial_value: Expression = None,
+        is_constant: bool = None,
         tags: Optional[Tuple[Tag, ...]] = None,
     ) -> GlobalVariable:
         """Provide a copy of the current Variable."""
@@ -414,21 +418,17 @@ class GlobalVariable(Variable):
             self.ssa_label if ssa_label is None else ssa_label,
             self.is_aliased if is_aliased is None else is_aliased,
             self.ssa_name if ssa_name is None else ssa_name,
-            self._get_init_value_copy(initial_value),
+            self.initial_value.copy() if initial_value is None else initial_value,
+            self.is_constant if is_constant is None else is_constant,
             self.tags if tags is None else tags,
         )
+
+    def __iter__(self) -> Iterator[Expression]:
+        yield self.initial_value
 
     def __str__(self) -> str:
         """Return a string representation of the global variable."""
         return f"{self._name}" if (label := self.ssa_label) is None else f"{self._name}#{label}"
-
-    def _get_init_value_copy(self, initial_value: Union[float, int, str, GlobalVariable] = None) -> Union[float, int, str, GlobalVariable]:
-        """When copying, the original global variable object is responsible for copying initial value properly, not the caller of copy."""
-        if initial_value:
-            initial_value_copy = initial_value if not isinstance(initial_value, DataflowObject) else initial_value.copy()
-        else:
-            initial_value_copy = self.initial_value if not isinstance(self.initial_value, DataflowObject) else self.initial_value.copy()
-        return initial_value_copy
 
     def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
         """Invoke the appropriate visitor for this Expression."""

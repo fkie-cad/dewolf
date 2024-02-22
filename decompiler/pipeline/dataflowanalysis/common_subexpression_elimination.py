@@ -303,6 +303,7 @@ class CommonSubexpressionElimination(PipelineStage):
         self._min_string_length = None
 
     def run(self, task: DecompilerTask):
+        return # TODO Fix ro gvars
         """Run the stage, eliminating common subexpressions from the control flow graph."""
         self._threshold = max(task.options.getint(f"{self.name}.threshold"), 2)
         self._is_elimination_candidate = (
