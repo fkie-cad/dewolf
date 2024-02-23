@@ -10,7 +10,7 @@ from typing import DefaultDict, Dict, Iterator, List, Optional, Set, Tuple, Unio
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock
 from decompiler.structures.pseudo.expressions import Constant, GlobalVariable, UnknownExpression, Variable
-from decompiler.structures.pseudo.instructions import Assignment, Instruction, Phi, Relation, BaseAssignment
+from decompiler.structures.pseudo.instructions import Assignment, BaseAssignment, Instruction, Phi, Relation
 from decompiler.task import DecompilerTask
 from networkx import DiGraph, node_disjoint_paths, weakly_connected_components
 from networkx.exception import NetworkXNoPath
