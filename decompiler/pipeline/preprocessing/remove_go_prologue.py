@@ -19,11 +19,10 @@ class RemoveGoPrologue(PipelineStage):
     Caution: this stage changes code semantic
     """
 
-    name = "remove-go-idioms"
+    name = "remove-go-prologue"
 
     def run(self, task: DecompilerTask):
-        # TODO: Make a real configurable option
-        if True or task.options.getboolean(f"{self.name}.remove_go_prologue", fallback=False):
+        if task.options.getboolean(f"{self.name}.remove_prologue", fallback=False):
             self._cfg = task.graph
             self.r14_name = self._get_r14_name(task)
             self._function_name = task.name
