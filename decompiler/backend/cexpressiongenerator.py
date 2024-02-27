@@ -2,7 +2,7 @@ import logging
 from itertools import chain, repeat
 
 from decompiler.structures import pseudo as expressions
-from decompiler.structures.pseudo import Float, FunctionTypeDef, FunctionPointer, Integer, OperationType, Pointer, StringSymbol, Type
+from decompiler.structures.pseudo import Float, FunctionPointer, FunctionTypeDef, Integer, OperationType, Pointer, StringSymbol, Type
 from decompiler.structures.pseudo import instructions as instructions
 from decompiler.structures.pseudo import operations as operations
 from decompiler.structures.pseudo.operations import MemberAccess
