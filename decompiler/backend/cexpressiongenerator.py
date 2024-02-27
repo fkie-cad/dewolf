@@ -2,7 +2,7 @@ import logging
 from itertools import chain, repeat
 
 from decompiler.structures import pseudo as expressions
-from decompiler.structures.pseudo import Float, FunctionTypeDef, Integer, OperationType, Pointer, StringSymbol, Type
+from decompiler.structures.pseudo import Float, FunctionTypeDef, FunctionPointer, Integer, OperationType, Pointer, StringSymbol, Type
 from decompiler.structures.pseudo import instructions as instructions
 from decompiler.structures.pseudo import operations as operations
 from decompiler.structures.pseudo.operations import MemberAccess
@@ -349,7 +349,8 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
     def format_variables_declaration(var_type: Type, var_names: list[str]) -> str:
         """Return a string representation of variable declarations."""
         match var_type:
-            case Pointer(type=FunctionTypeDef() as fun_type):
+            case Pointer(type=FunctionTypeDef()) | FunctionPointer():
+                fun_type = var_type.type if isinstance(var_type, Pointer) else var_type
                 parameter_names = ", ".join(str(parameter) for parameter in fun_type.parameters)
                 declarations_without_return_type = [f"(* {var_name})({parameter_names})" for var_name in var_names]
                 return f"{fun_type.return_type} {', '.join(declarations_without_return_type)}"

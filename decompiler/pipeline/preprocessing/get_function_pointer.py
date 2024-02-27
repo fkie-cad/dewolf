@@ -18,10 +18,8 @@ class GetFunctionPointer(PipelineStage):
                     and isinstance(expression.value, Call)
                     and isinstance(expression.value.function, Variable)
                 ):
-                    expression.value.function._type = Pointer(
-                        basetype=FunctionPointer(
-                            size=expression.value.function.type.size,
-                            return_type=expression.value.function.type,
-                            parameters=tuple(expression.value.parameters),
-                        ),
+                    expression.value.function._type = FunctionPointer(
+                        return_type=expression.value.function.type,
+                        parameters=tuple(expression.value.parameters),
+                        size=expression.value.function.type.size,
                     )
