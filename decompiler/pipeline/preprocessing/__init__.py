@@ -2,7 +2,7 @@
 
 from .coherence import Coherence
 from .compiler_idiom_handling import CompilerIdiomHandling
-from .get_function_pointer import GetFunctionPointer
+from .find_function_pointer import FindFunctionPointer
 from .mem_phi_conversion import MemPhiConverter
 from .missing_definitions import InsertMissingDefinitions
 from .phi_predecessors import PhiFunctionFixer

@@ -7,8 +7,8 @@ from decompiler.structures.pseudo.typing import FunctionPointer, Pointer
 from decompiler.task import DecompilerTask
 
 
-class GetFunctionPointer(PipelineStage):
-    name = "get-function-pointer"
+class FindFunctionPointer(PipelineStage):
+    name = "find-function-pointer"
 
     def run(self, task: DecompilerTask):
         for block in task.graph:

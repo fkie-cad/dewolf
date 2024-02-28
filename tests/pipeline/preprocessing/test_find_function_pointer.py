@@ -1,4 +1,4 @@
-from decompiler.pipeline.preprocessing import GetFunctionPointer
+from decompiler.pipeline.preprocessing import FindFunctionPointer
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
 from decompiler.structures.pseudo import (
     Assignment,
@@ -39,7 +39,7 @@ def test_set_variable_to_function_pointer():
         ]
     )
     cfg.add_edges_from([UnconditionalEdge(n0, n1), TrueCase(n1, n2), FalseCase(n1, n3)])
-    GetFunctionPointer().run(DecompilerTask("test", cfg))
+    FindFunctionPointer().run(DecompilerTask("test", cfg))
     assert var_a.type == Pointer(FunctionPointer(32, Integer.int32_t(), ()))
 
 
@@ -68,7 +68,7 @@ def test_set_variable_to_function_pointer_with_parameters():
         ]
     )
     cfg.add_edges_from([UnconditionalEdge(n0, n1), TrueCase(n1, n2), FalseCase(n1, n3)])
-    GetFunctionPointer().run(DecompilerTask("test", cfg))
+    FindFunctionPointer().run(DecompilerTask("test", cfg))
     assert var_a.type == Pointer(FunctionPointer(32, Integer.int32_t(), (var_c, var_d)))
 
 
@@ -97,5 +97,5 @@ def test_skip_set_variable_to_function_pointer():
         ]
     )
     cfg.add_edges_from([UnconditionalEdge(n0, n1), TrueCase(n1, n2), FalseCase(n1, n3)])
-    GetFunctionPointer().run(DecompilerTask("test", cfg))
+    FindFunctionPointer().run(DecompilerTask("test", cfg))
     assert not any(isinstance(variable.type, Pointer) for variable in cfg.get_variables())
