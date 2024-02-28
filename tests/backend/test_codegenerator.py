@@ -33,7 +33,7 @@ from decompiler.structures.pseudo.operations import (
     OperationType,
     UnaryOperation,
 )
-from decompiler.structures.pseudo.typing import CustomType, Float, Integer, Pointer, Type
+from decompiler.structures.pseudo.typing import CustomType, Float, FunctionPointer, Integer, Pointer, Type
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
@@ -80,6 +80,8 @@ var_y_u = Variable("y_u", uint32)
 var_p = Variable("p", Pointer(int32))
 var_fun_p = Variable("p", Pointer(FunctionTypeDef(0, int32, (int32,))))
 var_fun_p0 = Variable("p0", Pointer(FunctionTypeDef(0, int32, (int32,))))
+var_fun_ptr = Variable("ptr", Pointer(FunctionPointer(0, int32, (int32,))))
+var_fun_ptr0 = Variable("ptr0", Pointer(FunctionPointer(0, int32, (int32,))))
 
 const_0 = Constant(0, int32)
 const_1 = Constant(1, int32)
@@ -1286,6 +1288,8 @@ class TestLocalDeclarationGenerator:
             (1, [var_x.copy(), var_y.copy(), var_p.copy()], "int x;\nint y;\nint * p;"),
             (1, [var_x.copy(), var_y.copy(), var_fun_p.copy()], "int x;\nint y;\nint (* p)(int);"),
             (2, [var_x.copy(), var_y.copy(), var_fun_p.copy(), var_fun_p0.copy()], "int x, y;\nint (* p)(int), (* p0)(int);"),
+            (1, [var_x.copy(), var_y.copy(), var_fun_ptr.copy()], "int x;\nint y;\nint (* ptr)(int);"),
+            (2, [var_x.copy(), var_y.copy(), var_fun_ptr.copy(), var_fun_ptr0.copy()], "int x, y;\nint (* ptr)(int), (* ptr0)(int);"),
         ],
     )
     def test_variable_declaration(self, vars_per_line: int, variables: List[Variable], expected: str):
