@@ -47,10 +47,7 @@ class Decompiler:
         if task_options is None:
             task_options = Decompiler.create_options()
 
-        pipeline = DecompilerPipeline.from_strings(
-            task_options.getlist("pipeline.cfg_stages"),
-            task_options.getlist("pipeline.ast_stages")
-        )
+        pipeline = DecompilerPipeline.from_strings(task_options.getlist("pipeline.cfg_stages"), task_options.getlist("pipeline.ast_stages"))
 
         tasks = []
         for function_id in function_ids:
@@ -62,10 +59,7 @@ class Decompiler:
 
         code = self._backend.generate(tasks)
 
-        return Decompiler.Result(
-            tasks,
-            code
-        )
+        return Decompiler.Result(tasks, code)
 
     @dataclass
     class Result:

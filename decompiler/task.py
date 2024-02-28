@@ -1,4 +1,5 @@
 """Module describing tasks to be handled by the decompiler pipleline."""
+
 from dataclasses import dataclass, field
 from typing import List
 
