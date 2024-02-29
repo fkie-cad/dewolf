@@ -11,7 +11,7 @@ if __name__ == "__main__":
     new_version = time.strftime("%Y-%m-%d")
 
     if old_version.startswith(new_version):
-        patch = int(old_version[index + 1:]) if (index := old_version.rfind(".")) != -1 else 0
+        patch = int(old_version[index + 1 :]) if (index := old_version.rfind(".")) != -1 else 0
         new_version += f".{patch + 1}"
 
     data["version"] = new_version
