@@ -3,7 +3,7 @@ name: Automatic release
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 1 * *' # Run at midnight on the 1st day of every month
+    - cron: '0 0 1 */3 *'
 
 jobs:
   release:
