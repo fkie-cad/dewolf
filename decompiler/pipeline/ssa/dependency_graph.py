@@ -1,14 +1,20 @@
-from typing import Iterable, List, Optional, Set
+from functools import reduce
+from typing import Iterable, Iterator, List, Optional, Set
 
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
+from decompiler.structures.pseudo import Expression, Operation
+from decompiler.structures.pseudo import expressions as expressions
+from decompiler.structures.pseudo import instructions
+from decompiler.structures.pseudo import operations as operations
 from decompiler.structures.pseudo.expressions import Variable
 from decompiler.structures.pseudo.instructions import Assignment
 from decompiler.structures.pseudo.operations import Call
+from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInterface, T
 from networkx import DiGraph, weakly_connected_components
 
 
-def _non_call_assignments(cfg: ControlFlowGraph) -> Iterable[Assignment]:
+def _non_call_assignments(cfg: ControlFlowGraph) -> Iterator[Assignment]:
     """Yield all interesting assignments for the dependency graph."""
     for instr in cfg.instructions:
         if isinstance(instr, Assignment) and isinstance(instr.destination, Variable) and not isinstance(instr.value, Call):
@@ -16,9 +22,8 @@ def _non_call_assignments(cfg: ControlFlowGraph) -> Iterable[Assignment]:
 
 
 class DependencyGraph(DiGraph):
-    def __init__(self, interference_graph: Optional[InterferenceGraph] = None):
+    def __init__(self, interference_graph: InterferenceGraph):
         super().__init__()
-        self.add_nodes_from(interference_graph.nodes)
         self.interference_graph = interference_graph
 
     @classmethod
@@ -26,10 +31,12 @@ class DependencyGraph(DiGraph):
         """
         Construct the dependency graph of the given CFG, i.e. adds an edge between two variables if they depend on each other.
             - Add an edge the definition to at most one requirement for each instruction.
-            - All variables that where not defined via Phi-functions before have out-degree at most 1, because they are defined at most once
+            - All variables that where not defined via Phi-functions before have out-degree of at most 1, because they are defined at most once.
             - Variables that are defined via Phi-functions can have one successor for each required variable of the Phi-function.
         """
         dependency_graph = cls(interference_graph)
+        dependency_graph.add_nodes_from(interference_graph.nodes)
+
         for instruction in _non_call_assignments(cfg):
             defined_variable = instruction.destination
             if isinstance(instruction.value, Variable):
@@ -72,3 +79,19 @@ class DependencyGraph(DiGraph):
         """Returns the weakly connected components of the dependency graph."""
         for component in weakly_connected_components(self):
             yield set(component)
+
+
+def instruction_dependencies(instruction: instructions.Instruction) -> dict[Variable, float]:
+    match instruction:
+        case Assignment(): return
+        case _:return {}
+
+
+def expression_dependencies(expression: Expression) -> dict[Variable, float]:
+    match expression:
+        case Variable(): return {expression: 1.0}
+        case Call():
+        case Operation():
+            dependencies: dict[Variable, float] = reduce(dict.__or__, (expression_dependencies(operand) for operand in expression.operands))
+            return {var: score / len(dependencies) for var, score in dependencies}
+        case _: return {}

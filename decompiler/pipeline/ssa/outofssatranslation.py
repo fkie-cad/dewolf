@@ -160,6 +160,10 @@ class OutOfSsaTranslation(PipelineStage):
             - Then, we remove the Phi-functions by lifting them to their predecessor basic blocks.
             - Afterwards, we rename the variables, by considering their dependency on each other.
         """
+        PhiDependencyResolver(self._phi_functions_of).resolve()
+        self.interference_graph = InterferenceGraph(self.task.graph)
+        PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift()
+
         pass
 
     # This translator maps the optimization levels to the functions.

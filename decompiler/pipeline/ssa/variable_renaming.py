@@ -334,3 +334,20 @@ class MinimalVariableRenamer(VariableRenamer):
         for neighbor in neighborhood:
             if neighbor in self._variable_classes_handler.color_class_of:
                 yield self._variable_classes_handler.color_class_of[neighbor]
+
+
+class ConditionalVariableRenamer(VariableRenamer):
+    """
+
+    """
+    def __init__(self, task: DecompilerTask, interference_graph: InterferenceGraph):
+        super().__init__(task, interference_graph)
+        self._generate_renaming_map()
+
+    def _generate_renaming_map(self):
+        for variable in self.interference_graph.nodes:
+            for v in self._variables_contracted_to[variable]:
+                self.renaming_map[v] = Variable(f"{variable.name}_{variable.ssa_label}", variable.type)
+
+        for argument, variable in self.variable_for_function_arg.items():
+            self.renaming_map[variable] = Variable(argument, variable.type)
