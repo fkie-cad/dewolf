@@ -3,14 +3,10 @@ from typing import Iterable, Iterator, List, Optional, Set
 
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
-from decompiler.structures.pseudo import Expression, Operation
-from decompiler.structures.pseudo import expressions as expressions
-from decompiler.structures.pseudo import instructions
-from decompiler.structures.pseudo import operations as operations
+from decompiler.structures.pseudo import Expression, Operation, OperationType, instructions
 from decompiler.structures.pseudo.expressions import Variable
 from decompiler.structures.pseudo.instructions import Assignment
 from decompiler.structures.pseudo.operations import Call
-from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInterface, T
 from networkx import DiGraph, weakly_connected_components
 
 
@@ -84,14 +80,25 @@ class DependencyGraph(DiGraph):
 def instruction_dependencies(instruction: instructions.Instruction) -> dict[Variable, float]:
     match instruction:
         case Assignment(): return
-        case _:return {}
+        case _: return {}
 
 
 def expression_dependencies(expression: Expression) -> dict[Variable, float]:
     match expression:
         case Variable(): return {expression: 1.0}
-        case Call():
         case Operation():
+            operation_type_penalty = {
+                OperationType.call: 0.5,
+                OperationType.address: 0,
+                OperationType.dereference: 0,
+                OperationType.member_access: 0,
+            }.get(expression.operation, 1.0)
+
             dependencies: dict[Variable, float] = reduce(dict.__or__, (expression_dependencies(operand) for operand in expression.operands))
-            return {var: score / len(dependencies) for var, score in dependencies}
+            for var in dependencies:
+                dependencies[var] /= len(dependencies)
+                dependencies[var] *= operation_type_penalty
+                if expression.type != var.type:
+                    dependencies[var] = 0
+            return dependencies
         case _: return {}
