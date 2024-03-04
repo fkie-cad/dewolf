@@ -12,6 +12,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Set git user
         uses: fregante/setup-git-user@v2
@@ -25,15 +28,12 @@ jobs:
         id: update
         run: echo "version=$(python update_for_release.py)" >> "$GITHUB_OUTPUT" # returns new version to output
 
-      - name: Commit changes
+      - name: Commit changes & push
         run: |
           git add plugin.json
           git commit -m "Update for release ${{ steps.update.outputs.version }}"
-
-      - name: Push changes and tags
-        run: |
-          git push origin HEAD
-          git push origin --tags
+          git tag "v${{ steps.update.outputs.version }}"
+          git push origin v${{ steps.update.outputs.version }}
 
       - name: Create release
         uses: softprops/action-gh-release@v1
