@@ -75,7 +75,7 @@ class ConditionBasedRefinement:
                 sibling_reachability.merge_siblings_to(condition_node, [ast_node_i, ast_node_j])
                 processed_to_branch.update([ast_node_i, ast_node_j])
 
-        sequence_node._sorted_children = sibling_reachability.sorted_nodes()
+        sequence_node._sorted_children = sibling_reachability.sorted_nodes() # set private property to None, expect tupe... TODO DBG
 
     @staticmethod
     def _get_possible_complementary_nodes(sequence_node: SeqNode):
@@ -92,6 +92,10 @@ class ConditionBasedRefinement:
         visited = set()
         newly_created_sequence_nodes: Set[SeqNode] = set()
         sibling_reachability: SiblingReachability = self.asforest.get_sibling_reachability_of_children_of(sequence_node)
+
+        print("SEQUENCE NODE", sequence_node)
+        print("SEQUENCE NODE _SORTED_CHILDREN", sequence_node._sorted_children)
+        print("SEQUENCE NODE CHILDREN", sequence_node.children)
 
         for child in list(sequence_node.children):
             if child in visited:
