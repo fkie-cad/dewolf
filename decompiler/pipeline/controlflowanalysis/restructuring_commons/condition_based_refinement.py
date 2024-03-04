@@ -92,12 +92,15 @@ class ConditionBasedRefinement:
         visited = set()
         newly_created_sequence_nodes: Set[SeqNode] = set()
         sibling_reachability: SiblingReachability = self.asforest.get_sibling_reachability_of_children_of(sequence_node)
-
+        all_children = list()
+        subexpression_of_node = dict()
         for child in list(sequence_node.children):
+            all_children.append(repr(child))
             if child in visited:
                 continue
             if not (condition_subexpressions := self._get_logical_and_subexpressions_of(child.reaching_condition)):
                 continue
+            subexpression_of_node[child] = len(condition_subexpressions)
             for subexpression in condition_subexpressions:
                 true_cluster, false_cluster = self._cluster_by_condition(subexpression, sequence_node)
                 all_cluster_nodes = true_cluster + false_cluster
@@ -114,6 +117,10 @@ class ConditionBasedRefinement:
                     visited.update(all_cluster_nodes)
                     sequence_node._sorted_children = sibling_reachability.sorted_nodes()
                     break
+        if subexpression_of_node:
+            # print("[" + ",\n".join(child for child in all_children) + "]")
+            for child, numb in subexpression_of_node.items():
+                print(f"consider node {child} with {numb} subexpressions:")
 
         return newly_created_sequence_nodes
 
@@ -191,6 +198,7 @@ class ConditionBasedRefinement:
             return False
         if term.is_equal_to(expression):
             return True
+        return expression.does_imply(term)
         if not expression.does_imply(term):
             return False
         elif term.does_imply(expression):
