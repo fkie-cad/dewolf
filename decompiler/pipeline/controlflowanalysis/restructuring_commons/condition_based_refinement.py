@@ -94,14 +94,18 @@ class ConditionBasedRefinement:
         sibling_reachability: SiblingReachability = self.asforest.get_sibling_reachability_of_children_of(sequence_node)
         all_children = list()
         subexpression_of_node = dict()
-        for child in list(sequence_node.children):
+        interesting_children = [child for child in sequence_node.children if not child.reaching_condition.is_true]
+        if len(interesting_children) < 2:
+            return newly_created_sequence_nodes
+        for child in interesting_children:
             all_children.append(repr(child))
+            # TODO Also stop if it is the last child with a reaching condition to consider!
             if child in visited:
                 continue
-            if not (condition_subexpressions := self._get_logical_and_subexpressions_of(child.reaching_condition)):
-                continue
-            subexpression_of_node[child] = len(condition_subexpressions)
-            for subexpression in condition_subexpressions:
+            subexpression_of_node[child] = 0
+            # TODO: only compute "useful" subexpressions!
+            for subexpression in self._get_logical_and_subexpressions_of(child.reaching_condition):
+                subexpression_of_node[child] += 1
                 true_cluster, false_cluster = self._cluster_by_condition(subexpression, sequence_node)
                 all_cluster_nodes = true_cluster + false_cluster
 
@@ -143,6 +147,7 @@ class ConditionBasedRefinement:
         for node in sequence_node.children:
             if symbols_of_condition - set(node.reaching_condition.get_symbols_as_string()):
                 continue
+            # TODO: we should not check this for the node we currently consider!
             if self._is_subexpression_of_cnf_formula(condition, node.reaching_condition):
                 true_children.append(node)
             else:
@@ -181,6 +186,7 @@ class ConditionBasedRefinement:
             return False
 
         subexpressions = [term] if numb_of_arg_term == 1 else term_operands
+        expression_operands = (expression & term).operands
         return all(self._is_contained_in_logic_conditions(sub_expr, expression_operands) for sub_expr in subexpressions)
 
     @staticmethod
@@ -198,7 +204,6 @@ class ConditionBasedRefinement:
             return False
         if term.is_equal_to(expression):
             return True
-        return expression.does_imply(term)
         if not expression.does_imply(term):
             return False
         elif term.does_imply(expression):
@@ -210,9 +215,9 @@ class ConditionBasedRefinement:
     @staticmethod
     def _is_contained_in_logic_conditions(sub_expression: LogicCondition, logic_conditions: List[LogicCondition]) -> bool:
         """Check whether the given sub_expression is contained in the list of logic conditions"""
-        return any(sub_expression.is_equivalent_to(condition) for condition in logic_conditions)
+        return any(sub_expression.does_imply(condition) for condition in logic_conditions)
 
-    def _get_logical_and_subexpressions_of(self, condition: LogicCondition) -> List[LogicCondition]:
+    def _get_logical_and_subexpressions_of(self, condition: LogicCondition) -> Iterator[LogicCondition]:
         """
         Get logical and-subexpressions of the input condition.
 
@@ -222,18 +227,17 @@ class ConditionBasedRefinement:
             - If the condition is an Or, either the condition if all arguments are Symbols or Not or nothing otherwise.
         """
         if condition.is_true:
-            return []
-        if condition.is_symbol or condition.is_negation or condition.is_disjunction:
-            return [condition.copy()]
-        if condition.is_conjunction:
-            and_subexpressions: List[LogicCondition] = list()
-            for sub_expression in reversed(list(self._all_subsets(condition.operands))):
+            yield from ()
+        elif condition.is_symbol or condition.is_negation or condition.is_disjunction:
+            yield condition.copy()
+        elif condition.is_conjunction:
+            for sub_expression in self._all_subsets(condition.operands):
                 if len(sub_expression) == 1:
-                    and_subexpressions.append(sub_expression[0])
+                    yield sub_expression[0]
                 else:
-                    and_subexpressions.append(LogicCondition.conjunction_of(sub_expression))
-            return and_subexpressions
-        raise ValueError(f"Received a condition which is not a Symbol, Or, Not, or And: {condition}")
+                    yield LogicCondition.conjunction_of(sub_expression)
+        else:
+            raise ValueError(f"Received a condition which is not a Symbol, Or, Not, or And: {condition}")
 
     @staticmethod
     def _can_place_condition_node_with_branches(branches: List[AbstractSyntaxTreeNode], sibling_reachability: SiblingReachability) -> bool:
@@ -252,6 +256,6 @@ class ConditionBasedRefinement:
         Given a set of elements, in our case z3-expressions, it returns an iterator that contains each combination of the input arguments
         as a tuple.
 
-        (1,2,3) --> Iterator[(1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)]
+        (1,2,3) --> Iterator[(1,2,3) (1,2) (1,3) (1,) (2,) (3,)]
         """
-        return (arg for size in range(1, len(arguments) + 1) for arg in combinations(arguments, size))
+        return (arg for size in range(len(arguments), 0, -1) for arg in combinations(arguments, size))
