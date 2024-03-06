@@ -10,10 +10,11 @@ from decompiler.structures.pseudo.operations import Call
 from networkx import DiGraph, weakly_connected_components
 
 
-def _non_call_assignments(cfg: ControlFlowGraph) -> Iterator[Assignment]:
+def _assignments_in_cfg(cfg: ControlFlowGraph) -> Iterator[Assignment]:
     """Yield all interesting assignments for the dependency graph."""
     for instr in cfg.instructions:
-        if isinstance(instr, Assignment) and isinstance(instr.destination, Variable) and not isinstance(instr.value, Call):
+        # ignores assignments with multiple values... These are currently poorly defined, so idk how they need to be handled
+        if isinstance(instr, Assignment) and isinstance(instr.destination, Variable):
             yield instr
 
 
@@ -33,17 +34,12 @@ class DependencyGraph(DiGraph):
         dependency_graph = cls(interference_graph)
         dependency_graph.add_nodes_from(interference_graph.nodes)
 
-        for instruction in _non_call_assignments(cfg):
+        for instruction in _assignments_in_cfg(cfg):
             defined_variable = instruction.destination
-            if isinstance(instruction.value, Variable):
-                if dependency_graph._variables_can_have_same_name(defined_variable, instruction.value):
-                    dependency_graph.add_edge(defined_variable, instruction.requirements[0], strength="high")
-            elif len(instruction.requirements) == 1:
-                if dependency_graph._variables_can_have_same_name(defined_variable, instruction.requirements[0]):
-                    dependency_graph.add_edge(defined_variable, instruction.requirements[0], strength="medium")
-            else:
-                if non_interfering_variable := dependency_graph._non_interfering_requirements(instruction.requirements, defined_variable):
-                    dependency_graph.add_edge(defined_variable, non_interfering_variable, strength="low")
+
+            for used_variable, score in _expression_dependencies(instruction.value).items():
+                dependency_graph.add_edge(defined_variable, used_variable, score=score)
+
         return dependency_graph
 
     def _non_interfering_requirements(self, requirements: List[Variable], defined_variable: Variable) -> Optional[Variable]:
@@ -77,15 +73,10 @@ class DependencyGraph(DiGraph):
             yield set(component)
 
 
-def instruction_dependencies(instruction: instructions.Instruction) -> dict[Variable, float]:
-    match instruction:
-        case Assignment(): return
-        case _: return {}
-
-
-def expression_dependencies(expression: Expression) -> dict[Variable, float]:
+def _expression_dependencies(expression: Expression) -> dict[Variable, float]:
     match expression:
-        case Variable(): return {expression: 1.0}
+        case Variable():
+            return {expression: 1.0}
         case Operation():
             operation_type_penalty = {
                 OperationType.call: 0.5,
@@ -94,11 +85,12 @@ def expression_dependencies(expression: Expression) -> dict[Variable, float]:
                 OperationType.member_access: 0,
             }.get(expression.operation, 1.0)
 
-            dependencies: dict[Variable, float] = reduce(dict.__or__, (expression_dependencies(operand) for operand in expression.operands))
+            dependencies: dict[Variable, float] = reduce(dict.__or__, (_expression_dependencies(operand) for operand in expression.operands))
             for var in dependencies:
                 dependencies[var] /= len(dependencies)
                 dependencies[var] *= operation_type_penalty
                 if expression.type != var.type:
                     dependencies[var] = 0
             return dependencies
-        case _: return {}
+        case _:
+            return {}

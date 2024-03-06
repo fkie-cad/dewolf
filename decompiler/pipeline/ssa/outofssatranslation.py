@@ -4,8 +4,10 @@ import logging
 from collections import defaultdict
 from configparser import NoOptionError
 from enum import Enum
+from itertools import combinations
 from typing import DefaultDict, List
 
+from decompiler.pipeline.ssa.dependency_graph import DependencyGraph
 from decompiler.pipeline.ssa.phi_cleaner import PhiFunctionCleaner
 from decompiler.pipeline.ssa.phi_dependency_resolver import PhiDependencyResolver
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
@@ -15,6 +17,8 @@ from decompiler.structures.graphs.cfg import BasicBlock
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo.instructions import Phi
 from decompiler.task import DecompilerTask
+from decompiler.util.decoration import DecoratedCFG, DecoratedGraph
+from networkx import DiGraph
 
 
 class SSAOptions(Enum):
@@ -140,6 +144,24 @@ class OutOfSsaTranslation(PipelineStage):
         PhiDependencyResolver(self._phi_functions_of).resolve()
         self.interference_graph = InterferenceGraph(self.task.graph)
         PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift()
+
+        dependency_graph = DependencyGraph.from_cfg(self.task.graph, InterferenceGraph(self.task.graph))
+
+        decorated_graph = DiGraph()
+        for node in dependency_graph.nodes:
+            decorated_graph.add_node(node, label=str(node))
+        for (u, v, data) in dependency_graph.edges.data():
+            decorated_graph.add_edge(u, v, label=f"{data['score']}")
+        # for vars in dependency_graph.get_components():
+        #     for var0, var1 in self.interference_graph.get_interfering_variables(*vars):
+        #         decorated_graph.add_edge(var0, var1, color="red")
+        #         decorated_graph.add_edge(var1, var0, color="red")
+
+        DecoratedCFG.from_cfg(self.task.graph).export_dot("cfg_dep.dot")
+        decorated = DecoratedGraph(decorated_graph)
+        decorated.export_dot("dep.dot")
+        decorated.export_plot("dep.png")
+
         MinimalVariableRenamer(self.task, self.interference_graph).rename()
 
     def _precolor_phi_out_of_ssa(self) -> None:
@@ -163,6 +185,7 @@ class OutOfSsaTranslation(PipelineStage):
         PhiDependencyResolver(self._phi_functions_of).resolve()
         self.interference_graph = InterferenceGraph(self.task.graph)
         PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift()
+
 
         pass
 
