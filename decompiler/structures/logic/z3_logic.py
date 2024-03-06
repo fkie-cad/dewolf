@@ -195,6 +195,9 @@ class Z3LogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         Example: substituting in the expression (a∨b)∧c the condition (a∨b) by true results in the condition c,
              and substituting the condition c by true in the condition (a∨b)
         """
+        if self.is_equal_to(condition):
+            self._condition = BoolVal(True, ctx=self.context)
+            return self
         self._condition = self.z3.simplify_z3_condition(And(self._condition, condition._condition))
         if condition_handler:
             self.remove_redundancy(condition_handler)

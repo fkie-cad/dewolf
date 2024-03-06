@@ -2,14 +2,36 @@
 Module for Condition Based Refinement
 """
 
-from itertools import combinations
-from typing import Iterator, List, Optional, Set, Tuple
+from __future__ import annotations
 
-from binaryninja import *
+from dataclasses import dataclass
+from itertools import combinations
+from typing import List, Tuple, Set, Dict, Optional
+
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, SeqNode
 from decompiler.structures.ast.reachability_graph import SiblingReachability
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition
+
+
+class ConditionCandidates:
+    def __init__(self, candidates: List[AbstractSyntaxTreeNode]):
+        self._candidates: Dict[AbstractSyntaxTreeNode, List[LogicCondition]] = {
+            c: list(c.reaching_condition.operands) if c.reaching_condition.is_conjunction else [c.reaching_condition] for c in candidates
+        }
+        self._max_subexpression_size: Optional[int] = None
+
+    def maximum_subexpression_size(self) -> int:
+        max = 0
+        second_max = 0
+        for candidate, operands in self._candidates.values():
+            if len(operands) >= max:
+                second_max = max
+                max = len(operands)
+            elif len(operands) > second_max:
+                second_max = len(operands)
+        self._max_subexpression_size = min(second_max, self._max_subexpression_size)
+        return self._max_subexpression_size
 
 
 class ConditionBasedRefinement:
@@ -240,6 +262,16 @@ class ConditionBasedRefinement:
             raise ValueError(f"Received a condition which is not a Symbol, Or, Not, or And: {condition}")
 
     @staticmethod
+    def _all_subsets(arguments: List[LogicCondition]) -> Iterator[Tuple[LogicCondition]]:
+        """
+        Given a set of elements, in our case z3-expressions, it returns an iterator that contains each combination of the input arguments
+        as a tuple.
+
+        (1,2,3) --> Iterator[(1,2,3) (1,2) (1,3) (1,) (2,) (3,)]
+        """
+        return (arg for size in range(len(arguments), 0, -1) for arg in combinations(arguments, size))
+
+    @staticmethod
     def _can_place_condition_node_with_branches(branches: List[AbstractSyntaxTreeNode], sibling_reachability: SiblingReachability) -> bool:
         """
         Check whether we can construct a Condition node for the two given AST nodes that are children of the given sequence nodes.
@@ -249,13 +281,3 @@ class ConditionBasedRefinement:
         :return:
         """
         return sibling_reachability.can_group_siblings(branches)
-
-    @staticmethod
-    def _all_subsets(arguments: List[LogicCondition]) -> Iterator[Tuple[LogicCondition]]:
-        """
-        Given a set of elements, in our case z3-expressions, it returns an iterator that contains each combination of the input arguments
-        as a tuple.
-
-        (1,2,3) --> Iterator[(1,2,3) (1,2) (1,3) (1,) (2,) (3,)]
-        """
-        return (arg for size in range(len(arguments), 0, -1) for arg in combinations(arguments, size))
