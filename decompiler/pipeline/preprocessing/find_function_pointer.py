@@ -8,9 +8,15 @@ from decompiler.task import DecompilerTask
 
 
 class FindFunctionPointer(PipelineStage):
+    """Pipeline stage to identify and annotate function pointers in the decompiled code."""
+
     name = "find-function-pointer"
 
     def run(self, task: DecompilerTask):
+        """
+        Run the pipeline stage in the given task, search in all expressions for a
+        variable that is called and adjust its type information.
+        """
         for block in task.graph:
             for expression in block:
                 if (
