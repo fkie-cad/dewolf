@@ -3,7 +3,7 @@
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.pseudo.instructions import Assignment, Variable
 from decompiler.structures.pseudo.operations import Call
-from decompiler.structures.pseudo.typing import FunctionPointer, Pointer
+from decompiler.structures.pseudo.typing import FunctionTypeDef, Pointer
 from decompiler.task import DecompilerTask
 
 
@@ -25,7 +25,7 @@ class FindFunctionPointer(PipelineStage):
                     and isinstance(expression.value.function, Variable)
                 ):
                     expression.value.function._type = Pointer(
-                        basetype=FunctionPointer(
+                        basetype=FunctionTypeDef(
                             size=expression.value.function.type.size,
                             return_type=expression.value.function.type,
                             parameters=tuple(expression.value.parameters),

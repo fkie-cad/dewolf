@@ -218,11 +218,6 @@ class FunctionTypeDef(Type):
         return f"{self.return_type}({', '.join(str(x) for x in self.parameters)})"
 
 
-@dataclass(frozen=True, order=True)
-class FunctionPointer(FunctionTypeDef):
-    pass
-
-
 class TypeParser:
     """A type parser in charge of creating types."""
 

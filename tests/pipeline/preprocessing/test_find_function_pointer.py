@@ -12,13 +12,13 @@ from decompiler.structures.pseudo import (
     Variable,
 )
 from decompiler.structures.pseudo.instructions import Branch, Return
-from decompiler.structures.pseudo.typing import FunctionPointer, Pointer
+from decompiler.structures.pseudo.typing import FunctionTypeDef, Pointer
 from decompiler.task import DecompilerTask
 
 
 def test_set_variable_to_function_pointer():
     """
-    Test the change of a variable type to FunctionPointer if there is a call on this variable.
+    Test the change of a variable type to function pointer if there is a call on this variable.
 
     a = 0x0804c020
     b = 1
@@ -40,12 +40,12 @@ def test_set_variable_to_function_pointer():
     )
     cfg.add_edges_from([UnconditionalEdge(n0, n1), TrueCase(n1, n2), FalseCase(n1, n3)])
     FindFunctionPointer().run(DecompilerTask("test", cfg))
-    assert var_a.type == Pointer(FunctionPointer(32, Integer.int32_t(), ()))
+    assert var_a.type == Pointer(FunctionTypeDef(32, Integer.int32_t(), ()))
 
 
 def test_set_variable_to_function_pointer_with_parameters():
     """
-    Test the change of a variable type to FunctionPointer if there is a call on this variable with parameters.
+    Test the change of a variable type to function pointer if there is a call on this variable with parameters.
 
     a = 0x0804c020
     b = 1
@@ -69,12 +69,12 @@ def test_set_variable_to_function_pointer_with_parameters():
     )
     cfg.add_edges_from([UnconditionalEdge(n0, n1), TrueCase(n1, n2), FalseCase(n1, n3)])
     FindFunctionPointer().run(DecompilerTask("test", cfg))
-    assert var_a.type == Pointer(FunctionPointer(32, Integer.int32_t(), (var_c, var_d)))
+    assert var_a.type == Pointer(FunctionTypeDef(32, Integer.int32_t(), (var_c, var_d)))
 
 
 def test_skip_set_variable_to_function_pointer():
     """
-    Test the skip of a change of a variable type to FunctionPointer if there is a call without a variable.
+    Test the skip of a change of a variable type to function pointer if there is a call without a variable.
 
     a = 0x0804c020
     b = 1
