@@ -1,10 +1,10 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
 
 import math
-
-from binaryninja import BinaryView, DataVariable, SectionSemantics, SymbolType, Type, mediumlevelil
+from typing import Union
+from binaryninja import DataVariable, SymbolType, Type, mediumlevelil
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import Constant, Integer, NotUseableConstant
+from decompiler.structures.pseudo import Constant, Integer, NotUseableConstant, GlobalVariable, Symbol, UnaryOperation, OperationType, Pointer, ArrayType
 
 BYTE_SIZE = 8
 
@@ -39,27 +39,24 @@ class ConstantHandler(Handler):
         """Lift data as a non mute able constant string (register string)"""
         return NotUseableConstant(str(pointer))
 
-    def lift_constant_pointer(self, pointer: mediumlevelil.MediumLevelILConstPtr, **kwargs):
+    def lift_constant_pointer(self, pointer: mediumlevelil.MediumLevelILConstPtr, **kwargs) -> Union[GlobalVariable, Symbol]:
         """Lift the given constant pointer, e.g. &0x80000."""
         view = pointer.function.view
 
         if variable := view.get_data_var_at(pointer.constant):
-            return self._lifter.lift(variable, view=view, parent=pointer)
+            res = self._lifter.lift(variable, view=view, parent=pointer)
 
-        if (symbol := view.get_symbol_at(pointer.constant)) and symbol.type != SymbolType.DataSymbol:
+        elif (symbol := view.get_symbol_at(pointer.constant)) and symbol.type != SymbolType.DataSymbol:
             return self._lifter.lift(symbol)
 
-        if function := view.get_function_at(pointer.constant):
+        elif function := view.get_function_at(pointer.constant):
             return self._lifter.lift(function.symbol)
 
-        variable = DataVariable(view, pointer.constant, Type.void(), False)
-        global_variable = self._lifter.lift(variable, view=view, parent=pointer)
+        else:
+            res = self._lifter.lift(DataVariable(view, pointer.constant, Type.void(), False), view=view, parent=pointer)
 
-        return global_variable
-
-    def _in_read_only_section(self, addr: int, view: BinaryView) -> bool:
-        """Returns True if address is contained in a read only section, False otherwise"""
-        for _, section in view.sections.items():
-            if addr >= section.start and addr <= section.end and section.semantics == SectionSemantics.ReadOnlyDataSectionSemantics:
-                return True
-        return False
+        return UnaryOperation(
+            OperationType.address,
+            [res],
+            vartype=res.type,
+        ) if not isinstance(res.type, Pointer) else res
