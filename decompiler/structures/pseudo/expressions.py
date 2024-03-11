@@ -35,7 +35,7 @@ from typing import TYPE_CHECKING, Generic, Iterator, List, Optional, Tuple, Type
 
 from ...util.insertion_ordered_set import InsertionOrderedSet
 from .complextypes import Enum
-from .typing import CustomType, Type, UnknownType
+from .typing import CustomType, Type, UnknownType, ArrayType
 
 T = TypeVar("T")
 DecompiledType = TypeVar("DecompiledType", bound=Type)
@@ -386,10 +386,10 @@ class GlobalVariable(Variable):
         self,
         name: str,
         vartype: Type,
+        initial_value: Expression,  # UnaryOperation, GlobalVariable, Constant, ?
         ssa_label: int = None,
         is_aliased: bool = True,
         ssa_name: Optional[Variable] = None,
-        initial_value: Expression = None, # TODO
         is_constant: bool = False,
         tags: Optional[Tuple[Tag, ...]] = None,
     ):
@@ -403,10 +403,10 @@ class GlobalVariable(Variable):
         self,
         name: str = None,
         vartype: Type = None,
+        initial_value: Expression = None,
         ssa_label: int = None,
         is_aliased: bool = None,
         ssa_name: Optional[Variable] = None,
-        initial_value: Expression = None,
         is_constant: bool = None,
         tags: Optional[Tuple[Tag, ...]] = None,
     ) -> GlobalVariable:
@@ -415,16 +415,23 @@ class GlobalVariable(Variable):
         return self.__class__(
             self._name[:] if name is None else name,
             self._type.copy() if vartype is None else vartype,
+            self.initial_value.copy() if initial_value is None else initial_value,
             self.ssa_label if ssa_label is None else ssa_label,
             self.is_aliased if is_aliased is None else is_aliased,
             self.ssa_name if ssa_name is None else ssa_name,
-            self.initial_value.copy() if initial_value is None else initial_value,
             self.is_constant if is_constant is None else is_constant,
             self.tags if tags is None else tags,
         )
 
     def __iter__(self) -> Iterator[Expression]:
-        yield self.initial_value
+        match self.initial_value:
+            case Constant():
+                if isinstance(self.type, ArrayType):
+                    yield from self.initial_value
+            case Expression():
+                yield self.initial_value
+            case _:
+                pass
 
     def __str__(self) -> str:
         """Return a string representation of the global variable."""
@@ -496,3 +503,21 @@ class RegisterPair(Variable):
     def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
         """Invoke the appropriate visitor for this Expression."""
         return visitor.visit_register_pair(self)
+
+
+class ConstantComposition(Constant):
+    def __init__(self, value: list[Constant], vartype: DecompiledType = UnknownType(), tags: Optional[Tuple[Tag, ...]] = None):
+        super().__init__(value, vartype, None, tags,)
+
+    def __str__(self) -> str:
+        """Todo"""
+        return "{" + ",".join([str(x) for x in self.value]) + "}"
+
+    def copy(self) -> ConstantComposition:
+        """Generate a copy of the UnknownExpression with the same message."""
+        return ConstantComposition([x.copy() for x in self.value], self._type.copy())
+
+    
+    def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
+        """Invoke the appropriate visitor for this Expression."""
+        return visitor.visit_constant_composition(self)

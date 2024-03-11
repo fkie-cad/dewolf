@@ -6,15 +6,13 @@ from typing import Iterable, Iterator, List
 from decompiler.backend.cexpressiongenerator import CExpressionGenerator
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.pseudo import (
-    Expression,
     GlobalVariable,
     Variable,
-    UnaryOperation,
 )
+from decompiler.structures.pseudo.typing import ArrayType, CustomType, Pointer
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
-from decompiler.backend.cexpressiongenerator import print_global_variable_init
 
 
 class LocalDeclarationGenerator:
@@ -64,7 +62,12 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
     def _generate_definitions(global_variables: set[GlobalVariable]) -> Iterator[str]:
         """Generate all definitions"""
         for variable in global_variables:
-            yield f"extern {variable.type} {variable.name} = {CExpressionGenerator().visit(variable.initial_value)};"
+            base = f"extern {'const ' if variable.is_constant else ''}"
+            match variable.type:
+                case ArrayType():
+                    yield f"{base}{variable.type.type} {variable.name}[{hex(variable.type.elements)}] = {CExpressionGenerator().visit(variable.initial_value)};"
+                case _:
+                    yield f"{base}{variable.type} {variable.name} = {CExpressionGenerator().visit(variable.initial_value)};"
 
     @staticmethod
     def from_asts(asts: Iterable[AbstractSyntaxTree]) -> str:
@@ -79,7 +82,7 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
         super().visit_ast(ast)
         return self._global_vars
 
-    def visit_global_variable(self, expression: GlobalVariable):
-        """Visit the given global variable. Strip SSA label to remove duplicates"""
-        if not expression.is_constant:
-            self._global_vars.add(expression.copy(ssa_label=0, ssa_name=None))
+    def visit_global_variable(self, expr: GlobalVariable):
+        """Visit global variables. Only collect ones which will not be inlined by CExprGenerator. Strip SSA label to remove duplicates"""
+        if not expr.is_constant or expr.type == Pointer(CustomType.void()):
+            self._global_vars.add(expr.copy(ssa_label=0, ssa_name=None))

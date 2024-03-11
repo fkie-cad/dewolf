@@ -21,7 +21,7 @@ from binaryninja.types import (
     WideCharType,
 )
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import CustomType, Float, FunctionTypeDef, Integer, Pointer, UnknownType, Variable
+from decompiler.structures.pseudo import CustomType, Float, FunctionTypeDef, Integer, Pointer, UnknownType, Variable, ArrayType as Array
 from decompiler.structures.pseudo.complextypes import Class, ComplexTypeMember, ComplexTypeName, Enum, Struct
 from decompiler.structures.pseudo.complextypes import Union as Union_
 
@@ -171,9 +171,9 @@ class TypeHandler(Handler):
         """Lift the given pointer type as a pointer on the nested type."""
         return Pointer(self._lifter.lift(pointer.target, parent=pointer), pointer.width * self.BYTE_SIZE)
 
-    def lift_array(self, array: ArrayType, **kwargs) -> Pointer:
+    def lift_array(self, array: ArrayType, **kwargs) -> Array:
         """Lift an array as a pointer of the given type, omitting the size information."""
-        return Pointer(self._lifter.lift(array.element_type))
+        return Array(self._lifter.lift(array.element_type), array.count)
 
     def lift_function_type(self, function_type: FunctionType, **kwargs) -> FunctionTypeDef:
         """Lift an anonymous function signature such as void*(int, long)."""
