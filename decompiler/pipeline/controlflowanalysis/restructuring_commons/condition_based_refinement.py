@@ -16,6 +16,7 @@ from decompiler.structures.logic.logic_condition import LogicCondition
 
 @dataclass
 class CandidateProperties:
+    # Add original reaching condition --> but remaining part only relevant stuff?
     operands: List[LogicCondition]
     symbols: Set[str]
 
@@ -52,8 +53,8 @@ class ConditionCandidates:
 
     def get_next_subexpression(self):
         while (current_size := self.maximum_subexpression_size) > 0:
-            childrens_to_consider = [c for c, p in self._candidates.items() if p.number_of_interesting_operands >= current_size]
-            for child in childrens_to_consider:
+            children_to_consider = [c for c, p in self._candidates.items() if p.number_of_interesting_operands >= current_size]
+            for child in children_to_consider:
                 if child not in self._candidates:
                     continue
                 if current_size > self.maximum_subexpression_size:
@@ -70,37 +71,6 @@ class ConditionCandidates:
                             break
             self._max_subexpression_size -= 1
 
-    # def _get_logical_and_subexpressions_of(self, condition: LogicCondition) -> Iterator[LogicCondition]:
-    #     """
-    #     Get logical and-subexpressions of the input condition.
-    #
-    #     We get the following expressions
-    #         - If the condition is a Symbol or a Not, the whole condition
-    #         - If the condition is an And, every possible combination of its And-arguments
-    #         - If the condition is an Or, either the condition if all arguments are Symbols or Not or nothing otherwise.
-    #     """
-    #     if condition.is_true:
-    #         yield from ()
-    #     elif condition.is_symbol or condition.is_negation or condition.is_disjunction:
-    #         yield condition.copy()
-    #     elif condition.is_conjunction:
-    #         for sub_expression in self._all_subsets(condition.operands):
-    #             if len(sub_expression) == 1:
-    #                 yield sub_expression[0]
-    #             else:
-    #                 yield LogicCondition.conjunction_of(sub_expression)
-    #     else:
-    #         raise ValueError(f"Received a condition which is not a Symbol, Or, Not, or And: {condition}")
-    #
-    # @staticmethod
-    # def _all_subsets(arguments: List[LogicCondition]) -> Iterator[Tuple[LogicCondition]]:
-    #     """
-    #     Given a set of elements, in our case z3-expressions, it returns an iterator that contains each combination of the input arguments
-    #     as a tuple.
-    #
-    #     (1,2,3) --> Iterator[(1,2,3) (1,2) (1,3) (1,) (2,) (3,)]
-    #     """
-    #     return (arg for size in range(len(arguments), 0, -1) for arg in combinations(arguments, size))
     def remove(self, nodes_to_remove: List[AbstractSyntaxTreeNode]):
         for node in nodes_to_remove:
             del self._candidates[node]
@@ -183,10 +153,8 @@ class ConditionBasedRefinement:
         :param sequence_node: The sequence nodes whose children we want to structure.
         :return: The set of sequence nodes we add during structuring the given sequence node.
         """
-        # visited = set()
         newly_created_sequence_nodes: Set[SeqNode] = set()
         sibling_reachability: SiblingReachability = self.asforest.get_sibling_reachability_of_children_of(sequence_node)
-        subexpression_of_node = dict()
         condition_candidates = ConditionCandidates([child for child in sequence_node.children if not child.reaching_condition.is_true])
         for child, subexpression in condition_candidates.get_next_subexpression():
             # TODO Also stop if it is the last child with a reaching condition to consider!
