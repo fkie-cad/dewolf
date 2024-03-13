@@ -3,12 +3,9 @@
 from collections import defaultdict
 from typing import Iterable, Iterator, List
 
-from decompiler.backend.cexpressiongenerator import CExpressionGenerator
+from decompiler.backend.cexpressiongenerator import CExpressionGenerator, inline_global_variable
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
-from decompiler.structures.pseudo import (
-    GlobalVariable,
-    Variable,
-)
+from decompiler.structures.pseudo import GlobalVariable, Integer, Variable
 from decompiler.structures.pseudo.typing import ArrayType, CustomType, Pointer
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask
@@ -65,7 +62,10 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
             base = f"extern {'const ' if variable.is_constant else ''}"
             match variable.type:
                 case ArrayType():
-                    yield f"{base}{variable.type.type} {variable.name}[{hex(variable.type.elements)}] = {CExpressionGenerator().visit(variable.initial_value)};"
+                    br, bl = '', ''
+                    if not variable.type.type in [Integer.char(), CustomType.wchar16(), CustomType.wchar32()]:
+                        br, bl = '{', '}'
+                    yield f"{base}{variable.type.type} {variable.name}[{hex(variable.type.elements)}] = {br}{CExpressionGenerator().visit(variable.initial_value)}{bl};"
                 case _:
                     yield f"{base}{variable.type} {variable.name} = {CExpressionGenerator().visit(variable.initial_value)};"
 
@@ -84,5 +84,7 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
 
     def visit_global_variable(self, expr: GlobalVariable):
         """Visit global variables. Only collect ones which will not be inlined by CExprGenerator. Strip SSA label to remove duplicates"""
+        if not inline_global_variable(expr):
+            self._global_vars.add(expr.copy(ssa_label=0, ssa_name=None))
         if not expr.is_constant or expr.type == Pointer(CustomType.void()):
             self._global_vars.add(expr.copy(ssa_label=0, ssa_name=None))

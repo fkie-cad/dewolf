@@ -2,7 +2,17 @@ import logging
 from itertools import chain, repeat
 
 from decompiler.structures import pseudo as expressions
-from decompiler.structures.pseudo import Float, FunctionTypeDef, Integer, OperationType, Pointer, Type, GlobalVariable, CustomType, ArrayType
+from decompiler.structures.pseudo import (
+    ArrayType,
+    CustomType,
+    Float,
+    FunctionTypeDef,
+    GlobalVariable,
+    Integer,
+    OperationType,
+    Pointer,
+    Type,
+)
 from decompiler.structures.pseudo import instructions as instructions
 from decompiler.structures.pseudo import operations as operations
 from decompiler.structures.pseudo.operations import MemberAccess
@@ -10,6 +20,17 @@ from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInter
 from decompiler.util.integer_util import normalize_int
 
 MAX_GLOBAL_INIT_LENGTH = 128
+
+def inline_global_variable(var) -> bool:
+    if not var.is_constant:
+        return False
+    match var.type:
+        case ArrayType():
+            if var.type.type in [Integer.char(), CustomType.wchar16(), CustomType.wchar32()]:
+                return True
+        case _:
+            return False
+    return False
 
 class CExpressionGenerator(DataflowObjectVisitorInterface):
     """Generate C code for Expressions.
@@ -166,7 +187,13 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
 
     def visit_constant_composition(self, expr: expressions.ConstantComposition):
         """Visit a Constant Array."""
-        return f'"{"".join([x.value for x in expr.value])}"'
+        match expr.type.type:
+            case CustomType(text='wchar16') | CustomType(text='wchar32'):
+                return f'L"{"".join([x.value for x in expr.value][:MAX_GLOBAL_INIT_LENGTH])}"'
+            case Integer(8):
+                return f'"{"".join([x.value for x in expr.value][:MAX_GLOBAL_INIT_LENGTH])}"'
+            case _:
+                return f'{", ".join([hex(x.value) for x in expr.value])}'
 
     def visit_variable(self, expr: expressions.Variable) -> str:
         """Return a string representation of the variable."""
@@ -174,7 +201,7 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
 
     def visit_global_variable(self, expr: expressions.GlobalVariable):
         """Inline a global variable if its initial value is constant and not of void type"""
-        if expr.is_constant and expr.type != Pointer(CustomType.void()):
+        if inline_global_variable(expr):
             return self.visit(expr.initial_value)
         return expr.name
 
