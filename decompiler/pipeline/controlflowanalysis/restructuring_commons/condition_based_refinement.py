@@ -69,7 +69,7 @@ class ConditionCandidates:
                         yield child, LogicCondition.conjunction_of(new_operands)
                         if child not in self._candidates or current_size > self._max_subexpression_size:
                             break
-            self._max_subexpression_size -= 1
+            self._max_subexpression_size = current_size - 1
 
     def remove(self, nodes_to_remove: List[AbstractSyntaxTreeNode]):
         for node in nodes_to_remove:
@@ -237,7 +237,9 @@ class ConditionBasedRefinement:
             return False
 
         subexpressions = [term] if numb_of_arg_term == 1 else term_operands
-        expression_operands = (expression & term).operands
+        # Not sure whether we not want first the expression and then the term, since we do the same when inserting the condition-node.
+        # However, we could compare which operands are removed, and then decide whether this is something we want.
+        expression_operands = (term & expression).operands
         return all(self._is_contained_in_logic_conditions(sub_expr, expression_operands) for sub_expr in subexpressions)
 
     @staticmethod
