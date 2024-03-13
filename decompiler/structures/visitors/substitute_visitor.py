@@ -13,6 +13,7 @@ from decompiler.structures.pseudo import (
     DataflowObject,
     Expression,
     GenericBranch,
+    GlobalVariable,
     ListOperation,
     MemPhi,
     Operation,
@@ -23,7 +24,6 @@ from decompiler.structures.pseudo import (
     UnaryOperation,
     UnknownExpression,
     Variable,
-    GlobalVariable,
 )
 from decompiler.structures.pseudo.operations import ArrayInfo
 from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInterface

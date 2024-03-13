@@ -35,7 +35,7 @@ from typing import TYPE_CHECKING, Generic, Iterator, List, Optional, Tuple, Type
 
 from ...util.insertion_ordered_set import InsertionOrderedSet
 from .complextypes import Enum
-from .typing import CustomType, Type, UnknownType, ArrayType
+from .typing import ArrayType, CustomType, Type, UnknownType
 
 T = TypeVar("T")
 DecompiledType = TypeVar("DecompiledType", bound=Type)
@@ -386,7 +386,7 @@ class GlobalVariable(Variable):
         self,
         name: str,
         vartype: Type,
-        initial_value: Expression,  # UnaryOperation, GlobalVariable, Constant, ?
+        initial_value: Expression,  # Technically just UnaryOperation, Constant (with all child classes), and GlobalVariable
         ssa_label: int = None,
         is_aliased: bool = True,
         ssa_name: Optional[Variable] = None,
@@ -415,7 +415,7 @@ class GlobalVariable(Variable):
         return self.__class__(
             self._name[:] if name is None else name,
             self._type.copy() if vartype is None else vartype,
-            self.initial_value.copy() if initial_value is None else initial_value,
+            self.initial_value.copy() if initial_value is None else initial_value.copy(),
             self.ssa_label if ssa_label is None else ssa_label,
             self.is_aliased if is_aliased is None else is_aliased,
             self.ssa_name if ssa_name is None else ssa_name,

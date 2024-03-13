@@ -221,6 +221,16 @@ class CustomType(Type):
         """Return a void type representing a nil value."""
         return cls("void", 0)
 
+    @classmethod
+    def wchar16(cls) -> CustomType:
+        """Return wchar type representing a 16-bit Unicode character"""
+        return  cls("wchar16", 16)
+
+    @classmethod
+    def wchar32(cls) -> CustomType:
+        """Return wchar type representing a 32-bit Unicode character"""
+        return  cls("wchar32", 32)
+
     def __str__(self) -> str:
         """Return the given string representation."""
         return self.text
