@@ -2,7 +2,7 @@
 
 from typing import Callable, Optional, Tuple, Union
 
-from binaryninja import BinaryView, DataVariable, Endianness, MediumLevelILInstruction, Type, SectionSemantics
+from binaryninja import BinaryView, DataVariable, Endianness, MediumLevelILInstruction, SectionSemantics, Type
 from binaryninja.types import (
     ArrayType,
     BoolType,
@@ -18,17 +18,17 @@ from binaryninja.types import (
 from decompiler.frontend.binaryninja.handlers.constants import BYTE_SIZE
 from decompiler.frontend.binaryninja.handlers.symbols import GLOBAL_VARIABLE_PREFIX
 from decompiler.frontend.lifter import Handler
+from decompiler.structures.pseudo import ArrayType as Array
 from decompiler.structures.pseudo import (
     Constant,
     ConstantComposition,
+    CustomType,
+    Expression,
     GlobalVariable,
     ImportedFunctionSymbol,
     Integer,
     Pointer,
     Symbol,
-    Expression,
-    CustomType,
-    ArrayType as Array,
 )
 
 
@@ -51,6 +51,7 @@ class GlobalHandler(Handler):
         }
         self._lifted_globals: dict[int, GlobalVariable] = {}
         self._view: Optional[BinaryView] = None
+        self._callers: list[int] = []
 
 
     def register(self):
@@ -58,7 +59,7 @@ class GlobalHandler(Handler):
         self._lifter.HANDLERS.update({DataVariable: self.lift_global_variable})
 
 
-    def _build_global_variable(self, name: Optional[str], type: Type, addr: int, init_value, ssa_label: Optional[int]):
+    def _build_global_variable(self, name: Optional[str], type: Type, addr: int, init_value, ssa_label: Optional[int]) -> GlobalVariable:
         vname = name if name is not None else GLOBAL_VARIABLE_PREFIX + f"{addr:x}"
 
         match init_value:
@@ -86,6 +87,9 @@ class GlobalHandler(Handler):
         # Save view for all internal used functions
         if not self._view:
             self._view = view
+        
+        # Safe list of callers before 
+        self._callers = callers
 
         # If addr was already lifted: Return lifted GlobalVariable with updated SSA
         if variable.address in self._lifted_globals.keys():
@@ -96,7 +100,7 @@ class GlobalHandler(Handler):
             return Constant(variable.address, vartype=Integer(view.address_size * BYTE_SIZE, False))
 
         # Check if there is a cycle between GlobalVariables initial_value
-        if variable.address in callers:
+        if variable.address in self._callers:
             return (
                 self._lifter.lift(variable.symbol)
                 if variable.symbol
@@ -108,7 +112,7 @@ class GlobalHandler(Handler):
 
     def _lift_basic_type(self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None) -> GlobalVariable:
         """Lift basic C type found by BNinja (int, float, char, ...)"""
-        # If variable references something in address space, then lift it as a pointer
+        # If variable references something in address space, then lift it as a pointer (BNinja 4.0 "Error")
         if [x for x in variable.data_refs_from]:
             return self._lifter.lift(DataVariable(self._view, variable.address, Type.pointer(self._view, Type.void()), False), view=self._view, parent=parent)
 
@@ -122,7 +126,7 @@ class GlobalHandler(Handler):
         )
 
 
-    def _lift_void_type(self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None) -> GlobalVariable: # IMPORTANT: NO DATAVAR MUST LIE THERE
+    def _lift_void_type(self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None) -> GlobalVariable:
         "Lift unknown type, by checking the value at the given address. Will always be lifted as a pointer. Try to extract datavariable, string or bytes as value"
         value, type = self.get_unknown_pointer_value(variable.address, self._view, variable.address)
         return self._build_global_variable(
@@ -154,7 +158,7 @@ class GlobalHandler(Handler):
         )
 
 
-    def _lift_pointer_type(self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None):
+    def _lift_pointer_type(self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None) -> Union[GlobalVariable, Symbol]:
         """Lift pointer as:
             1. Function pointer: If Bninja already knows it's a function pointer.
             2. Type pointer: As normal type pointer (there _should_ be a datavariable at the pointers dest.)
@@ -184,7 +188,7 @@ class GlobalHandler(Handler):
 
     def _lift_named_type_ref(
         self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None
-    ) -> GlobalVariable:
+    ):
         """Lift a named custom type (Enum, Structs)"""
         return Constant(
             "Unknown value", self._lifter.lift(variable.type)
@@ -196,8 +200,9 @@ class GlobalHandler(Handler):
         if not self.addr_in_section(view, addr):
             return addr, Pointer(CustomType.void())
         if datavariable := view.get_data_var_at(addr):
-            return self._lifter.lift(datavariable, view=view, callers=[caller_addr]), self._lifter.lift(datavariable.type) 
-        if (data := self._get_different_string_types_at(addr, view)) and data[0] is not None:
+            self._callers.append(caller_addr)
+            return self._lifter.lift(datavariable, view=view, callers=self._callers), self._lifter.lift(datavariable.type) 
+        if (data := self._get_different_string_types_at(addr, view)) and data[0] is not None: # Implicit pointer removal if called from a pointer value
             type = Array(self._lifter.lift(data[1]), len(data[0]))
             data = ConstantComposition([Constant(x, type.type) for x in data[0]], type)
         else:

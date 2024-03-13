@@ -21,7 +21,8 @@ from binaryninja.types import (
     WideCharType,
 )
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import CustomType, Float, FunctionTypeDef, Integer, Pointer, UnknownType, Variable, ArrayType as Array
+from decompiler.structures.pseudo import ArrayType as Array
+from decompiler.structures.pseudo import CustomType, Float, FunctionTypeDef, Integer, Pointer, UnknownType, Variable
 from decompiler.structures.pseudo.complextypes import Class, ComplexTypeMember, ComplexTypeName, Enum, Struct
 from decompiler.structures.pseudo.complextypes import Union as Union_
 
