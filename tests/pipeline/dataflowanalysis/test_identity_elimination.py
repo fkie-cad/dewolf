@@ -36,7 +36,9 @@ def test_aliased_problems_1():
             ],
         )
     )
-    IdentityElimination().run(DecompilerTask("test", cfg, function_parameters=[Variable("y", ssa_label=3)]))
+    IdentityElimination().run(
+        DecompilerTask(name="test", function_identifier="", cfg=cfg, function_parameters=[Variable("y", ssa_label=3)])
+    )
     assert node.instructions == [
         Assignment(Variable("x", ssa_label=0, is_aliased=True), Variable("y", ssa_label=3)),
         Assignment(ListOperation([]), Call(function_symbol("foo"), [Variable("x", ssa_label=0, is_aliased=True)])),
@@ -96,7 +98,7 @@ def test_aliased_problems_2():
         ]
     )
     cfg.add_edges_from([UnconditionalEdge(start, loop_body), TrueCase(loop_body, end), FalseCase(loop_body, loop_body)])
-    IdentityElimination().run(DecompilerTask("test", cfg))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     assert start.instructions == [
         Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [UnaryOperation(OperationType.address, [y0.copy()])])),
         Assignment(x0.copy(), y0.copy()),
@@ -161,7 +163,7 @@ def test_aliased_problems_3():
         ]
     )
     cfg.add_edges_from([UnconditionalEdge(start, loop_body), TrueCase(loop_body, end), FalseCase(loop_body, loop_body)])
-    IdentityElimination().run(DecompilerTask("test", cfg))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     assert start.instructions == [
         Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [UnaryOperation(OperationType.address, [y0.copy()])])),
         Assignment(x0.copy(), y0.copy()),
@@ -234,7 +236,7 @@ def test_aliased_problems_4():
             FalseCase(loop_body, loop_body),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     assert start.instructions == [
         Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [UnaryOperation(OperationType.address, [y0.copy()])])),
         Assignment(x0.copy(), y0.copy()),
@@ -301,7 +303,7 @@ def test_aliased_problems_5():
         ]
     )
     cfg.add_edges_from([UnconditionalEdge(start, loop_body), TrueCase(loop_body, end), FalseCase(loop_body, loop_body)])
-    IdentityElimination().run(DecompilerTask("test", cfg))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     assert start.instructions == [
         Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [UnaryOperation(OperationType.address, [y0.copy()])])),
         Assignment(x0.copy(), y0.copy()),
@@ -365,7 +367,7 @@ def test_aliased_problems_6():
         ]
     )
     cfg.add_edges_from([UnconditionalEdge(start, loop_body), TrueCase(loop_body, end), FalseCase(loop_body, loop_body)])
-    IdentityElimination().run(DecompilerTask("test", cfg))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     assert start.instructions == [
         Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [UnaryOperation(OperationType.address, [y0.copy()])]))
     ]
@@ -429,7 +431,7 @@ def test_aliased_problems_7():
         ]
     )
     cfg.add_edges_from([UnconditionalEdge(start, loop_body), TrueCase(loop_body, end), FalseCase(loop_body, loop_body)])
-    IdentityElimination().run(DecompilerTask("test", cfg))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     assert start.instructions == [
         Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [UnaryOperation(OperationType.address, [y0.copy()])]))
     ]
@@ -497,7 +499,7 @@ def test_aliased_problems_8():
             FalseCase(loop_body, loop_body),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     assert start.instructions == [
         Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [UnaryOperation(OperationType.address, [y0.copy()])]))
     ]
@@ -565,7 +567,7 @@ def test_aliased_problems_9():
             FalseCase(loop_body, loop_body),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     assert start.instructions == [
         Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [UnaryOperation(OperationType.address, [y0.copy()])]))
     ]
@@ -633,7 +635,7 @@ def test_aliased_problems_10():
             FalseCase(loop_body, loop_body),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     assert start.instructions == [
         Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [UnaryOperation(OperationType.address, [y0.copy()])]))
     ]
@@ -701,7 +703,7 @@ def test_aliased_problems_11():
             FalseCase(loop_body, loop_body),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     assert start.instructions == [Assignment(x0.copy(), Constant(10, Integer.int32_t()))]
     assert loop_body.instructions == [
         Phi(x1.copy(), [x0.copy(), x2.copy()]),
@@ -775,7 +777,7 @@ def test_paper_example_figure_2a():
             UnconditionalEdge(loop_body, loop_condition),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     assert start.instructions == [Assignment(x0.copy(), bar.copy()), Assignment(z0.copy(), Constant(10, Integer.int32_t()))]
     assert loop_condition.instructions == [
         Phi(z1.copy(), [z0.copy(), z2.copy()]),
@@ -842,7 +844,7 @@ def test_eva_counterexample():
             FalseCase(loop_body, loop_body),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     assert loop_body.instructions == [
         Phi(x1.copy(), [x0.copy(), z0.copy()]),
         Phi(y1.copy(), [x0.copy(), z0.copy()]),
@@ -907,7 +909,7 @@ def test_counterexample_2():
             FalseCase(loop_body, loop_body),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     assert start.instructions == [Assignment(y0.copy(), Constant(0, Integer.int32_t()))]
     assert loop_body.instructions == [
         Phi(x1.copy(), [y0.copy(), y1.copy()]),
@@ -974,7 +976,7 @@ def test_counterexample_3():
             FalseCase(loop_body, loop_body),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     assert start.instructions == []
     assert loop_body.instructions == [
         Phi(u1.copy(), [Constant(0, Integer.int32_t()), u2.copy()]),
@@ -1043,7 +1045,7 @@ def test_counterexample_4():
             FalseCase(loop_body, loop_body),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg, function_parameters=[z0.copy()]))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg, function_parameters=[z0.copy()]))
     assert start.instructions == []
     assert loop_body.instructions == [
         Phi(x2.copy(), [z0.copy(), y2.copy()]),
@@ -1119,7 +1121,7 @@ def test_counterexample_5():
             TrueCase(loop_body, end),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg, function_parameters=[z0.copy()]))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg, function_parameters=[z0.copy()]))
     assert head.instructions == []
     assert start_1.instructions == []
     assert start_2.instructions == [Assignment(y1.copy(), Constant(10, Integer.int32_t()))]
@@ -1202,7 +1204,7 @@ def test_counterexample_6():
             FalseCase(loop_start, end),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     assert start.instructions == [
         Assignment(y1.copy(), BinaryOperation(OperationType.multiply, [y0.copy(), Constant(4, Integer.int32_t())])),
         Assignment(u0.copy(), Call(FunctionSymbol("bar", 0x42), [])),
@@ -1276,7 +1278,7 @@ def test_counterexample_7():
             FalseCase(loop_body2, end),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     assert head.instructions == end.instructions == []
     assert loop_body.instructions == loop_body2.instructions == [Branch(Condition(OperationType.greater, [u0.copy(), u0.copy()]))]
 
@@ -1346,7 +1348,7 @@ def test_counterexample_8():
             FalseCase(loop_body2, end),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg, function_parameters=[u0.copy()]))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg, function_parameters=[u0.copy()]))
     assert head.instructions == end.instructions == []
     assert loop_body.instructions == [
         Phi(y1.copy(), [u0.copy(), z1.copy(), y2.copy()]),
@@ -1403,7 +1405,9 @@ def test_counterexample_9():
         ]
     )
     cfg.add_edges_from([UnconditionalEdge(head, loop_body), FalseCase(loop_body, loop_body), TrueCase(loop_body, end)])
-    IdentityElimination().run(DecompilerTask("test", cfg, function_parameters=[Variable("u", Integer.int32_t())]))
+    IdentityElimination().run(
+        DecompilerTask(name="test", function_identifier="", cfg=cfg, function_parameters=[Variable("u", Integer.int32_t())])
+    )
     assert head.instructions == end.instructions == []
     assert loop_body.instructions == [
         Phi(y1.copy(), [u0.copy(), y2.copy()]),
@@ -1480,7 +1484,9 @@ def test_counterexample_10():
             FalseCase(loop_body2, end),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg, function_parameters=[Variable("u", Integer.int32_t())]))
+    IdentityElimination().run(
+        DecompilerTask(name="test", function_identifier="", cfg=cfg, function_parameters=[Variable("u", Integer.int32_t())])
+    )
     assert head.instructions == end.instructions == []
     assert loop_body.instructions == [
         Phi(y3.copy(), [z1.copy(), u0.copy(), y4.copy()]),
@@ -1568,7 +1574,7 @@ def test_counterexample_11():
             FalseCase(loop_body_2, loop_body_2),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg, function_parameters=[u0.copy()]))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg, function_parameters=[u0.copy()]))
     assert start.instructions == []
     assert loop_body.instructions == [
         Phi(z1.copy(), [u0.copy(), z2.copy()]),
@@ -1651,7 +1657,7 @@ def test_counterexample_12():
             FalseCase(loop_body_2, loop_body_2),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg, function_parameters=[u0.copy()]))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg, function_parameters=[u0.copy()]))
     assert start.instructions == [Assignment(z0.copy(), BinaryOperation(OperationType.plus, [u0.copy(), Constant(1, Integer.int32_t())]))]
     assert loop_body.instructions == [
         Phi(z1.copy(), [z0.copy(), z2.copy()]),
@@ -1719,7 +1725,7 @@ def test_counterexample_13():
             FalseCase(loop_body, loop_body),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg, function_parameters=[u0.copy()]))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg, function_parameters=[u0.copy()]))
     assert start.instructions == [Assignment(y0.copy(), BinaryOperation(OperationType.plus, [u0.copy(), Constant(3, Integer.int32_t())]))]
     assert loop_body.instructions == [
         Phi(y1.copy(), [y0.copy(), u0.copy()]),
@@ -1753,7 +1759,9 @@ def test_alilased_variables():
             ],
         )
     )
-    IdentityElimination().run(DecompilerTask("test", cfg, function_parameters=[Variable("y", ssa_label=3, is_aliased=True)]))
+    IdentityElimination().run(
+        DecompilerTask(name="test", function_identifier="", cfg=cfg, function_parameters=[Variable("y", ssa_label=3, is_aliased=True)])
+    )
     assert node.instructions == [
         Assignment(Variable("x", ssa_label=0), Variable("y", ssa_label=3, is_aliased=True)),
         Assignment(ListOperation([]), Call(function_symbol("foo"), [Variable("x", ssa_label=0)])),
@@ -1785,7 +1793,9 @@ def test_replace_in_idential_calls():
             ],
         )
     )
-    IdentityElimination().run(DecompilerTask("test", cfg, function_parameters=[Variable("a", ssa_label=7)]))
+    IdentityElimination().run(
+        DecompilerTask(name="test", function_identifier="", cfg=cfg, function_parameters=[Variable("a", ssa_label=7)])
+    )
     assert node.instructions == [
         Assignment(ListOperation([]), Call(function_symbol("foo"), [Variable("a", ssa_label=7)])),
         Assignment(ListOperation([]), Call(function_symbol("foo"), [Variable("a", ssa_label=7)])),
@@ -1869,7 +1879,9 @@ def test_replace_in_idential_branches():
             UnconditionalEdge(case3, end),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg, function_parameters=[Variable("a", ssa_label=7)]))
+    IdentityElimination().run(
+        DecompilerTask(name="test", function_identifier="", cfg=cfg, function_parameters=[Variable("a", ssa_label=7)])
+    )
     assert head.instructions == [Branch(Condition(OperationType.greater_us, [Variable("a", ssa_label=7), Constant(8)]))]
     assert case1.instructions == [
         Assignment(ListOperation([]), Call(function_symbol("foo"), [Constant(0)])),
@@ -2029,7 +2041,11 @@ def test_non_defined_variables_no_sinks():
             UnconditionalEdge(vertices[6], vertices[1]),
         ]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg, function_parameters=[Variable(f"arg{i}", Integer.int32_t()) for i in [1, 2]]))
+    IdentityElimination().run(
+        DecompilerTask(
+            name="test", function_identifier="", cfg=cfg, function_parameters=[Variable(f"arg{i}", Integer.int32_t()) for i in [1, 2]]
+        )
+    )
 
     assert vertices[0].instructions == [
         Assignment(ListOperation([]), Call(imp_function_symbol("__x86.get_pc_thunk.bx"), [], Pointer(CustomType("void", 0), 32), 1))
@@ -2149,7 +2165,7 @@ def test_conflict_in_component():
         ]
     )
     instructions = [inst.copy() for inst in cfg.instructions]
-    IdentityElimination().run(DecompilerTask("test", cfg))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     assert instructions == list(cfg.instructions)
 
 
@@ -2365,7 +2381,7 @@ def test_do_not_identify_relations():
     )
 
     instructions = [inst.copy() for inst in cfg.instructions]
-    IdentityElimination().run(DecompilerTask("test", cfg))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     print([str(i) for i in vertices[2].instructions])
     print(instructions[8])
     assert vertices[0].instructions == [
@@ -2440,4 +2456,4 @@ def test_do_not_crash_if_no_identity():
     cfg.add_edges_from(
         [TrueCase(head, true), FalseCase(head, false), TrueCase(true, r1), FalseCase(true, r2), TrueCase(false, r2), FalseCase(false, r1)]
     )
-    IdentityElimination().run(DecompilerTask("test", cfg, function_parameters=[a_0, a_1]))
+    IdentityElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg, function_parameters=[a_0, a_1]))

@@ -46,7 +46,7 @@ from decompiler.task import DecompilerTask
 @pytest.fixture
 def task() -> DecompilerTask:
     """A mock task with an empty cfg."""
-    return DecompilerTask("test", ControlFlowGraph())
+    return DecompilerTask(name="test", function_identifier="", cfg=ControlFlowGraph())
 
 
 def variable(name="a", version=0, ssa_name=None) -> Variable:
@@ -67,7 +67,7 @@ def test_empty_graph_one_basic_block(task):
     task.graph.add_node(BasicBlock(0, instructions=[]))
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(task._ast.root, CodeNode) and task._ast.root.instructions == []
+    assert isinstance(task.ast.root, CodeNode) and task.ast.root.instructions == []
 
 
 def test_empty_graph_two_basic_blocks(task):
@@ -86,7 +86,7 @@ def test_empty_graph_two_basic_blocks(task):
     task.graph.add_edge(UnconditionalEdge(vertices[0], vertices[1]))
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(task._ast.root, CodeNode) and task._ast.root.instructions == []
+    assert isinstance(task.ast.root, CodeNode) and task.ast.root.instructions == []
 
 
 def test_empty_graph_with_conditions_1(task):
@@ -136,7 +136,7 @@ def test_empty_graph_with_conditions_1(task):
     )
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(task._ast.root, CodeNode) and task._ast.root.instructions == []
+    assert isinstance(task.ast.root, CodeNode) and task.ast.root.instructions == []
 
 
 def test_empty_graph_with_conditions_2(task):
@@ -194,7 +194,7 @@ def test_empty_graph_with_conditions_2(task):
     )
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(task._ast.root, CodeNode) and task._ast.root.instructions == []
+    assert isinstance(task.ast.root, CodeNode) and task.ast.root.instructions == []
 
 
 def test_empty_graph_with_switch(task):
@@ -246,7 +246,7 @@ def test_empty_graph_with_switch(task):
     )
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(task._ast.root, CodeNode) and task._ast.root.instructions == []
+    assert isinstance(task.ast.root, CodeNode) and task.ast.root.instructions == []
 
 
 def test_graph_with_switch_empty_nodes1(task):
@@ -308,7 +308,7 @@ def test_graph_with_switch_empty_nodes1(task):
     PatternIndependentRestructuring().run(task)
 
     assert (
-        isinstance(switch_node := task._ast.root, SwitchNode) and len(switch_node.children) == 3 and switch_node.expression == variable("a")
+        isinstance(switch_node := task.ast.root, SwitchNode) and len(switch_node.children) == 3 and switch_node.expression == variable("a")
     )
     assert (
         isinstance(case1 := switch_node.children[0], CaseNode)
@@ -393,7 +393,7 @@ def test_graph_with_switch_empty_nodes2(task):
     )
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(switch_node := task._ast.root, SwitchNode) and len(switch_node.children) == 4
+    assert isinstance(switch_node := task.ast.root, SwitchNode) and len(switch_node.children) == 4
     assert switch_node.expression == variable("a")
 
     assert isinstance(case1 := switch_node.children[0], CaseNode) and case1.constant == Constant(1) and case1.break_case is True
@@ -465,7 +465,7 @@ def test_empty_basic_block_after_removing(task):
     resulting_ast._add_edge(resulting_ast.root, condition_node)
     resulting_ast.flatten_sequence_node(resulting_ast.root)
 
-    assert ASTComparator.compare(task._ast, resulting_ast) and task._ast.condition_map == resulting_ast.condition_map
+    assert ASTComparator.compare(task.ast, resulting_ast) and task.ast.condition_map == resulting_ast.condition_map
 
 
 def test_empty_graph_with_loop(task):
@@ -611,7 +611,7 @@ def test_restructure_cfg_sequence(task):
     PatternIndependentRestructuring().run(task)
 
     # make sure that only SeqNodes or CodeNodes have been created during Restructuring
-    assert isinstance(code_node := task._ast.root, CodeNode)
+    assert isinstance(code_node := task.ast.root, CodeNode)
     assert code_node.instructions == [
         Assignment(variable(name="i", version=0), Constant(0)),
         Assignment(variable(name="x", version=0), Constant(42)),
@@ -641,7 +641,7 @@ def test_one_node(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(code_node := task._ast.root, CodeNode)
+    assert isinstance(code_node := task.ast.root, CodeNode)
     assert code_node.instructions == [Assignment(ListOperation([]), Call(imp_function_symbol("printf"), [Constant("a")]))]
 
 
@@ -950,7 +950,7 @@ def test_restructure_cfg_endless(task):
 
     assert ASTComparator.compare(task.syntax_tree, resulting_ast) and task.syntax_tree.condition_map == resulting_ast.condition_map
 
-    assert isinstance(seq_node := task._ast.root, SeqNode)
+    assert isinstance(seq_node := task.ast.root, SeqNode)
     assert all(not isinstance(n, ConditionNode) for n in seq_node.children)
     assert all(not isinstance(n, SwitchNode) for n in seq_node.children)
     assert any(isinstance(loop_node := n, WhileLoopNode) for n in seq_node.children)
@@ -1513,7 +1513,7 @@ def test_restructure_cfg_loop_two_back_edges_condition_1(task):
     assert isinstance(loop_node := seq_node.children[1], WhileLoopNode)
 
     # make sure that the loop has the correct type and condition
-    assert isinstance(cond := task._ast.condition_map[loop_node.condition], Condition) and str(cond) == "i#0 != 0x3"
+    assert isinstance(cond := task.ast.condition_map[loop_node.condition], Condition) and str(cond) == "i#0 != 0x3"
 
     assert isinstance(loop_body := loop_node.body, SeqNode)
     assert len(loop_body.children) == 3
@@ -1526,7 +1526,7 @@ def test_restructure_cfg_loop_two_back_edges_condition_1(task):
 
     # make sure condition node is restructured correctly
     assert condition_node.condition.is_conjunction and len(operands := condition_node.condition.operands) == 2
-    assert all(op.is_negation for op in operands) and {str(task._ast.condition_map[~op]) for op in operands} == {"x#0 != 0x3", "j#0 != 0x3"}
+    assert all(op.is_negation for op in operands) and {str(task.ast.condition_map[~op]) for op in operands} == {"x#0 != 0x3", "j#0 != 0x3"}
     assert isinstance(continue_node := condition_node.true_branch_child, CodeNode) and condition_node.false_branch is None
     assert continue_node.instructions == [Continue()]
 
@@ -1799,12 +1799,12 @@ def test_restructure_cfg_loop_two_back_edges_condition_3(task):
     # if loop_middle.condition.is_symbol:
     #     assert isinstance(loop_middle_seq := loop_middle.true_branch, SeqNode)
     #     assert loop_middle.false_branch is None
-    #     assert isinstance(cond := task._ast.condition_map[loop_middle.condition], Condition) and str(cond) == "i#0 != 0x3"
+    #     assert isinstance(cond := task.ast.condition_map[loop_middle.condition], Condition) and str(cond) == "i#0 != 0x3"
     # else:
     #     assert (loop_middle.condition).is_negation
     #     assert isinstance(loop_middle_seq := loop_middle.false_branch, SeqNode)
     #     assert loop_middle.true_branch is None
-    #     assert isinstance(cond := task._ast.condition_map[loop_middle.condition.operands[0]], Condition) and str(cond) == "i#0 != 0x3"
+    #     assert isinstance(cond := task.ast.condition_map[loop_middle.condition.operands[0]], Condition) and str(cond) == "i#0 != 0x3"
     #
     # # loop_middle_seq is restructured correctly:
     # assert len(loop_middle_seq.children) == 4
@@ -1814,12 +1814,12 @@ def test_restructure_cfg_loop_two_back_edges_condition_3(task):
     # if continue_branch.condition.is_symbol:
     #     assert isinstance(cond_node := continue_branch.false_branch, CodeNode)
     #     assert continue_branch.true_branch is None
-    #     assert isinstance(cond := task._ast.condition_map[continue_branch.condition], Condition) and str(cond) == "x#0 != 0x3"
+    #     assert isinstance(cond := task.ast.condition_map[continue_branch.condition], Condition) and str(cond) == "x#0 != 0x3"
     # else:
     #     assert (continue_branch.condition).is_negation
     #     assert isinstance(cond_node := continue_branch.true_branch, CodeNode)
     #     assert continue_branch.false_branch is None
-    #     assert isinstance(cond := task._ast.condition_map[continue_branch.condition.operands[0]], Condition) and str(cond) == "x#0 != 0x3"
+    #     assert isinstance(cond := task.ast.condition_map[continue_branch.condition.operands[0]], Condition) and str(cond) == "x#0 != 0x3"
     # assert cond_node.stmts == vertices[3].instructions + ["continue"]
     #
     # assert isinstance(loop_middle_seq.children[2], CodeNode) and loop_middle_seq.children[2].stmts == vertices[4].instructions[:-1]
@@ -1828,14 +1828,14 @@ def test_restructure_cfg_loop_two_back_edges_condition_3(task):
     # if is_and(break_branch.condition):
     #     assert isinstance(break_branch.true_branch, CodeNode) and break_branch.true_branch.stmts == ["break"]
     #     assert break_branch.false_branch is None
-    #     assert isinstance(cond := task._ast.condition_map[break_branch.condition.operands[0]], Condition) and str(cond) == "x#0 != 0x3"
-    #     assert isinstance(cond := task._ast.condition_map[break_branch.condition.operands[1].operands[0]], Condition) and str(cond) == "j#0 != 0x3"
+    #     assert isinstance(cond := task.ast.condition_map[break_branch.condition.operands[0]], Condition) and str(cond) == "x#0 != 0x3"
+    #     assert isinstance(cond := task.ast.condition_map[break_branch.condition.operands[1].operands[0]], Condition) and str(cond) == "j#0 != 0x3"
     # else:
     #     assert is_or(break_branch.condition)
     #     assert isinstance(break_branch.false_branch, CodeNode) and break_branch.false_branch.stmts == ["break"]
     #     assert break_branch.true_branch is None
-    #     assert isinstance(cond := task._ast.condition_map[break_branch.condition.operands[0].operands[0]], Condition) and str(cond) == "x#0 != 0x3"
-    #     assert isinstance(cond := task._ast.condition_map[break_branch.condition.operands[1]], Condition) and str(cond) == "j#0 != 0x3"
+    #     assert isinstance(cond := task.ast.condition_map[break_branch.condition.operands[0].operands[0]], Condition) and str(cond) == "x#0 != 0x3"
+    #     assert isinstance(cond := task.ast.condition_map[break_branch.condition.operands[1]], Condition) and str(cond) == "j#0 != 0x3"
 
 
 def test_restructure_cfg_loop_two_back_edges_condition_4(task):
@@ -1943,7 +1943,7 @@ def test_restructure_cfg_loop_two_back_edges_condition_4(task):
     PatternIndependentRestructuring().run(task)
 
     # make sure that a LoopNode has been created during Restructuring
-    assert isinstance(seq_node := task._ast.root, SeqNode)
+    assert isinstance(seq_node := task.ast.root, SeqNode)
     assert len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[6].instructions
@@ -1962,7 +1962,7 @@ def test_restructure_cfg_loop_two_back_edges_condition_4(task):
     assert loop_middle.condition.is_symbol
     assert isinstance(loop_middle_seq := loop_middle.true_branch_child, SeqNode)
     assert loop_middle.false_branch is None
-    assert isinstance(cond := task._ast.condition_map[loop_middle.condition], Condition) and str(cond) == "i#0 != 0x3"
+    assert isinstance(cond := task.ast.condition_map[loop_middle.condition], Condition) and str(cond) == "i#0 != 0x3"
 
     # loop_middle_seq is restructured correctly:
     assert len(loop_middle_seq.children) == 4
@@ -1975,7 +1975,7 @@ def test_restructure_cfg_loop_two_back_edges_condition_4(task):
     assert continue_branch.condition.is_negation
     assert isinstance(continue_branch.true_branch_child, CodeNode) and continue_branch.true_branch_child.instructions == [Continue()]
     assert continue_branch.false_branch is None
-    assert isinstance(cond := task._ast.condition_map[~continue_branch.condition], Condition) and str(cond) == "x#0 != 0x3"
+    assert isinstance(cond := task.ast.condition_map[~continue_branch.condition], Condition) and str(cond) == "x#0 != 0x3"
 
     assert isinstance(loop_middle_seq.children[2], CodeNode) and loop_middle_seq.children[2].instructions == vertices[4].instructions[:-1]
     #
@@ -1983,7 +1983,7 @@ def test_restructure_cfg_loop_two_back_edges_condition_4(task):
     assert break_branch.condition.is_negation
     assert isinstance(break_branch.true_branch_child, CodeNode) and break_branch.true_branch_child.instructions == [Break()]
     assert break_branch.false_branch is None
-    assert isinstance(cond := task._ast.condition_map[~break_branch.condition], Condition) and str(cond) == "j#0 != 0x3"
+    assert isinstance(cond := task.ast.condition_map[~break_branch.condition], Condition) and str(cond) == "j#0 != 0x3"
 
 
 def test_restructure_cfg_loop_two_back_edges_condition_5(task):
@@ -2092,7 +2092,7 @@ def test_restructure_cfg_loop_two_back_edges_condition_5(task):
     PatternIndependentRestructuring().run(task)
 
     # make sure that a LoopNode has been created during Restructuring
-    assert isinstance(seq_node := task._ast.root, SeqNode)
+    assert isinstance(seq_node := task.ast.root, SeqNode)
     assert len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[7].instructions
@@ -2113,7 +2113,7 @@ def test_restructure_cfg_loop_two_back_edges_condition_5(task):
     assert loop_middle.condition.is_symbol
     assert isinstance(loop_middle_seq := loop_middle.true_branch_child, SeqNode)
     assert loop_middle.false_branch is None
-    assert isinstance(cond := task._ast.condition_map[loop_middle.condition], Condition) and str(cond) == "i#0 != 0x3"
+    assert isinstance(cond := task.ast.condition_map[loop_middle.condition], Condition) and str(cond) == "i#0 != 0x3"
 
     # loop_middle_seq is restructured correctly:
     assert len(loop_middle_seq.children) == 3
@@ -2126,7 +2126,7 @@ def test_restructure_cfg_loop_two_back_edges_condition_5(task):
     assert continue_branch.condition.is_negation
     assert isinstance(continue_branch.true_branch_child, CodeNode) and continue_branch.true_branch_child.instructions == [Continue()]
     assert continue_branch.false_branch is None
-    assert isinstance(cond := task._ast.condition_map[~continue_branch.condition], Condition) and str(cond) == "x#0 != 0x3"
+    assert isinstance(cond := task.ast.condition_map[~continue_branch.condition], Condition) and str(cond) == "x#0 != 0x3"
 
     assert isinstance(loop_middle_seq.children[2], CodeNode) and loop_middle_seq.children[2].instructions == vertices[4].instructions
 
@@ -2134,7 +2134,7 @@ def test_restructure_cfg_loop_two_back_edges_condition_5(task):
     assert break_condition.condition.is_negation
     assert isinstance(break_condition.true_branch_child, CodeNode) and break_condition.true_branch_child.instructions == [Break()]
     assert break_condition.false_branch is None
-    assert isinstance(cond := task._ast.condition_map[~break_condition.condition], Condition) and str(cond) == "j#0 != 0x3"
+    assert isinstance(cond := task.ast.condition_map[~break_condition.condition], Condition) and str(cond) == "j#0 != 0x3"
 
 
 def test_restructure_cfg_nested_loop_not_head(task):
@@ -2230,14 +2230,14 @@ def test_restructure_cfg_nested_loop_not_head(task):
     PatternIndependentRestructuring().run(task)
 
     # make sure that a LoopNode has been created during Restructuring
-    assert isinstance(seq_node := task._ast.root, SeqNode)
+    assert isinstance(seq_node := task.ast.root, SeqNode)
     assert len(seq_node.children) == 3
     assert isinstance(seq_node.children[0], CodeNode)
     assert isinstance(loop_node := seq_node.children[1], WhileLoopNode)
     assert isinstance(seq_node.children[2], CodeNode)
 
     # make sure that the loop has the correct type and condition
-    assert isinstance(cond := task._ast.condition_map[loop_node.condition], Condition) and str(cond) == "i#0 != 0x3"
+    assert isinstance(cond := task.ast.condition_map[loop_node.condition], Condition) and str(cond) == "i#0 != 0x3"
 
     assert isinstance(loop_body := loop_node.body, SeqNode)
     assert len(loop_body.children) == 2
@@ -2255,7 +2255,7 @@ def test_restructure_cfg_nested_loop_not_head(task):
 
     # Check condition node break
     assert cond_node.condition.is_negation
-    assert isinstance(cond := task._ast.condition_map[~cond_node.condition], Condition)
+    assert isinstance(cond := task.ast.condition_map[~cond_node.condition], Condition)
     assert isinstance(code_node := cond_node.true_branch_child, CodeNode)
     assert cond_node.false_branch is None
     assert str(cond) == "j#0 != 0x3"
@@ -2381,7 +2381,7 @@ def test_dream_paper_fig3(task):
     )
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode)
+    assert isinstance(seq_node := task.ast.root, SeqNode)
     assert len(seq_node.children) == 2
     assert isinstance(seq_node.children[1], CodeNode)
     assert isinstance(cond_node := seq_node.children[0], ConditionNode)
@@ -2583,14 +2583,14 @@ def test_condition_based_corner_case_complementary_condition_yes(task):
 #     PatternIndependentRestructuring().run(task)
 
 # make sure that a LoopNode has been created during Restructuring
-# assert isinstance(seq_node := task._ast.root, SeqNode)
+# assert isinstance(seq_node := task.ast.root, SeqNode)
 # assert len(seq_node.children) == 2
 # assert isinstance(loop_node := seq_node.children[0], LoopNode)
 # assert isinstance(seq_node.children[1], CodeNode) and seq_node.children[1].stmts == vertices[6].instructions
 
 # make sure that the loop has the correct type and condition
 # assert loop_node.type == "do_while"
-# assert isinstance(cond := task._ast.condition_map[loop_node.condition], Condition) and cond == vertices[5].instructions[-1].condition
+# assert isinstance(cond := task.ast.condition_map[loop_node.condition], Condition) and cond == vertices[5].instructions[-1].condition
 # assert isinstance(loop_body := loop_node.body, SeqNode)
 # assert len(loop_body.children) == 2
 # assert isinstance(complementary_cond := loop_body.children[0], ConditionNode)
@@ -2602,19 +2602,19 @@ def test_condition_based_corner_case_complementary_condition_yes(task):
 # assert is_or(complementary_cond.condition) or is_and(complementary_cond.condition)
 # arg_1, arg_2 = complementary_cond.condition.operands
 # if is_or(complementary_cond.condition):
-#     assert isinstance(cond_1 := task._ast.condition_map[arg_1.operands[0]], Condition)
-#     assert isinstance(cond_2 := task._ast.condition_map[arg_2.operands[0]], Condition)
+#     assert isinstance(cond_1 := task.ast.condition_map[arg_1.operands[0]], Condition)
+#     assert isinstance(cond_2 := task.ast.condition_map[arg_2.operands[0]], Condition)
 #     assert complementary_cond.true_branch.stmts == vertices[4].instructions
 #     assert complementary_cond.false_branch.stmts == vertices[3].instructions
 # else:
-#     assert isinstance(cond_1 := task._ast.condition_map[arg_1], Condition)
-#     assert isinstance(cond_2 := task._ast.condition_map[arg_2], Condition)
+#     assert isinstance(cond_1 := task.ast.condition_map[arg_1], Condition)
+#     assert isinstance(cond_2 := task.ast.condition_map[arg_2], Condition)
 #     assert complementary_cond.false_branch.stmts == vertices[4].instructions
 #     assert complementary_cond.true_branch.stmts == vertices[3].instructions
 # assert {cond_1, cond_2} == {vertices[1].instructions[0].condition, vertices[2].instructions[0].condition}
 
 # logging.info(f"Abstract syntax tree of this region:")
-# for node in task._ast.topological_order():
+# for node in task.ast.topological_order():
 #     logging.info(f"Node {node}")
 #     if isinstance(node, CodeNode):
 #         logging.info(f"statements: {[str(inst) for inst in node.stmts]}")
@@ -2712,7 +2712,7 @@ def test_condition_based_corner_case_complementary_condition_yes(task):
 #     PatternIndependentRestructuring().run(task)
 #
 #     # logging.info(f"Abstract syntax tree of this region:")
-#     # for node in task._ast.topological_order():
+#     # for node in task.ast.topological_order():
 #     #     logging.info(f"Node {node}")
 #     #     if isinstance(node, CodeNode):
 #     #         logging.info(f"statements: {[str(inst) for inst in node.stmts]}")
@@ -2760,7 +2760,7 @@ def test_condition_based_corner_case_complementary_condition_yes(task):
 # PatternIndependentRestructuring().run(task)
 #
 # # root node
-# assert isinstance(seq_node := task._ast.root, SeqNode)
+# assert isinstance(seq_node := task.ast.root, SeqNode)
 # assert len(seq_node.children) == 4
 # assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].stmts == [vertices[0].instructions[0]]
 # assert isinstance(condition_root := seq_node.children[1], ConditionNode)
@@ -2769,11 +2769,11 @@ def test_condition_based_corner_case_complementary_condition_yes(task):
 #
 # # make sure that the root note condition is restructured correctly
 # if condition_root.condition.is_negation:
-#     assert task._ast.condition_map[condition_root.condition.operands[0]] == vertices[0].instructions[-1].condition
+#     assert task.ast.condition_map[condition_root.condition.operands[0]] == vertices[0].instructions[-1].condition
 #     assert isinstance(condition_root.true_branch, CodeNode) and condition_root.true_branch.stmts == [vertices[2].instructions[0]]
 #     assert isinstance(condition_root.false_branch, CodeNode) and condition_root.false_branch.stmts == vertices[1].instructions
 # else:
-#     assert task._ast.condition_map[condition_root.condition] == vertices[0].instructions[-1].condition
+#     assert task.ast.condition_map[condition_root.condition] == vertices[0].instructions[-1].condition
 #     assert isinstance(condition_root.false_branch, CodeNode) and condition_root.false_branch.stmts == [vertices[2].instructions[0]]
 #     assert isinstance(condition_root.true_branch, CodeNode) and condition_root.true_branch.stmts == vertices[1].instructions
 #
@@ -2781,14 +2781,14 @@ def test_condition_based_corner_case_complementary_condition_yes(task):
 # cond = complementary_cond.condition
 # assert len(cond.operands) == 2 and (is_and(cond) or is_or(cond))
 # if is_and(cond):
-#     assert {task._ast.condition_map[cond.arg.operands[0](0)], task._ast.condition_map[cond.arg.operands[0](1)]} == {
+#     assert {task.ast.condition_map[cond.arg.operands[0](0)], task.ast.condition_map[cond.arg.operands[0](1)]} == {
 #         vertices[0].instructions[-1].condition,
 #         vertices[2].instructions[-1].condition,
 #     }
 #     assert isinstance(complementary_cond.true_branch, CodeNode) and complementary_cond.true_branch.stmts == vertices[7].instructions
 #     assert isinstance(ifelse_node_3 := complementary_cond.false_branch, SeqNode)
 # else:
-#     assert {task._ast.condition_map[cond.operands[0]], task._ast.condition_map[cond.operands[1]]} == {
+#     assert {task.ast.condition_map[cond.operands[0]], task.ast.condition_map[cond.operands[1]]} == {
 #         vertices[0].instructions[-1].condition,
 #         vertices[2].instructions[-1].condition,
 #     }
@@ -2802,11 +2802,11 @@ def test_condition_based_corner_case_complementary_condition_yes(task):
 # assert isinstance(ifelse_node_3.children[2], CodeNode) and ifelse_node_3.children[2].stmts == vertices[6].instructions
 #
 # if ifelse_node_3_cond.condition.is_negation:
-#     assert task._ast.condition_map[ifelse_node_3_cond.condition.operands[0]] == vertices[3].instructions[-1].condition
+#     assert task.ast.condition_map[ifelse_node_3_cond.condition.operands[0]] == vertices[3].instructions[-1].condition
 #     assert isinstance(ifelse_node_3_cond.true_branch, CodeNode) and ifelse_node_3_cond.true_branch.stmts == vertices[5].instructions
 #     assert isinstance(ifelse_node_3_cond.false_branch, CodeNode) and ifelse_node_3_cond.false_branch.stmts == vertices[4].instructions
 # else:
-#     assert task._ast.condition_map[ifelse_node_3_cond.condition] == vertices[3].instructions[-1].condition
+#     assert task.ast.condition_map[ifelse_node_3_cond.condition] == vertices[3].instructions[-1].condition
 #     assert isinstance(ifelse_node_3_cond.false_branch, CodeNode) and ifelse_node_3_cond.false_branch.stmts == vertices[5].instructions
 #     assert isinstance(ifelse_node_3_cond.true_branch, CodeNode) and ifelse_node_3_cond.true_branch.stmts == vertices[4].instructions
 
@@ -2884,7 +2884,7 @@ def test_easy_multiple_entry_loop(task):
     PatternIndependentRestructuring().run(task)
 
     # make sure that a LoopNode has been created during Restructuring
-    assert isinstance(seq_node := task._ast.root, SeqNode)
+    assert isinstance(seq_node := task.ast.root, SeqNode)
     assert len(seq_node.children) == 4
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[1].instructions[:-1]
     assert isinstance(cond_node := seq_node.children[1], ConditionNode)
@@ -2896,23 +2896,21 @@ def test_easy_multiple_entry_loop(task):
     new_variable = cond_node.true_branch_child.instructions[0].definitions[0]
     if cond_node.condition.is_negation:
         assert (
-            isinstance(cond := task._ast.condition_map[~cond_node.condition], Condition) and cond == vertices[1].instructions[-1].condition
+            isinstance(cond := task.ast.condition_map[~cond_node.condition], Condition) and cond == vertices[1].instructions[-1].condition
         )
         assert cond_node.true_branch_child.instructions == [Assignment(new_variable, Constant(1, Integer.int32_t()))]
         assert cond_node.false_branch_child.instructions == [Assignment(new_variable, Constant(0, Integer.int32_t()))]
     else:
-        assert (
-            isinstance(cond := task._ast.condition_map[cond_node.condition], Condition) and cond == vertices[1].instructions[-1].condition
-        )
+        assert isinstance(cond := task.ast.condition_map[cond_node.condition], Condition) and cond == vertices[1].instructions[-1].condition
         assert cond_node.true_branch_child.instructions == [Assignment(new_variable, Constant(0, Integer.int32_t()))]
         assert cond_node.false_branch_child.instructions == [Assignment(new_variable, Constant(1, Integer.int32_t()))]
 
     # make sure that the loop is correct
     assert isinstance(loop_body := loop.body, SeqNode)
-    assert isinstance(cond := task._ast.condition_map[loop.condition], Condition) and cond == vertices[4].instructions[-1].condition
+    assert isinstance(cond := task.ast.condition_map[loop.condition], Condition) and cond == vertices[4].instructions[-1].condition
     assert len(loop_body.children) == 2
     assert isinstance(multiple_entry_condition := loop_body.children[0], ConditionNode)
-    assert isinstance(cond := task._ast.condition_map[multiple_entry_condition.condition], Condition)
+    assert isinstance(cond := task.ast.condition_map[multiple_entry_condition.condition], Condition)
     assert cond == Condition(OperationType.equal, [new_variable, Constant(0, Integer.int32_t())])
     assert isinstance(multiple_entry_condition.true_branch_child, CodeNode) and multiple_entry_condition.false_branch is None
     assert multiple_entry_condition.true_branch_child.instructions == vertices[2].instructions + vertices[3].instructions
@@ -2998,7 +2996,7 @@ def test_easy_multiple_entry_loop(task):
 #
 #     PatternIndependentRestructuring().run(task)
 #
-#     for node in task._ast.topological_order():
+#     for node in task.ast.topological_order():
 #         logging.info(f"Node {node}")
 #         if isinstance(node, CodeNode):
 #             logging.info(f"statements: {[str(inst) for inst in node.stmts]}")
@@ -3010,7 +3008,7 @@ def test_easy_multiple_entry_loop(task):
 #             logging.info(f"children {node.children}")
 #
 #     # Check sequence node children
-#     assert isinstance(seq_node := task._ast.root, SeqNode)
+#     assert isinstance(seq_node := task.ast.root, SeqNode)
 #     assert len(seq_node.children) == 6
 #     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].stmts == [vertices[0].instructions[0]]
 #     assert isinstance(cond_zero_node := seq_node.children[1], ConditionNode)
@@ -3021,11 +3019,11 @@ def test_easy_multiple_entry_loop(task):
 #
 #     # branches of cond_zero_node
 #     if cond_zero_node.condition.is_negation:
-#         assert task._ast.condition_map[cond_zero_node.condition.operands[0]] == vertices[0].instructions[-1].condition
+#         assert task.ast.condition_map[cond_zero_node.condition.operands[0]] == vertices[0].instructions[-1].condition
 #         assert isinstance(cond_zero_node.true_branch, CodeNode) and cond_zero_node.true_branch.stmts == [vertices[4].instructions[0]]
 #         assert isinstance(ifelse_region := cond_zero_node.false_branch, SeqNode)
 #     else:
-#         assert task._ast.condition_map[cond_zero_node.condition] == vertices[0].instructions[-1].condition
+#         assert task.ast.condition_map[cond_zero_node.condition] == vertices[0].instructions[-1].condition
 #         assert isinstance(cond_zero_node.false_branch, CodeNode) and cond_zero_node.false_branch.stmts == [vertices[4].instructions[0]]
 #         assert isinstance(ifelse_region := cond_zero_node.true_branch, SeqNode)
 #     assert len(ifelse_region.children) == 2
@@ -3033,11 +3031,11 @@ def test_easy_multiple_entry_loop(task):
 #     assert isinstance(cond_node_1 := ifelse_region.children[1], ConditionNode)
 #
 #     if cond_node_1.condition.is_negation:
-#         assert task._ast.condition_map[cond_node_1.condition.operands[0]] == vertices[1].instructions[-1].condition
+#         assert task.ast.condition_map[cond_node_1.condition.operands[0]] == vertices[1].instructions[-1].condition
 #         assert isinstance(cond_node_1.true_branch, CodeNode) and cond_node_1.true_branch.stmts == [vertices[2].instructions[0]]
 #         assert isinstance(cond_node_1.false_branch, CodeNode) and cond_node_1.false_branch.stmts == [vertices[3].instructions[0]]
 #     else:
-#         assert task._ast.condition_map[cond_node_1.condition] == vertices[1].instructions[-1].condition
+#         assert task.ast.condition_map[cond_node_1.condition] == vertices[1].instructions[-1].condition
 #         assert isinstance(cond_node_1.false_branch, CodeNode) and cond_node_1.false_branch.stmts == [vertices[2].instructions[0]]
 #         assert isinstance(cond_node_1.true_branch, CodeNode) and cond_node_1.true_branch.stmts == [vertices[3].instructions[0]]
 #
@@ -3093,7 +3091,7 @@ def test_easy_multiple_entry_loop(task):
 #     PatternIndependentRestructuring().run(task)
 #
 #     # make sure that a LoopNode has been created during Restructuring
-#     assert isinstance(seq_node := task._ast.root, SeqNode)
+#     assert isinstance(seq_node := task.ast.root, SeqNode)
 #     assert len(seq_node.children) == 2
 #     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].stmts == vertices[0].instructions
 #     assert isinstance(outer_loop := seq_node.children[1], LoopNode)
@@ -3109,12 +3107,12 @@ def test_easy_multiple_entry_loop(task):
 #     assert isinstance(multiple_entry_cond.true_branch, CodeNode) and isinstance(multiple_entry_cond.false_branch, CodeNode)
 #     new_variable = multiple_entry_cond.true_branch.stmts[0].definitions[0]
 #     if multiple_entry_cond.condition.is_negation:
-#         assert isinstance(cond := task._ast.condition_map[multiple_entry_cond.condition.operands[0]], Condition)
+#         assert isinstance(cond := task.ast.condition_map[multiple_entry_cond.condition.operands[0]], Condition)
 #         assert cond == vertices[1].instructions[0].condition
 #         assert multiple_entry_cond.true_branch.stmts == [Assignment(new_variable, Constant(1))]
 #         assert multiple_entry_cond.false_branch.stmts == [Assignment(new_variable, Constant(0))]
 #     else:
-#         assert isinstance(cond := task._ast.condition_map[multiple_entry_cond.condition], Condition)
+#         assert isinstance(cond := task.ast.condition_map[multiple_entry_cond.condition], Condition)
 #         assert cond == vertices[1].instructions[0].condition
 #         assert multiple_entry_cond.true_branch.stmts == [Assignment(new_variable, Constant(0))]
 #         assert multiple_entry_cond.false_branch.stmts == [Assignment(new_variable, Constant(1))]
@@ -3123,7 +3121,7 @@ def test_easy_multiple_entry_loop(task):
 #     assert multiple_entry_loop.type == "endless" and isinstance(multiple_entry_loop_body := multiple_entry_loop.body, SeqNode)
 #     assert len(multiple_entry_loop_body.children) == 3
 #     assert isinstance(multiple_entry_condition := multiple_entry_loop_body.children[0], ConditionNode)
-#     # assert isinstance(cond := task._ast.condition_map[multiple_entry_condition.condition], Condition)
+#     # assert isinstance(cond := task.ast.condition_map[multiple_entry_condition.condition], Condition)
 #     # assert cond == Condition(OperationType.equal, [new_variable, Constant(0)])
 #     # assert isinstance(multiple_entry_condition.true_branch, CodeNode) and multiple_entry_condition.false_branch is None
 #     # assert multiple_entry_condition.true_branch.stmts == vertices[2].instructions + vertices[3].instructions
@@ -3171,7 +3169,7 @@ def test_easy_multiple_entry_loop(task):
 #     PatternIndependentRestructuring().run(task)
 
 #     # make outer LoopNode created during Restructuring
-#     assert isinstance(seq_node := task._ast.root, SeqNode)
+#     assert isinstance(seq_node := task.ast.root, SeqNode)
 #     assert len(seq_node.children) == 2
 #     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].stmts == vertices[0].instructions
 #     assert isinstance(outer_loop := seq_node.children[1], LoopNode)
@@ -3187,12 +3185,12 @@ def test_easy_multiple_entry_loop(task):
 #     assert isinstance(multiple_entry_cond.true_branch, CodeNode) and isinstance(multiple_entry_cond.false_branch, CodeNode)
 #     new_variable = multiple_entry_cond.true_branch.stmts[0].definitions[0]
 #     if multiple_entry_cond.condition.is_negation:
-#         assert isinstance(cond := task._ast.condition_map[multiple_entry_cond.condition.operands[0]], Condition)
+#         assert isinstance(cond := task.ast.condition_map[multiple_entry_cond.condition.operands[0]], Condition)
 #         assert cond == vertices[1].instructions[0].condition
 #         assert multiple_entry_cond.true_branch.stmts == [Assignment(new_variable, Constant(1))]
 #         assert multiple_entry_cond.false_branch.stmts == [Assignment(new_variable, Constant(0))]
 #     else:
-#         assert isinstance(cond := task._ast.condition_map[multiple_entry_cond.condition], Condition)
+#         assert isinstance(cond := task.ast.condition_map[multiple_entry_cond.condition], Condition)
 #         assert cond == vertices[1].instructions[0].condition
 #         assert multiple_entry_cond.true_branch.stmts == [Assignment(new_variable, Constant(0))]
 #         assert multiple_entry_cond.false_branch.stmts == [Assignment(new_variable, Constant(1))]
@@ -3201,14 +3199,14 @@ def test_easy_multiple_entry_loop(task):
 #     assert multiple_entry_loop.type == "do_while" and isinstance(multiple_entry_loop_body := multiple_entry_loop.body, SeqNode)
 #     assert is_or(cond := z3_to_dnf(multiple_entry_loop.condition))
 #     assert (arg_1 := cond.operands[0]).is_symbol and is_and(arg_2 := cond.operands[1]) and len(arg_2.operands) == 2
-#     assert task._ast.condition_map[arg_1] == vertices[4].instructions[-1].condition
-#     assert {task._ast.condition_map[arg_2.operands[0]], task._ast.condition_map[arg_2.arg.operands[0](1)]} == {
+#     assert task.ast.condition_map[arg_1] == vertices[4].instructions[-1].condition
+#     assert {task.ast.condition_map[arg_2.operands[0]], task.ast.condition_map[arg_2.arg.operands[0](1)]} == {
 #         Condition(OperationType.equal, [new_variable, Constant(0)]),
 #         vertices[2].instructions[-1].condition,
 #     }
 #     assert len(multiple_entry_loop_body.children) == 2
 #     assert isinstance(multiple_entry_condition := multiple_entry_loop_body.children[0], ConditionNode)
-#     assert isinstance(cond := task._ast.condition_map[multiple_entry_condition.condition], Condition)
+#     assert isinstance(cond := task.ast.condition_map[multiple_entry_condition.condition], Condition)
 #     assert cond == Condition(OperationType.equal, [new_variable, Constant(0)])
 #     assert isinstance(return_cond := multiple_entry_loop_body.children[1], ConditionNode)
 #     assert len(return_cond.condition.operands) == 2
@@ -3224,7 +3222,7 @@ def test_easy_multiple_entry_loop(task):
 #     assert len(multiple_entry_condition.true_branch.children) == 2
 #     assert multiple_entry_condition.true_branch.children[0].stmts == [vertices[2].instructions[0]]
 #     assert isinstance(multiple_entry_condition.true_branch.children[1], ConditionNode)
-#     assert task._ast.condition_map[multiple_entry_condition.true_branch.children[-1].condition] == vertices[2].instructions[-1].condition
+#     assert task.ast.condition_map[multiple_entry_condition.true_branch.children[-1].condition] == vertices[2].instructions[-1].condition
 #     assert multiple_entry_condition.true_branch.children[1].true_branch.stmts == vertices[3].instructions
 #     assert multiple_entry_condition.true_branch.children[1].false_branch is None
 
@@ -3308,7 +3306,7 @@ def test_multiple_entry_with_outgoing_back_edge(task):
     PatternIndependentRestructuring().run(task)
 
     # make outer LoopNode created during Restructuring
-    assert isinstance(seq_node := task._ast.root, SeqNode)
+    assert isinstance(seq_node := task.ast.root, SeqNode)
     assert len(seq_node.children) == 2
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions
     assert isinstance(outer_loop := seq_node.children[1], WhileLoopNode)
@@ -3325,12 +3323,12 @@ def test_multiple_entry_with_outgoing_back_edge(task):
     # assert isinstance(multiple_entry_cond.true_branch, CodeNode) and isinstance(multiple_entry_cond.false_branch, CodeNode)
     # new_variable = multiple_entry_cond.true_branch.stmts[0].definitions[0]
     # if multiple_entry_cond.condition.is_negation:
-    #     assert isinstance(cond := task._ast.condition_map[multiple_entry_cond.condition.operands[0]], Condition)
+    #     assert isinstance(cond := task.ast.condition_map[multiple_entry_cond.condition.operands[0]], Condition)
     #     assert cond == vertices[1].instructions[0].condition
     #     assert multiple_entry_cond.true_branch.stmts == [Assignment(new_variable, Constant(1))]
     #     assert multiple_entry_cond.false_branch.stmts == [Assignment(new_variable, Constant(0))]
     # else:
-    #     assert isinstance(cond := task._ast.condition_map[multiple_entry_cond.condition], Condition)
+    #     assert isinstance(cond := task.ast.condition_map[multiple_entry_cond.condition], Condition)
     #     assert cond == vertices[1].instructions[0].condition
     #     assert multiple_entry_cond.true_branch.stmts == [Assignment(new_variable, Constant(0))]
     #     assert multiple_entry_cond.false_branch.stmts == [Assignment(new_variable, Constant(1))]
@@ -3340,7 +3338,7 @@ def test_multiple_entry_with_outgoing_back_edge(task):
     # assert len(multiple_entry_loop_body.children) == 2
     #
     # assert isinstance(multiple_entry_condition := multiple_entry_loop_body.children[0], ConditionNode)
-    # assert isinstance(cond := task._ast.condition_map[multiple_entry_condition.condition], Condition)
+    # assert isinstance(cond := task.ast.condition_map[multiple_entry_condition.condition], Condition)
     # assert cond == Condition(OperationType.equal, [new_variable, Constant(0)])
     # assert isinstance(multiple_entry_loop_body.children[1], CodeNode) and multiple_entry_loop_body.children[1].stmts == [
     #     vertices[4].instructions[0],
@@ -3355,11 +3353,11 @@ def test_multiple_entry_with_outgoing_back_edge(task):
     #
     # assert isinstance(return_condition := multiple_entry_condition.true_branch.children[1], ConditionNode)
     # if (cond := return_condition.condition).is_symbol:
-    #     assert task._ast.condition_map[cond] == vertices[2].instructions[-1].condition
+    #     assert task.ast.condition_map[cond] == vertices[2].instructions[-1].condition
     #     assert isinstance(return_condition.false_branch, CodeNode)
     #     assert return_condition.false_branch.stmts == vertices[5].instructions
     # else:
-    #     assert task._ast.condition_map[cond.operands[0]] == vertices[2].instructions[-1].condition
+    #     assert task.ast.condition_map[cond.operands[0]] == vertices[2].instructions[-1].condition
     #     assert isinstance(return_condition.true_branch, CodeNode)
     #     assert return_condition.true_branch.stmts == vertices[5].instructions
     #
@@ -3368,11 +3366,11 @@ def test_multiple_entry_with_outgoing_back_edge(task):
     # assert isinstance(break_condition := multiple_entry_condition.true_branch.children[3], ConditionNode)
     # if is_and(cond := break_condition.condition):
     #     assert (
-    #         isinstance(cond := task._ast.condition_map[break_condition.condition.operands[0]], Condition)
+    #         isinstance(cond := task.ast.condition_map[break_condition.condition.operands[0]], Condition)
     #         and vertices[2].instructions[-1].condition
     #     )
     #     assert (
-    #         isinstance(cond := task._ast.condition_map[break_condition.condition.operands[1].operands[0]], Condition)
+    #         isinstance(cond := task.ast.condition_map[break_condition.condition.operands[1].operands[0]], Condition)
     #         and vertices[3].instructions[-1].condition
     #     )
     #     assert isinstance(break_condition.true_branch, CodeNode)
@@ -3380,11 +3378,11 @@ def test_multiple_entry_with_outgoing_back_edge(task):
     # else:
     #     is_or(cond := break_condition.condition)
     #     assert (
-    #         isinstance(cond := task._ast.condition_map[break_condition.condition.operands[0].operands[0]], Condition)
+    #         isinstance(cond := task.ast.condition_map[break_condition.condition.operands[0].operands[0]], Condition)
     #         and vertices[2].instructions[-1].condition
     #     )
     #     assert (
-    #         isinstance(cond := task._ast.condition_map[break_condition.condition.operands[1]], Condition)
+    #         isinstance(cond := task.ast.condition_map[break_condition.condition.operands[1]], Condition)
     #         and vertices[3].instructions[-1].condition
     #     )
     #     assert isinstance(break_condition.false_branch, CodeNode)
@@ -3512,7 +3510,7 @@ def test_multiple_exit_1(task):
     PatternIndependentRestructuring().run(task)
 
     # outer branch is restructured correctly:
-    assert isinstance(seq_node := task._ast.root, SeqNode)
+    assert isinstance(seq_node := task.ast.root, SeqNode)
     assert len(seq_node.children) == 5
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[8].instructions[:-1]
     assert isinstance(enter_loop := seq_node.children[1], ConditionNode)
@@ -3522,7 +3520,7 @@ def test_multiple_exit_1(task):
 
     # make sure that loop entered correctly:
     assert (cond := enter_loop.condition).is_symbol
-    assert task._ast.condition_map[cond] == vertices[8].instructions[-1].condition
+    assert task.ast.condition_map[cond] == vertices[8].instructions[-1].condition
     assert isinstance(loop := enter_loop.true_branch_child, WhileLoopNode) and enter_loop.false_branch is None
 
     # make sure that loop is correct
@@ -3541,20 +3539,20 @@ def test_multiple_exit_1(task):
 
     # exit 1
     assert (cond := exit_1.condition).is_negation
-    assert task._ast.condition_map[~cond] == vertices[1].instructions[-1].condition
+    assert task.ast.condition_map[~cond] == vertices[1].instructions[-1].condition
     assert isinstance(branch := exit_1.true_branch_child, CodeNode) and exit_1.false_branch is None
     new_variable = branch.instructions[-2].definitions[0]
     assert branch.instructions == [vertices[9].instructions[0], Assignment(new_variable, Constant(0, Integer.int32_t())), Break()]
 
     # exit 2
     assert (cond := exit_2.condition).is_negation
-    assert task._ast.condition_map[~cond] == vertices[2].instructions[-1].condition
+    assert task.ast.condition_map[~cond] == vertices[2].instructions[-1].condition
     assert isinstance(branch := exit_2.true_branch_child, CodeNode) and exit_2.false_branch is None
     assert branch.instructions == [vertices[10].instructions[0], Assignment(new_variable, Constant(1, Integer.int32_t())), Break()]
 
     # exit 3
     assert (cond := exit_3.condition).is_negation
-    assert task._ast.condition_map[~cond] == vertices[3].instructions[-1].condition
+    assert task.ast.condition_map[~cond] == vertices[3].instructions[-1].condition
     assert isinstance(branch := exit_3.true_branch_child, CodeNode) and exit_3.false_branch is None
     assert branch.instructions == [vertices[11].instructions[0], Assignment(new_variable, Constant(2, Integer.int32_t())), Break()]
 
@@ -3562,8 +3560,8 @@ def test_multiple_exit_1(task):
     assert (cond := succ_1.condition).is_disjunction
     assert len(arguments := cond.operands) == 2
     assert any((arg := argument).is_symbol for argument in arguments) and any((neg_arg := argument).is_negation for argument in arguments)
-    assert task._ast.condition_map[arg] == Condition(OperationType.equal, [new_variable, Constant(0, Integer.int32_t())])
-    assert task._ast.condition_map[~neg_arg] == vertices[8].instructions[-1].condition
+    assert task.ast.condition_map[arg] == Condition(OperationType.equal, [new_variable, Constant(0, Integer.int32_t())])
+    assert task.ast.condition_map[~neg_arg] == vertices[8].instructions[-1].condition
     assert isinstance(branch := succ_1.true_branch_child, CodeNode) and succ_1.false_branch is None
     assert branch.instructions == vertices[5].instructions
 
@@ -3571,8 +3569,8 @@ def test_multiple_exit_1(task):
     assert (cond := succ_2.condition).is_disjunction
     assert len(arguments := cond.operands) == 3
     assert any((neg_arg := argument).is_negation for argument in arguments)
-    assert task._ast.condition_map[~neg_arg] == vertices[8].instructions[-1].condition
-    assert {task._ast.condition_map[arg] for arg in arguments if arg.is_symbol} == {
+    assert task.ast.condition_map[~neg_arg] == vertices[8].instructions[-1].condition
+    assert {task.ast.condition_map[arg] for arg in arguments if arg.is_symbol} == {
         Condition(OperationType.equal, [new_variable, Constant(0, Integer.int32_t())]),
         Condition(OperationType.equal, [new_variable, Constant(1, Integer.int32_t())]),
     }
@@ -3684,7 +3682,7 @@ def test_multiple_exit_2(task):
     PatternIndependentRestructuring().run(task)
 
     # outer branch is restructured correctly:
-    assert isinstance(seq_node := task._ast.root, SeqNode)
+    assert isinstance(seq_node := task.ast.root, SeqNode)
     assert len(seq_node.children) == 5
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[8].instructions[:-1]
     assert isinstance(enter_loop := seq_node.children[1], ConditionNode)
@@ -3694,7 +3692,7 @@ def test_multiple_exit_2(task):
 
     # make sure that loop entered correctly:
     assert (cond := enter_loop.condition).is_symbol
-    assert task._ast.condition_map[cond] == vertices[8].instructions[-1].condition
+    assert task.ast.condition_map[cond] == vertices[8].instructions[-1].condition
     assert isinstance(loop := enter_loop.true_branch_child, WhileLoopNode) and enter_loop.false_branch is None
 
     # make sure that loop is correct
@@ -3713,20 +3711,20 @@ def test_multiple_exit_2(task):
 
     # exit 1
     assert (cond := exit_1.condition).is_negation
-    assert task._ast.condition_map[~cond] == vertices[1].instructions[-1].condition
+    assert task.ast.condition_map[~cond] == vertices[1].instructions[-1].condition
     assert isinstance(branch := exit_1.true_branch_child, CodeNode) and exit_1.false_branch is None
     new_variable = branch.instructions[0].definitions[0]
     assert branch.instructions == [Assignment(new_variable, Constant(0, Integer.int32_t())), Break()]
 
     # exit 2
     assert (cond := exit_2.condition).is_negation
-    assert task._ast.condition_map[~cond] == vertices[2].instructions[-1].condition
+    assert task.ast.condition_map[~cond] == vertices[2].instructions[-1].condition
     assert isinstance(branch := exit_2.true_branch_child, CodeNode) and exit_2.false_branch is None
     assert branch.instructions == [Assignment(new_variable, Constant(1, Integer.int32_t())), Break()]
 
     # exit 3
     assert (cond := exit_3.condition).is_negation
-    assert task._ast.condition_map[~cond] == vertices[3].instructions[-1].condition
+    assert task.ast.condition_map[~cond] == vertices[3].instructions[-1].condition
     assert isinstance(branch := exit_3.true_branch_child, CodeNode) and exit_3.false_branch is None
     assert branch.instructions == [Assignment(new_variable, Constant(2, Integer.int32_t())), Break()]
 
@@ -3734,8 +3732,8 @@ def test_multiple_exit_2(task):
     assert (cond := succ_1.condition).is_disjunction
     assert len(arguments := cond.operands) == 2
     assert any((arg := argument).is_symbol for argument in arguments) and any((neg_arg := argument).is_negation for argument in arguments)
-    assert task._ast.condition_map[arg] == Condition(OperationType.equal, [new_variable, Constant(0, Integer.int32_t())])
-    assert task._ast.condition_map[~neg_arg] == vertices[8].instructions[-1].condition
+    assert task.ast.condition_map[arg] == Condition(OperationType.equal, [new_variable, Constant(0, Integer.int32_t())])
+    assert task.ast.condition_map[~neg_arg] == vertices[8].instructions[-1].condition
     assert isinstance(branch := succ_1.true_branch_child, CodeNode) and succ_1.false_branch is None
     assert branch.instructions == vertices[5].instructions
 
@@ -3743,8 +3741,8 @@ def test_multiple_exit_2(task):
     assert (cond := succ_2.condition).is_disjunction
     assert len(arguments := cond.operands) == 3
     assert any((neg_arg := argument).is_negation for argument in arguments)
-    assert task._ast.condition_map[~neg_arg] == vertices[8].instructions[-1].condition
-    assert {task._ast.condition_map[arg] for arg in arguments if arg.is_symbol} == {
+    assert task.ast.condition_map[~neg_arg] == vertices[8].instructions[-1].condition
+    assert {task.ast.condition_map[arg] for arg in arguments if arg.is_symbol} == {
         Condition(OperationType.equal, [new_variable, Constant(0, Integer.int32_t())]),
         Condition(OperationType.equal, [new_variable, Constant(1, Integer.int32_t())]),
     }
@@ -3864,7 +3862,7 @@ def test_multiple_exit_3(task):
     PatternIndependentRestructuring().run(task)
 
     # outer branch is restructured correctly:
-    assert isinstance(seq_node := task._ast.root, SeqNode)
+    assert isinstance(seq_node := task.ast.root, SeqNode)
     assert len(seq_node.children) == 4
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[8].instructions[:-1]
     assert isinstance(enter_loop := seq_node.children[1], ConditionNode)
@@ -3873,7 +3871,7 @@ def test_multiple_exit_3(task):
 
     # make sure that loop entered correctly:
     assert (cond := enter_loop.condition).is_symbol
-    assert task._ast.condition_map[cond] == vertices[8].instructions[-1].condition
+    assert task.ast.condition_map[cond] == vertices[8].instructions[-1].condition
     assert isinstance(loop := enter_loop.true_branch_child, WhileLoopNode) and enter_loop.false_branch is None
 
     # make sure that loop is correct
@@ -3892,20 +3890,20 @@ def test_multiple_exit_3(task):
 
     # exit 1
     assert (cond := exit_1.condition).is_negation
-    assert task._ast.condition_map[~cond] == vertices[1].instructions[-1].condition
+    assert task.ast.condition_map[~cond] == vertices[1].instructions[-1].condition
     assert isinstance(branch := exit_1.true_branch_child, CodeNode) and exit_1.false_branch is None
     new_variable = branch.instructions[0].definitions[0]
     assert branch.instructions == [Assignment(new_variable, Constant(0, Integer.int32_t())), Break()]
 
     # exit 2
     assert (cond := exit_2.condition).is_negation
-    assert task._ast.condition_map[~cond] == vertices[2].instructions[-1].condition
+    assert task.ast.condition_map[~cond] == vertices[2].instructions[-1].condition
     assert isinstance(branch := exit_2.true_branch_child, CodeNode) and exit_2.false_branch is None
     assert branch.instructions == [Assignment(new_variable, Constant(1, Integer.int32_t())), Break()]
 
     # exit 3
     assert (cond := exit_3.condition).is_negation
-    assert task._ast.condition_map[~cond] == vertices[3].instructions[-1].condition
+    assert task.ast.condition_map[~cond] == vertices[3].instructions[-1].condition
     assert isinstance(branch := exit_3.true_branch_child, CodeNode) and exit_3.false_branch is None
     assert branch.instructions == [Assignment(new_variable, Constant(2, Integer.int32_t())), Break()]
 
@@ -3921,7 +3919,7 @@ def test_multiple_exit_3(task):
         and len(arg_1 := arguments[1].operands) == 1
     )
     assert (cond1 := arg_0[0]).is_symbol and (cond2 := arg_1[0]).is_symbol
-    assert {task._ast.condition_map[cond1], task._ast.condition_map[cond2]} == {
+    assert {task.ast.condition_map[cond1], task.ast.condition_map[cond2]} == {
         Condition(OperationType.equal, [new_variable, Constant(0, Integer.int32_t())]),
         vertices[8].instructions[-1].condition,
     }
@@ -3940,7 +3938,7 @@ def test_multiple_exit_3(task):
         and len(arg_1 := arguments[1].operands) == 1
     )
     assert (cond1 := arg_0[0]).is_symbol and (cond2 := arg_1[0]).is_symbol
-    assert {task._ast.condition_map[cond1], task._ast.condition_map[cond2]} == {
+    assert {task.ast.condition_map[cond1], task.ast.condition_map[cond2]} == {
         Condition(OperationType.equal, [new_variable, Constant(1, Integer.int32_t())]),
         vertices[8].instructions[-1].condition,
     }
@@ -4081,7 +4079,7 @@ def test_multiple_exit_4(task):
     PatternIndependentRestructuring().run(task)
 
     # outer branch is restructured correctly:
-    assert isinstance(seq_node := task._ast.root, SeqNode)
+    assert isinstance(seq_node := task.ast.root, SeqNode)
     assert len(seq_node.children) == 5
     assert isinstance(seq_node.children[0], CodeNode) and seq_node.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(enter_loop := seq_node.children[1], ConditionNode)
@@ -4091,7 +4089,7 @@ def test_multiple_exit_4(task):
 
     # make sure that loop entered correctly:
     assert (cond := enter_loop.condition).is_symbol
-    assert task._ast.condition_map[cond] == vertices[0].instructions[-1].condition
+    assert task.ast.condition_map[cond] == vertices[0].instructions[-1].condition
     assert isinstance(loop := enter_loop.true_branch_child, WhileLoopNode) and enter_loop.false_branch is None
 
     # make sure that loop is correct
@@ -4115,7 +4113,7 @@ def test_multiple_exit_4(task):
     if (condition_2.condition).is_negation:
         condition_2.switch_branches()
     assert (cond := condition_2.condition).is_symbol
-    assert task._ast.condition_map[cond] == vertices[2].instructions[-1].condition
+    assert task.ast.condition_map[cond] == vertices[2].instructions[-1].condition
     assert isinstance(true_branch := condition_2.true_branch_child, SeqNode)
     assert isinstance(false_branch := condition_2.false_branch_child, SeqNode)
 
@@ -4124,13 +4122,13 @@ def test_multiple_exit_4(task):
     assert isinstance(true_branch.children[0], CodeNode) and true_branch.children[0].instructions == vertices[3].instructions[:-1]
     assert isinstance(exit_over_3 := true_branch.children[1], ConditionNode)
     assert (cond := exit_over_3.condition).is_negation
-    assert task._ast.condition_map[~cond] == vertices[3].instructions[-1].condition
+    assert task.ast.condition_map[~cond] == vertices[3].instructions[-1].condition
     assert isinstance(branch := exit_over_3.true_branch_child, CodeNode) and exit_over_3.false_branch is None
     assert branch.instructions == [Assignment(new_variable, Constant(0, Integer.int32_t())), Break()]
     assert isinstance(true_branch.children[2], CodeNode) and true_branch.children[2].instructions == vertices[4].instructions[:-1]
     assert isinstance(loop_continue := true_branch.children[3], ConditionNode)
     assert (cond := loop_continue.condition).is_symbol
-    assert task._ast.condition_map[cond] == vertices[4].instructions[-1].condition
+    assert task.ast.condition_map[cond] == vertices[4].instructions[-1].condition
     assert isinstance(branch := loop_continue.true_branch_child, CodeNode) and loop_continue.false_branch is None
     assert branch.instructions == vertices[5].instructions + [Continue()]
 
@@ -4139,7 +4137,7 @@ def test_multiple_exit_4(task):
     assert isinstance(false_branch.children[0], CodeNode) and false_branch.children[0].instructions == vertices[6].instructions[:-1]
     assert isinstance(exit_over_6 := false_branch.children[1], ConditionNode)
     assert (cond := exit_over_6.condition).is_symbol
-    assert task._ast.condition_map[cond] == vertices[6].instructions[-1].condition
+    assert task.ast.condition_map[cond] == vertices[6].instructions[-1].condition
     assert isinstance(branch := exit_over_6.true_branch_child, CodeNode) and branch.instructions == [
         Assignment(new_variable, Constant(1, Integer.int32_t())),
         Break(),
@@ -4151,7 +4149,7 @@ def test_multiple_exit_4(task):
     assert succ_node_7.condition.is_disjunction and len(arguments := succ_node_7.condition.operands) == 2
     assert any((arg_1 := arg).is_negation for arg in arguments) and any((arg_2 := arg).is_symbol for arg in arguments)
     # check conditions:
-    assert {task._ast.condition_map[~arg_1], task._ast.condition_map[arg_2]} == {
+    assert {task.ast.condition_map[~arg_1], task.ast.condition_map[arg_2]} == {
         vertices[0].instructions[-1].condition,
         Condition(OperationType.equal, [new_variable, Constant(1, Integer.int32_t())]),
     }
@@ -4162,7 +4160,7 @@ def test_multiple_exit_4(task):
     assert succ_node_8.condition.is_disjunction and len(arguments := succ_node_8.condition.operands) == 2
     assert all(arg.is_negation for arg in arguments)
     # check conditions:
-    assert {task._ast.condition_map[~arg] for arg in arguments} == {
+    assert {task.ast.condition_map[~arg] for arg in arguments} == {
         vertices[0].instructions[-1].condition,
         Condition(OperationType.equal, [new_variable, Constant(0, Integer.int32_t())]),
     }
@@ -4298,7 +4296,7 @@ def test_same_reaching_condition_but_not_groupable(task):
     PatternIndependentRestructuring().run(task)
 
     # first if-else
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 3
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 3
     assert isinstance(code_part := seq_node.children[0], ConditionNode)
     assert isinstance(return_part := seq_node.children[1], ConditionNode)
     assert isinstance(second_return := seq_node.children[2], CodeNode) and second_return.instructions == vertices[10].instructions
@@ -4306,7 +4304,7 @@ def test_same_reaching_condition_but_not_groupable(task):
     # code_part restructured correctly:
     assert code_part.condition.is_negation and (cond := ~code_part.condition).is_symbol
     assert isinstance(code_seq := code_part.true_branch_child, SeqNode) and code_part.false_branch is None
-    assert task._ast.condition_map[cond] == vertices[0].instructions[-1].condition
+    assert task.ast.condition_map[cond] == vertices[0].instructions[-1].condition
     assert len(code_seq.children) == 4
     assert (
         isinstance(code_seq.children[0], CodeNode)
@@ -4326,7 +4324,7 @@ def test_same_reaching_condition_but_not_groupable(task):
         assert isinstance(node_5 := first_if_else.true_branch_child, CodeNode) and isinstance(
             node_4 := first_if_else.false_branch_child, CodeNode
         )
-    assert task._ast.condition_map[cond] == vertices[3].instructions[-1].condition
+    assert task.ast.condition_map[cond] == vertices[3].instructions[-1].condition
     assert node_4.instructions == vertices[4].instructions and node_5.instructions == vertices[5].instructions
 
     # second if-else correct
@@ -4339,7 +4337,7 @@ def test_same_reaching_condition_but_not_groupable(task):
         assert isinstance(node_8 := second_if_else.true_branch_child, CodeNode) and isinstance(
             node_7 := second_if_else.false_branch_child, CodeNode
         )
-    assert task._ast.condition_map[cond] == vertices[6].instructions[-1].condition
+    assert task.ast.condition_map[cond] == vertices[6].instructions[-1].condition
     assert node_7.instructions == vertices[7].instructions and node_8.instructions == vertices[8].instructions[:-1]
 
     # return part
@@ -4416,7 +4414,7 @@ def test_head_is_no_loop_predecessor(task):
                                                 +> |             return var_5              |
                                                    +---------------------------------------+
     """
-    task._cfg.add_nodes_from(
+    task.cfg.add_nodes_from(
         vertices := [
             BasicBlock(
                 1,
@@ -4788,7 +4786,7 @@ def test_head_is_no_loop_predecessor(task):
             ),
         ]
     )
-    task._cfg.add_edges_from(
+    task.cfg.add_edges_from(
         [
             FalseCase(vertices[0], vertices[1]),
             TrueCase(vertices[0], vertices[2]),
@@ -4810,12 +4808,12 @@ def test_head_is_no_loop_predecessor(task):
     PatternIndependentRestructuring().run(task)
 
     # outer-loop
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 2
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 2
     assert isinstance(do_while := seq_node.children[0], DoWhileLoopNode)
     assert isinstance(return_part := seq_node.children[1], CodeNode) and return_part.instructions == vertices[4].instructions
 
     # do-while loop:
-    assert str(task._ast.condition_map[do_while.condition]) == "exit_4 == 0x0"
+    assert str(task.ast.condition_map[do_while.condition]) == "exit_4 == 0x0"
     assert isinstance(do_while_body := do_while.body, SeqNode) and len(do_while_body.children) == 4
     assert isinstance(do_while_body.children[0], CodeNode) and do_while_body.children[0].instructions == vertices[0].instructions[:-1]
     assert isinstance(block_3_cond := do_while_body.children[1], ConditionNode)
@@ -4823,7 +4821,7 @@ def test_head_is_no_loop_predecessor(task):
     assert isinstance(inner_loop := do_while_body.children[3], WhileLoopNode) and inner_loop.is_endless
 
     # block 3 cond:
-    assert block_3_cond.condition.is_negation and str(task._ast.condition_map[~block_3_cond.condition]) == "var_2 != 0x0"
+    assert block_3_cond.condition.is_negation and str(task.ast.condition_map[~block_3_cond.condition]) == "var_2 != 0x0"
     assert isinstance(block_3_cond.true_branch_child, CodeNode) and block_3_cond.false_branch is None
     assert block_3_cond.true_branch_child.instructions == vertices[1].instructions[:-1]
 
@@ -4834,8 +4832,8 @@ def test_head_is_no_loop_predecessor(task):
         and any((RC3 := arg).is_negation for arg in arguments)
         and any((RC1 := arg).is_symbol for arg in arguments)
     )
-    assert str(task._ast.condition_map[~RC3]) == "var_2 != 0x0"
-    assert str(task._ast.condition_map[RC1]) == "((unsigned int) var_5) == 0x0"
+    assert str(task.ast.condition_map[~RC3]) == "var_2 != 0x0"
+    assert str(task.ast.condition_map[RC1]) == "((unsigned int) var_5) == 0x0"
     assert isinstance(break_cond.true_branch_child, CodeNode) and break_cond.false_branch is None
     assert break_cond.true_branch_child.instructions == [Break()]
 
@@ -4851,12 +4849,12 @@ def test_head_is_no_loop_predecessor(task):
     assert isinstance(inner_break_cond := inner_body.children[7], ConditionNode)
 
     # block 8 cond:
-    assert block_8_cond.condition and str(task._ast.condition_map[~block_8_cond.condition]) == "var_2 == 0x0"
+    assert block_8_cond.condition and str(task.ast.condition_map[~block_8_cond.condition]) == "var_2 == 0x0"
     assert isinstance(block_8_cond.true_branch_child, CodeNode) and block_8_cond.false_branch is None
     assert block_8_cond.true_branch_child.instructions == vertices[3].instructions
 
     # block 11 cond:
-    assert block_11_cond.condition.is_symbol and str(task._ast.condition_map[block_11_cond.condition]) == "var_3 != 0x0"
+    assert block_11_cond.condition.is_symbol and str(task.ast.condition_map[block_11_cond.condition]) == "var_3 != 0x0"
     assert isinstance(block_11_cond.true_branch_child, CodeNode) and block_11_cond.false_branch is None
     assert block_11_cond.true_branch_child.instructions == vertices[6].instructions + [
         Assignment(Variable("exit_4", Integer.int32_t()), Constant(0, Integer.int32_t())),
@@ -4864,12 +4862,12 @@ def test_head_is_no_loop_predecessor(task):
     ]
 
     # continue cond:
-    assert continue_cond.condition.is_symbol and str(task._ast.condition_map[continue_cond.condition]) == "var_2 != 0x0"
+    assert continue_cond.condition.is_symbol and str(task.ast.condition_map[continue_cond.condition]) == "var_2 != 0x0"
     assert isinstance(continue_cond.true_branch_child, CodeNode) and continue_cond.false_branch is None
     assert continue_cond.true_branch_child.instructions == [Continue()]
 
     # inner break cond:
-    assert inner_break_cond.condition and str(task._ast.condition_map[~inner_break_cond.condition]) == "((unsigned int) var_5) != 0x0"
+    assert inner_break_cond.condition and str(task.ast.condition_map[~inner_break_cond.condition]) == "((unsigned int) var_5) != 0x0"
     assert isinstance(inner_break_cond.true_branch_child, CodeNode) and inner_break_cond.false_branch is None
     assert inner_break_cond.true_branch_child.instructions == [
         Assignment(Variable("exit_4", Integer.int32_t()), Constant(1, Integer.int32_t())),
@@ -4916,7 +4914,7 @@ def test_extract_return(task):
     PatternIndependentRestructuring().run(task)
 
     # outer-loop
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(seq_node.children) == 5
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(seq_node.children) == 5
     assert isinstance(node_0 := seq_node.children[0], CodeNode) and node_0.instructions == vertices[0].instructions[:-1]
     assert isinstance(cond_1 := seq_node.children[1], ConditionNode) and cond_1.false_branch is None
     assert isinstance(node_1 := seq_node.children[2], CodeNode) and node_1.instructions == vertices[1].instructions[:-1]
@@ -4924,12 +4922,12 @@ def test_extract_return(task):
     assert isinstance(node_4 := seq_node.children[4], CodeNode) and node_4.instructions == vertices[4].instructions
 
     # cond 1:
-    assert (cond := cond_1.condition).is_negation and task._ast.condition_map[~cond] == vertices[0].instructions[-1].condition
+    assert (cond := cond_1.condition).is_negation and task.ast.condition_map[~cond] == vertices[0].instructions[-1].condition
     assert isinstance(branch := cond_1.true_branch_child, CodeNode)
     assert branch.instructions == vertices[2].instructions
 
     # cond 2:
-    assert (cond := cond_2.condition).is_symbol and task._ast.condition_map[cond] == vertices[1].instructions[-1].condition
+    assert (cond := cond_2.condition).is_symbol and task.ast.condition_map[cond] == vertices[1].instructions[-1].condition
     assert isinstance(branch := cond_2.true_branch_child, CodeNode)
     assert branch.instructions == vertices[3].instructions
 

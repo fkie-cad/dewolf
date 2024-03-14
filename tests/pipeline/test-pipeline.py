@@ -16,17 +16,6 @@ class TestPipeline:
         def __init__(self):
             super().__init__([])
 
-    class EmptyTask(DecompilerTask):
-        """An empty task mock object."""
-
-        def __init__(self):
-            """Just pass None values."""
-            super().__init__(None, None)
-
-        def reset(self):
-            """Empty reset function so the fields can be set however."""
-            pass
-
     class MockStage(PipelineStage):
         """Ab mock pipeline stage, doing nothing."""
 
@@ -47,7 +36,7 @@ class TestPipeline:
     def test_empty(self):
         """An empty pipeline should always work."""
         empty_pipeline = self.EmptyPipeline()
-        empty_pipeline.run(self.EmptyTask())
+        empty_pipeline.run(DecompilerTask(name="", function_identifier=""))
 
     def test_default_valid(self):
         """The default pipeline should always be valid."""

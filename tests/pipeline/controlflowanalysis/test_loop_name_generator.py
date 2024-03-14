@@ -16,7 +16,6 @@ from decompiler.structures.pseudo import (
     Constant,
     ImportedFunctionSymbol,
     ListOperation,
-    OperationType,
     Variable,
 )
 from decompiler.structures.pseudo.operations import ArrayInfo, OperationType, UnaryOperation
@@ -968,7 +967,7 @@ class TestReadabilityBasedRefinementAndLoopNameGenerator:
 
     @staticmethod
     def run_rbr(ast: AbstractSyntaxTree, options: Options = _generate_options()):
-        task = DecompilerTask("func", cfg=None, ast=ast, options=options)
+        task = DecompilerTask(name="func", function_identifier="", cfg=None, ast=ast, options=options)
         ReadabilityBasedRefinement().run(task)
         LoopNameGenerator().run(task)
 

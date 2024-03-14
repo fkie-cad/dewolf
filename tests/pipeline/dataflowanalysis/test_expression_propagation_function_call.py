@@ -219,5 +219,5 @@ def _run_expression_propagation(cfg: ControlFlowGraph) -> None:
     options.set("expression-propagation-function-call.maximum_branch_complexity", 10)
     options.set("expression-propagation-function-call.maximum_call_complexity", 10)
     options.set("expression-propagation-function-call.maximum_assignment_complexity", 10)
-    task = DecompilerTask("test", cfg, options=options)
+    task = DecompilerTask(name="test", function_identifier="", cfg=cfg, options=options)
     ExpressionPropagationFunctionCall().run(task)

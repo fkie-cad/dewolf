@@ -1197,7 +1197,7 @@ def cfg_with_single_global_variable(x) -> Tuple[ControlFlowGraph, ControlFlowGra
 
 
 def _test_mem_phi_converter(input_cfg: ControlFlowGraph, expected_output_cfg: ControlFlowGraph):
-    task = DecompilerTask("test", input_cfg)
+    task = DecompilerTask(name="test", function_identifier="", cfg=input_cfg)
     MemPhiConverter().run(task)
     assert _equal(input_cfg, expected_output_cfg)
 

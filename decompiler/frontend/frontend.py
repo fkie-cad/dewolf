@@ -33,8 +33,8 @@ class Frontend(ABC):
         """
 
     @abstractmethod
-    def create_task(self, function_identifier: str, options: Options) -> DecompilerTask:
-        """Create a task from the given function identifier."""
+    def lift(self, task: DecompilerTask):
+        """Lift function data into task object."""
 
     @abstractmethod
     def get_all_function_names(self) -> List[str]:

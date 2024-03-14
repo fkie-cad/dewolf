@@ -32,7 +32,7 @@ def run_array_access_detection(cfg: ControlFlowGraph) -> None:
 
 
 def get_task(cfg: ControlFlowGraph) -> DecompilerTask:
-    task = DecompilerTask("test", cfg, options=Options.from_dict({"array-access-detection.enabled": True}))
+    task = DecompilerTask(name="test", function_identifier="", cfg=cfg, options=Options.from_dict({"array-access-detection.enabled": True}))
     return task
 
 

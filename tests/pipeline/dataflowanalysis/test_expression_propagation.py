@@ -862,7 +862,7 @@ def _generate_options(instr: int = 10, branch: int = 10, call: int = 10, assignm
 
 
 def _run_expression_propagation(cfg: ControlFlowGraph, options: Options = _generate_options()) -> None:
-    task = DecompilerTask("test", cfg, options=options)
+    task = DecompilerTask(name="test", function_identifier="", cfg=cfg, options=options)
     ExpressionPropagation().run(task)
 
 

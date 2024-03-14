@@ -1,7 +1,7 @@
 import re
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.ast.ast_nodes import ConditionNode, LoopNode
@@ -75,9 +75,9 @@ class RenamingScheme(ABC):
 
     def __init__(self, task: DecompilerTask) -> None:
         """Collets all needed variables for renaming + filters already renamed + function arguments out"""
-        collector = VariableCollector(task._ast.condition_map)
-        collector.visit_ast(task._ast)
-        self._params: List[Variable] = task._function_parameters
+        collector = VariableCollector(task.ast.condition_map)
+        collector.visit_ast(task.ast)
+        self._params: List[Variable] = task.function_parameters
         self._loop_vars: List[Variable] = collector.get_loop_variables()
         self._variables: List[Variable] = list(filter(self._filter_variables, collector.get_variables()))
 

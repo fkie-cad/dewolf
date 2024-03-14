@@ -66,7 +66,7 @@ def _generate_options(call: int = 10, assignment: int = 10, ret: int = 10) -> Op
 
 
 def _run_ilh(ast: AbstractSyntaxTree, options: Options = _generate_options()):
-    InstructionLengthHandler().run(DecompilerTask("test_function", ast=ast, options=options))
+    InstructionLengthHandler().run(DecompilerTask(name="test_function", function_identifier="", ast=ast, options=options))
 
 
 class TestCodeNode:

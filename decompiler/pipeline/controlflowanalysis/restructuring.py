@@ -53,8 +53,8 @@ class PatternIndependentRestructuring(PipelineStage):
         assert len(self.t_cfg) == 1, f"The Transition Graph can only have one node after the restructuring."
         self.asforest.set_current_root(self.t_cfg.root.ast)
         assert (roots := len(self.asforest.get_roots)) == 1, f"After the restructuring the forest should have one root, but it has {roots}!"
-        task._ast = AbstractSyntaxTree.from_asforest(self.asforest, self.asforest.current_root)
-        task._cfg = None
+        task.ast = AbstractSyntaxTree.from_asforest(self.asforest, self.asforest.current_root)
+        task.cfg = None
 
     def restructure_cfg(self) -> None:
         """

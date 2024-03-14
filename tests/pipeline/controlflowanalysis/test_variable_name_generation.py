@@ -87,7 +87,9 @@ def _generate_options(notation: str = "system_hungarian", pointer_base: bool = T
 
 
 def _run_vng(ast: AbstractSyntaxTree, options: Options = _generate_options()):
-    task = DecompilerTask("variable_name_generation", None, ast, options, VOID)
+    task = DecompilerTask(
+        name="variable_name_generation", function_identifier="", cfg=None, ast=ast, options=options, function_return_type=VOID
+    )
     VariableNameGeneration().run(task)
     DecoratedCode.print_code(CodeGenerator().generate([task]))
 
