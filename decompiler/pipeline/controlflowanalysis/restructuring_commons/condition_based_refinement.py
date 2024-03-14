@@ -7,7 +7,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 from itertools import combinations
-from typing import List, Tuple, Set, Dict, Optional, Iterator, DefaultDict
+from typing import DefaultDict, Dict, Iterator, List, Optional, Set, Tuple
 
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, SeqNode
 from decompiler.structures.ast.reachability_graph import SiblingReachability
@@ -54,6 +54,7 @@ class ConditionCandidates:
 
     # def get_next_subexpression(self) -> Iterator[Tuple[AbstractSyntaxTreeNode, LogicCondition]]:
     #     """Get the next subexpression together with the node it comes from and start with the largest possible subexpression!"""
+    #     TODO: only compute "useful" subexpressions!
     #     while (current_size := self.maximum_subexpression_size) > 0:
     #         children_to_consider = [c for c, p in self._candidates.items() if p.number_of_interesting_operands >= current_size]
     #         for child in children_to_consider:
@@ -75,6 +76,7 @@ class ConditionCandidates:
 
     def get_next_subexpression(self) -> Iterator[Tuple[AbstractSyntaxTreeNode, LogicCondition]]:
         """Consider nodes in order and start with largest possible."""
+        # TODO: only compute "useful" subexpressions!
         all_candidates = list(self._candidates)
         for child in all_candidates:
             if child not in self._candidates:
@@ -89,7 +91,7 @@ class ConditionCandidates:
                 else:
                     for new_operands in combinations(self._candidates[child].operands, current_size):
                         yield child, LogicCondition.conjunction_of(new_operands)
-                current_size-= 1
+                current_size -= 1
 
     def remove(self, nodes_to_remove: List[AbstractSyntaxTreeNode]):
         for node in nodes_to_remove:
@@ -177,10 +179,7 @@ class ConditionBasedRefinement:
         sibling_reachability: SiblingReachability = self.asforest.get_sibling_reachability_of_children_of(sequence_node)
         condition_candidates = ConditionCandidates([child for child in sequence_node.children if not child.reaching_condition.is_true])
         for child, subexpression in condition_candidates.get_next_subexpression():
-            # TODO Also stop if it is the last child with a reaching condition to consider!
-            # TODO: only compute "useful" subexpressions!
-            # for subexpression in self._get_logical_and_subexpressions_of(child.reaching_condition):
-            true_cluster, false_cluster = self._cluster_by_condition(subexpression, condition_candidates)
+            true_cluster, false_cluster = self._cluster_by_condition(subexpression, child, condition_candidates)
             all_cluster_nodes = true_cluster + false_cluster
 
             if len(all_cluster_nodes) < 2:
@@ -193,35 +192,33 @@ class ConditionBasedRefinement:
                     newly_created_sequence_nodes.add(condition_node.false_branch_child)
                 sibling_reachability.merge_siblings_to(condition_node, all_cluster_nodes)
                 sequence_node._sorted_children = sibling_reachability.sorted_nodes()
-                # TODO remove nodes from condition candidates!
                 condition_candidates.remove(all_cluster_nodes)
-                # break
 
         return newly_created_sequence_nodes
 
     def _cluster_by_condition(
-        self, condition: LogicCondition, condition_candidates: ConditionCandidates
+        self, sub_expression: LogicCondition, node_with_subexpression: AbstractSyntaxTreeNode, condition_candidates: ConditionCandidates
     ) -> Tuple[List[AbstractSyntaxTreeNode], List[AbstractSyntaxTreeNode]]:
         """
         Cluster the nodes in sequence_nodes according to the input condition.
 
-        :param condition: The condition for which we check whether it or its negation is a subexpression of the list of input nodes.
-        :param condition_candidates: TODO The sequence node we want to cluster.
+        :param sub_expression: The condition for which we check whether it or its negation is a subexpression of the list of input nodes.
+        :param node_with_subexpression: The node of which the given sub_expression is a sub-expression
+        :param condition_candidates: The children of the sequence node we want to cluster and that have a reaching condition.
         :return: A 2-tuple, where the first list is the set of nodes that have condition as subexpression, the second list is the set of
                  nodes that have the negated condition as subexpression.
         """
         true_children = []
         false_children = []
-        symbols_of_condition = set(condition.get_symbols_as_string())
+        symbols_of_condition = set(sub_expression.get_symbols_as_string())
         negated_condition = None
         for node, properties in condition_candidates:
             if symbols_of_condition - properties.symbols:
                 continue
-            # TODO: we should not check this for the node we currently consider!
-            if self._is_subexpression_of_cnf_formula(condition, node.reaching_condition):
+            if node == node_with_subexpression or self._is_subexpression_of_cnf_formula(sub_expression, node.reaching_condition):
                 true_children.append(node)
             else:
-                negated_condition = self._get_negated_condition_of(condition, negated_condition)
+                negated_condition = self._get_negated_condition_of(sub_expression, negated_condition)
                 if self._is_subexpression_of_cnf_formula(negated_condition, node.reaching_condition):
                     false_children.append(node)
         return true_children, false_children
@@ -259,7 +256,9 @@ class ConditionBasedRefinement:
         # Not sure whether we not want first the expression and then the term, since we do the same when inserting the condition-node.
         # However, we could compare which operands are removed, and then decide whether this is something we want.
         updated_expression_operands = (expression & term).operands
-        if len(updated_expression_operands) > len(expression_operands) or sum(len(op) for op in updated_expression_operands) > sum(len(op) for op in expression_operands):
+        if len(updated_expression_operands) > len(expression_operands) or sum(len(op) for op in updated_expression_operands) > sum(
+            len(op) for op in expression_operands
+        ):
             return False
         if len(updated_expression_operands) < len(expression_operands):
             return True
