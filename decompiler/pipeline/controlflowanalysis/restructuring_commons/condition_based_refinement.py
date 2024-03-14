@@ -4,9 +4,10 @@ Module for Condition Based Refinement
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 from itertools import combinations
-from typing import List, Tuple, Set, Dict, Optional
+from typing import List, Tuple, Set, Dict, Optional, Iterator, DefaultDict
 
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, SeqNode
 from decompiler.structures.ast.reachability_graph import SiblingReachability
@@ -51,25 +52,44 @@ class ConditionCandidates:
             self._max_subexpression_size = min(max(all_sizes), self._max_subexpression_size)
         return self._max_subexpression_size
 
-    def get_next_subexpression(self):
-        while (current_size := self.maximum_subexpression_size) > 0:
-            children_to_consider = [c for c, p in self._candidates.items() if p.number_of_interesting_operands >= current_size]
-            for child in children_to_consider:
-                if child not in self._candidates:
-                    continue
-                if current_size > self.maximum_subexpression_size:
-                    break
+    # def get_next_subexpression(self) -> Iterator[Tuple[AbstractSyntaxTreeNode, LogicCondition]]:
+    #     """Get the next subexpression together with the node it comes from and start with the largest possible subexpression!"""
+    #     while (current_size := self.maximum_subexpression_size) > 0:
+    #         children_to_consider = [c for c, p in self._candidates.items() if p.number_of_interesting_operands >= current_size]
+    #         for child in children_to_consider:
+    #             if child not in self._candidates:
+    #                 continue
+    #             if current_size > self.maximum_subexpression_size:
+    #                 break
+    #             if current_size == 1:
+    #                 for operand in self._candidates[child].operands:
+    #                     yield child, operand
+    #                     if child not in self._candidates or current_size > self.maximum_subexpression_size:
+    #                         break
+    #             else:
+    #                 for new_operands in combinations(self._candidates[child].operands, current_size):
+    #                     yield child, LogicCondition.conjunction_of(new_operands)
+    #                     if child not in self._candidates or current_size > self._max_subexpression_size:
+    #                         break
+    #         self._max_subexpression_size = current_size - 1
+
+    def get_next_subexpression(self) -> Iterator[Tuple[AbstractSyntaxTreeNode, LogicCondition]]:
+        """Consider nodes in order and start with largest possible."""
+        all_candidates = list(self._candidates)
+        for child in all_candidates:
+            if child not in self._candidates:
+                continue
+            if (max_expr_size := self.maximum_subexpression_size) == 0:
+                break
+            current_size = min(len(self._candidates[child].operands), max_expr_size)
+            while current_size > 0 and child in self._candidates:
                 if current_size == 1:
                     for operand in self._candidates[child].operands:
                         yield child, operand
-                        if child not in self._candidates or current_size > self.maximum_subexpression_size:
-                            break
                 else:
                     for new_operands in combinations(self._candidates[child].operands, current_size):
                         yield child, LogicCondition.conjunction_of(new_operands)
-                        if child not in self._candidates or current_size > self._max_subexpression_size:
-                            break
-            self._max_subexpression_size = current_size - 1
+                current_size-= 1
 
     def remove(self, nodes_to_remove: List[AbstractSyntaxTreeNode]):
         for node in nodes_to_remove:
@@ -194,7 +214,6 @@ class ConditionBasedRefinement:
         false_children = []
         symbols_of_condition = set(condition.get_symbols_as_string())
         negated_condition = None
-
         for node, properties in condition_candidates:
             if symbols_of_condition - properties.symbols:
                 continue
@@ -239,8 +258,12 @@ class ConditionBasedRefinement:
         subexpressions = [term] if numb_of_arg_term == 1 else term_operands
         # Not sure whether we not want first the expression and then the term, since we do the same when inserting the condition-node.
         # However, we could compare which operands are removed, and then decide whether this is something we want.
-        expression_operands = (term & expression).operands
-        return all(self._is_contained_in_logic_conditions(sub_expr, expression_operands) for sub_expr in subexpressions)
+        updated_expression_operands = (expression & term).operands
+        if len(updated_expression_operands) > len(expression_operands) or sum(len(op) for op in updated_expression_operands) > sum(len(op) for op in expression_operands):
+            return False
+        if len(updated_expression_operands) < len(expression_operands):
+            return True
+        return all(self._is_contained_in_logic_conditions(sub_expr, updated_expression_operands) for sub_expr in subexpressions)
 
     @staticmethod
     def _preliminary_subexpression_checks(term: LogicCondition, expression: LogicCondition) -> Optional[bool]:
