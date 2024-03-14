@@ -111,7 +111,7 @@ class VariableRenamer:
 
         decorated_graph = MultiDiGraph()
         for node in dependency_graph.nodes:
-            decorated_graph.add_node(node, label=", ".join(map(lambda n: str(n), node)))
+            decorated_graph.add_node(node, label=", ".join(map(lambda n: f"{n}: {n.type}", node)))
         for u, v, data in dependency_graph.edges.data():
             decorated_graph.add_edge(u, v, label=f"{data['score']}")
         for nodes in dependency_graph.get_components():
@@ -247,7 +247,7 @@ class VariableRenamer:
             new_variable = Variable(argument.name, argument.type)
         else:
             variable, *_ = variable_class
-            new_variable = Variable(f"{self.new_variable_name}{counter}", variable.type, is_aliased=variable.is_aliased)
+            new_variable = Variable(f"{variable.name}#{variable.ssa_label}", variable.type, is_aliased=variable.is_aliased)
             counter += 1
 
         return new_variable, counter

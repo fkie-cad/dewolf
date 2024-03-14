@@ -71,7 +71,7 @@
         "options": [
             {
                 "dest": "out-of-ssa-translation.mode",
-                "default": "lift_minimal",
+                "default": "conditional",
                 "title": "SSA Options",
                 "type": "string",
                 "enum": [

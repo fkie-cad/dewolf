@@ -37,6 +37,8 @@ class DependencyGraph(DiGraph):
             for used_variable, score in _expression_dependencies(instruction.value).items():
                 if used_variable.type == defined_variable.type:
                     dependency_graph.add_edge(defined_variable, used_variable, score=score)
+                else:
+                    dependency_graph.add_edge(defined_variable, used_variable, score=-1)
 
         return dependency_graph
 
