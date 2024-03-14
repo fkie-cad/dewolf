@@ -36,7 +36,10 @@ class CfgInstruction:
 
     instruction: Instruction
     block: BasicBlock
-    index: int
+
+    @property
+    def index(self):
+        return self.block.instructions.index(self.instruction)
 
 
 @dataclass()
@@ -221,7 +224,7 @@ class DefinitionGenerator:
         usages: DefaultDict[Expression, Counter[CfgInstruction]] = defaultdict(Counter)
         for basic_block in cfg:
             for index, instruction in enumerate(basic_block.instructions):
-                instruction_with_position = CfgInstruction(instruction, basic_block, index)
+                instruction_with_position = CfgInstruction(instruction, basic_block)
                 for subexpression in _subexpression_dfs(instruction):
                     usages[subexpression][instruction_with_position] += 1
         return cls(usages, cfg.dominator_tree)
@@ -236,7 +239,7 @@ class DefinitionGenerator:
         basic_block, index = self._find_location_for_insertion(expression)
         for usage in self._usages[expression]:
             usage.instruction.substitute(expression, variable.copy())
-        self._insert_definition(CfgInstruction(Assignment(variable, expression), basic_block, index))
+        self._insert_definition(CfgInstruction(Assignment(variable, expression), basic_block), index)
 
     def _find_location_for_insertion(self, expression) -> Tuple[BasicBlock, int]:
         """
@@ -265,9 +268,9 @@ class DefinitionGenerator:
         usages_in_the_same_block = [usage for usage in self._usages[expression] if usage.block == basic_block]
         return any([isinstance(usage.instruction, Phi) for usage in usages_in_the_same_block])
 
-    def _insert_definition(self, definition: CfgInstruction):
+    def _insert_definition(self, definition: CfgInstruction, index: int):
         """Insert a new intermediate definition for the given expression at the given location."""
-        definition.block.instructions.insert(definition.index, definition.instruction)
+        definition.block.instructions.insert(index, definition.instruction)
         for subexpression in _subexpression_dfs(definition.instruction):
             self._usages[subexpression][definition] += 1
 
