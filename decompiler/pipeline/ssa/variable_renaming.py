@@ -1,5 +1,5 @@
 """Module for renaming variables in Out of SSA."""
-
+import itertools
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -7,14 +7,18 @@ from itertools import combinations
 from operator import attrgetter
 from typing import DefaultDict, Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union
 
+import networkx
+from decompiler.pipeline.ssa.dependency_graph import DependencyGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import BaseAssignment, Instruction, Relation
 from decompiler.structures.pseudo.typing import Type
 from decompiler.task import DecompilerTask
+from decompiler.util.decoration import DecoratedCFG, DecoratedGraph
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 from decompiler.util.lexicographical_bfs import LexicographicalBFS
-from networkx import Graph, connected_components
+from functional import seq
+from networkx import Graph, MultiDiGraph, connected_components
 
 
 @dataclass
@@ -94,6 +98,29 @@ class VariableRenamer:
         self._add_interference_for_function_args()
         self._variables_contracted_to: Dict[Variable, List[Variable]] = {var: [var] for var in self.interference_graph}
         self._contract_variables_that_need_same_name()
+
+        dependency_graph = DependencyGraph.from_cfg(task.graph)
+
+        mapping = (
+            seq(self.interference_graph.nodes)
+            .flat_map(lambda var: seq(self._variables_contracted_to[var]).map(lambda rvar: (rvar, tuple(self._variables_contracted_to[var]))))
+            .to_dict()
+        )
+
+        networkx.relabel_nodes(dependency_graph, mapping, copy=False)
+
+        decorated_graph = MultiDiGraph()
+        for node in dependency_graph.nodes:
+            decorated_graph.add_node(node, label=", ".join(map(lambda n: str(n), node)))
+        for u, v, data in dependency_graph.edges.data():
+            decorated_graph.add_edge(u, v, label=f"{data['score']}")
+        for nodes in dependency_graph.get_components():
+            for node_1, node_2 in combinations(nodes, 2):
+                if seq(itertools.product(node_1, node_2)).map(lambda pair: self.interference_graph.has_edge(pair[0], pair[1])).any():
+                    decorated_graph.add_edge(node_1, node_2, color="red", dir="none")
+
+        DecoratedCFG.from_cfg(task.graph).export_plot("cfg_dep.svg", type="svg")
+        DecoratedGraph(decorated_graph).export_plot("dep.svg", type="svg")
 
         self.renaming_map: Dict[Variable, Variable] = dict()
         self.new_variable_name = "var_"
@@ -338,16 +365,100 @@ class MinimalVariableRenamer(VariableRenamer):
 
 class ConditionalVariableRenamer(VariableRenamer):
     """
-
+    A minimal renaming strategy, that renames the SSA-variables such that the total number of non SSA-variables is (almost) minimal.
+    Therefore, we construct color-classes by using lexicographical BFS on the interference graph. When the interference graph is chordal
+    this leads to a minimum number of possible variables.
     """
-    def __init__(self, task: DecompilerTask, interference_graph: InterferenceGraph):
+
+    def __init__(self, task, interference_graph: InterferenceGraph):
+        """
+        self._color_classes is a dictionary where the set of keys is the set of colors
+        and to each color we assign the set of variables of this color.
+        """
         super().__init__(task, interference_graph)
+
+        dependency_graph = DependencyGraph.from_cfg(task.graph)
+
+        mapping = (
+            seq(self.interference_graph.nodes)
+            .flat_map(lambda var: seq(self._variables_contracted_to[var]).map(lambda rvar: (rvar, var)))
+            .to_dict()
+        )
+        networkx.relabel_nodes(dependency_graph, mapping, copy=False)
+
+        for u, v in networkx.non_edges(dependency_graph.to_directed(as_view=True)):
+            self.interference_graph._create_interference((u, v))
+
+        self._variable_classes_handler: VariableClassesHandler = VariableClassesHandler(defaultdict(set))
         self._generate_renaming_map()
 
     def _generate_renaming_map(self):
-        for variable in self.interference_graph.nodes:
-            for v in self._variables_contracted_to[variable]:
-                self.renaming_map[v] = Variable(f"{variable.name}_{variable.ssa_label}", variable.type)
+        """
+        We want to find a minimal number of variables for the replacement:
+            - Compute the class of variables that can have the same name using lexicographical BFS
 
-        for argument, variable in self.variable_for_function_arg.items():
-            self.renaming_map[variable] = Variable(argument, variable.type)
+        :return: A dictionary that assigns each SSA-variable its new, non SSA-variable.
+        """
+        self._compute_color_classes()
+        self.compute_new_name_for_each_variable()
+
+    def _compute_color_classes(self):
+        """
+        This function computes a coloring for the interference graph, i.e., a collection of variable sets (color classes) that are pairwise
+        disjoint and whose union is the set of all variables, s.t. each color class is an independent set in the interference graph.
+
+         - It is optimal if the interference graph is chordal.
+         - Otherwise it is a simple greedy algorithm.
+         - We only color two variables with the same color, if they have the same type.
+        """
+        for variables in self._groupable_variables():
+            self._add_color_classes_for(variables)
+
+    def _groupable_variables(self) -> Iterator[InsertionOrderedSet[Variable]]:
+        """
+        This groups the variables in the interference graph according to their capability of getting the same name.
+        More precisely, we have one group for each pair (type, not_aliased) and (name, aliased).
+
+        :return: A list of sets, that contain variables that can have the same name, if they do not interfere.
+        """
+        variables_of_type: DefaultDict[Union[Type, str], InsertionOrderedSet[Variable]] = defaultdict(InsertionOrderedSet)
+        for variable in self.interference_graph.nodes():
+            if variable.is_aliased:
+                variables_of_type[variable.name].add(variable)
+            else:
+                variables_of_type[variable.type].add(variable)
+        yield from variables_of_type.values()
+
+    def _add_color_classes_for(self, variables: InsertionOrderedSet[Variable]):
+        """
+        Compute a coloring for the variables in `variables` and add it to the color classes dictionary.
+        """
+        interference_subgraph = self.interference_graph.get_subgraph_of(variables)
+        lex_bfs = LexicographicalBFS(interference_subgraph)
+
+        self._variable_classes_handler.clean_up_helpers()
+        for variable in lex_bfs.reverse_lexicographic_bfs():
+            variable_color = self._get_optimal_color_for(variable, interference_subgraph)
+            for var in self._variables_contracted_to[variable]:
+                self._variable_classes_handler.add_variable_to_class(var, variable_color)
+
+    def _get_optimal_color_for(self, variable: Variable, interference_subgraph: InterferenceGraph) -> int:
+        """We compute the optimal color for the given variable."""
+        possible_colors = set(self._get_possible_colors(interference_subgraph.neighbors(variable)))
+        amount_usage_color: LabelCounter = self._variable_classes_handler.get_distribution_of(variable.name)
+        chosen_color = amount_usage_color.get_most_occurring_class_from(possible_colors)
+        return min(possible_colors) if chosen_color is None else chosen_color
+
+    def _get_possible_colors(self, neighborhood: Iterable[Variable]) -> Set[int]:
+        """Returns the set of possible colors for a variable that has the given set of variables as neighbours."""
+        interfering_classes = set(self._classes_of(neighborhood))
+        for color in self._variable_classes_handler.color_class_of.values():
+            if color not in interfering_classes:
+                yield color
+        yield len(self._variable_classes_handler.variable_class)
+
+    def _classes_of(self, neighborhood: Iterable[Variable]) -> Iterable[Variable]:
+        """Returns the classes of the given set of variables"""
+        for neighbor in neighborhood:
+            if neighbor in self._variable_classes_handler.color_class_of:
+                yield self._variable_classes_handler.color_class_of[neighbor]

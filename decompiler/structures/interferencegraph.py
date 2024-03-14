@@ -83,7 +83,7 @@ class InterferenceGraph(Graph):
             dead_phi_function_definitions = liveness_analysis.defs_phi_of(basicblock) - liveness_analysis.live_in_of(basicblock)
             self._interference_graph_add_edges(dead_phi_function_definitions, liveness_analysis.live_in_of(basicblock))
 
-    def _create_interference(self, variables: InsertionOrderedSet[Variable]) -> None:
+    def _create_interference(self, variables: Iterable[Variable]) -> None:
         """
         Adds an edge between every pair of variables in the set 'variables' to the interference graph.
 
