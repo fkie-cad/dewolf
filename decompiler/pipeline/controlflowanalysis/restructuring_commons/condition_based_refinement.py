@@ -7,47 +7,145 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 from itertools import combinations
-from typing import DefaultDict, Dict, Iterator, List, Optional, Set, Tuple
+from typing import DefaultDict, Dict, Iterator, List, Optional, Set, Tuple, Union
 
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, SeqNode
 from decompiler.structures.ast.reachability_graph import SiblingReachability
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
+from decompiler.structures.graphs.interface import GraphNodeInterface, GraphEdgeInterface
+from decompiler.structures.graphs.nxgraph import NetworkXGraph
 from decompiler.structures.logic.logic_condition import LogicCondition
 
 
-@dataclass
-class CandidateProperties:
-    # Add original reaching condition --> but remaining part only relevant stuff?
-    operands: List[LogicCondition]
-    symbols: Set[str]
+class CandidateNode(GraphNodeInterface):
+    def __init__(self, condition: Union[LogicCondition, str]):
+        self.node: Union[LogicCondition, str] = condition
 
-    @classmethod
-    def initialize(cls, node: AbstractSyntaxTreeNode) -> CandidateProperties:
-        operands = list(node.reaching_condition.operands) if node.reaching_condition.is_conjunction else [node.reaching_condition.copy()]
-        symbols = set(node.reaching_condition.get_symbols_as_string())
-        return CandidateProperties(operands, symbols)
+    def __str__(self) -> str:
+        """Return a string representation."""
+        return str(self.node)
+
+    def __eq__(self, other) -> bool:
+        """Graph nodes should be equal for equal content."""
+        return hash(self) == hash(other)
+
+    def __hash__(self) -> int:
+        """Graph nodes should always have a unique hash."""
+        return id(self)
+
+    def copy(self) -> CandidateNode:
+        """Return a copy of the graph node."""
+        return self.__class__(self.node.copy())
+
+
+class FormulaNode(CandidateNode):
+    def __init__(self, condition: LogicCondition):
+        super().__init__(condition)
+
+
+class ClauseNode(CandidateNode):
+    def __init__(self, condition: LogicCondition):
+        super().__init__(condition)
+
+
+class SymbolNode(CandidateNode):
+    def __init__(self, condition: str):
+        super().__init__(condition)
+
+    def __str__(self) -> str:
+        return self.node
+
+    def __hash__(self):
+        return hash(self.node)
+
+    def copy(self) -> SymbolNode:
+        """Return a copy of the graph node."""
+        return SymbolNode(self.node)
+
+
+class CandidateEdge(GraphEdgeInterface):
+    def __init__(self, source: CandidateNode, sink: CandidateNode):
+        self._source: CandidateNode = source
+        self._sink: CandidateNode = sink
 
     @property
-    def number_of_interesting_operands(self) -> int:
-        return len(self.operands)
+    def source(self) -> CandidateNode:
+        """Return the origin of the edge."""
+        return self._source
+
+    @property
+    def sink(self) -> CandidateNode:
+        """Return the target of the edge."""
+        return self._sink
+
+    def __eq__(self, other) -> bool:
+        """Check whether two edges are equal."""
+        return self.source == other.source and self.sink == other.sink
+
+    def copy(self, source: Optional[GraphNodeInterface] = None, sink: Optional[GraphNodeInterface] = None) -> CandidateEdge:
+        """
+        Copy the edge, returning a new object.
+        source -- (optional) The new source of the copied edge.
+        sink -- (optional) The new sink of the copied edge.
+        """
+        return CandidateEdge(source if source is not None else self.source, sink if sink is not None else self.sink)
 
 
 class ConditionCandidates:
     def __init__(self, candidates: List[AbstractSyntaxTreeNode]):
-        self._candidates: Dict[AbstractSyntaxTreeNode, CandidateProperties] = {c: CandidateProperties.initialize(c) for c in candidates}
+        self._candidates: Dict[AbstractSyntaxTreeNode, FormulaNode] = {c: FormulaNode(c.reaching_condition) for c in candidates}
+        self._condition_graph: NetworkXGraph[CandidateNode, CandidateEdge] = NetworkXGraph[CandidateNode, CandidateEdge]()
+        self._formulas_containing_symbol: DefaultDict[SymbolNode, Set[FormulaNode]] = defaultdict(set)
+        self._initialize_graph()
         self._max_subexpression_size: int = max(
-            (candidate_property.number_of_interesting_operands for candidate_property in self._candidates.values()), default=0
+            (self._condition_graph.get_out_degree(formula_node) for formula_node in self._candidates.values()), default=0
         )
 
-    def __iter__(self):
-        yield from self._candidates.items()
+    def _initialize_graph(self) -> None:
+        for condition in self._candidates.values():
+            self._condition_graph.add_node(condition)
+            operands = list(condition.node.operands) if condition.node.is_conjunction else [condition.node.copy()]
+            for op in operands:
+                self._condition_graph.add_edge(CandidateEdge(condition, op_candidate := ClauseNode(op)))
+                for symbol in op.get_symbols_as_string():
+                    self._condition_graph.add_edge(CandidateEdge(op_candidate, SymbolNode(symbol)))
+                    self._formulas_containing_symbol[SymbolNode(symbol)].add(condition)
+
+        single_symbols = set(symbol for symbol, condition in self._formulas_containing_symbol.items() if len(condition) == 1)
+        self._remove_clauses_containing_symbols(single_symbols)
+
+    def _remove_clauses_containing_symbols(self, single_symbols: Set[SymbolNode]):
+        while single_symbols:
+            symbol = single_symbols.pop()
+            if not self._formulas_containing_symbol[symbol]:
+                continue
+            formula = self._formulas_containing_symbol[symbol].pop()
+            clauses: Tuple[ClauseNode] = self._condition_graph.get_predecessors(symbol)  # type: ignore
+            self._condition_graph.remove_node(symbol)
+            for c in clauses:
+                single_symbols.update(self._remove_clause(c, formula))
+
+    def _remove_clause(self, clause: ClauseNode, formula: FormulaNode) -> Iterator[SymbolNode]:
+        symbols_in_clause: Tuple[SymbolNode] = self._condition_graph.get_successors(clause)  # type: ignore
+        self._condition_graph.remove_node(clause)
+        for symbol in symbols_in_clause:
+            if not self._condition_graph.has_path(formula, symbol):
+                self._formulas_containing_symbol[symbol].remove(formula)
+                if len(self._formulas_containing_symbol[symbol]) == 1:
+                    yield symbol
+
+    def get_symbols_of(self, node: AbstractSyntaxTreeNode) -> Set[str]:
+        return set(n.node for n in self._condition_graph.iter_preorder(self._candidates[node]) if isinstance(n, SymbolNode))
+
+    def get_operands(self, node: AbstractSyntaxTreeNode) -> List[LogicCondition]:
+        return [clause.node for clause in self._condition_graph.get_successors(self._candidates[node])]
 
     @property
     def maximum_subexpression_size(self) -> int:
         if len(self._candidates) < 2:
             self._max_subexpression_size = 0
         else:
-            all_sizes = [candidate_property.number_of_interesting_operands for candidate_property in self._candidates.values()]
+            all_sizes = [self._condition_graph.get_out_degree(formula_node) for formula_node in self._candidates.values()]
             all_sizes.remove(max(all_sizes))
             self._max_subexpression_size = min(max(all_sizes), self._max_subexpression_size)
         return self._max_subexpression_size
@@ -74,27 +172,35 @@ class ConditionCandidates:
     #                         break
     #         self._max_subexpression_size = current_size - 1
 
+    def __iter__(self) -> Iterator[AbstractSyntaxTreeNode]:
+        yield from self._candidates.keys()
+
     def get_next_subexpression(self) -> Iterator[Tuple[AbstractSyntaxTreeNode, LogicCondition]]:
         """Consider nodes in order and start with largest possible."""
-        # TODO: only compute "useful" subexpressions!
         all_candidates = list(self._candidates)
         for child in all_candidates:
             if child not in self._candidates:
                 continue
             if (max_expr_size := self.maximum_subexpression_size) == 0:
                 break
-            current_size = min(len(self._candidates[child].operands), max_expr_size)
+            clauses = self.get_operands(child)
+            current_size = min(len(clauses), max_expr_size)
             while current_size > 0 and child in self._candidates:
                 if current_size == 1:
-                    for operand in self._candidates[child].operands:
+                    for operand in clauses:
                         yield child, operand
                 else:
-                    for new_operands in combinations(self._candidates[child].operands, current_size):
+                    for new_operands in combinations(clauses, current_size):
                         yield child, LogicCondition.conjunction_of(new_operands)
                 current_size -= 1
 
     def remove(self, nodes_to_remove: List[AbstractSyntaxTreeNode]):
         for node in nodes_to_remove:
+            formula = self._candidates[node]
+            new_single_symbols = set()
+            for clause in self._condition_graph.get_successors(formula):
+                new_single_symbols.update(self._remove_clause(clause, formula))
+            self._remove_clauses_containing_symbols(new_single_symbols)
             del self._candidates[node]
 
 
@@ -212,8 +318,8 @@ class ConditionBasedRefinement:
         false_children = []
         symbols_of_condition = set(sub_expression.get_symbols_as_string())
         negated_condition = None
-        for node, properties in condition_candidates:
-            if symbols_of_condition - properties.symbols:
+        for node in condition_candidates:
+            if symbols_of_condition - condition_candidates.get_symbols_of(node):
                 continue
             if node == node_with_subexpression or self._is_subexpression_of_cnf_formula(sub_expression, node.reaching_condition):
                 true_children.append(node)

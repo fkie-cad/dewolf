@@ -49,12 +49,20 @@ class NetworkXGraph(GraphInterface[NODE, EDGE]):
         self._graph.remove_edge(edge.source, edge.sink)
 
     def get_roots(self) -> Tuple[NODE, ...]:
-        """Return all nodes with in degree 0."""
+        """Return all nodes with in-degree 0."""
         return tuple(node for node, d in self._graph.in_degree() if not d)
 
     def get_leaves(self) -> Tuple[NODE, ...]:
-        """Return all nodes with out degree 0."""
+        """Return all nodes with out-degree 0."""
         return tuple(node for node, d in self._graph.out_degree() if not d)
+
+    def get_out_degree(self, node: NODE) -> int:
+        """Return the out-degree of the given node."""
+        return self._graph.out_degree(node)
+
+    def get_ancestors(self, node: NODE) -> Iterator[NODE]:
+        """Iterate all ancestors of the given node."""
+        yield from (child for _, child in bfs_edges(self._graph, node, reverse=True))
 
     def __len__(self) -> int:
         """Return the amount of nodes in the graph."""
