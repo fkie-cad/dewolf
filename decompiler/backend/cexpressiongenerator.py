@@ -178,7 +178,9 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
             return self._format_integer_literal(expr.type, value)
         if isinstance(expr.type, Pointer):
             match (expr.value):
-                case str():  # Technically every string will be lifted as an ConstantArray. Will still leave this, if someone creates a string as a char*
+                case (
+                    str()
+                ):  # Technically every string will be lifted as an ConstantArray. Will still leave this, if someone creates a string as a char*
                     string = expr.value if len(expr.value) <= MAX_GLOBAL_INIT_LENGTH else expr.value[:MAX_GLOBAL_INIT_LENGTH] + "..."
                     match expr.type.type:
                         case CustomType(text="wchar16") | CustomType(text="wchar32"):
