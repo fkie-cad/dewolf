@@ -34,6 +34,7 @@ from decompiler.structures.pseudo import (
 
 class GlobalHandler(Handler):
     """Handler for global variables."""
+
     # Dict translating endianness between the binaryninja enum and pythons literals
     Endian = {Endianness.LittleEndian: "little", Endianness.BigEndian: "big"}
 
@@ -53,11 +54,9 @@ class GlobalHandler(Handler):
         self._view: Optional[BinaryView] = None
         self._callers: list[int] = []
 
-
     def register(self):
         """Register the handler at its parent lifter."""
         self._lifter.HANDLERS.update({DataVariable: self.lift_global_variable})
-
 
     def _build_global_variable(self, name: Optional[str], type: Type, addr: int, init_value, ssa_label: Optional[int]) -> GlobalVariable:
         vname = name if name is not None else GLOBAL_VARIABLE_PREFIX + f"{addr:x}"
@@ -71,14 +70,9 @@ class GlobalHandler(Handler):
                 raise TypeError(f"Type violation: '{init_value}'")
 
         self._lifted_globals[addr] = GlobalVariable(
-            name=vname,
-            vartype=type,
-            initial_value=vinit_value,
-            ssa_label=ssa_label,
-            is_constant=self.addr_in_ro_section(self._view, addr)
+            name=vname, vartype=type, initial_value=vinit_value, ssa_label=ssa_label, is_constant=self.addr_in_ro_section(self._view, addr)
         )
         return self._lifted_globals[addr]
-
 
     def lift_global_variable(
         self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None, callers: list[int] = [], **kwargs
@@ -87,13 +81,17 @@ class GlobalHandler(Handler):
         # Save view for all internal used functions
         if not self._view:
             self._view = view
-        
-        # Safe list of callers before 
+
+        # Safe list of callers before
         self._callers = callers
 
         # If addr was already lifted: Return lifted GlobalVariable with updated SSA
         if variable.address in self._lifted_globals.keys():
-            return self._lifted_globals[variable.address].copy(ssa_label=parent.ssa_memory_version) if parent else self._lifted_globals[variable.address]
+            return (
+                self._lifted_globals[variable.address].copy(ssa_label=parent.ssa_memory_version)
+                if parent
+                else self._lifted_globals[variable.address]
+            )
 
         # BNinja error cases: nullptr/small numbers (0, -12...)
         if not self.addr_in_section(view, variable.address):
@@ -109,12 +107,13 @@ class GlobalHandler(Handler):
 
         return self._lift_datavariable_by_type[type(variable.type)](variable, parent)
 
-
     def _lift_basic_type(self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None) -> GlobalVariable:
         """Lift basic C type found by BNinja (int, float, char, ...)"""
         # If variable references something in address space, then lift it as a pointer (BNinja 4.0 "Error")
         if [x for x in variable.data_refs_from]:
-            return self._lifter.lift(DataVariable(self._view, variable.address, Type.pointer(self._view, Type.void()), False), view=self._view, parent=parent)
+            return self._lifter.lift(
+                DataVariable(self._view, variable.address, Type.pointer(self._view, Type.void()), False), view=self._view, parent=parent
+            )
 
         type = self._lifter.lift(variable.type)
         return self._build_global_variable(
@@ -124,7 +123,6 @@ class GlobalHandler(Handler):
             init_value=Constant(variable.value, type),
             ssa_label=parent.ssa_memory_version if parent else 0,
         )
-
 
     def _lift_void_type(self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None) -> GlobalVariable:
         "Lift unknown type, by checking the value at the given address. Will always be lifted as a pointer. Try to extract datavariable, string or bytes as value"
@@ -137,14 +135,11 @@ class GlobalHandler(Handler):
             ssa_label=parent.ssa_memory_version if parent else 0,
         )
 
-
-    def _lift_constant_type(
-        self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None
-    ) -> GlobalVariable:
+    def _lift_constant_type(self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None) -> GlobalVariable:
         """Lift constant data type (strings and jump tables) into code"""
         type = self._lifter.lift(variable.type)
         match variable.value:
-            case bytes(): # BNinja corner case: C-Strings (8Bit) are represented as Bytes
+            case bytes():  # BNinja corner case: C-Strings (8Bit) are represented as Bytes
                 value = [Constant(x, type.type) for x in str(variable.value.rstrip(b"\x00"))[2:-1]]
             case _:
                 value = [Constant(x, type.type) for x in variable.value]
@@ -157,26 +152,29 @@ class GlobalHandler(Handler):
             ssa_label=parent.ssa_memory_version if parent else 0,
         )
 
-
-    def _lift_pointer_type(self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None) -> Union[GlobalVariable, Symbol]:
+    def _lift_pointer_type(
+        self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None
+    ) -> Union[GlobalVariable, Symbol]:
         """Lift pointer as:
-            1. Function pointer: If Bninja already knows it's a function pointer.
-            2. Type pointer: As normal type pointer (there _should_ be a datavariable at the pointers dest.)
-            3. Void pointer: Try to extract a datavariable (recover type of void* directly), string (char*) or raw bytes (void*) at the given address
+        1. Function pointer: If Bninja already knows it's a function pointer.
+        2. Type pointer: As normal type pointer (there _should_ be a datavariable at the pointers dest.)
+        3. Void pointer: Try to extract a datavariable (recover type of void* directly), string (char*) or raw bytes (void*) at the given address
         """
         match variable.type.target:
-            case FunctionType(): # BNinja knows it's a imported function pointer
-                return ImportedFunctionSymbol(variable.name, variable.address, vartype=Pointer(Integer.char(), self._view.address_size * BYTE_SIZE))
-            case VoidType(): # BNinja knows it's a pointer pointing at something
+            case FunctionType():  # BNinja knows it's a imported function pointer
+                return ImportedFunctionSymbol(
+                    variable.name, variable.address, vartype=Pointer(Integer.char(), self._view.address_size * BYTE_SIZE)
+                )
+            case VoidType():  # BNinja knows it's a pointer pointing at something
                 # Extract the initial_value and type from the location where the pointer is pointing to
                 init_value, type = self.get_unknown_pointer_value(variable.value, self._view, variable.address)
                 if not isinstance(type, (Pointer, Array)):  # Fix type to be a pointer (happens when a datavariable is at the dest.)
                     type = Pointer(type, self._view.address_size * BYTE_SIZE)
             case _:
                 init_value, type = (
-                self._lifter.lift(self._view.get_data_var_at(variable.value), view=self._view, caller_addr=variable.address),
-                self._lifter.lift(variable.type),
-            )
+                    self._lifter.lift(self._view.get_data_var_at(variable.value), view=self._view, caller_addr=variable.address),
+                    self._lifter.lift(variable.type),
+                )
         return self._build_global_variable(
             name=self._lifter.lift(variable.symbol).name if variable.symbol else None,
             type=type,
@@ -185,15 +183,11 @@ class GlobalHandler(Handler):
             ssa_label=parent.ssa_memory_version if parent else 0,
         )
 
-
-    def _lift_named_type_ref(
-        self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None
-    ):
+    def _lift_named_type_ref(self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None):
         """Lift a named custom type (Enum, Structs)"""
         return Constant(
             "Unknown value", self._lifter.lift(variable.type)
         )  # BNinja error, need to check with the issue to get the correct value + entry for structs
-
 
     def get_unknown_pointer_value(self, addr: int, view: BinaryView, caller_addr: int = 0):
         """Return symbol, datavariable, address, string or raw bytes at given address."""
@@ -201,21 +195,21 @@ class GlobalHandler(Handler):
             return addr, Pointer(CustomType.void())
         if datavariable := view.get_data_var_at(addr):
             self._callers.append(caller_addr)
-            return self._lifter.lift(datavariable, view=view, callers=self._callers), self._lifter.lift(datavariable.type) 
-        if (data := self._get_different_string_types_at(addr, view)) and data[0] is not None: # Implicit pointer removal if called from a pointer value
+            return self._lifter.lift(datavariable, view=view, callers=self._callers), self._lifter.lift(datavariable.type)
+        if (data := self._get_different_string_types_at(addr, view)) and data[
+            0
+        ] is not None:  # Implicit pointer removal if called from a pointer value
             type = Array(self._lifter.lift(data[1]), len(data[0]))
             data = ConstantComposition([Constant(x, type.type) for x in data[0]], type)
         else:
             data, type = self.get_raw_bytes(addr, view), Pointer(CustomType.void())
         return data, type
 
-
     def get_raw_bytes(self, addr: int, view: BinaryView) -> bytes:
         """Returns raw bytes as hex string after a given address to the next data structure or section"""
         if (next_data_var := view.get_next_data_var_after(addr)) is not None:
             return view.read(addr, next_data_var.address - addr)
         return view.read(addr, view.get_sections_at(addr)[0].end)
-
 
     def _get_different_string_types_at(self, addr: int, view: BinaryView) -> Tuple[Optional[str], Type]:
         """Extract string with char/wchar16/wchar32 type if there is one"""
@@ -225,7 +219,6 @@ class GlobalHandler(Handler):
             if string != None:
                 break
         return string, type
-
 
     def _get_string_at(self, view: BinaryView, addr: int, width: int) -> Optional[str]:
         """Read string with specified width from location. Explanation for the magic parsing:
@@ -256,14 +249,12 @@ class GlobalHandler(Handler):
 
         return string
 
-
     def addr_in_section(self, view: BinaryView, addr: int) -> bool:
         """Returns True if address is contained in a section, False otherwise"""
         for _, section in view.sections.items():
             if addr >= section.start and addr <= section.end:
                 return True
         return False
-
 
     def addr_in_ro_section(self, view: BinaryView, addr: int) -> bool:
         """Returns True if address is contained in a read only section, False otherwise"""

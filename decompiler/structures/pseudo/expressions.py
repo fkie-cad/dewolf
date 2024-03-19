@@ -507,7 +507,12 @@ class RegisterPair(Variable):
 
 class ConstantComposition(Constant):
     def __init__(self, value: list[Constant], vartype: DecompiledType = UnknownType(), tags: Optional[Tuple[Tag, ...]] = None):
-        super().__init__(value, vartype, None, tags,)
+        super().__init__(
+            value,
+            vartype,
+            None,
+            tags,
+        )
 
     def __str__(self) -> str:
         """Todo"""
@@ -517,7 +522,6 @@ class ConstantComposition(Constant):
         """Generate a copy of the UnknownExpression with the same message."""
         return ConstantComposition([x.copy() for x in self.value], self._type.copy())
 
-    
     def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
         """Invoke the appropriate visitor for this Expression."""
         return visitor.visit_constant_composition(self)

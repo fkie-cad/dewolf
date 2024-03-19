@@ -224,12 +224,12 @@ class CustomType(Type):
     @classmethod
     def wchar16(cls) -> CustomType:
         """Return wchar type representing a 16-bit Unicode character"""
-        return  cls("wchar16", 16)
+        return cls("wchar16", 16)
 
     @classmethod
     def wchar32(cls) -> CustomType:
         """Return wchar type representing a 32-bit Unicode character"""
-        return  cls("wchar32", 32)
+        return cls("wchar32", 32)
 
     def __str__(self) -> str:
         """Return the given string representation."""

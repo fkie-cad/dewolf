@@ -26,7 +26,8 @@ class BaseCase:
 
 
 def test_classes_without_methods_can_be_wrapped():
-    class TestCase(StupidBaseCase): ...
+    class TestCase(StupidBaseCase):
+        ...
 
     a = TestCase()
     assert a
@@ -42,7 +43,8 @@ def test_classes_with_init():
 
 
 def test_classes_with_return_value():
-    class TestCase(BaseCase): ...
+    class TestCase(BaseCase):
+        ...
 
     a = TestCase(5)
     assert a._input == 12

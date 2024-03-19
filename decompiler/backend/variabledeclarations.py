@@ -52,7 +52,9 @@ class LocalDeclarationGenerator:
 
 class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
     def __init__(self) -> None:
-        self._global_vars = InsertionOrderedSet() # TODO: app1.so test_case => .got GVar points to one in .data with same name => hash equal => only ptr printed
+        self._global_vars = (
+            InsertionOrderedSet()
+        )  # TODO: app1.so test_case => .got GVar points to one in .data with same name => hash equal => only ptr printed
         super().__init__()
 
     @staticmethod
@@ -62,16 +64,16 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
             base = f"extern {'const ' if variable.is_constant else ''}"
             match variable.type:
                 case ArrayType():
-                    br, bl = '', ''
+                    br, bl = "", ""
                     if not variable.type.type in [Integer.char(), CustomType.wchar16(), CustomType.wchar32()]:
-                        br, bl = '{', '}'
+                        br, bl = "{", "}"
                     yield f"{base}{variable.type.type} {variable.name}[{hex(variable.type.elements)}] = {br}{CExpressionGenerator().visit(variable.initial_value)}{bl};"
                 case _:
                     yield f"{base}{variable.type} {variable.name} = {CExpressionGenerator().visit(variable.initial_value)};"
 
     @staticmethod
     def from_asts(asts: Iterable[AbstractSyntaxTree]) -> str:
-        """Generate """
+        """Generate"""
         globals = InsertionOrderedSet()
         for ast in asts:
             globals |= GlobalDeclarationGenerator().visit_ast(ast)

@@ -84,7 +84,7 @@ class TestVariable:
 
 class TestGlobalVariable:
     def test_initial_value(self):
-        assert GlobalVariable("var_1", UnknownType() ,initial_value=Constant(42)).initial_value == Constant(42)
+        assert GlobalVariable("var_1", UnknownType(), initial_value=Constant(42)).initial_value == Constant(42)
 
     def test_defaults(self):
         global_var = GlobalVariable("var_1", Integer.char(), Constant(42))
