@@ -431,7 +431,7 @@ class GlobalVariable(Variable):
             case Expression():
                 yield self.initial_value
             case _:
-                pass
+                raise TypeError(f"Type violation  '{self.initial_value}'")
 
     def __str__(self) -> str:
         """Return a string representation of the global variable."""
@@ -515,7 +515,7 @@ class ConstantComposition(Constant):
         )
 
     def __str__(self) -> str:
-        """Todo"""
+        """Return a string representation of the ConstantComposition"""
         return "{" + ",".join([str(x) for x in self.value]) + "}"
 
     def copy(self) -> ConstantComposition:
