@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Iterator, Optional, Tuple, TypeVar
+from typing import Dict, Iterator, Optional, Tuple, TypeVar, Union
 
 from networkx import bfs_edges  # type: ignore
 from networkx import (
@@ -18,7 +18,7 @@ from networkx import (
     topological_sort,
 )
 
-from .interface import EDGE, NODE, GraphInterface
+from .interface import EDGE, NODE, GraphInterface, GraphNodeInterface
 
 T = TypeVar("T", bound=GraphInterface)
 
@@ -75,6 +75,12 @@ class NetworkXGraph(GraphInterface[NODE, EDGE]):
     def __iter__(self) -> Iterator[NODE]:
         """Iterate all nodes in the graph."""
         yield from self._graph.nodes
+
+    def __contains__(self, obj: Union[NODE, EDGE]):
+        """Check if a node or edge is contained in the graph."""
+        if isinstance(obj, GraphNodeInterface):
+            return obj in self._graph
+        return any(obj in data["data"] for _, _, data in self._graph.edges(data=True))
 
     def iter_depth_first(self, source: NODE) -> Iterator[NODE]:
         """Iterate all nodes in dfs fashion."""
