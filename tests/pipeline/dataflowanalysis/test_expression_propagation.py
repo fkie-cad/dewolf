@@ -402,7 +402,7 @@ def test_globals_not_propagated_1():
      | y#0 = global_x#0 + 0x5 |
      +------------------------+
     """
-    global_var = GlobalVariable("global_x", ssa_label=0)
+    global_var = GlobalVariable("global_x", UnknownType(), Constant(0), ssa_label=0)
     y = Variable("y", ssa_label=0)
     instructions = [_assign(global_var, Constant(5)), _assign(y, _add(global_var, Constant(5)))]
     original = _assign(y, _add(global_var, Constant(5)))
@@ -427,7 +427,7 @@ def test_globals_not_propagated_2():
     |       z#0 = y#0        |
     +------------------------+
     """
-    global_var = GlobalVariable("global_x", ssa_label=0)
+    global_var = GlobalVariable("global_x", UnknownType(), Constant(0), ssa_label=0)
     y = Variable("y", ssa_label=0)
     z = Variable("z", ssa_label=0)
     instructions = [_assign(y, _add(global_var, Constant(5))), _assign(z, y)]

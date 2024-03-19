@@ -84,41 +84,40 @@ class TestVariable:
 
 class TestGlobalVariable:
     def test_initial_value(self):
-        assert GlobalVariable("var_1", initial_value=42).initial_value == 42
+        assert GlobalVariable("var_1", UnknownType() ,initial_value=Constant(42)).initial_value == Constant(42)
 
     def test_defaults(self):
-        global_var = GlobalVariable("var_1", Integer.char())
-        assert global_var.initial_value is None
+        global_var = GlobalVariable("var_1", Integer.char(), Constant(42))
         assert global_var.ssa_label is None
         assert global_var.is_aliased is True
 
     def test_copy(self):
-        original = GlobalVariable("var_1", Integer.char(), ssa_label=3, initial_value=42)
+        original = GlobalVariable("var_1", Integer.char(), ssa_label=3, initial_value=Constant(42))
         copy = original.copy()
         assert isinstance(copy, GlobalVariable)
         assert id(original) != id(copy) and original == copy
         assert copy.type == Integer.char()
         assert copy.ssa_label == original.ssa_label == 3
-        assert copy.initial_value == original.initial_value == 42
+        assert copy.initial_value == original.initial_value == Constant(42)
         assert copy.is_aliased and original.is_aliased
 
     def test_copy_with_replacement(self):
-        original = GlobalVariable("var_1", Integer.char(), ssa_label=3, initial_value=42)
+        original = GlobalVariable("var_1", Integer.char(), ssa_label=3, initial_value=Constant(42))
         copy = original.copy(ssa_label=4)
         assert isinstance(copy, GlobalVariable)
         assert id(original) != id(copy) and original != copy
         assert copy.type == Integer.char()
         assert copy.ssa_label == 4
-        assert copy.initial_value == original.initial_value == 42
+        assert copy.initial_value == original.initial_value == Constant(42)
         assert copy.is_aliased and original.is_aliased
 
     def test_initial_value_is_copied_correctly(self):
-        g1 = GlobalVariable("g1", Integer.char(), ssa_label=3, initial_value=42)
+        g1 = GlobalVariable("g1", Integer.char(), ssa_label=3, initial_value=Constant(42))
         g1_copy = g1.copy()
-        assert g1_copy.initial_value == g1.initial_value == 42
-        g1_copy_with_replacement = g1.copy(initial_value=84)
-        assert g1_copy_with_replacement.initial_value == 84
-        some_glob = GlobalVariable("g", Integer.char())
+        assert g1_copy.initial_value == g1.initial_value == Constant(42)
+        g1_copy_with_replacement = g1.copy(initial_value=Constant(84))
+        assert g1_copy_with_replacement.initial_value == Constant(84)
+        some_glob = GlobalVariable("g", Integer.char(), Constant(32))
         g2 = GlobalVariable("g2", Integer.char(), ssa_label=3, initial_value=some_glob)
         g2_copy = g2.copy()
         assert g2.initial_value == g2_copy.initial_value == some_glob
