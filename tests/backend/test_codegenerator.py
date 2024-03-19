@@ -31,7 +31,7 @@ from decompiler.structures.pseudo.operations import (
     OperationType,
     UnaryOperation,
 )
-from decompiler.structures.pseudo.typing import CustomType, Float, Integer, Pointer, Type
+from decompiler.structures.pseudo.typing import CustomType, Float, Integer, Pointer, Type, UnknownType
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
@@ -1303,7 +1303,7 @@ class TestGlobalVisitor:
     @pytest.mark.parametrize(
         "op",
         [
-            ListOperation([Variable("var_5"), GlobalVariable("test")]),
+            ListOperation([Variable("var_5"), GlobalVariable("test", UnknownType(), Constant(0))]),
         ],
     )
     def test_operation(self, op):
