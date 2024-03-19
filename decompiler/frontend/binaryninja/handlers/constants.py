@@ -68,14 +68,10 @@ class ConstantHandler(Handler):
 
         if isinstance(res, Constant): # BNinja Error case handling
             return res
-
-        match(res.type):
-            case Pointer(CustomType.void()):
-                return res
-            case _:
-                return UnaryOperation(
-                    OperationType.address,
-                    [res],
-                    vartype=res.type,
-                )
+        
+        return UnaryOperation(
+            OperationType.address,
+            [res],
+            vartype=res.type,
+        )
 
