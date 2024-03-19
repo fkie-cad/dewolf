@@ -66,8 +66,16 @@ class ConstantHandler(Handler):
         else:
             res = self._lifter.lift(DataVariable(view, pointer.constant, Type.void(), False), view=view, parent=pointer)
 
-        return UnaryOperation(
-            OperationType.address,
-            [res],
-            vartype=res.type,
-        ) if not res.type == Pointer(CustomType.void()) else res
+        if isinstance(res, Constant): # BNinja Error case handling
+            return res
+
+        match(res.type):
+            case Pointer(CustomType.void()):
+                return res
+            case _:
+                return UnaryOperation(
+                    OperationType.address,
+                    [res],
+                    vartype=res.type,
+                )
+

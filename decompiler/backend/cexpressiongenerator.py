@@ -171,29 +171,33 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
             return expr.value
         if isinstance(expr, expressions.Symbol):
             return expr.name
-        match(expr.value):
-            case float():
-                return expr.value
-            case int():
-                return hex(expr.value)
-            case str():
-                string = expr.value if len(expr.value) <= MAX_GLOBAL_INIT_LENGTH else expr.value[:MAX_GLOBAL_INIT_LENGTH] + '...'
-                match expr.type.type:
-                    case CustomType(text='wchar16') | CustomType(text='wchar32'): return f'L"{string}"' 
-                    case _: return f'"{string}"'
-            case bytes():
-                val = ''.join('\\x{:02x}'.format(x) for x in expr.value)
-                return f'"{val}"' if len(val) <= MAX_GLOBAL_INIT_LENGTH else f'"{val[:MAX_GLOBAL_INIT_LENGTH]}..."'
+        if isinstance(expr.type, Integer):
+            value = self._get_integer_literal_value(expr)
+            return self._format_integer_literal(expr.type, value)
+        if isinstance(expr.type, Pointer):
+            match(expr.value):
+                case str(): # Technically every string will be lifted as an ConstantArray. Will still leave this, if someone creates a string as a char*
+                    string = expr.value if len(expr.value) <= MAX_GLOBAL_INIT_LENGTH else expr.value[:MAX_GLOBAL_INIT_LENGTH] + '...'
+                    match expr.type.type:
+                        case CustomType(text='wchar16') | CustomType(text='wchar32'): return f'L"{string}"' 
+                        case _: return f'"{string}"'
+                case bytes():
+                    val = ''.join('\\x{:02x}'.format(x) for x in expr.value)
+                    return f'"{val}"' if len(val) <= MAX_GLOBAL_INIT_LENGTH else f'"{val[:MAX_GLOBAL_INIT_LENGTH]}..."'
+        
+        return self._format_string_literal(expr) 
 
     def visit_constant_composition(self, expr: expressions.ConstantComposition):
         """Visit a Constant Array."""
         match expr.type.type:
             case CustomType(text='wchar16') | CustomType(text='wchar32'):
-                return f'L"{"".join([x.value for x in expr.value][:MAX_GLOBAL_INIT_LENGTH])}"'
+                val = {"".join([x.value for x in expr.value])}
+                return f'L"{val}"' if len(val) <= MAX_GLOBAL_INIT_LENGTH else f'L"{val[:MAX_GLOBAL_INIT_LENGTH]}..."'
             case Integer(8):
-                return f'"{"".join([x.value for x in expr.value][:MAX_GLOBAL_INIT_LENGTH])}"'
+                val = "".join([x.value for x in expr.value][:MAX_GLOBAL_INIT_LENGTH])
+                return f'"{val}"' if len(val) <= MAX_GLOBAL_INIT_LENGTH else f'"{val[:MAX_GLOBAL_INIT_LENGTH]}..."'
             case _:
-                return f'{", ".join([hex(x.value) for x in expr.value])}'
+                return f'{", ".join([hex(x.value) for x in expr.value])}' # Todo: Should we print every member? Could get pretty big
 
     def visit_variable(self, expr: expressions.Variable) -> str:
         """Return a string representation of the variable."""
@@ -384,6 +388,17 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         :return: true if array element access false otherwise
         """
         return operation.operation == OperationType.dereference and operation.array_info is not None and operation.operand.complexity > 1
+
+    @staticmethod
+    def _format_string_literal(constant: expressions.Constant) -> str:
+        """Return an escaped version of the given string literal."""
+        string_representation = str(constant)
+        if string_representation.startswith('"') and string_representation.endswith('"'):
+            string_representation = str(constant)[1:-1]
+        if '"' in string_representation:
+            escaped = string_representation.replace('"', '\\"')
+            return f'"{escaped}"'
+        return f"{constant}"
 
     @staticmethod
     def format_variables_declaration(var_type: Type, var_names: list[str]) -> str:

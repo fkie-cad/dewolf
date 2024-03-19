@@ -52,7 +52,7 @@ class LocalDeclarationGenerator:
 
 class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
     def __init__(self) -> None:
-        self._global_vars = InsertionOrderedSet()
+        self._global_vars = InsertionOrderedSet() # TODO: app1.so test_case => .got GVar points to one in .data with same name => hash equal => only ptr printed
         super().__init__()
 
     @staticmethod

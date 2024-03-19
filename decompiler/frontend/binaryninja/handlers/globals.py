@@ -82,7 +82,7 @@ class GlobalHandler(Handler):
 
     def lift_global_variable(
         self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None, callers: list[int] = [], **kwargs
-    ) -> Union[Symbol, GlobalVariable]:
+    ) -> Union[Constant, Symbol, GlobalVariable]:
         """Lift global variables via datavariable type"""
         # Save view for all internal used functions
         if not self._view:
@@ -192,7 +192,7 @@ class GlobalHandler(Handler):
         """Lift a named custom type (Enum, Structs)"""
         return Constant(
             "Unknown value", self._lifter.lift(variable.type)
-        )  # BNinja error, need to check with the issue to get the correct value
+        )  # BNinja error, need to check with the issue to get the correct value + entry for structs
 
 
     def get_unknown_pointer_value(self, addr: int, view: BinaryView, caller_addr: int = 0):
