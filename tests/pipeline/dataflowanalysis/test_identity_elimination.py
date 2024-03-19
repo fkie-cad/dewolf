@@ -2396,3 +2396,48 @@ def test_do_not_identify_relations():
     assert vertices[6].instructions == [instructions[15]]
     assert vertices[7].instructions == [instructions[16]]
     assert vertices[8].instructions == [instructions[17]]
+
+
+def test_do_not_crash_if_no_identity():
+    """
+      +----------------------------------------------------------------------+
+      v                                                                      |
+    +------------------+     +------------------+     +-------------------+  |
+    |        4.        |     |        2.        |     |        0.         |  |
+    | z#2 = ϕ(z#0,y#2) |     |   y#2 = a_1#0    |     | if(a_0#0 < a_1#0) |  |
+    |    return z#2    | <-- | if(a_1#0 < 0x14) | <-- |                   |  |
+    +------------------+     +------------------+     +-------------------+  |
+                               |                        |                    |
+                               |                        |                    |
+                               |                        v                    |
+                               |                      +-------------------+  |
+                               |                      |        1.         |  |
+                               |                      |    y#1 = a_0#0    |  |
+                               |                      |  if(a_0#0 > 0xa)  | -+
+                               |                      +-------------------+
+                               |                        |
+                               |                        |
+                               |                        v
+                               |                      +-------------------+
+                               |                      |        3.         |
+                               |                      | z#1 = ϕ(z#0,y#1)  |
+                               +--------------------> |    return z#1     |
+                                                      +-------------------+
+    """
+    y0, y1, y2 = [Variable("y", Integer.int32_t(), i) for i in range(3)]
+    z0, z1, z2 = [Variable("z", Integer.int32_t(), i) for i in range(3)]
+    a_0, a_1 = [Variable(f"a_{i}", ssa_label=0) for i in range(2)]
+    cfg = ControlFlowGraph()
+    cfg.add_nodes_from(
+        [
+            head := BasicBlock(0, instructions=[Branch(Condition(OperationType.less, [a_0, a_1]))]),
+            true := BasicBlock(1, [Assignment(y1, a_0), Branch(Condition(OperationType.greater, [a_0, Constant(10, Integer.int32_t())]))]),
+            false := BasicBlock(2, [Assignment(y2, a_1), Branch(Condition(OperationType.less, [a_1, Constant(20, Integer.int32_t())]))]),
+            r1 := BasicBlock(3, [Phi(z1.copy(), [z0.copy(), y1.copy()]), Return([z1])]),
+            r2 := BasicBlock(4, [Phi(z2.copy(), [z0.copy(), y2.copy()]), Return([z2])]),
+        ]
+    )
+    cfg.add_edges_from(
+        [TrueCase(head, true), FalseCase(head, false), TrueCase(true, r1), FalseCase(true, r2), TrueCase(false, r2), FalseCase(false, r1)]
+    )
+    IdentityElimination().run(DecompilerTask("test", cfg, function_parameters=[a_0, a_1]))
