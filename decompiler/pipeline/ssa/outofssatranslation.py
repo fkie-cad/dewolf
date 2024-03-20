@@ -4,7 +4,7 @@ import logging
 from collections import defaultdict
 from configparser import NoOptionError
 from enum import Enum
-from typing import DefaultDict, List
+from typing import Callable, DefaultDict, Dict, List
 
 from decompiler.pipeline.ssa.phi_cleaner import PhiFunctionCleaner
 from decompiler.pipeline.ssa.phi_dependency_resolver import PhiDependencyResolver
@@ -98,12 +98,11 @@ class OutOfSsaTranslation(PipelineStage):
 
         -> There are different optimization levels
         """
-        try:
-            self.out_of_ssa_strategy[self._optimization](self)
-        except KeyError:
-            error_message = f"The Out of SSA according to the optimization level {self._optimization.value} is not implemented so far."
-            logging.error(error_message)
-            raise NotImplementedError(error_message)
+        strategy = self.out_of_ssa_strategy.get(self._optimization, None)
+        if strategy is None:
+            raise NotImplementedError(f"The Out of SSA according to the optimization level {self._optimization.value} is not implemented so far.")
+
+        strategy(self)
 
     def _simple_out_of_ssa(self) -> None:
         """
@@ -168,7 +167,7 @@ class OutOfSsaTranslation(PipelineStage):
         ConditionalVariableRenamer(self.task, self.interference_graph).rename()
 
     # This translator maps the optimization levels to the functions.
-    out_of_ssa_strategy = {
+    out_of_ssa_strategy: dict[SSAOptions, Callable[["OutOfSsaTranslation"], None]] = {
         SSAOptions.simple: _simple_out_of_ssa,
         SSAOptions.minimization: _minimization_out_of_ssa,
         SSAOptions.lift_minimal: _lift_minimal_out_of_ssa,
