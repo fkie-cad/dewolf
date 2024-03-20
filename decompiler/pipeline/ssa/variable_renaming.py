@@ -426,7 +426,7 @@ class ConditionalVariableRenamer(VariableRenamer):
     def _decorate_graph(self, dependency_graph: MultiDiGraph, path: str):
         decorated_graph = MultiDiGraph()
         for node in dependency_graph.nodes:
-            decorated_graph.add_node(node, label=", ".join(map(lambda n: f"{n}: {n.type}, aliased: {n.is_aliased}", node)))
+            decorated_graph.add_node(node, label="\n".join(map(lambda n: f"{n}: {n.type}, aliased: {n.is_aliased}", node)))
         for u, v, data in dependency_graph.edges.data():
             decorated_graph.add_edge(u, v, label=f"{data['score']}")
         for nodes in networkx.weakly_connected_components(dependency_graph):
