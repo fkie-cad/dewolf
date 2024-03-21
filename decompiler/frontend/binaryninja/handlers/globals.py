@@ -101,7 +101,7 @@ class GlobalHandler(Handler):
         if bninjaName is None:
             return GLOBAL_VARIABLE_PREFIX + f"{addr:x}"
         if bninjaName in lifted_names:
-            return bninjaName + '_' + f"{addr:x}" # @Reviewer: Other ideas for distinct name?
+            return bninjaName + "_" + f"{addr:x}"  # @Reviewer: Other ideas for distinct name?
         return bninjaName
 
     def _build_global_variable(self, name: Optional[str], type: Type, addr: int, init_value, ssa_label: Optional[int]) -> GlobalVariable:
