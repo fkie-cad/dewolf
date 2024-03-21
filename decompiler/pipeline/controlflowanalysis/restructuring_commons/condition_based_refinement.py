@@ -23,6 +23,7 @@ from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 @dataclass
 class Formula:
     condition: LogicCondition
+    ast_node: AbstractSyntaxTreeNode
 
     def __hash__(self) -> int:
         return id(self)
@@ -34,6 +35,7 @@ class Formula:
 @dataclass
 class Clause:
     condition: LogicCondition
+    formula: Formula
 
     def __hash__(self) -> int:
         return id(self)
@@ -57,27 +59,25 @@ class ConditionCandidates:
     """A graph implementation handling conditions for the condition-based refinement algorithm."""
 
     def __init__(self, candidates: List[AbstractSyntaxTreeNode]) -> None:
-        self._candidates: Dict[AbstractSyntaxTreeNode, Formula] = {c: Formula(c.reaching_condition) for c in candidates}
+        self._candidates: Dict[AbstractSyntaxTreeNode, Formula] = {c: Formula(c.reaching_condition, c) for c in candidates}
         self._logic_graph: DiGraph = DiGraph()
         self._formulas_containing_symbol: DefaultDict[Symbol, Set[Formula]] = defaultdict(set)
         self._symbols_of_formula: DefaultDict[Formula, Set[Symbol]] = defaultdict(set)
+        self._removable_nodes: Set[Union[Formula, Clause, Symbol]] = set()
         self._initialize_logic_graph_and_dictionaries()
+        self._clean_up()
 
     def _initialize_logic_graph_and_dictionaries(self):
         for formula in self._candidates.values():
             self._logic_graph.add_node(formula)
             formula_clauses = list(formula.condition.operands) if formula.condition.is_conjunction else [formula.condition.copy()]
             for logic_clause in formula_clauses:
-                self._logic_graph.add_edge(formula, clause := Clause(logic_clause))
+                self._logic_graph.add_edge(formula, clause := Clause(logic_clause, formula))
                 for symbol_name in logic_clause.get_symbols_as_string():
                     self._logic_graph.add_edge(clause, symbol := Symbol(symbol_name))
-                    # s_node.formulas.add(formula)
-                    # formula.symbols.add(symbol)
                     self._formulas_containing_symbol[symbol].add(formula)
                     self._symbols_of_formula[formula].add(symbol)
-
-        for single_symbol in list(symbol for symbol, formulas in self._formulas_containing_symbol.items() if len(formulas) == 1):
-            self._remove_symbol(single_symbol)
+        self._removable_nodes = set(symbol for symbol, formulas in self._formulas_containing_symbol.items() if len(formulas) == 1)
 
     @property
     def candidates(self) -> Iterator[AbstractSyntaxTreeNode]:
@@ -119,33 +119,50 @@ class ConditionCandidates:
     def remove_nodes(self, nodes_to_remove: List[AbstractSyntaxTreeNode]):
         """Remove the given nodes from the graph."""
         for node in nodes_to_remove:
-            formula = self._candidates[node]
-            self._remove_formula(formula)
-            del self._candidates[node]
+            self._remove_formula(self._candidates[node])
+        self._clean_up()
+
+    def _clean_up(self):
+        while self._removable_nodes:
+            node = self._removable_nodes.pop()
+            match node:
+                case Formula():
+                    self._remove_formula(node)
+                case Clause():
+                    self._remove_clause(node)
+                case Symbol():
+                    self._remove_symbol(node)
 
     def _remove_formula(self, formula: Formula):
         """Remove the given formula from the graph."""
-        while self._logic_graph.out_degree(formula) > 0 and (clause := next(self._logic_graph.successors(formula))):
-            self._remove_clause(clause)
+        self._removable_nodes.update(self._logic_graph.successors(formula))
         self._logic_graph.remove_node(formula)
+        for symbol in self._symbols_of_formula[formula]:
+            self._remove_formula_from_formula_containing_symbol(formula, symbol)
+        del self._candidates[formula.ast_node]
 
     def _remove_clause(self, clause: Clause):
         """Remove the given clause from the graph."""
-        formula_containing_clause: Formula = next(self._logic_graph.predecessors(clause))
-        symbols_in_clause: List[Symbol] = list(self._logic_graph.successors(clause))
+        if clause.formula in self._logic_graph:
+            if self._logic_graph.out_degree(clause.formula) == 1:
+                self._removable_nodes.add(clause.formula)
+            else:
+                for symbol in (s for s in self._logic_graph.successors(clause) if not has_path(self._logic_graph, clause.formula, s)):
+                    self._symbols_of_formula[clause.formula].remove(symbol)
+                    self._remove_formula_from_formula_containing_symbol(clause.formula, symbol)
         self._logic_graph.remove_node(clause)
-        for symbol in symbols_in_clause:
-            if symbol in self._logic_graph and not has_path(self._logic_graph, formula_containing_clause, symbol):
-                self._formulas_containing_symbol[symbol].remove(formula_containing_clause)
-                self._symbols_of_formula[formula_containing_clause].remove(symbol)
-                if len(self._formulas_containing_symbol[symbol]) == 1:
-                    self._remove_symbol(symbol)
 
     def _remove_symbol(self, symbol: Symbol):
         """Remove the given symbol from the graph."""
-        while self._logic_graph.in_degree(symbol) > 0 and (clause := next(self._logic_graph.predecessors(symbol), None)):
-            self._remove_clause(clause)
+        self._removable_nodes.update(self._logic_graph.predecessors(symbol))
+        for formula in self._formulas_containing_symbol[symbol]:
+            self._symbols_of_formula[formula].remove(symbol)
         self._logic_graph.remove_node(symbol)
+
+    def _remove_formula_from_formula_containing_symbol(self, formula: Formula, symbol: Symbol):
+        self._formulas_containing_symbol[symbol].remove(formula)
+        if len(self._formulas_containing_symbol[symbol]) <= 1:
+            self._removable_nodes.add(symbol)
 
 
 #
