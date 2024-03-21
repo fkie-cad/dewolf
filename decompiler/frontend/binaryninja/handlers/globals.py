@@ -96,8 +96,16 @@ class GlobalHandler(Handler):
         """Register the handler at its parent lifter."""
         self._lifter.HANDLERS.update({DataVariable: self.lift_global_variable})
 
+    def _get_gvar_name(self, bninjaName: Optional[str], addr: int) -> str:
+        lifted_names = [v.name for v in self._lifted_globals.values()]
+        if bninjaName is None:
+            return GLOBAL_VARIABLE_PREFIX + f"{addr:x}"
+        if bninjaName in lifted_names:
+            return bninjaName + '_' + f"{addr:x}" # @Reviewer: Other ideas for distinct name?
+        return bninjaName
+
     def _build_global_variable(self, name: Optional[str], type: Type, addr: int, init_value, ssa_label: Optional[int]) -> GlobalVariable:
-        vname = name if name is not None else GLOBAL_VARIABLE_PREFIX + f"{addr:x}"
+        vname = self._get_gvar_name(name, addr)
 
         match init_value:
             case Expression():
@@ -207,8 +215,9 @@ class GlobalHandler(Handler):
                 # Extract the initial_value and type from the location where the pointer is pointing to
                 init_value, type = self.get_unknown_pointer_value(variable, self._view)
             case _:
+                self._callers.append(variable.address)
                 init_value, type = (
-                    self._lifter.lift(self._view.get_data_var_at(variable.value), view=self._view, caller_addr=variable.address),
+                    self._lifter.lift(self._view.get_data_var_at(variable.value), view=self._view, callers=self._callers),
                     self._lifter.lift(variable.type),
                 )
         return self._build_global_variable(
