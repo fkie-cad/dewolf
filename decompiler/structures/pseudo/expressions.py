@@ -230,7 +230,7 @@ class Constant(Expression[DecompiledType]):
 
 
 class NotUseableConstant(Constant):
-    """Represents a non useable constant like 'inf' or 'NaN' as a string"""
+    """Represents a non useable constant like 'inf', 'NaN', or the value of builtin functions as a string"""
 
     def __init__(self, value: str, tags: Optional[Tuple[Tag, ...]] = None):
         super().__init__(value, CustomType("double", 0), tags=tags)
@@ -386,7 +386,7 @@ class GlobalVariable(Variable):
         self,
         name: str,
         vartype: Type,
-        initial_value: Expression,  # Technically just UnaryOperation, Constant (with all child classes), and GlobalVariable
+        initial_value: Expression,
         ssa_label: int = None,
         is_aliased: bool = True,
         ssa_name: Optional[Variable] = None,
@@ -424,14 +424,7 @@ class GlobalVariable(Variable):
         )
 
     def __iter__(self) -> Iterator[Expression]:
-        match self.initial_value:
-            case Constant():
-                if isinstance(self.type, ArrayType):
-                    yield from self.initial_value
-            case Expression():
-                yield self.initial_value
-            case _:
-                raise TypeError(f"Type violation  '{self.initial_value}'")
+        yield self.initial_value
 
     def __str__(self) -> str:
         """Return a string representation of the global variable."""

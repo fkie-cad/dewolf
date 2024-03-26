@@ -18,7 +18,7 @@ from binaryninja.types import (
 from decompiler.frontend.binaryninja.handlers.constants import BYTE_SIZE
 from decompiler.frontend.binaryninja.handlers.symbols import GLOBAL_VARIABLE_PREFIX
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import ArrayType as Array
+from decompiler.structures.pseudo import ArrayType as PseudoArrayType
 from decompiler.structures.pseudo import (
     Constant,
     ConstantComposition,
@@ -88,7 +88,7 @@ class GlobalHandler(Handler):
             PointerType: self._lift_pointer_type,
             NamedTypeReferenceType: self._lift_named_type_ref,
         }
-        self._lifted_globals: dict[int, GlobalVariable] = {}
+        self._lifted_globals: dict[int, GlobalVariable] = {}  # uses addresses as keys
         self._view: Optional[BinaryView] = None
         self._callers: list[int] = []
 
@@ -101,7 +101,7 @@ class GlobalHandler(Handler):
         if bninjaName is None:
             return GLOBAL_VARIABLE_PREFIX + f"{addr:x}"
         if bninjaName in lifted_names:
-            return bninjaName + "_" + f"{addr:x}"  # @Reviewer: Other ideas for distinct name?
+            return bninjaName + "_" + f"{addr:x}"
         return bninjaName
 
     def _build_global_variable(self, name: Optional[str], type: Type, addr: int, init_value, ssa_label: Optional[int]) -> GlobalVariable:
@@ -121,15 +121,23 @@ class GlobalHandler(Handler):
         return self._lifted_globals[addr]
 
     def lift_global_variable(
-        self, variable: DataVariable, view: BinaryView, parent: Optional[MediumLevelILInstruction] = None, callers: list[int] = [], **kwargs
+        self,
+        variable: DataVariable,
+        view: BinaryView,
+        parent: Optional[MediumLevelILInstruction] = None,
+        callers: list[int] = None,
+        **kwargs,
     ) -> Union[Constant, Symbol, GlobalVariable]:
         """Lift global variables via datavariable type"""
         # Save view for all internal used functions
         if not self._view:
             self._view = view
 
-        # Safe list of callers before
-        self._callers = callers
+        # Safe list of callers before if present
+        if not callers:
+            self._callers = []
+        else:
+            self._callers = callers
 
         # If addr was already lifted: Return lifted GlobalVariable with updated SSA
         if variable.address in self._lifted_globals.keys():
@@ -237,7 +245,7 @@ class GlobalHandler(Handler):
     def get_unknown_value(self, dv: DataVariable, view: BinaryView):
         """Return string or bytes at dv.address(!) (dv.type must be void)"""
         if (data := self._get_different_string_types_at(dv.address, view)) and data[0] is not None:
-            type = Array(self._lifter.lift(data[1]), len(data[0]))
+            type = PseudoArrayType(self._lifter.lift(data[1]), len(data[0]))
             data = ConstantComposition([Constant(x, type.type) for x in data[0]], type)
         else:
             data, type = self.get_raw_bytes(dv.address, view), Pointer(CustomType.void())
@@ -246,13 +254,14 @@ class GlobalHandler(Handler):
     def get_unknown_pointer_value(self, dv: DataVariable, view: BinaryView):
         """Return symbol, datavariable, address, string or raw bytes for a value of a datavariable(!) (dv should be a pointer)."""
         if not self.addr_in_section(view, dv.value):
-            return dv.value, Pointer(CustomType.void())
+            type = Pointer(CustomType.void())
+            return Constant(dv.value, type), type
 
         if datavariable := view.get_data_var_at(dv.value):
             self._callers.append(dv.address)
             type = self._lifter.lift(datavariable.type)
             value = self._lifter.lift(datavariable, view=view, callers=self._callers)
-            if not isinstance(type, (Pointer, Array)):
+            if not isinstance(type, (Pointer, PseudoArrayType)):
                 type = Pointer(type, self._view.address_size * BYTE_SIZE)
             value = UnaryOperation(
                 OperationType.address,
@@ -264,7 +273,7 @@ class GlobalHandler(Handler):
         if (data := self._get_different_string_types_at(dv.value, view)) and data[
             0
         ] is not None:  # Implicit pointer removal if called from a pointer value, does NOT need to be a UnaryOperation
-            vtype = Array(self._lifter.lift(data[1]), len(data[0]))
+            vtype = PseudoArrayType(self._lifter.lift(data[1]), len(data[0]))
             vdata = ConstantComposition([Constant(x, vtype.type) for x in data[0]], vtype)
             data = self._build_global_variable(None, vtype, dv.value, vdata, None)
             type = Pointer(vtype, self._view.address_size * BYTE_SIZE)

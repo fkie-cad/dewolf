@@ -193,7 +193,7 @@ class ArrayType(Type):
 
     def __str__(self) -> str:
         """Return a nice string representation."""
-        return f"{self.type} [{hex(self.elements)}]"
+        return f"{self.type} [{self.elements}]"
 
     def copy(self, **kwargs) -> Pointer:
         """Generate a copy of the current pointer."""
