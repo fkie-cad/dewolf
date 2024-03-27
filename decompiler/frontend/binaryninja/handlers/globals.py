@@ -89,7 +89,7 @@ class GlobalHandler(Handler):
             NamedTypeReferenceType: self._lift_named_type_ref,
         }
         self._lifted_globals: dict[int, GlobalVariable] = {}  # Cache for already lifted global variables, keys are addresses
-        self._view: Optional[BinaryView] = None
+        self._view: Optional[BinaryView] = None # Will be set in first call to lift_global_variable
 
     def register(self):
         """Register the handler at its parent lifter."""
