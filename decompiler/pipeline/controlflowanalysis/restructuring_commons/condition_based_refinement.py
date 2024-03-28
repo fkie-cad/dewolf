@@ -9,12 +9,11 @@ from dataclasses import dataclass
 from itertools import combinations
 from typing import DefaultDict, Dict, Iterator, List, Optional, Set, Tuple, Union
 
-from networkx import DiGraph, has_path
-
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, SeqNode
 from decompiler.structures.ast.reachability_graph import SiblingReachability
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition
+from networkx import DiGraph, has_path
 
 
 @dataclass
@@ -25,9 +24,6 @@ class Formula:
     def __hash__(self) -> int:
         return id(self)
 
-    def __eq__(self, other) -> bool:
-        return isinstance(other, Formula) and hash(self) == hash(other)
-
 
 @dataclass
 class Clause:
@@ -37,9 +33,6 @@ class Clause:
     def __hash__(self) -> int:
         return id(self)
 
-    def __eq__(self, other) -> bool:
-        return isinstance(other, Clause) and hash(self) == hash(other)
-
 
 @dataclass
 class Symbol:
@@ -47,9 +40,6 @@ class Symbol:
 
     def __hash__(self):
         return hash(self.name)
-
-    def __eq__(self, other) -> bool:
-        return isinstance(other, Symbol) and hash(self) == hash(other)
 
 
 class ConditionCandidates:
@@ -61,7 +51,6 @@ class ConditionCandidates:
         self._formulas_containing_symbol: DefaultDict[Symbol, Set[Formula]] = defaultdict(set)
         self._symbols_of_formula: DefaultDict[Formula, Set[Symbol]] = defaultdict(set)
         self._initialize_logic_graph_and_dictionaries()
-        self._remove_nodes_from(set(symbol for symbol, formulas in self._formulas_containing_symbol.items() if len(formulas) == 1))
 
     def _initialize_logic_graph_and_dictionaries(self):
         for formula in self._candidates.values():
@@ -73,6 +62,7 @@ class ConditionCandidates:
                     self._logic_graph.add_edge(clause, symbol := Symbol(symbol_name))
                     self._formulas_containing_symbol[symbol].add(formula)
                     self._symbols_of_formula[formula].add(symbol)
+        self._remove_nodes_from(set(symbol for symbol, formulas in self._formulas_containing_symbol.items() if len(formulas) == 1))
 
     @property
     def candidates(self) -> Iterator[AbstractSyntaxTreeNode]:
