@@ -1039,7 +1039,7 @@ def test_missing_definitions_for_global_variables_are_correct():
     """
 
     vars = [Variable("var", Integer.int32_t(), i) for i in range(10)]
-    globals = [GlobalVariable("g", Integer.int32_t(), ssa_label=i, initial_value=42) for i in range(10)]
+    globals = [GlobalVariable("g", Integer.int32_t(), ssa_label=i, initial_value=Constant(42)) for i in range(10)]
     instructions_0 = [
         Assignment(ListOperation([]), Call(function_symbol("rand"), [], writes_memory=1)),
         Assignment(vars[0], globals[1]),
@@ -1060,7 +1060,7 @@ def test_missing_definitions_for_global_variables_are_correct():
     assert inserted_definition == expected_inserted_definition
     assert inserted_definition.writes_memory == 1
     assert isinstance(inserted_definition.value, GlobalVariable) and isinstance(inserted_definition.destination, GlobalVariable)
-    assert inserted_definition.value.initial_value == inserted_definition.destination.initial_value == 42
+    assert inserted_definition.value.initial_value == inserted_definition.destination.initial_value == Constant(42)
 
 
 def test_relation_and_assignment_insertion_after_memory_changing_instructions():

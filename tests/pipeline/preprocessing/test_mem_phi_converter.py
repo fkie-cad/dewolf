@@ -1163,7 +1163,7 @@ def cfg_with_single_global_variable(x) -> Tuple[ControlFlowGraph, ControlFlowGra
     """
     cfg = ControlFlowGraph()
     mem0, mem1, mem2, mem3 = generate_mem_phi_variables(4)
-    g = [GlobalVariable("g", Integer.char(), i, initial_value=42) for i in range(4)]
+    g = [GlobalVariable("g", Integer.char(), initial_value=Constant(42), ssa_label=i) for i in range(4)]
     n1 = BasicBlock(1, [Assignment(x[0], x[1])])
     n2 = BasicBlock(2, [MemPhi(mem1, [mem0, mem3]), Assignment(x[2], g[1])])
     n3 = BasicBlock(3, [])
