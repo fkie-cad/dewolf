@@ -179,9 +179,11 @@ class Z3Implementation:
         """
         if self._resolve_negations and resolve_negations:
             z3_condition = self._resolve_negation(z3_condition)
-        if self._too_large_to_fully_simplify(z3_condition):
-            return simplify(Repeat(Tactic("ctx-simplify", ctx=z3_condition.ctx))(z3_condition).as_expr())
-        return Repeat(Tactic("ctx-solver-simplify", ctx=z3_condition.ctx))(z3_condition).as_expr()
+        z3_condition = simplify(z3_condition)
+        z3_condition = simplify(Repeat(Tactic("ctx-simplify", ctx=z3_condition.ctx))(z3_condition).as_expr())
+        if not self._too_large_to_fully_simplify(z3_condition):
+            z3_condition = simplify(Repeat(Tactic("ctx-solver-simplify", ctx=z3_condition.ctx))(z3_condition).as_expr())
+        return z3_condition
 
     @staticmethod
     def get_symbols(condition: BoolRef) -> Iterator[BoolRef]:
