@@ -2,12 +2,36 @@ import logging
 from itertools import chain, repeat
 
 from decompiler.structures import pseudo as expressions
-from decompiler.structures.pseudo import Float, FunctionTypeDef, Integer, OperationType, Pointer, StringSymbol, Type
+from decompiler.structures.pseudo import (
+    ArrayType,
+    CustomType,
+    Float,
+    FunctionTypeDef,
+    GlobalVariable,
+    Integer,
+    OperationType,
+    Pointer,
+    Type,
+)
 from decompiler.structures.pseudo import instructions as instructions
 from decompiler.structures.pseudo import operations as operations
 from decompiler.structures.pseudo.operations import MemberAccess
 from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInterface
 from decompiler.util.integer_util import normalize_int
+
+MAX_GLOBAL_INIT_LENGTH = 128
+
+
+def inline_global_variable(var) -> bool:
+    if not var.is_constant:
+        return False
+    match var.type:
+        case ArrayType():
+            if var.type.type in [Integer.char(), CustomType.wchar16(), CustomType.wchar32()]:
+                return True
+        case _:
+            return False
+    return False
 
 
 class CExpressionGenerator(DataflowObjectVisitorInterface):
@@ -145,16 +169,51 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
 
     def visit_constant(self, expr: expressions.Constant) -> str:
         """Return constant in a format that will be parsed correctly by a compiler."""
+        if isinstance(expr, expressions.NotUseableConstant):
+            return expr.value
+        if isinstance(expr, expressions.Symbol):
+            return expr.name
         if isinstance(expr.type, Integer):
             value = self._get_integer_literal_value(expr)
             return self._format_integer_literal(expr.type, value)
-        if isinstance(expr, StringSymbol):
-            return expr.name
+        if isinstance(expr.type, Pointer):
+            match (expr.value):
+                case (
+                    str()
+                ):  # Technically every string will be lifted as an ConstantArray. Will still leave this, if someone creates a string as a char*
+                    string = expr.value if len(expr.value) <= MAX_GLOBAL_INIT_LENGTH else expr.value[:MAX_GLOBAL_INIT_LENGTH] + "..."
+                    match expr.type.type:
+                        case CustomType(text="wchar16") | CustomType(text="wchar32"):
+                            return f'L"{string}"'
+                        case _:
+                            return f'"{string}"'
+                case bytes():
+                    val = "".join("\\x{:02x}".format(x) for x in expr.value)
+                    return f'"{val}"' if len(val) <= MAX_GLOBAL_INIT_LENGTH else f'"{val[:MAX_GLOBAL_INIT_LENGTH]}..."'
+
         return self._format_string_literal(expr)
+
+    def visit_constant_composition(self, expr: expressions.ConstantComposition):
+        """Visit a Constant Array."""
+        match expr.type.type:
+            case CustomType(text="wchar16") | CustomType(text="wchar32"):
+                val = "".join([x.value for x in expr.value])
+                return f'L"{val}"' if len(val) <= MAX_GLOBAL_INIT_LENGTH else f'L"{val[:MAX_GLOBAL_INIT_LENGTH]}..."'
+            case Integer(8):
+                val = "".join([x.value for x in expr.value][:MAX_GLOBAL_INIT_LENGTH])
+                return f'"{val}"' if len(val) <= MAX_GLOBAL_INIT_LENGTH else f'"{val[:MAX_GLOBAL_INIT_LENGTH]}..."'
+            case _:
+                return f'{", ".join([self.visit(x) for x in expr.value])}'  # Todo: Should we print every member? Could get pretty big
 
     def visit_variable(self, expr: expressions.Variable) -> str:
         """Return a string representation of the variable."""
         return f"{expr.name}" if (label := expr.ssa_label) is None else f"{expr.name}_{label}"
+
+    def visit_global_variable(self, expr: expressions.GlobalVariable):
+        """Inline a global variable if its initial value is constant and not of void type"""
+        if inline_global_variable(expr):
+            return self.visit(expr.initial_value)
+        return expr.name
 
     def visit_register_pair(self, expr: expressions.Variable) -> str:
         """Return a string representation of the register pair and log."""
@@ -168,6 +227,8 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
     def visit_unary_operation(self, op: operations.UnaryOperation) -> str:
         """Return a string representation of the given unary operation (e.g. !a or &a)."""
         operand = self._visit_bracketed(op.operand) if self._has_lower_precedence(op.operand, op) else self.visit(op.operand)
+        if op.operation == OperationType.address and isinstance(op.operand, GlobalVariable) and isinstance(op.operand.type, ArrayType):
+            return operand
         if isinstance(op, MemberAccess):
             operator_str = "->" if isinstance(op.struct_variable.type, Pointer) else self.C_SYNTAX[op.operation]
             return f"{operand}{operator_str}{op.member_name}"
@@ -353,5 +414,7 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
                 parameter_names = ", ".join(str(parameter) for parameter in fun_type.parameters)
                 declarations_without_return_type = [f"(* {var_name})({parameter_names})" for var_name in var_names]
                 return f"{fun_type.return_type} {', '.join(declarations_without_return_type)}"
+            case ArrayType():
+                return f"{var_type.type}* {', '.join(var_names)}"
             case _:
                 return f"{var_type} {', '.join(var_names)}"
