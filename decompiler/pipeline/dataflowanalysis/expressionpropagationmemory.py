@@ -51,7 +51,7 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
             or self._is_call_assignment(definition)
             or self._is_address_into_dereference(definition, target)
             or self._defines_unknown_expression(definition)
-            or self._contains_global_variable(definition)
+            or self._contains_writeable_global_variable(definition)
             or self._operation_is_propagated_in_phi(target, definition)
             or self._is_invalid_propagation_into_address_operation(target, definition)
             or self._is_aliased_postponed_for_propagation(target, definition)

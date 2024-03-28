@@ -26,6 +26,7 @@ class SymbolHandler(Handler):
             SymbolType.ImportedDataSymbol: Symbol,
             SymbolType.ExternalSymbol: ImportedFunctionSymbol,
             SymbolType.LibraryFunctionSymbol: Symbol,
+            SymbolType.SymbolicFunctionSymbol: FunctionSymbol,
         }
 
     def register(self):
