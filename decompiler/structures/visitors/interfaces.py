@@ -71,8 +71,16 @@ class DataflowObjectVisitorInterface(ABC, Generic[T]):
         """Visit a Constant."""
 
     @abstractmethod
+    def visit_constant_composition(self, expr: expressions.ConstantComposition):
+        """Visit a Constant."""
+
+    @abstractmethod
     def visit_variable(self, expr: expressions.Variable):
         """Visit a Variable."""
+
+    @abstractmethod
+    def visit_global_variable(self, expr: expressions.GlobalVariable):
+        """Visit a GlobalVariable."""
 
     @abstractmethod
     def visit_register_pair(self, expr: expressions.RegisterPair):

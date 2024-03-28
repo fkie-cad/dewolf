@@ -7,10 +7,10 @@ import pytest
 from decompiler.pipeline.controlflowanalysis.restructuring import PatternIndependentRestructuring
 from decompiler.structures.ast.ast_nodes import CaseNode, CodeNode, ConditionNode, SeqNode, SwitchNode, WhileLoopNode
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
-from decompiler.structures.pseudo.expressions import Constant, Expression, FunctionSymbol, ImportedFunctionSymbol, StringSymbol, Variable
+from decompiler.structures.pseudo.expressions import Constant, Expression, FunctionSymbol, GlobalVariable, ImportedFunctionSymbol, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Break, Continue, IndirectBranch, Return
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
-from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer, Type, UnknownType
+from decompiler.structures.pseudo.typing import ArrayType, CustomType, Integer, Pointer, Type, UnknownType
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
@@ -5530,7 +5530,7 @@ def test_nested_cases_unnecessary_condition_not_all_irrelevant_2(task):
                     Assignment(var_1_15, var_2_1),
                     Assignment(arg1_15, Constant(1, Integer.int32_t())),
                     Assignment(
-                        var_3_12, StringSymbol("The Input is 7 and you choose week number %d", 8949, Pointer(Integer.int32_t(), 32))
+                        var_3_12, GlobalVariable("g_str", ArrayType(Integer.char(), 44), "The Input is 7 and you choose week number %d", 0)
                     ),
                 ],
             ),
@@ -5550,7 +5550,7 @@ def test_nested_cases_unnecessary_condition_not_all_irrelevant_2(task):
                 [
                     Assignment(var_1_15, var_2_13),
                     Assignment(arg1_15, var_2_13),
-                    Assignment(var_3_12, StringSymbol("Monday", 8521, Pointer(Integer.int32_t(), 32))),
+                    Assignment(var_3_12, GlobalVariable("g_str", ArrayType(Integer.char(), 6), "Monday", 0)),
                 ],
             ),
             BasicBlock(19, [Assignment(ListOperation([]), print_call("common case", 13))]),

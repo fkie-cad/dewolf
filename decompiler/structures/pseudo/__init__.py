@@ -2,17 +2,15 @@ from .complextypes import ComplexType, ComplexTypeMember, ComplexTypeName, Enum,
 from .delogic_logic import DelogicConverter
 from .expressions import (
     Constant,
+    ConstantComposition,
     DataflowObject,
     Expression,
-    ExternConstant,
-    ExternFunctionPointer,
     FunctionSymbol,
     GlobalVariable,
     ImportedFunctionSymbol,
     IntrinsicSymbol,
     NotUseableConstant,
     RegisterPair,
-    StringSymbol,
     Symbol,
     Tag,
     UnknownExpression,
@@ -34,5 +32,5 @@ from .instructions import (
     Return,
 )
 from .operations import BinaryOperation, Call, Condition, ListOperation, Operation, OperationType, TernaryExpression, UnaryOperation
-from .typing import CustomType, Float, FunctionTypeDef, Integer, Pointer, Type, TypeParser, UnknownType
+from .typing import ArrayType, CustomType, Float, FunctionTypeDef, Integer, Pointer, Type, TypeParser, UnknownType
 from .z3_logic import Z3Converter
