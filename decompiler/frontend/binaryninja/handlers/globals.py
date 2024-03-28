@@ -179,7 +179,7 @@ class GlobalHandler(Handler):
         if [x for x in variable.data_refs_from]:
             return self._lifter.lift(
                 DataVariable(self._view, variable.address, Type.pointer(self._view, Type.void()), False), view=self._view, parent=parent
-            )
+            )  # Don't need to supply `callers`, will be handled by `_lift_pointer_type` automatically
 
         type = self._lifter.lift(variable.type)
         return self._build_global_variable(
