@@ -1017,7 +1017,7 @@ def test_missing_definitions_for_global_variables_are_correct():
     +--------------------+                        +--------------------+
     |         0.         |                        |         0.         |
     |       rand()       |                        |       rand()       |
-    |    var#0 = g#1     |                        |     g#1 = g#0      |
+    |    var#0 = g#1     |                        |     g#1 -> g#0      |
     |  if(var#0 < 0xa)   | -+                     |    var#0 = g#1     |
     +--------------------+  |                     |  if(var#0 < 0xa)   | -+
       |                     |                     +--------------------+  |
@@ -1055,7 +1055,7 @@ def test_missing_definitions_for_global_variables_are_correct():
     cfg.add_edges_from([UnconditionalEdge(n0, n1), UnconditionalEdge(n0, n2), UnconditionalEdge(n1, n2)])
     task = DecompilerTask("test", cfg)
     InsertMissingDefinitions().run(task)
-    expected_inserted_definition = Assignment(globals[1], globals[0])
+    expected_inserted_definition = Relation(globals[1], globals[0])
     inserted_definition: Assignment = n0.instructions[1]
     assert inserted_definition == expected_inserted_definition
     assert inserted_definition.writes_memory == 1
