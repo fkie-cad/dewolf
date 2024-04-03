@@ -265,12 +265,6 @@ class DefinitionGenerator:
         """Insert a new intermediate definition for the given expression at the given location."""
         block.instructions.insert(index, instruction)
 
-        def update_location(location: CfgInstructionLocation) -> CfgInstructionLocation:
-            if location.block == block and location.index < index:
-                return dataclasses.replace(location, index=location.index + 1)
-            else:
-                return location
-
         # update positions of expression usages
         for occurrences in self._usages.values():
             for location in list(occurrences):
