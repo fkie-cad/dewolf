@@ -1296,7 +1296,7 @@ def test_common_subexpression_elimination_correct_place2():
             0,
             instructions=[
                 Assignment(ListOperation([]), Call(FunctionSymbol("func", 0), [expr0.copy(), expr1.copy()])),
-                Assignment(ListOperation([]), Call(FunctionSymbol("func", 0), [expr1.copy()]))
+                Assignment(ListOperation([]), Call(FunctionSymbol("func", 0), [expr1.copy()])),
             ],
         )
     )
