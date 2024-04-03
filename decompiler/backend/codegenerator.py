@@ -54,6 +54,6 @@ class CodeGenerator:
     def generate_failure_message(task: DecompilerTask):
         """Returns the message to be shown for a failed task."""
         msg = f"Failed to decompile {task.name}"
-        if not (origin := task.failure_origin):  # checks if the string is empty (should never be None when this method is called)
+        if origin := task.failure_origin:  # checks if the string is empty (should never be None when this method is called)
             msg += f" due to error during {origin}."
         return msg
