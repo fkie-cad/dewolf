@@ -29,9 +29,15 @@ class DecompilerTask:
 
     _failure_origin: str | None = field(default=None, init=False)
 
-    # Properties for backwards compatibility. Previous code used these properties to access self._ast/self._cfg, which are now public.
-    graph = property(lambda self: self.cfg, lambda self, v: setattr(self, "cfg", v))
-    syntax_tree = property(lambda self: self.ast, lambda self, v: setattr(self, "ast", v))
+    # Property for backwards compatibility. Previous code used self._cfg, which is now public.
+    @property
+    def graph(self):
+        return self.cfg
+
+    # Property for backwards compatibility. Previous code used self._ast, which is now public.
+    @property
+    def syntax_tree(self):
+        return self.ast
 
     def fail(self, origin: str = ""):
         """Sets the task to be failed by setting the failure origin."""
