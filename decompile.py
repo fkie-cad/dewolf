@@ -50,8 +50,8 @@ class Decompiler:
         pipeline = DecompilerPipeline.from_strings(task_options.getlist("pipeline.cfg_stages"), task_options.getlist("pipeline.ast_stages"))
 
         tasks = []
-        for function_id in function_ids:
-            task = DecompilerTask(str(function_id), function_id, task_options)
+        for func_id in function_ids:
+            task = DecompilerTask(str(func_id), func_id, task_options)
             tasks.append(task)
 
             self._frontend.lift(task)
