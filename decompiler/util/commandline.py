@@ -1,5 +1,6 @@
 """Command line interface for the decompiler."""
-from argparse import SUPPRESS, ArgumentParser, HelpFormatter
+
+from argparse import SUPPRESS, ArgumentParser
 from enum import Enum
 from os import isatty
 from os.path import isfile
@@ -66,7 +67,7 @@ def main(interface: "Decompiler"):
         output_stream = None
         color = args.color == Colorize.ALWAYS or (args.color != Colorize.NEVER and isatty(stdout.fileno()))
     else:
-        output_stream = open(args.outfile, "w")
+        output_stream = open(args.outfile, "w", encoding="utf-8")
         color = False
     try:
         if args.all or not args.function:

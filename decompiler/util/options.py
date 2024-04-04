@@ -1,4 +1,5 @@
 """File in charge of managing config and commandline options for decompilation."""
+
 import json
 import logging
 from argparse import ArgumentParser, BooleanOptionalAction, Namespace
@@ -80,7 +81,7 @@ class Options:
         """Load additional user settings and override defaults"""
         if isfile(self.USER_CONFIG):
             logging.debug(f"user config found at {self.USER_CONFIG}")
-            with open(self.USER_CONFIG, "r") as f:
+            with open(self.USER_CONFIG, "r", encoding="utf-8") as f:
                 try:
                     self._settings_key_values.update(json.load(f))
                 except json.JSONDecodeError:
@@ -275,7 +276,7 @@ class Options:
     @staticmethod
     def _read_json_file(filepath: str):
         """Return parsed JSON file"""
-        with open(filepath, "r") as f:
+        with open(filepath, "r", encoding="utf-8") as f:
             return json.load(f)
 
     @staticmethod

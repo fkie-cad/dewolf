@@ -26,6 +26,7 @@ unknown          <-  string_constant("error_message")
 constant         <-  string_constant | numeric_constant
 
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -34,7 +35,7 @@ from typing import TYPE_CHECKING, Generic, Iterator, List, Optional, Tuple, Type
 
 from ...util.insertion_ordered_set import InsertionOrderedSet
 from .complextypes import Enum
-from .typing import CustomType, Type, UnknownType
+from .typing import ArrayType, CustomType, Type, UnknownType
 
 T = TypeVar("T")
 DecompiledType = TypeVar("DecompiledType", bound=Type)
@@ -171,7 +172,7 @@ class Constant(Expression[DecompiledType]):
 
     def __init__(
         self,
-        value: Union[int, float, str],
+        value: Union[int, float, str, bytes],
         vartype: DecompiledType = UnknownType(),
         pointee: Optional[Constant] = None,
         tags: Optional[Tuple[Tag, ...]] = None,
@@ -228,40 +229,8 @@ class Constant(Expression[DecompiledType]):
         return visitor.visit_constant(self)
 
 
-class ExternConstant(Constant):
-    """Represents an external Constant. eg. stdout/stderr/stdin"""
-
-    def __init__(self, value: Union[str, int, float], vartype: Type = UnknownType(), tags: Optional[Tuple[Tag, ...]] = None):
-        """Init a new constant expression"""
-        super().__init__(value, vartype, tags=tags)
-
-    def __str__(self) -> str:
-        """Return a string as external symbols are already strings"""
-        return self.value
-
-    def copy(self) -> ExternConstant:
-        """Generate an ExternConstant with the same value and type."""
-        return ExternConstant(self.value, self._type.copy(), self.tags)
-
-
-class ExternFunctionPointer(Constant):
-    """Represents an extern fixed function pointer."""
-
-    def __init__(self, value: Union[str, int, float], vartype: Type = UnknownType(), tags: Optional[Tuple[Tag, ...]] = None):
-        """Init a new function pointer expression"""
-        super().__init__(value, vartype, tags=tags)
-
-    def __str__(self) -> str:
-        """Return a string as external symbols are already strings"""
-        return f"{self.value}"
-
-    def copy(self) -> ExternFunctionPointer:
-        """Generate an ExternConstant with the same value and type."""
-        return ExternFunctionPointer(self.value, self._type.copy(), self.tags)
-
-
 class NotUseableConstant(Constant):
-    """Represents a non useable constant like 'inf' or 'NaN' as a string"""
+    """Represents a non useable constant like 'inf', 'NaN', or the value of builtin functions as a string"""
 
     def __init__(self, value: str, tags: Optional[Tuple[Tag, ...]] = None):
         super().__init__(value, CustomType("double", 0), tags=tags)
@@ -304,22 +273,6 @@ class Symbol(Constant):
 
     def copy(self) -> Symbol:
         return Symbol(self.name, self.value, self._type.copy(), self.tags)
-
-
-class StringSymbol(Symbol):
-    """Represents a global string constant (const char[size]). Special chars should be escaped!"""
-
-    def __str__(self):
-        """Return raw string."""
-        return self._name
-
-    def __repr__(self):
-        """Return the global string with its address."""
-        return f"string {self.name} at {self.value}"
-
-    def copy(self) -> StringSymbol:
-        """Generate an StringSymbol with the same name, value and type."""
-        return StringSymbol(self.name, self.value, self._type.copy(), self.tags)
 
 
 class FunctionSymbol(Symbol):
@@ -426,31 +379,35 @@ class GlobalVariable(Variable):
     """Represents a global variable that comes from MLIL_CONST_PTR.
     MLIL_CONST_PTR represents the following types of pointers:
         - Pointers in .text/.bss/.rodata/.data/symbol table.
-        - Function call, and thereby function pointers."""
+        - Function call, and thereby function pointers.
+    """
 
     def __init__(
         self,
         name: str,
-        vartype: Type = UnknownType(),
+        vartype: Type,
+        initial_value: Expression,
         ssa_label: int = None,
         is_aliased: bool = True,
         ssa_name: Optional[Variable] = None,
-        initial_value: Union[float, int, str, GlobalVariable] = None,
+        is_constant: bool = False,
         tags: Optional[Tuple[Tag, ...]] = None,
     ):
         """Init a new global variable. Compared to Variable, it has an additional field initial_value.
         :param initial_value: Can be a number, string or GlobalVariable."""
         super().__init__(name, vartype, ssa_label, is_aliased, ssa_name, tags=tags)
         self.initial_value = initial_value
+        self.is_constant = is_constant
 
     def copy(
         self,
         name: str = None,
         vartype: Type = None,
+        initial_value: Expression = None,
         ssa_label: int = None,
         is_aliased: bool = None,
         ssa_name: Optional[Variable] = None,
-        initial_value: Union[float, int, str, GlobalVariable] = None,
+        is_constant: bool = None,
         tags: Optional[Tuple[Tag, ...]] = None,
     ) -> GlobalVariable:
         """Provide a copy of the current Variable."""
@@ -458,24 +415,24 @@ class GlobalVariable(Variable):
         return self.__class__(
             self._name[:] if name is None else name,
             self._type.copy() if vartype is None else vartype,
+            self.initial_value.copy() if initial_value is None else initial_value.copy(),
             self.ssa_label if ssa_label is None else ssa_label,
             self.is_aliased if is_aliased is None else is_aliased,
             self.ssa_name if ssa_name is None else ssa_name,
-            self._get_init_value_copy(initial_value),
+            self.is_constant if is_constant is None else is_constant,
             self.tags if tags is None else tags,
         )
+
+    def __iter__(self) -> Iterator[Expression]:
+        yield self.initial_value
 
     def __str__(self) -> str:
         """Return a string representation of the global variable."""
         return f"{self._name}" if (label := self.ssa_label) is None else f"{self._name}#{label}"
 
-    def _get_init_value_copy(self, initial_value: Union[float, int, str, GlobalVariable] = None) -> Union[float, int, str, GlobalVariable]:
-        """When copying, the original global variable object is responsible for copying initial value properly, not the caller of copy."""
-        if initial_value:
-            initial_value_copy = initial_value if not isinstance(initial_value, DataflowObject) else initial_value.copy()
-        else:
-            initial_value_copy = self.initial_value if not isinstance(self.initial_value, DataflowObject) else self.initial_value.copy()
-        return initial_value_copy
+    def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
+        """Invoke the appropriate visitor for this Expression."""
+        return visitor.visit_global_variable(self)
 
 
 class RegisterPair(Variable):
@@ -539,3 +496,25 @@ class RegisterPair(Variable):
     def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
         """Invoke the appropriate visitor for this Expression."""
         return visitor.visit_register_pair(self)
+
+
+class ConstantComposition(Constant):
+    def __init__(self, value: list[Constant], vartype: DecompiledType = UnknownType(), tags: Optional[Tuple[Tag, ...]] = None):
+        super().__init__(
+            value,
+            vartype,
+            None,
+            tags,
+        )
+
+    def __str__(self) -> str:
+        """Return a string representation of the ConstantComposition"""
+        return "{" + ",".join([str(x) for x in self.value]) + "}"
+
+    def copy(self) -> ConstantComposition:
+        """Generate a copy of the UnknownExpression with the same message."""
+        return ConstantComposition([x.copy() for x in self.value], self._type.copy())
+
+    def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
+        """Invoke the appropriate visitor for this Expression."""
+        return visitor.visit_constant_composition(self)

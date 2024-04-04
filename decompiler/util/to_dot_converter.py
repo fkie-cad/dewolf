@@ -1,5 +1,4 @@
 """Module handling conversion to dot-format."""
-from typing import TextIO
 
 from networkx import DiGraph
 
@@ -16,10 +15,10 @@ class ToDotConverter:
         self._graph = graph
 
     @classmethod
-    def write(cls, graph: DiGraph, handle: TextIO):
+    def write(cls, graph: DiGraph) -> str:
         """Write dot-format of given graph into handle."""
         converter = cls(graph)
-        handle.write(converter._create_dot())
+        return converter._create_dot()
 
     def _create_dot(self) -> str:
         """Create dot-file content."""

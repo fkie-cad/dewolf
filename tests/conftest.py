@@ -1,8 +1,11 @@
 import pathlib
 import re
-from typing import Dict, List, Tuple
+from itertools import chain
+from typing import Iterator
 
 import pytest
+from _pytest.mark import ParameterSet
+from _pytest.python import Metafunc
 
 
 def pytest_addoption(parser):
@@ -23,7 +26,7 @@ def pytest_configure(config):
             setattr(config.option, "markexpr", "not coreutils")
 
 
-def pytest_generate_tests(metafunc):
+def pytest_generate_tests(metafunc: Metafunc):
     """Generates test_cases based on command line options
 
     the resulting fixture test_cases can then be used to parametrize our test_sample function
@@ -34,18 +37,28 @@ def pytest_generate_tests(metafunc):
             test_cases = _discover_full_tests()
         else:
             test_cases = _discover_system_tests()
-        params = list()
-        for sample_name, functions in test_cases.items():
-            for f in functions:
-                params.append((sample_name, f))
-        metafunc.parametrize("test_cases", params)
+
+        metafunc.parametrize("test_cases", _create_params(test_cases))
 
     if "coreutils_tests" in metafunc.fixturenames:
         coreutils_tests = _discover_coreutils_tests()
-        metafunc.parametrize("coreutils_tests", coreutils_tests)
+        metafunc.parametrize("coreutils_tests", _create_params(coreutils_tests))
 
 
-def _discover_full_tests() -> Dict[pathlib.Path, List[str]]:
+def _create_params(cases: Iterator[tuple[pathlib.Path, str]]) -> list[ParameterSet]:
+    """
+    Accepts an iterator of sample binaries paired with a function name to test.
+    Returns a list of ParameterSet objects to be used with metafunc.parametrize.
+
+    Note that we sort all test cases by their id so that we have a deterministic/consistent ordering of tests.
+    This is needed by pytest-xdist to function properly.
+    See https://pytest-xdist.readthedocs.io/en/stable/known-limitations.html#order-and-amount-of-test-must-be-consistent
+    """
+    test_cases = map(lambda i: pytest.param((i[0], i[1]), id=f"{i[0]}::{i[1]}"), cases)
+    return sorted(test_cases, key=lambda p: p.id)
+
+
+def _discover_full_tests() -> Iterator[tuple[pathlib.Path, str]]:
     """Discover test source files and the test functions in these files.
 
     All files with a .c extension that contain at least one test function are considered as test files.
@@ -53,34 +66,33 @@ def _discover_full_tests() -> Dict[pathlib.Path, List[str]]:
     makefile = _parse_makefile()
     test_cases = _discover_tests_in_directory_tree(makefile["system_tests_src_path"], makefile["system_tests_bin_path"])
     extended_test_cases = _discover_tests_in_directory_tree(makefile["extended_tests_src_path"], makefile["extended_tests_bin_path"])
-    test_cases.update(extended_test_cases)
-    return test_cases
+
+    for sample_path, functions in chain(test_cases.items(), extended_test_cases.items()):
+        for function in functions:
+            yield sample_path, function
 
 
-def _discover_system_tests() -> Dict[pathlib.Path, List[str]]:
+def _discover_system_tests() -> Iterator[tuple[pathlib.Path, str]]:
     """Returns a mapping of system tests binaries to the lists of function names contained in those binaries"""
-    test_cases = dict()
     makefile = _parse_makefile()
     test_code_files = makefile["system_tests_src_path"].glob("*.c")
     for test_code_file in test_code_files:
-        if test_functions := _discover_test_functions_in_sample_code(test_code_file):
-            test_cases[makefile["system_tests_bin_path"] / "32" / "0" / test_code_file.stem] = test_functions
-    return test_cases
+        sample_path = makefile["system_tests_bin_path"] / "32" / "0" / test_code_file.stem
+        for function_name in _discover_test_functions_in_sample_code(test_code_file):
+            yield sample_path, function_name
 
 
-def _discover_coreutils_tests() -> List[Tuple[pathlib.Path, str]]:
+def _discover_coreutils_tests() -> Iterator[tuple[pathlib.Path, str]]:
     """Returns list of (binary, func_name) from a text file for the coreutils binaries."""
-    with pathlib.Path("tests/coreutils/functions.txt").open("r") as f:
+    with pathlib.Path("tests/coreutils/functions.txt").open("r", encoding="utf-8") as f:
         funcs_contents = f.readlines()
-    files = []
+
     for line in funcs_contents:
-        f = line.split()
-        path = pathlib.Path(f"tests/coreutils/binaries/{f[0]}")
-        files.append(pytest.param((path, f[1]), id=f"{f[0]}:{f[1]}"))
-    return files
+        (sample_name, function_name) = line.split()
+        yield pathlib.Path(f"tests/coreutils/binaries/{sample_name}"), function_name
 
 
-def _discover_tests_in_directory_tree(src_path, bin_path) -> Dict[pathlib.Path, List[str]]:
+def _discover_tests_in_directory_tree(src_path: pathlib.Path, bin_path: pathlib.Path) -> dict[pathlib.Path, list[str]]:
     """Return a mapping of binaries collected recursively in the bin_path to function names contained in those binaries"""
     test_cases = dict()
     test_code_files = src_path.glob("*.c")
@@ -94,22 +106,22 @@ def _discover_tests_in_directory_tree(src_path, bin_path) -> Dict[pathlib.Path, 
     return test_cases
 
 
-def _discover_test_functions_in_sample_code(sample: pathlib.Path) -> List[str]:
+def _discover_test_functions_in_sample_code(sample: pathlib.Path) -> list[str]:
     """Discover test functions in the given source file.
     Test function to be included have to be named 'testN' where 'N' has to be an integer."""
     test_names = list()
-    with sample.open("r") as f:
+    with sample.open("r", encoding="utf-8") as f:
         for line in f.readlines():
             if match := re.match(r"\w+ (?P<test_name>test\d+)\(.*\)", line):
                 test_names.append(match.group("test_name"))
     return test_names
 
 
-def _parse_makefile() -> Dict[str, pathlib.Path]:
+def _parse_makefile() -> dict[str, pathlib.Path]:
     """Parse from Makefile path to systemtests sources and binaries as well as
     path to extended tests sources and binaries"""
     makefile = dict()
-    with pathlib.Path("Makefile").open("r") as f:
+    with pathlib.Path("Makefile").open("r", encoding="utf-8") as f:
         mkfile_contents = f.readlines()
     for line in mkfile_contents:
         if match := re.match(r"^SYSTEM_TESTS_BIN_PATH\s:=\s(.*)$", line):

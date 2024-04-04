@@ -1,4 +1,5 @@
 """Module implementing the ConditionHandler class."""
+
 from binaryninja import mediumlevelil
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import Branch, Condition, Constant, IndirectBranch, OperationType, Return

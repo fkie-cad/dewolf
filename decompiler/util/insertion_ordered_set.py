@@ -15,6 +15,9 @@ class InsertionOrderedSet(dict, Generic[T], MutableSet):
     def __iter__(self) -> Iterator[T]:
         yield from self.keys()
 
+    def __len__(self) -> int:
+        return len(self.keys())
+
     def update(self, *args: Iterable[T], **kwargs: Dict[str, Any]):  # type: ignore
         # Type checking ignored as we cannot satisfy the dict.update signature.
         if kwargs:
@@ -59,6 +62,9 @@ class InsertionOrderedSet(dict, Generic[T], MutableSet):
 
     def __str__(self):
         return "{%s}" % (", ".join(map(repr, self.keys())))
+
+    def __or__(self, other: AbstractSet[Any]) -> InsertionOrderedSet:
+        return InsertionOrderedSet(super().__or__(other))
 
     difference = property(lambda self: self.__sub__)
     difference_update = property(lambda self: self.__isub__)

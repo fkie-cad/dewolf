@@ -1,4 +1,5 @@
 """Main plugin file registering plugin commands in bianryninja."""
+
 from logging import info, warning
 from os.path import dirname, realpath
 from sys import path

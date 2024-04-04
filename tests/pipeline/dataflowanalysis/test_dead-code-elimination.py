@@ -1,4 +1,5 @@
 """ Tests for the DeadCodeElimination pipeline stage"""
+
 from abc import ABC, abstractmethod
 
 import pytest

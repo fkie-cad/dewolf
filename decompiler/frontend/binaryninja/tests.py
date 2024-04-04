@@ -1,4 +1,5 @@
 """WIP test suite for binaryninja lifter."""
+
 from os import listdir
 from os.path import abspath, dirname, isfile, join, realpath
 from sys import path

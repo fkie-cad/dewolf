@@ -1,4 +1,5 @@
 """Module defining the ExpressionGraph used for various pipeline stages."""
+
 from __future__ import annotations
 
 from decompiler.structures.graphs.cfg import ControlFlowGraph

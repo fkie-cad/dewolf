@@ -1,131 +1,5 @@
 [
     {
-        "title": "Expression Propagation",
-        "description": "Settings for the expression propagation pipeline stages:",
-        "options": [
-            {
-                "dest": "expression-propagation.maximum_instruction_complexity",
-                "default": 100,
-                "title": "EP maximum instruction complexity",
-                "type": "number",
-                "description": "Maximum complexity for an instruction to be propagated",
-                "is_hidden_from_gui": true,
-                "is_hidden_from_cli": false,
-                "argument_name": "--ep-max-instruction-complexity"
-            },
-            {
-                "dest": "expression-propagation.maximum_branch_complexity",
-                "default": 100,
-                "title": "EP maximum branch complexity",
-                "type": "number",
-                "description": "Maximum complexity for a branch to be propagated",
-                "is_hidden_from_gui": true,
-                "is_hidden_from_cli": false,
-                "argument_name": "--ep-max-branch-complexity"
-            },
-            {
-                "dest": "expression-propagation.maximum_call_complexity",
-                "default": 100,
-                "title": "EP maximum call complexity",
-                "type": "number",
-                "description": "Maximum complexity for a call to be propagated",
-                "is_hidden_from_gui": true,
-                "is_hidden_from_cli": false,
-                "argument_name": "--ep-max-call-complexity"
-            },
-            {
-                "dest": "expression-propagation.maximum_assignment_complexity",
-                "default": 100,
-                "title": "EP maximum assignment complexity",
-                "type": "number",
-                "description": "Maximum complexity for an assignment to be propagated",
-                "is_hidden_from_gui": true,
-                "is_hidden_from_cli": false,
-                "argument_name": "--ep-max-assignment-complexity"
-            },
-            {
-                "dest": "expression-propagation-memory.maximum_instruction_complexity",
-                "default": 100,
-                "title": "EPM maximum instruction complexity",
-                "type": "number",
-                "description": "Maximum complexity for an instruction to be propagated (consider memory access)",
-                "is_hidden_from_gui": true,
-                "is_hidden_from_cli": false,
-                "argument_name": "--epm-max-instruction-complexity"
-            },
-            {
-                "dest": "expression-propagation-memory.maximum_branch_complexity",
-                "default": 100,
-                "title": "EPM maximum branch complexity",
-                "type": "number",
-                "description": "Maximum complexity for a branch to be propagated (consider memory access)",
-                "is_hidden_from_gui": true,
-                "is_hidden_from_cli": false,
-                "argument_name": "--epm-max-branch-complexity"
-            },
-            {
-                "dest": "expression-propagation-memory.maximum_call_complexity",
-                "default": 100,
-                "title": "EPM maximum call complexity",
-                "type": "number",
-                "description": "Maximum complexity for a call to be propagated (consider memory access)",
-                "is_hidden_from_gui": true,
-                "is_hidden_from_cli": false,
-                "argument_name": "--epm-max-call-complexity"
-            },
-            {
-                "dest": "expression-propagation-memory.maximum_assignment_complexity",
-                "default": 100,
-                "title": "EPM maximum assignment complexity",
-                "type": "number",
-                "description": "Maximum complexity for an assignment to be propagated (consider memory access)",
-                "is_hidden_from_gui": true,
-                "is_hidden_from_cli": false,
-                "argument_name": "--epm-max-assignment-complexity"
-            },
-            {
-                "dest": "expression-propagation-function-call.maximum_instruction_complexity",
-                "default": 100,
-                "title": "EPFC maximum instruction complexity",
-                "type": "number",
-                "description": "Maximum complexity for an instruction to be propagated (consider function calls)",
-                "is_hidden_from_gui": true,
-                "is_hidden_from_cli": false,
-                "argument_name": "--epfc-max-instruction-complexity"
-            },
-            {
-                "dest": "expression-propagation-function-call.maximum_branch_complexity",
-                "default": 100,
-                "title": "EPFC maximum branch complexity",
-                "type": "number",
-                "description": "Maximum complexity for a branch to be propagated (consider function calls)",
-                "is_hidden_from_gui": true,
-                "is_hidden_from_cli": false,
-                "argument_name": "--epfc-max-branch-complexity"
-            },
-            {
-                "dest": "expression-propagation-function-call.maximum_call_complexity",
-                "default": 100,
-                "title": "EPFC maximum call complexity",
-                "type": "number",
-                "description": "Maximum complexity for a call to be propagated (consider function calls)",
-                "is_hidden_from_gui": true,
-                "is_hidden_from_cli": false,
-                "argument_name": "--epfc-max-call-complexity"
-            },
-            {
-                "dest": "expression-propagation-function-call.maximum_assignment_complexity",
-                "default": 100,
-                "title": "EPFC maximum assignment complexity",
-                "type": "number",
-                "description": "Maximum complexity for an assignment to be propagated (consider function calls)",
-                "is_hidden_from_gui": true,
-                "is_hidden_from_cli": false,
-                "argument_name": "--epfc-max-assignment-complexity"
-            }
-        ]
-    },
-    {
         "title": "Code Elimination",
         "description": "Dead code, and common subexpression elimination settings:",
         "options": [
@@ -543,6 +417,26 @@
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
                 "argument_name": "--variable-declarations-per-line"
+            },
+            {
+                "dest": "code-generator.preferred_true_branch",
+                "default": "smallest",
+                "title": "Preferred type of true branch in if-else",
+                "type": "string",
+                "enum": [
+                    "smallest",
+                    "largest",
+                    "none"
+                ],
+                "enumDescriptions": [
+                    "Swap branches, so that the true branch is the smaller one length wise.",
+                    "Swap branches, so that the true branch is the larger one length wise.",
+                    "Don't swap branches based on length."
+                ],
+                "description": "Swap branches of if-else structures based on the given criteria",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--preferred_true_branch"
             },
             {
                 "dest": "pattern-independent-restructuring.switch_reconstruction",

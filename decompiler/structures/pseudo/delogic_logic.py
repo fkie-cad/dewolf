@@ -1,4 +1,5 @@
 """Implements translating pseudo instructions into delogic statements."""
+
 from __future__ import annotations
 
 from typing import Union

@@ -1,4 +1,5 @@
 """Module for removing Phi-functions by lifting in Out of SSA."""
+
 import logging
 from typing import DefaultDict, Iterator, List, Optional
 

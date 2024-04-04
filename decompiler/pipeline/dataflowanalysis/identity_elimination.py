@@ -1,17 +1,25 @@
 """Module implementing a pipeline stage eliminating congruent variables."""
+
 from __future__ import annotations
 
 from collections import defaultdict, namedtuple
+from dataclasses import dataclass
 from logging import error, info
 from typing import DefaultDict, Dict, Iterator, List, Optional, Set, Tuple, Union
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock
 from decompiler.structures.pseudo.expressions import Constant, GlobalVariable, UnknownExpression, Variable
-from decompiler.structures.pseudo.instructions import Assignment, Instruction, Phi, Relation
+from decompiler.structures.pseudo.instructions import Assignment, BaseAssignment, Instruction, Phi, Relation
 from decompiler.task import DecompilerTask
 from networkx import DiGraph, node_disjoint_paths, weakly_connected_components
 from networkx.exception import NetworkXNoPath
+
+
+@dataclass
+class DefinitionLocation:
+    block: BasicBlock
+    definition: BaseAssignment
 
 
 class _IdentityDataflow:
@@ -20,25 +28,24 @@ class _IdentityDataflow:
     Implemented for usage in IdentityElimination and VariableReplacer only.
     """
 
-    DefinitionLocation = namedtuple("DefinitionLocation", ["block", "definition"])
-
     def __init__(self):
         """Generate a new IdentityDataflow object."""
         self._use_map: DefaultDict[Variable, List[Instruction]] = defaultdict(list)
-        self._def_map: Dict[Variable, _IdentityDataflow.DefinitionLocation] = dict()
+        self._def_map: Dict[Variable, DefinitionLocation] = dict()
 
     def parse_dataflow(self, instruction: Instruction, basic_block: BasicBlock):
         """Parse the dataflow information of the given instruction."""
         for required_variable in instruction.requirements:
             self._use_map[required_variable].append(instruction)
         for defined_value in instruction.definitions:
-            self._def_map[defined_value] = self.DefinitionLocation(basic_block, instruction)
+            assert isinstance(instruction, BaseAssignment), f"The Instruction {instruction} must be an Assignment if it has a Definition."
+            self._def_map[defined_value] = DefinitionLocation(basic_block, instruction)
 
     def get_usages(self, variable: Variable) -> Iterator[Instruction]:
         """Yield all parsed usages for the given Variable."""
         yield from self._use_map[variable]
 
-    def get_definition(self, variable: Variable) -> Optional[_IdentityDataflow.DefinitionLocation]:
+    def get_definition(self, variable: Variable) -> Optional[DefinitionLocation]:
         """Get the DefinitionLocation of the given variable."""
         return self._def_map.get(variable, None)
 
@@ -204,12 +211,12 @@ class _IdentityGraph(DiGraph):
             for required_variable in required_values
         )
 
-    def find_replacement_variable_of_group(self, identity_group: Set[Variable]) -> Variable:
+    def find_replacement_variable_of_group(self, identity_group: Set[Variable]) -> Optional[Variable]:
         """Returns the variable of the identity group that is initially defined."""
         replacement_variable = None
         optional_variable = None
         for variable in identity_group:
-            if self.out_degree(variable):
+            if self.out_degree(variable) > 0:
                 continue
             if not self._is_defining_value(variable):
                 optional_variable = variable
@@ -217,23 +224,21 @@ class _IdentityGraph(DiGraph):
             if replacement_variable is None:
                 replacement_variable = variable
             else:
-                message = (
+                info(
                     f"At least two variables in the identity group {identity_group} have out degree zero, namely "
                     f"{replacement_variable} and {variable}, i.e., these set of vertices is not an identity group"
                 )
-                error(message)
-                raise ValueError(message)
+                return None
         if replacement_variable:
             return replacement_variable
         elif optional_variable:
             return optional_variable
         else:
-            message = (
-                f"No variable in the identity group {identity_group} has out degree zero, i.e., these set of vertices has no initial"
-                f"definition."
+            info(
+                f"No variable in the identity group {identity_group} has out degree zero, "
+                f"thus this set of Variables has no initial definition."
             )
-            error(message)
-            raise ValueError(message)
+            return None
 
 
 class _VariableReplacer:
@@ -309,11 +314,12 @@ class IdentityElimination(PipelineStage):
         identity_graph, dataflow = self._parse_cfg(task)
         variable_replacer = _VariableReplacer(dataflow)
         for identity_group in identity_graph.yield_identities():
-            variable_replacer.replace_variables(identity_group, identity_graph.find_replacement_variable_of_group(identity_group))
+            if replacement_variable := identity_graph.find_replacement_variable_of_group(identity_group):
+                variable_replacer.replace_variables(identity_group, replacement_variable)
 
     @staticmethod
     def _parse_cfg(task: DecompilerTask) -> Tuple[_IdentityGraph, _IdentityDataflow]:
-        """Setup the IdentityGraph and The IdentityDataflow objects in a single iteration of all instructions."""
+        """Set up the IdentityGraph and The IdentityDataflow objects in a single iteration of all instructions."""
         dataflow = _IdentityDataflow()
         identity_graph = _IdentityGraph(task.function_parameters)
         for basic_block in task.graph:

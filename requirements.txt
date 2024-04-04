@@ -6,4 +6,5 @@ networkx != 2.8.4
 pydot
 pygments
 pytest !=5.3.4
+pytest-xdist
 z3-solver == 4.8.10

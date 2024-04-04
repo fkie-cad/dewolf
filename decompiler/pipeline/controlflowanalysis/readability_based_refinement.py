@@ -1,4 +1,5 @@
 """Module implementing various readability based refinements."""
+
 from __future__ import annotations
 
 from typing import Union
@@ -6,10 +7,12 @@ from typing import Union
 from decompiler.pipeline.controlflowanalysis.loop_utility_methods import (
     AstInstruction,
     _find_continuation_instruction,
+    _get_equalizable_last_definitions,
     _get_variable_initialisation,
     _initialization_reaches_loop_node,
     _is_single_instruction_loop_node,
     _single_defininition_reaches_node,
+    _substract_continuation_from_last_definition,
 )
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.ast.ast_nodes import ConditionNode, DoWhileLoopNode, ForLoopNode, WhileLoopNode
@@ -76,6 +79,7 @@ class WhileLoopReplacer:
             -> loop condition complexity < condition complexity
             -> possible modification complexity < modification complexity
             -> if condition is only a symbol: check condition type for allowed one
+            -> has a continue statement which must and can be equalized
 
         If 'force_for_loops' is enabled, the complexity options are ignored and every while loop after the
         initial transformation will be forced into a for loop with an empty declaration/modification
@@ -90,9 +94,6 @@ class WhileLoopReplacer:
             ):
                 continue
 
-            if any(node.does_end_with_continue for node in loop_node.body.get_descendant_code_nodes_interrupting_ancestor_loop()):
-                continue
-
             if not self._force_for_loops and loop_node.condition.get_complexity(self._ast.condition_map) > self._condition_max_complexity:
                 continue
 
@@ -103,6 +104,10 @@ class WhileLoopReplacer:
                     continue
                 if not self._force_for_loops and continuation.instruction.complexity > self._modification_max_complexity:
                     continue
+                if (equalizable_last_definitions := _get_equalizable_last_definitions(loop_node, continuation)) is None:
+                    continue
+                for last_definition in equalizable_last_definitions:
+                    _substract_continuation_from_last_definition(last_definition, continuation)
                 self._replace_with_for_loop(loop_node, continuation, variable_init)
                 break
 

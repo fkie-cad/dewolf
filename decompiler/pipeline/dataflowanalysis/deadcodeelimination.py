@@ -1,4 +1,5 @@
 """Module implementing code elimination based on Hols et al."""
+
 from collections import defaultdict, namedtuple
 from typing import DefaultDict, Optional, Set
 

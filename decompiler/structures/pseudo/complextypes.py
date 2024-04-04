@@ -70,6 +70,15 @@ class _BaseStruct(ComplexType):
     def get_member_by_offset(self, offset: int) -> Optional[ComplexTypeMember]:
         return self.members.get(offset)
 
+    def get_member_name_by_offset(self, offset: int) -> str:
+        """Get the name of a member by its offset and gracefully handle unknown offsets."""
+        member = self.get_member_by_offset(offset)
+        if member is not None:
+            return member.name
+        else:
+            logging.warning(f"Cannot get member name for type {self} at offset {offset}")
+            return f"field_{hex(offset)}".replace("-", "minus_")
+
     def declaration(self) -> str:
         members = ";\n\t".join(self.members[k].declaration() for k in sorted(self.members.keys())) + ";"
         return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}}"
@@ -102,6 +111,15 @@ class Union(ComplexType):
         for member in self.members:
             if member.type == _type:
                 return member
+
+    def get_member_name_by_type(self, _type: Type) -> str:
+        """Get the name of a member of a union by its type and gracefully handle unknown types."""
+        member = self.get_member_by_type(_type)
+        if member is not None:
+            return member.name
+        else:
+            logging.warning(f"Cannot get member name for union {self}")
+            return "unknown_field"
 
 
 @dataclass(frozen=True, order=True)
@@ -136,6 +154,7 @@ class UniqueNameProvider:
     """The purpose of this class is to provide unique names for types, as duplicate names can potentially be encountered in the lifting stage (especially anonymous structs, etc.)
     This class keeps track of all the names already used. If duplicates are found, they are renamed by appending suffixes with incrementing numbers.
     E.g. `classname`, `classname__2`, `classname__3`, ...
+    Assumes that incoming names do not end with __{number}.
     """
 
     def __init__(self):
@@ -145,6 +164,7 @@ class UniqueNameProvider:
         """This method returns the input name if it was unique so far.
         Otherwise it returns the name with an added incrementing suffix.
         In any case, the name occurence of the name is counted.
+        Assumes that incoming names do not end with __{number}.
         """
         if name not in self._name_to_count:
             self._name_to_count[name] = 1

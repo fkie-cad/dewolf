@@ -1,14 +1,24 @@
 """Module defining a control flow graph with the graph interface."""
+
 from __future__ import annotations
 
 from itertools import chain
-from typing import Dict, Set
+from typing import Dict, Iterator, List, Optional, Set
 
-from decompiler.structures.pseudo import Assignment, Condition, Instruction, Variable
+from decompiler.structures.pseudo import Assignment, Condition, Expression, Instruction, Variable
 from networkx import DiGraph
 
 from .basicblock import BasicBlock
-from .branches import *
+from .branches import (
+    BasicBlockEdge,
+    BasicBlockEdgeCondition,
+    ConditionalEdge,
+    FalseCase,
+    IndirectEdge,
+    SwitchCase,
+    TrueCase,
+    UnconditionalEdge,
+)
 from .classifiedgraph import ClassifiedGraph
 
 
