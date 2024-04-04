@@ -13,12 +13,15 @@ from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, SeqNode
 from decompiler.structures.ast.reachability_graph import SiblingReachability
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition
-from networkx import DiGraph, has_path
+from networkx import DiGraph, has_path, subgraph_view
+
+from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 
 
 @dataclass
 class Formula:
     """Dataclass for logic-formulas."""
+
     condition: LogicCondition
     ast_node: AbstractSyntaxTreeNode
 
@@ -30,6 +33,7 @@ class Formula:
 @dataclass
 class Clause:
     """Dataclass for logic-clauses."""
+
     condition: LogicCondition
     formula: Formula
 
@@ -41,6 +45,7 @@ class Clause:
 @dataclass
 class Symbol:
     """Dataclass for logic-symbols."""
+
     name: str
 
     def __hash__(self):
@@ -63,23 +68,25 @@ class ConditionCandidates:
         - _symbol_of_formula: maps to each formula all symbols that it contains.
         """
         self._candidates: Dict[AbstractSyntaxTreeNode, Formula] = {c: Formula(c.reaching_condition, c) for c in candidates}
+        self._unconsidered_nodes: InsertionOrderedSet[AbstractSyntaxTreeNode] = InsertionOrderedSet()
         self._logic_graph: DiGraph = DiGraph()
-        self._formulas_containing_symbol: DefaultDict[Symbol, Set[Formula]] = defaultdict(set)
-        self._symbols_of_formula: DefaultDict[Formula, Set[Symbol]] = defaultdict(set)
-        self._initialize_logic_graph_and_dictionaries()
+        self._initialize_logic_graph()
 
-    def _initialize_logic_graph_and_dictionaries(self):
-        """Initialization of the logic-graph and the class-dictionaries."""
+    def _initialize_logic_graph(self):
+        """Initialization of the logic-graph."""
+        all_symbols = set()
         for formula in self._candidates.values():
             self._logic_graph.add_node(formula)
-            formula_clauses = list(formula.condition.operands) if formula.condition.is_conjunction else [formula.condition.copy()]
+            formula_clauses: List[LogicCondition] = (
+                list(formula.condition.operands) if formula.condition.is_conjunction else [formula.condition.copy()]
+            )
             for logic_clause in formula_clauses:
                 self._logic_graph.add_edge(formula, clause := Clause(logic_clause, formula))
                 for symbol_name in logic_clause.get_symbols_as_string():
                     self._logic_graph.add_edge(clause, symbol := Symbol(symbol_name))
-                    self._formulas_containing_symbol[symbol].add(formula)
-                    self._symbols_of_formula[formula].add(symbol)
-        self._remove_nodes_from(set(symbol for symbol, formulas in self._formulas_containing_symbol.items() if len(formulas) == 1))
+                    self._logic_graph.add_edge(formula, symbol, auxiliary=True)
+                    all_symbols.add(symbol)
+        self._remove_nodes_from(set(symbol for symbol in all_symbols if self._symbol_only_in_one_clause(symbol)))
 
     @property
     def candidates(self) -> Iterator[AbstractSyntaxTreeNode]:
@@ -91,21 +98,19 @@ class ConditionCandidates:
         """Returns the maximum possible subexpression that is relevant for considering for the clustering."""
         if len(self._candidates) < 2:
             return 0
-        all_sizes = [self._logic_graph.out_degree(formula) for formula in self._candidates.values()]
+        all_sizes = [self._formula_graph.out_degree(formula) for formula in self._candidates.values()]
         all_sizes.remove(max(all_sizes))
         return max(all_sizes)
 
     def get_symbols_of(self, node: AbstractSyntaxTreeNode) -> Set[str]:
-        """Return all symbols that are used in the formula of the given ast-node. """
-        return {symbol.name for symbol in self._symbols_of_formula[self._candidates[node]]}
+        """Return all symbols that are used in the formula of the given ast-node."""
+        return {symbol.name for symbol in self._auxiliary_graph.successors(self._candidates[node])}
 
     def get_next_subexpression(self) -> Iterator[Tuple[AbstractSyntaxTreeNode, LogicCondition]]:
         """Consider Candidates in sequence-node order and start with the largest possible subexpression."""
-        for ast_node in list(self._candidates):
-            if ast_node not in self._candidates:
-                continue
-            if (max_expr_size := self.maximum_subexpression_size) == 0:
-                break
+        self._unconsidered_nodes = InsertionOrderedSet(self._candidates)
+        while self._unconsidered_nodes and len(self._candidates) > 1 and ((max_expr_size := self.maximum_subexpression_size) != 0):
+            ast_node = self._unconsidered_nodes.pop(0)
             clauses = self._get_clauses(ast_node)
             current_size = min(len(clauses), max_expr_size)
             while current_size > 0 and ast_node in self._candidates:
@@ -119,7 +124,7 @@ class ConditionCandidates:
 
     def _get_clauses(self, node: AbstractSyntaxTreeNode) -> List[LogicCondition]:
         """Return all clauses that are contained in the formula of the given ast-node."""
-        return [clause.condition for clause in self._logic_graph.successors(self._candidates[node])]
+        return [clause.condition for clause in self._formula_graph.successors(self._candidates[node])]
 
     def _remove_nodes_from(self, removable_nodes: Set[Union[Formula, Clause, Symbol]]):
         """
@@ -137,37 +142,56 @@ class ConditionCandidates:
 
     def _remove_formula(self, formula: Formula) -> Iterator[Union[Clause, Symbol]]:
         """Remove the given formula from the graph."""
-        yield from self._logic_graph.successors(formula)
+        yield from self._formula_graph.successors(formula)
+        symbols_of_formula = list(self._auxiliary_graph.successors(formula))
         self._logic_graph.remove_node(formula)
-        for symbol in self._symbols_of_formula[formula]:
-            yield from self._remove_symbol_from_formula(formula, symbol)
+        for symbol in symbols_of_formula:
+            yield from self._remove_symbol_from_formula(symbol)
         del self._candidates[formula.ast_node]
+        self._unconsidered_nodes.discard(formula.ast_node)
 
     def _remove_clause(self, clause: Clause) -> Iterator[Union[Formula, Symbol]]:
         """Remove the given clause from the graph."""
         if clause.formula in self._logic_graph:
-            if self._logic_graph.out_degree(clause.formula) == 1:
+            if self._formula_graph.out_degree(clause.formula) == 1:
                 yield clause.formula
             else:
-                for symbol in (s for s in self._logic_graph.successors(clause) if not has_path(self._logic_graph, clause.formula, s)):
-                    self._symbols_of_formula[clause.formula].remove(symbol)
-                    yield from self._remove_symbol_from_formula(clause.formula, symbol)
+                for symbol in (s for s in self._logic_graph.successors(clause) if not has_path(self._formula_graph, clause.formula, s)):
+                    self._logic_graph.remove_edge(clause.formula, symbol)
+                    yield from self._remove_symbol_from_formula(symbol)
         self._logic_graph.remove_node(clause)
 
     def _remove_symbol(self, symbol: Symbol) -> Iterator[Clause]:
         """Remove the given symbol from the graph."""
-        yield from self._logic_graph.predecessors(symbol)
-        for formula in self._formulas_containing_symbol[symbol]:
-            self._symbols_of_formula[formula].remove(symbol)
+        yield from self._formula_graph.predecessors(symbol)
+        # for formula in self._auxiliary_graph.predecessors(symbol):
+        #     self._symbols_of_formula[formula].remove(symbol)
         self._logic_graph.remove_node(symbol)
 
-    def _remove_symbol_from_formula(self, formula: Formula, symbol: Symbol) -> Iterator[Symbol]:
+    def _remove_symbol_from_formula(self, symbol: Symbol) -> Iterator[Symbol]:
         """
         Update the dictionaries and decides whether we also remove the given symbol, if the symbol is not contained in the given formula.
         """
-        self._formulas_containing_symbol[symbol].remove(formula)
-        if len(self._formulas_containing_symbol[symbol]) <= 1:
+        if self._auxiliary_graph.in_degree(symbol) <= 1:
             yield symbol
+
+    def _symbol_only_in_one_clause(self, symbol: Symbol):
+        """Checks whether the symbol is only contained in one clause"""
+        return self._auxiliary_graph.in_degree(symbol) == 1
+
+    @property
+    def _auxiliary_graph(self) -> DiGraph:
+        def filter_auxiliary_edges(source, sink):
+            return self._logic_graph[source][sink].get("auxiliary", False)
+
+        return subgraph_view(self._logic_graph, filter_edge=filter_auxiliary_edges)
+
+    @property
+    def _formula_graph(self) -> DiGraph:
+        def filter_non_auxiliary_edges(source, sink):
+            return self._logic_graph[source][sink].get("auxiliary", False) is False
+
+        return subgraph_view(self._logic_graph, filter_edge=filter_non_auxiliary_edges)
 
     # def get_next_subexpression(self) -> Iterator[Tuple[AbstractSyntaxTreeNode, LogicCondition]]:
     #     """Get the next subexpression together with the node it comes from and start with the largest possible subexpression!"""
