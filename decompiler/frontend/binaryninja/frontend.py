@@ -38,7 +38,7 @@ class BinaryninjaFrontend(Frontend):
 
     def __init__(self, bv: BinaryView):
         """Create a new binaryninja view with the given path."""
-        self._bv = bv
+        self._bv = bv if type(bv) == BinaryView else bv.getCurrentFunction().view
 
     @classmethod
     def from_path(cls, path: str, options: Options):
