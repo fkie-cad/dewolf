@@ -18,27 +18,33 @@ from networkx import DiGraph, has_path
 
 @dataclass
 class Formula:
+    """Dataclass for logic-formulas."""
     condition: LogicCondition
     ast_node: AbstractSyntaxTreeNode
 
     def __hash__(self) -> int:
+        """Formulas should hash the same only if they are the same object."""
         return id(self)
 
 
 @dataclass
 class Clause:
+    """Dataclass for logic-clauses."""
     condition: LogicCondition
     formula: Formula
 
     def __hash__(self) -> int:
+        """Clauses should hash the same only if they are the same object."""
         return id(self)
 
 
 @dataclass
 class Symbol:
+    """Dataclass for logic-symbols."""
     name: str
 
     def __hash__(self):
+        """Symbols should hash the same if they have the same name."""
         return hash(self.name)
 
 
@@ -46,6 +52,16 @@ class ConditionCandidates:
     """A graph implementation handling conditions for the condition-based refinement algorithm."""
 
     def __init__(self, candidates: List[AbstractSyntaxTreeNode]) -> None:
+        """
+        Init for the condition-candidates.
+
+        param candidates:: list of all AST-nodes that we want to cluster into conditions.
+
+        - _candidates: maps all relevant ast-nodes to their formula (reaching condition)
+        - logic_graph: representation of all logic-formulas relevant
+        - _formulas_containing_symbol: maps each symbol to all formulas that contain this symbol
+        - _symbol_of_formula: maps to each formula all symbols that it contains.
+        """
         self._candidates: Dict[AbstractSyntaxTreeNode, Formula] = {c: Formula(c.reaching_condition, c) for c in candidates}
         self._logic_graph: DiGraph = DiGraph()
         self._formulas_containing_symbol: DefaultDict[Symbol, Set[Formula]] = defaultdict(set)
@@ -53,6 +69,7 @@ class ConditionCandidates:
         self._initialize_logic_graph_and_dictionaries()
 
     def _initialize_logic_graph_and_dictionaries(self):
+        """Initialization of the logic-graph and the class-dictionaries."""
         for formula in self._candidates.values():
             self._logic_graph.add_node(formula)
             formula_clauses = list(formula.condition.operands) if formula.condition.is_conjunction else [formula.condition.copy()]
@@ -66,10 +83,12 @@ class ConditionCandidates:
 
     @property
     def candidates(self) -> Iterator[AbstractSyntaxTreeNode]:
+        """Iterates over all candidates considered for grouping into conditions."""
         yield from self._candidates
 
     @property
     def maximum_subexpression_size(self) -> int:
+        """Returns the maximum possible subexpression that is relevant for considering for the clustering."""
         if len(self._candidates) < 2:
             return 0
         all_sizes = [self._logic_graph.out_degree(formula) for formula in self._candidates.values()]
@@ -77,6 +96,7 @@ class ConditionCandidates:
         return max(all_sizes)
 
     def get_symbols_of(self, node: AbstractSyntaxTreeNode) -> Set[str]:
+        """Return all symbols that are used in the formula of the given ast-node. """
         return {symbol.name for symbol in self._symbols_of_formula[self._candidates[node]]}
 
     def get_next_subexpression(self) -> Iterator[Tuple[AbstractSyntaxTreeNode, LogicCondition]]:
@@ -98,9 +118,13 @@ class ConditionCandidates:
         self._remove_nodes_from(set(self._candidates[node] for node in nodes_to_remove))
 
     def _get_clauses(self, node: AbstractSyntaxTreeNode) -> List[LogicCondition]:
+        """Return all clauses that are contained in the formula of the given ast-node."""
         return [clause.condition for clause in self._logic_graph.successors(self._candidates[node])]
 
     def _remove_nodes_from(self, removable_nodes: Set[Union[Formula, Clause, Symbol]]):
+        """
+        Remove all nodes from the given set of nodes from the logic-graph and also all nodes that have to be removed after removeing these.
+        """
         while removable_nodes:
             node = removable_nodes.pop()
             match node:
@@ -175,11 +199,13 @@ class ConditionBasedRefinement:
     """
 
     def __init__(self, asforest: AbstractSyntaxForest):
+        """Init an instance of the condition-based refinement."""
         self.asforest: AbstractSyntaxForest = asforest
         self.root: AbstractSyntaxTreeNode = asforest.current_root
 
     @classmethod
     def refine(cls, asforest: AbstractSyntaxForest) -> None:
+        """Apply the condition-based-refinement to the given abstract-syntax-forest."""
         if not isinstance(asforest.current_root, SeqNode):
             return
         if_refinement = cls(asforest)
@@ -228,7 +254,8 @@ class ConditionBasedRefinement:
         sequence_node._sorted_children = sibling_reachability.sorted_nodes()
 
     @staticmethod
-    def _get_possible_complementary_nodes(sequence_node: SeqNode):
+    def _get_possible_complementary_nodes(sequence_node: SeqNode) -> Iterator[Tuple[AbstractSyntaxTreeNode, AbstractSyntaxTreeNode]]:
+        """Get all pairs of siblings that have complementary reaching-conditions."""
         interesting_children = [child for child in sequence_node.children if not child.reaching_condition.is_true]
         return combinations(interesting_children, 2)
 
