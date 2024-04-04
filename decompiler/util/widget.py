@@ -64,8 +64,8 @@ class Worker(QRunnable):
         configure_logging()  # reload settings
         decompiler = Decompiler.from_raw(binary_view)
         options = Options.from_gui()
-        result = decompiler.decompile([function], task_options=options)
-        return DecoratedCode.formatted_plain(result.code)
+        task, code = decompiler.decompile(function, task_options=options)
+        return DecoratedCode.formatted_plain(code)
 
 
 class CodeDisplay(QPlainTextEdit):

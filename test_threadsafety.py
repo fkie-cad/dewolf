@@ -13,7 +13,7 @@ results = []
 
 with ThreadPoolExecutor(max_workers=2) as executor:
     for function in decompiler._frontend.get_all_function_names():
-        results.append(executor.submit(decompiler.decompile, [function]))
+        results.append(executor.submit(decompiler.decompile, function))
 
 for future in results:
     future.exception()

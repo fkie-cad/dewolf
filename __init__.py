@@ -22,10 +22,10 @@ def decompile(bv: BinaryView, function: Function):
     """Decompile the target mlil_function."""
     decompiler = Decompiler.from_raw(bv)
     options = Options.from_gui()
-    result = decompiler.decompile([function], task_options=options)
+    task, code = decompiler.decompile(function, task_options=options)
     show_html_report(
-        f"decompile {result.tasks[0].name}",
-        DecoratedCode.generate_html_from_code(result.code, options.getstring("code-generator.style_plugin")),
+        f"decompile {task.name}",
+        DecoratedCode.generate_html_from_code(code, options.getstring("code-generator.style_plugin")),
     )
 
 

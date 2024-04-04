@@ -41,7 +41,7 @@ class Decompiler:
         """Create a decompiler instance from existing frontend instance (e.g. a binaryninja view)."""
         return cls(frontend.from_raw(data))
 
-    def decompile(self, function_ids: Collection[object] | None = None, task_options: Options | None = None) -> Result:
+    def decompile_all(self, function_ids: Collection[object] | None = None, task_options: Options | None = None) -> Result:
         if function_ids is None:  # decompile all functions when none are specified
             function_ids = self._frontend.get_all_function_names()
         if task_options is None:
@@ -60,6 +60,10 @@ class Decompiler:
         code = self._backend.generate(tasks)
 
         return Decompiler.Result(tasks, code)
+
+    def decompile(self, function_id: object, task_options: Options | None = None) -> tuple[DecompilerTask, str]:
+        result = self.decompile_all([function_id], task_options)
+        return result.tasks[0], result.code
 
     @dataclass
     class Result:

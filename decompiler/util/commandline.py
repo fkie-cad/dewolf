@@ -72,15 +72,15 @@ def main(interface: "Decompiler"):
     try:
         if args.all or not args.function:
             # decompile all functions.
-            result = decompiler.decompile(task_options=options)
+            result = decompiler.decompile_all(task_options=options)
             DecoratedCode.print_code(
                 result.code, output_stream, color, style=options.getstring("code-generator.style_cmd", fallback="paraiso-dark")
             )
         else:
             for function_name in args.function:
-                result = decompiler.decompile([function_name], task_options=options)
+                task, code = decompiler.decompile(function_name, task_options=options)
                 DecoratedCode.print_code(
-                    result.code, output_stream, color, style=options.getstring("code-generator.style_cmd", fallback="paraiso-dark")
+                    code, output_stream, color, style=options.getstring("code-generator.style_cmd", fallback="paraiso-dark")
                 )
     finally:
         if output_stream is not None:

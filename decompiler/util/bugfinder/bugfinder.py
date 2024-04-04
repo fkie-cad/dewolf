@@ -198,9 +198,9 @@ class DecompilerReporter(Decompiler):
             function_info = DBConnector.get_function_info(function)
             try:
                 time1 = time.time()
-                result = self.decompile([function], task_options=options)
+                task, code = self.decompile(function, task_options=options)
                 time2 = time.time()
-                decompilation_info = DBConnector.get_successful_info(result.code, int(time2 - time1))
+                decompilation_info = DBConnector.get_successful_info(code, int(time2 - time1))
             except Exception as e:
                 decompilation_info = DBConnector.get_error_info(e)
             yield {**dewolf_info, **sample_info, **function_info, **decompilation_info}
