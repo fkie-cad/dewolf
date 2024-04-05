@@ -80,7 +80,7 @@ class NetworkXGraph(GraphInterface[NODE, EDGE]):
         """Check if a node or edge is contained in the graph."""
         if isinstance(obj, GraphNodeInterface):
             return obj in self._graph
-        return any(obj in data["data"] for _, _, data in self._graph.edges(data=True))
+        return any(obj == data["data"] for _, _, data in self._graph.edges(data=True))
 
     def iter_depth_first(self, source: NODE) -> Iterator[NODE]:
         """Iterate all nodes in dfs fashion."""

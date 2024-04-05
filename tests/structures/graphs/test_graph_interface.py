@@ -467,3 +467,11 @@ class TestGraphInterface:
         assert graph.get_shortest_path(nodes[0], nodes[6]) == (nodes[0], nodes[1], nodes[3], nodes[6])
         graph.add_edge(BasicEdge(nodes[0], nodes[6]))
         assert graph.get_shortest_path(nodes[0], nodes[6]) == (nodes[0], nodes[6])
+
+    def test_contains(self):
+        """Test the contains method."""
+        graph, nodes, edges = self.get_easy_graph()
+        assert nodes[0] in graph
+        assert not BasicNode(6) in graph
+        assert edges[2] in graph
+        assert not BasicEdge(nodes[2], nodes[0]) in graph
