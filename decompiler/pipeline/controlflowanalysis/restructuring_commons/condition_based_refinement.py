@@ -160,7 +160,7 @@ class ConditionCandidates:
         symbols_of_formulas: Set[Symbol] = set()
         for formula in removing_formulas:
             self._logic_graph.remove_nodes_from(list(self._formula_graph.successors(formula)))
-            symbols_of_formulas.add(self._auxiliary_graph.successors(formula))
+            symbols_of_formulas.update(self._auxiliary_graph.successors(formula))
             self._remove_formula_node(formula)
         self._remove_symbols(set(symbol for symbol in symbols_of_formulas if self._symbol_only_in_one_formula(symbol)))
 
@@ -191,7 +191,7 @@ class ConditionCandidates:
         self._logic_graph.remove_nodes_from(removing_symbols)
         new_single_formula_nodes = set()
         for clause in clauses_containing_any_symbol:
-            symbols_of_clause = list(self._logic_graph.successors(clause))
+            symbols_of_clause = list(self._formula_graph.successors(clause))
             self._logic_graph.remove_node(clause)
             for clause_symbol in (s for s in symbols_of_clause if not has_path(self._formula_graph, clause.formula, s)):
                 self._logic_graph.remove_edge(clause.formula, clause_symbol)
