@@ -5,16 +5,15 @@ Module for Condition Based Refinement
 from __future__ import annotations
 
 from dataclasses import dataclass
-from itertools import combinations, chain
+from itertools import chain, combinations
 from typing import Dict, Iterator, List, Optional, Set, Tuple
-
-from networkx import DiGraph, has_path, subgraph_view
 
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, SeqNode
 from decompiler.structures.ast.reachability_graph import SiblingReachability
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
+from networkx import DiGraph, has_path, subgraph_view
 
 
 @dataclass(frozen=True, eq=False)
