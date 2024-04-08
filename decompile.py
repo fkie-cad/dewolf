@@ -42,6 +42,13 @@ class Decompiler:
         return cls(frontend.from_raw(data))
 
     def decompile_all(self, function_ids: Collection[object] | None = None, task_options: Options | None = None) -> Result:
+        """
+        Decompile a collection of functions specified by their identifiers.
+
+        :param function_ids: A collection of function identifiers to decompile. If None, decompiles all functions.
+        :param task_options: Options for the decompilation tasks. If None, default options are used.
+        :return: A Result object containing decompiled tasks and generated code.
+        """
         if function_ids is None:  # decompile all functions when none are specified
             function_ids = self._frontend.get_all_function_names()
         if task_options is None:
@@ -62,6 +69,14 @@ class Decompiler:
         return Decompiler.Result(tasks, code)
 
     def decompile(self, function_id: object, task_options: Options | None = None) -> tuple[DecompilerTask, str]:
+        """
+        Decompile a specific function specified by its identifier.
+        This method servers as a shorthand for decompiling a single function and simply delegates to decompile_all.
+
+        :param function_id: The ID of the function to decompile.
+        :param task_options: Options for the decompilation task. If None, default options are used.
+        :return: A tuple containing the DecompilerTask object and the generated code.
+        """
         result = self.decompile_all([function_id], task_options)
         return result.tasks[0], result.code
 
