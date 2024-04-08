@@ -54,6 +54,12 @@ class BinaryninjaFrontend(Frontend):
         return cls(view)
 
     def lift(self, task: DecompilerTask):
+        """
+        Lifts data from binaryninja into the specified Decompiler task.
+        The function to be lifted is identified by the function identifier of the decompiler task (task.function_identifier).
+
+        :param task: Decompiler task to lift data into.
+        """
         if task.failed:
             return
 
@@ -88,6 +94,14 @@ class BinaryninjaFrontend(Frontend):
         return functions
 
     def _get_binninja_function(self, function_identifier: object) -> binaryninja.function.Function:
+        """
+        Retrieves the Binary Ninja function based on the provided function identifier.
+
+        :param function_identifier: An object representing the identifier of the function.
+        :return: The Binary Ninja function object corresponding to the provided identifier.
+        :raises ValueError: If the function identifier is of an unsupported type.
+        :raises RuntimeError: If Binary Ninja frontend could not resolve the function.
+        """
         function: binaryninja.function.Function | None
         match function_identifier:
             case str():
