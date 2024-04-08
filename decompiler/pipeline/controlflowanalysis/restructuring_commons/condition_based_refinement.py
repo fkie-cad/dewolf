@@ -76,8 +76,17 @@ class ConditionCandidates:
         self._logic_graph: DiGraph = DiGraph()
         self._initialize_logic_graph()
 
-    def _initialize_logic_graph(self):
-        """Initialization of the logic-graph."""
+    def _initialize_logic_graph(self) -> None:
+        """
+        Initialization of the logic-graph.
+
+        - We add one node for each cnf-formula, one node for each clause of each formula, and one node for each symbol that is contained in
+          at least one formula.
+        - We add an edge between each cnf-formula and all clauses it contains, as well as between all clauses and the symbols it contains.
+          Additionally, we add an auxiliary edge between each cnf-formula and all clauses it contains.
+        - Finally, we remove all symbols that are only contained in one cnf-formula, since these are irrelevant for grouping the AST-nodes
+          into if-else-conditions.
+        """
         all_symbols = set()
         for formula in self._candidates.values():
             self._logic_graph.add_node(formula)
@@ -96,7 +105,7 @@ class ConditionCandidates:
 
     @property
     def maximum_subexpression_size(self) -> int:
-        """Returns the maximum possible subexpression that is relevant for considering for the clustering."""
+        """Returns the maximum possible subexpression that is relevant to consider for clustering into conditions."""
         if len(self._candidates) < 2:
             return 0
         all_sizes = [self._formula_graph.out_degree(formula) for formula in self._candidates.values()]
@@ -119,14 +128,14 @@ class ConditionCandidates:
                     yield ast_node, LogicCondition.conjunction_of(new_operands)
                 current_size -= 1
 
-    def remove_ast_nodes(self, nodes_to_remove: List[AbstractSyntaxTreeNode]):
-        """Remove the given nodes from the graph."""
-        # for node in nodes_to_remove:
+    def remove_ast_nodes(self, nodes_to_remove: List[AbstractSyntaxTreeNode]) -> None:
+        """Remove formulas associated with the given nodes from the graph."""
         self._remove_formulas(set(self._candidates[node] for node in nodes_to_remove))
-        # self._remove_nodes_from(set(self._candidates[node] for node in nodes_to_remove))
 
     @property
     def _auxiliary_graph(self) -> DiGraph:
+        """Return a read-only view of the logic-graph containing only the auxiliary-edges, i.e., the edges between formulas and symbols."""
+
         def filter_auxiliary_edges(source, sink):
             return self._logic_graph[source][sink].get("auxiliary", False)
 
@@ -134,6 +143,8 @@ class ConditionCandidates:
 
     @property
     def _formula_graph(self) -> DiGraph:
+        """Return a read-only view of the logic-graph containing only the non-auxiliary-edges, i.e., no edge between formulas and symbols."""
+
         def filter_non_auxiliary_edges(source, sink):
             return self._logic_graph[source][sink].get("auxiliary", False) is False
 
@@ -144,17 +155,17 @@ class ConditionCandidates:
         return [clause.condition for clause in self._formula_graph.successors(self._candidates[node])]
 
     def _symbol_only_in_one_formula(self, symbol: Symbol):
-        """Checks whether the symbol is only contained in one formula"""
+        """Checks whether the symbol is only contained in one formula."""
         return self._auxiliary_graph.in_degree(symbol) == 1
 
     def _remove_formulas(self, removing_formulas: Set[Formula]):
         """
         Remove all formulas from the logic-graph and all nodes that have to be removed afterward.
 
-        1. remove each clause that are contained in one of the formulas
-        2. remove each formula from the logic-graph
-        3. remove all symbols that are only contained in these formulas and one other formula,
-            i.e., these are only contained in one formula after removing this formula.
+        1. Remove each clause contained in one of the given formulas.
+        2. Remove each formula from the logic-graph.
+        3. Remove all symbols that are only contained in these formulas and one other formula,
+            i.e., these are only contained in one formula after removing these formulas.
         """
         symbols_of_formulas: Set[Symbol] = set()
         for formula in removing_formulas:
@@ -164,7 +175,12 @@ class ConditionCandidates:
         self._remove_symbols(set(symbol for symbol in symbols_of_formulas if self._symbol_only_in_one_formula(symbol)))
 
     def _remove_formula_node(self, formula: Formula):
-        """Remove the formula-node from the logic-graph, including updating the candidates and unconsidered-nodes"""
+        """
+        Remove the formula-node from the logic-graph, including updating the candidates and unconsidered-nodes.
+
+        Removing a formula implies that it is irrelevant for grouping the ast-nodes into conditions,
+        therefore it is not a candidate anymore, and we do not have to consider it for further grouping
+        """
         self._logic_graph.remove_node(formula)
         del self._candidates[formula.ast_node]
         self._unconsidered_nodes.discard(formula.ast_node)
@@ -173,14 +189,14 @@ class ConditionCandidates:
         """
         Remove all symbols from the logic-graph and all nodes that have to be removed afterward.
 
-        1. If we do not have to remove any symbol, we do noting
-        2. Remove each symbols from the logic-graph
+        1. If we do not have to remove any symbol, we do nothing.
+        2. Remove each symbol from the logic-graph.
         3. For each clause that contains at least one of the symbols, we
               i. remove the clause
              ii. for each symbol of the clause, we check whether the symbol is in no other clause of the formula containing this clause
                  - True: remove the auxiliary-edge between the formula and the symbol
                          and add it to the new_single_formula_nodes iff it is one afterward.
-                 - False: noting
+                 - False: do nothing.
             iii. If the formula that contains this clause has no children anymore, we remove it.
         4. Remove all symbols that are now only contained in one formula.
         """
@@ -244,7 +260,7 @@ class ConditionBasedRefinement:
 
     def _condition_based_refinement(self) -> None:
         """
-        Apply Condition Based Refinement on the root node.
+        Apply Condition-Based Refinement on the root node.
             1. Find nodes with complementary reaching conditions.
             2. Find nodes that have some factors in common.
         """
