@@ -73,7 +73,7 @@ class Decompiler:
         Decompile a specific function specified by its identifier.
         This method servers as a shorthand for decompiling a single function and simply delegates to decompile_all.
 
-        :param function_id: The ID of the function to decompile.
+        :param function_id: The identifier of the function to decompile.
         :param task_options: Options for the decompilation task. If None, default options are used.
         :return: A tuple containing the DecompilerTask object and the generated code.
         """
