@@ -34,7 +34,12 @@ class Frontend(ABC):
 
     @abstractmethod
     def lift(self, task: DecompilerTask):
-        """Lift function data into task object."""
+        """
+        Lifts data from the fronted into the specified Decompiler task.
+        The function to be lifted is identified by the function identifier of the decompiler task (task.function_identifier).
+
+        :param task: Decompiler task to lift data into.
+        """
 
     @abstractmethod
     def get_all_function_names(self) -> List[str]:
