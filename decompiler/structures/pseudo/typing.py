@@ -179,6 +179,28 @@ class Pointer(Type):
 
 
 @dataclass(frozen=True, order=True)
+class ArrayType(Type):
+    """Class representing arrays."""
+
+    type: Type
+    elements: int
+
+    def __init__(self, basetype: Type, elements: int):
+        """Custom constructor to change the order of the parameters."""
+        object.__setattr__(self, "type", basetype)
+        object.__setattr__(self, "size", basetype.size * elements)
+        object.__setattr__(self, "elements", elements)
+
+    def __str__(self) -> str:
+        """Return a nice string representation."""
+        return f"{self.type} [{self.elements}]"
+
+    def copy(self, **kwargs) -> Pointer:
+        """Generate a copy of the current pointer."""
+        return ArrayType(self.type.copy(), self.elements)
+
+
+@dataclass(frozen=True, order=True)
 class CustomType(Type):
     """Class representing a non-basic type."""
 
@@ -198,6 +220,16 @@ class CustomType(Type):
     def void(cls) -> CustomType:
         """Return a void type representing a nil value."""
         return cls("void", 0)
+
+    @classmethod
+    def wchar16(cls) -> CustomType:
+        """Return wchar type representing a 16-bit Unicode character"""
+        return cls("wchar16", 16)
+
+    @classmethod
+    def wchar32(cls) -> CustomType:
+        """Return wchar type representing a 32-bit Unicode character"""
+        return cls("wchar32", 32)
 
     def __str__(self) -> str:
         """Return the given string representation."""

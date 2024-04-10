@@ -279,6 +279,8 @@ class InsertMissingDefinitions(PipelineStage):
             return False
         if self._is_assignment_of_variable_address(memory_instruction):
             return False
+        if isinstance(variable, GlobalVariable):  # Global variables could always change in memory instructions
+            return True
         return self._uses_variable_related_to_aliased_variable(memory_instruction, variable)
 
     def _uses_variable_related_to_aliased_variable(self, memory_instruction: Instruction, variable: Variable) -> bool:

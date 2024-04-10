@@ -1,10 +1,21 @@
 """Module implementing the ConstantHandler for the binaryninja frontend."""
 
 import math
+from typing import Union
 
-from binaryninja import BinaryView, DataVariable, SectionSemantics, SymbolType, Type, mediumlevelil
+from binaryninja import DataVariable, SymbolType, Type, mediumlevelil
 from decompiler.frontend.lifter import Handler
-from decompiler.structures.pseudo import Constant, GlobalVariable, Integer, NotUseableConstant, Pointer, StringSymbol
+from decompiler.structures.pseudo import (
+    Constant,
+    CustomType,
+    GlobalVariable,
+    Integer,
+    NotUseableConstant,
+    OperationType,
+    Pointer,
+    Symbol,
+    UnaryOperation,
+)
 
 BYTE_SIZE = 8
 
@@ -36,36 +47,36 @@ class ConstantHandler(Handler):
         return Constant(value, vartype=Integer.int32_t())
 
     def lift_constant_data(self, pointer: mediumlevelil.MediumLevelILConstData, **kwargs) -> Constant:
-        """Lift const data as a non mute able constant string"""
-        return StringSymbol(str(pointer), pointer.address)
+        """Lift data as a non mute able constant string (register string)"""
+        return NotUseableConstant(str(pointer))
 
-    def lift_constant_pointer(self, pointer: mediumlevelil.MediumLevelILConstPtr, **kwargs):
+    def lift_constant_pointer(self, pointer: mediumlevelil.MediumLevelILConstPtr, **kwargs) -> Union[GlobalVariable, Symbol]:
         """Lift the given constant pointer, e.g. &0x80000."""
         view = pointer.function.view
 
         if variable := view.get_data_var_at(pointer.constant):
-            return self._lifter.lift(variable, view=view, parent=pointer)
+            res = self._lifter.lift(variable, view=view, parent=pointer)
 
-        if (symbol := view.get_symbol_at(pointer.constant)) and symbol.type != SymbolType.DataSymbol:
+        elif (symbol := view.get_symbol_at(pointer.constant)) and symbol.type != SymbolType.DataSymbol:
             return self._lifter.lift(symbol)
 
-        if function := view.get_function_at(pointer.constant):
+        elif function := view.get_function_at(pointer.constant):
             return self._lifter.lift(function.symbol)
 
-        variable = DataVariable(view, pointer.constant, Type.void(), False)
-        global_variable = self._lifter.lift(variable, view=view, parent=pointer)
+        else:
+            res = self._lifter.lift(DataVariable(view, pointer.constant, Type.void(), False), view=view, parent=pointer)
 
-        return self._replace_global_variable_with_value(global_variable, variable, view)
+        if isinstance(res, Constant):  # BNinja Error case handling
+            return res
 
-    def _replace_global_variable_with_value(self, globalVariable: GlobalVariable, variable: DataVariable, view: BinaryView) -> StringSymbol:
-        """Replace global variable with it's value, if it's a char/wchar16/wchar32* and in a read only section"""
-        if not self._in_read_only_section(variable.address, view) or str(globalVariable.type) == "void *":
-            return globalVariable
-        return StringSymbol(globalVariable.initial_value, variable.address, vartype=Pointer(Integer.char(), view.address_size * BYTE_SIZE))
+        if isinstance(res.type, Pointer) and res.type.type == CustomType.void():
+            return res
 
-    def _in_read_only_section(self, addr: int, view: BinaryView) -> bool:
-        """Returns True if address is contained in a read only section, False otherwise"""
-        for _, section in view.sections.items():
-            if addr >= section.start and addr <= section.end and section.semantics == SectionSemantics.ReadOnlyDataSectionSemantics:
-                return True
-        return False
+        if isinstance(pointer, mediumlevelil.MediumLevelILImport):  # Temp fix for '&'
+            return res
+
+        return UnaryOperation(
+            OperationType.address,
+            [res],
+            vartype=res.type,
+        )

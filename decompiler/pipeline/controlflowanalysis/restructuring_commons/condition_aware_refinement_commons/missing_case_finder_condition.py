@@ -1,13 +1,22 @@
-from typing import Optional, Set
+from dataclasses import dataclass
+from typing import Optional, Set, Tuple
 
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder import (
     MissingCaseFinder,
 )
 from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
-from decompiler.structures.ast.ast_nodes import ConditionNode, SwitchNode
+from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, ConditionalNode, ConditionNode, FalseNode, SeqNode, SwitchNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import Constant
+
+
+@dataclass
+class CaseCandidateInformation:
+    case_node: Optional[AbstractSyntaxTreeNode]
+    case_constants: Set[Constant]
+    switch_node: SwitchNode
+    in_sequence: bool
 
 
 class MissingCaseFinderCondition(MissingCaseFinder):
@@ -23,29 +32,33 @@ class MissingCaseFinderCondition(MissingCaseFinder):
         """Try to find missing cases that are branches of condition nodes."""
         missing_case_finder = cls(asforest, options)
         for condition_node in asforest.get_condition_nodes_post_order(asforest.current_root):
-            if new_case_constants := missing_case_finder._can_insert_missing_case_node(condition_node):
+            if (case_candidate_information := missing_case_finder._can_insert_missing_case_node(condition_node)) is not None:
                 missing_case_finder._insert_case_node(
-                    condition_node.false_branch_child, new_case_constants, condition_node.true_branch_child
+                    case_candidate_information.case_node, case_candidate_information.case_constants, case_candidate_information.switch_node
                 )
-                asforest.replace_condition_node_by_single_branch(condition_node)
+                if case_candidate_information.in_sequence:
+                    asforest.extract_switch_from_condition_sequence(case_candidate_information.switch_node, condition_node)
+                else:
+                    asforest.replace_condition_node_by_single_branch(condition_node)
 
-    def _can_insert_missing_case_node(self, condition_node: ConditionNode) -> Optional[Set[Constant]]:
+    def _can_insert_missing_case_node(self, condition_node: ConditionNode) -> Optional[CaseCandidateInformation]:
         """
-        Check whether one of the branches is a possible case node for the other branch that should be a switch node.
+        Check whether one of the branches is a possible case node for the other branch that should be a switch node or a sequence node
+        having a switch-node as first or last child.
         If this is the case, return the case-constants for the new case node.
 
-        -> We have to make sure that there exists a switch node where we can insert it and that it has the correct condition
-        -> The case constants can not exist in the switch node where we want to insert the case node.
+        -> We have to make sure that there exists a switch node where we can insert it and that it has the correct condition.
+        -> The case constants cannot exist in the switch node where we want to insert the case node.
 
         :param condition_node: The condition node where we want to find a missing case.
         :return: Return the set of constant for this switch node if it is a missing case and None otherwise.
         """
-        if len(condition_node.children) == 1 or not any(isinstance(branch.child, SwitchNode) for branch in condition_node.children):
+        if len(condition_node.children) == 1 or (switch_candidate := self.get_switch_candidate(condition_node)) is None:
             return None
-        if isinstance(condition_node.false_branch_child, SwitchNode):
+        switch_node, branch = switch_candidate
+        if isinstance(branch, FalseNode):
             condition_node.switch_branches()
 
-        switch_node: SwitchNode = condition_node.true_branch_child
         possible_case_node = condition_node.false_branch_child
         case_condition = condition_node.false_branch.branch_condition
 
@@ -62,7 +75,17 @@ class MissingCaseFinderCondition(MissingCaseFinder):
 
         new_case_constants = set(self._get_case_constants_for_condition(case_condition))
         if all(case.constant not in new_case_constants for case in switch_node.cases):
-            return new_case_constants
+            return CaseCandidateInformation(possible_case_node, new_case_constants, switch_node, isinstance(switch_node.parent, SeqNode))
+
+    def get_switch_candidate(self, condition_node: ConditionNode) -> Optional[Tuple[SwitchNode, ConditionalNode]]:
+        for branch in [b for b in condition_node.children if isinstance(b.child, SwitchNode)]:
+            return branch.child, branch
+        for branch in [b for b in condition_node.children if isinstance(b.child, SeqNode)]:
+            children = branch.child.children
+            if isinstance(children[0], SwitchNode):
+                return children[0], branch
+            if isinstance(children[-1], SwitchNode):
+                return children[-1], branch
 
     def __reachable_in_switch(self, case_condition: LogicCondition, switch_node: SwitchNode):
         if switch_node.reaching_condition.is_true:
