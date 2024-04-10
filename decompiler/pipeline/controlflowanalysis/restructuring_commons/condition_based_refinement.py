@@ -66,10 +66,9 @@ class ConditionCandidates:
 
         param candidates:: list of all AST-nodes that we want to cluster into conditions.
 
-        - _candidates: maps all relevant ast-nodes to their formula (reaching condition)
+        - candidates: maps all relevant ast-nodes to their formula (reaching condition)
+        - unconsidered_nodes: a set of all nodes that we still have to consider for grouping into conditions.
         - logic_graph: representation of all logic-formulas relevant
-        - _formulas_containing_symbol: maps each symbol to all formulas that contain this symbol
-        - _symbol_of_formula: maps to each formula all symbols that it contains.
         """
         self._candidates: Dict[AbstractSyntaxTreeNode, Formula] = {c: Formula(c.reaching_condition, c) for c in candidates}
         self._unconsidered_nodes: InsertionOrderedSet[AbstractSyntaxTreeNode] = InsertionOrderedSet()
@@ -103,7 +102,6 @@ class ConditionCandidates:
         """Iterates over all candidates considered for grouping into conditions."""
         yield from self._candidates
 
-    @property
     def maximum_subexpression_size(self) -> int:
         """Returns the maximum possible subexpression that is relevant to consider for clustering into conditions."""
         if len(self._candidates) < 2:
@@ -112,14 +110,14 @@ class ConditionCandidates:
         all_sizes.remove(max(all_sizes))
         return max(all_sizes)
 
-    def get_symbols_of(self, node: AbstractSyntaxTreeNode) -> Set[str]:
+    def get_symbol_names_of(self, node: AbstractSyntaxTreeNode) -> Set[str]:
         """Return all symbols that are used in the formula of the given ast-node."""
         return {symbol.name for symbol in self._auxiliary_graph.successors(self._candidates[node])}
 
     def get_next_subexpression(self) -> Iterator[Tuple[AbstractSyntaxTreeNode, LogicCondition]]:
         """Consider Candidates in sequence-node order and start with the largest possible subexpression."""
         self._unconsidered_nodes = InsertionOrderedSet(self._candidates)
-        while self._unconsidered_nodes and len(self._candidates) > 1 and ((max_expr_size := self.maximum_subexpression_size) != 0):
+        while self._unconsidered_nodes and len(self._candidates) > 1 and ((max_expr_size := self.maximum_subexpression_size()) != 0):
             ast_node = self._unconsidered_nodes.pop(0)
             clauses = self._get_clauses(ast_node)
             current_size = min(len(clauses), max_expr_size)
@@ -215,22 +213,6 @@ class ConditionCandidates:
             if self._formula_graph.out_degree(clause.formula) == 0:
                 self._remove_formula_node(clause.formula)
         self._remove_symbols(new_single_formula_nodes)
-
-    # def get_next_subexpression(self) -> Iterator[Tuple[AbstractSyntaxTreeNode, LogicCondition]]:
-    #     """Get the next subexpression together with the node it comes from and start with the largest possible subexpression!"""
-    #     current_size = self.maximum_subexpression_size
-    #     while current_size > 0:
-    #         for ast_node in [c for c, p in self._candidates.items() if self._logic_graph.out_degree(p) >= current_size]:
-    #             if ast_node not in self._candidates:
-    #                 continue
-    #             if current_size > self.maximum_subexpression_size:
-    #                 break
-    #             clauses = self._get_clauses(ast_node)
-    #             for new_operands in combinations(clauses, current_size):
-    #                 yield ast_node, LogicCondition.conjunction_of(new_operands)
-    #                 if ast_node not in self._candidates or current_size > self.maximum_subexpression_size:
-    #                     break
-    #         current_size = min(self.maximum_subexpression_size, current_size - 1)
 
 
 class ConditionBasedRefinement:
@@ -351,7 +333,7 @@ class ConditionBasedRefinement:
         symbols_of_condition = set(sub_expression.get_symbols_as_string())
         negated_condition = None
         for ast_node in condition_candidates.candidates:
-            if symbols_of_condition - condition_candidates.get_symbols_of(ast_node):
+            if symbols_of_condition - condition_candidates.get_symbol_names_of(ast_node):
                 continue
             if ast_node == node_with_subexpression or self._is_subexpression_of_cnf_formula(sub_expression, ast_node.reaching_condition):
                 true_children.append(ast_node)
