@@ -5772,13 +5772,13 @@ def test_missing_cases_switch_in_sequence(task):
 
     PatternIndependentRestructuring().run(task)
 
-    assert isinstance(seq_node := task._ast.root, SeqNode) and len(children := seq_node.children) == 2
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(children := seq_node.children) == 2
     assert isinstance(cn := children[0], ConditionNode) and cn.true_branch and cn.false_branch
     assert isinstance(children[1], CodeNode) and children[1].instructions == vertices[7].instructions
 
     if cn.condition.is_negation:
         cn.switch_branches()
-    assert cn.condition.is_symbol and task._ast.condition_map[cn.condition] == vertices[0].instructions[0].condition
+    assert cn.condition.is_symbol and task.ast.condition_map[cn.condition] == vertices[0].instructions[0].condition
 
     # True branch
     assert isinstance(true_seq := cn.true_branch_child, SeqNode) and len(children := true_seq.children) == 2
@@ -5793,7 +5793,7 @@ def test_missing_cases_switch_in_sequence(task):
     )
     assert any((cc_1 := operands[i]).is_symbol for i in [0, 1]) and any((cc_2 := operands[i]).is_negation for i in [0, 1])
     assert (cc_2 := ~cc_2).is_symbol
-    assert [task._ast.condition_map[cc_1], task._ast.condition_map[cc_2]] == [
+    assert [task.ast.condition_map[cc_1], task.ast.condition_map[cc_2]] == [
         vertices[4].instructions[0].condition,
         vertices[1].instructions[0].condition,
     ]
@@ -5802,5 +5802,5 @@ def test_missing_cases_switch_in_sequence(task):
     assert isinstance(false_seq := cn.false_branch_child, SeqNode) and len(children := false_seq.children) == 2
     assert isinstance(cn_false := children[0], ConditionNode) and cn_false.false_branch is None and cn_false.condition.is_negation
     assert isinstance(code_return := cn_false.true_branch_child, CodeNode) and code_return.instructions == vertices[6].instructions
-    assert task._ast.condition_map[~cn_false.condition] == vertices[2].instructions[0].condition
+    assert task.ast.condition_map[~cn_false.condition] == vertices[2].instructions[0].condition
     assert isinstance(code := children[1], CodeNode) and code.instructions == vertices[5].instructions
