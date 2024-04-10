@@ -437,7 +437,7 @@ def test_not_propagating_globals():
 def graphs_with_globals_dereference():
     y = Variable("y", ssa_label=0)
     x = Variable("x", ssa_label=0)
-    ptr = GlobalVariable("ptr", vartype=Pointer(int32))
+    ptr = GlobalVariable("ptr", vartype=Pointer(int32), initial_value=Constant(0x42))
 
     in_n0 = BasicBlock(0, [_assign(x, _deref(_add(ptr, Constant(4)))), _assign(y, _add(x, Constant(4))), _ret(x)])
     in_cfg = ControlFlowGraph()

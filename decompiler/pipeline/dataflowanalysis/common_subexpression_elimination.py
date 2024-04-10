@@ -36,7 +36,10 @@ class CfgInstruction:
 
     instruction: Instruction
     block: BasicBlock
-    index: int
+
+    @property
+    def index(self):
+        return next(index for index, instruction in enumerate(self.block.instructions) if id(instruction) == id(self.instruction))
 
 
 @dataclass()
@@ -221,7 +224,7 @@ class DefinitionGenerator:
         usages: DefaultDict[Expression, Counter[CfgInstruction]] = defaultdict(Counter)
         for basic_block in cfg:
             for index, instruction in enumerate(basic_block.instructions):
-                instruction_with_position = CfgInstruction(instruction, basic_block, index)
+                instruction_with_position = CfgInstruction(instruction, basic_block)
                 for subexpression in _subexpression_dfs(instruction):
                     usages[subexpression][instruction_with_position] += 1
         return cls(usages, cfg.dominator_tree)
@@ -236,7 +239,7 @@ class DefinitionGenerator:
         basic_block, index = self._find_location_for_insertion(expression)
         for usage in self._usages[expression]:
             usage.instruction.substitute(expression, variable.copy())
-        self._insert_definition(CfgInstruction(Assignment(variable, expression), basic_block, index))
+        self._insert_definition(Assignment(variable, expression), basic_block, index)
 
     def _find_location_for_insertion(self, expression) -> Tuple[BasicBlock, int]:
         """
@@ -265,18 +268,19 @@ class DefinitionGenerator:
         usages_in_the_same_block = [usage for usage in self._usages[expression] if usage.block == basic_block]
         return any([isinstance(usage.instruction, Phi) for usage in usages_in_the_same_block])
 
-    def _insert_definition(self, definition: CfgInstruction):
+    def _insert_definition(self, instruction: Instruction, block: BasicBlock, index: int):
         """Insert a new intermediate definition for the given expression at the given location."""
-        definition.block.instructions.insert(definition.index, definition.instruction)
-        for subexpression in _subexpression_dfs(definition.instruction):
-            self._usages[subexpression][definition] += 1
+        block.instructions.insert(index, instruction)
+        cfg_instruction = CfgInstruction(instruction, block)
+        for subexpression in _subexpression_dfs(instruction):
+            self._usages[subexpression][cfg_instruction] += 1
 
     @staticmethod
     def _find_insertion_index(basic_block: BasicBlock, usages: Iterable[CfgInstruction]) -> int:
         """Find the first index in the given basic block where a definition could be inserted."""
-        usage = min((usage for usage in usages if usage.block == basic_block), default=None, key=lambda x: x.index)
-        if usage:
-            return basic_block.instructions.index(usage.instruction, usage.index)
+        first_usage_index = min((usage.index for usage in usages if usage.block == basic_block), default=None)
+        if first_usage_index is not None:
+            return first_usage_index
         if not basic_block.instructions:
             return 0
         if isinstance(basic_block.instructions[-1], GenericBranch):

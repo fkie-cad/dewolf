@@ -15,8 +15,6 @@ from decompiler.structures.pseudo import FunctionTypeDef
 from decompiler.structures.pseudo.expressions import (
     Constant,
     DataflowObject,
-    ExternConstant,
-    ExternFunctionPointer,
     FunctionSymbol,
     GlobalVariable,
     ImportedFunctionSymbol,
@@ -33,7 +31,7 @@ from decompiler.structures.pseudo.operations import (
     OperationType,
     UnaryOperation,
 )
-from decompiler.structures.pseudo.typing import CustomType, Float, Integer, Pointer, Type
+from decompiler.structures.pseudo.typing import CustomType, Float, Integer, Pointer, Type, UnknownType
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
@@ -1312,9 +1310,7 @@ class TestGlobalVisitor:
     @pytest.mark.parametrize(
         "op",
         [
-            ListOperation([Variable("var_5"), GlobalVariable("test")]),
-            Call(ExternFunctionPointer("function_pointer_name"), [Constant(15), ExternConstant("boo")]),
-            BinaryOperation(OperationType.plus, [GlobalVariable("var_global"), ExternConstant("var_extern")]),
+            ListOperation([Variable("var_5"), GlobalVariable("test", UnknownType(), Constant(0))]),
         ],
     )
     def test_operation(self, op):
@@ -1328,22 +1324,3 @@ class TestGlobalVisitor:
         )
 
         assert len(GlobalDeclarationGenerator.from_asts([ast])) != 0
-
-    def test_nested_global_variable(self):
-        """Ensure that GlobalVariableVisitor can visit global variables nested within a global variable"""
-
-        var1 = ExternFunctionPointer("ExternFunction")
-        var2 = GlobalVariable("var_glob1", initial_value=var1)
-        var3 = GlobalVariable("var_glob2", initial_value=var2)
-        var4 = GlobalVariable("var_glob3", initial_value=var3)
-
-        ast = AbstractSyntaxTree(
-            CodeNode(
-                [Assignment(var_a, var4)],
-                LogicCondition.initialize_true(LogicCondition.generate_new_context()),
-            ),
-            {},
-        )
-
-        global_variables, _ = GlobalDeclarationGenerator._get_global_variables_and_constants([ast])
-        assert len(global_variables) == 3

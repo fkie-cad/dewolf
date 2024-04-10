@@ -6,13 +6,13 @@ from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.pseudo.expressions import Constant, Expression, FunctionSymbol, GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Return
 from decompiler.structures.pseudo.operations import Call, ListOperation, OperationType, UnaryOperation
-from decompiler.structures.pseudo.typing import Integer
+from decompiler.structures.pseudo.typing import Integer, UnknownType
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
 int32 = Integer.int32_t()
 int64 = Integer.int64_t()
-global_x = GlobalVariable("global_x")
+global_x = GlobalVariable("global_x", UnknownType(), Constant(0))
 x = Variable("x")
 y = Variable("y")
 z = Variable("z")

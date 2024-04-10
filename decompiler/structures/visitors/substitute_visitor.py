@@ -8,10 +8,12 @@ from decompiler.structures.pseudo import (
     Comment,
     Condition,
     Constant,
+    ConstantComposition,
     Continue,
     DataflowObject,
     Expression,
     GenericBranch,
+    GlobalVariable,
     ListOperation,
     MemPhi,
     Operation,
@@ -106,7 +108,13 @@ class SubstituteVisitor(DataflowObjectVisitorInterface[Optional[DataflowObject]]
     def visit_constant(self, expr: Constant) -> Optional[DataflowObject]:
         return self._mapper(expr)
 
+    def visit_constant_composition(self, expr: ConstantComposition):
+        pass
+
     def visit_variable(self, expr: Variable) -> Optional[DataflowObject]:
+        return self._mapper(expr)
+
+    def visit_global_variable(self, expr: GlobalVariable) -> Optional[DataflowObject]:
         return self._mapper(expr)
 
     def visit_register_pair(self, expr: RegisterPair) -> Optional[DataflowObject]:
