@@ -23,7 +23,7 @@ def construct_graph(number: int) -> (List[BasicBlock], ControlFlowGraph):
     for index, instruction in enumerate(defined_instructions):
         node.append(BasicBlock(index, instructions=[instruction]))
     cfg = ControlFlowGraph()
-    task = DecompilerTask("test", cfg)
+    task = DecompilerTask(name="test", function_identifier="", cfg=cfg)
     cfg.add_edges_from(
         [
             UnconditionalEdge(node[3], node[2]),
@@ -197,7 +197,7 @@ def test_phi_function_in_head():
     cfg = ControlFlowGraph()
     cfg.add_node(node)
     cfg.add_edge(UnconditionalEdge(node, node))
-    task = DecompilerTask("test", cfg)
+    task = DecompilerTask(name="test", function_identifier="", cfg=cfg)
     PhiFunctionFixer().run(task)
 
     assert node.instructions[0].origin_block == {None: v0, node: u2}

@@ -20,7 +20,7 @@ def _run_dead_loop_elimination(cfg: ControlFlowGraph):
     options = Options()
     options.set("dead-loop-elimination.timeout_satisfiable", 1000)
     options.set("logic-engine.engine", "z3")
-    DeadLoopElimination().run(DecompilerTask("test", cfg, options=options))
+    DeadLoopElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg, options=options))
 
 
 def _run_expression_propagation(cfg: ControlFlowGraph):
@@ -29,7 +29,7 @@ def _run_expression_propagation(cfg: ControlFlowGraph):
     options.set("expression-propagation.maximum_branch_complexity", 10)
     options.set("expression-propagation.maximum_call_complexity", 10)
     options.set("expression-propagation.maximum_assignment_complexity", 10)
-    ExpressionPropagation().run(DecompilerTask("test", cfg, options=options))
+    ExpressionPropagation().run(DecompilerTask(name="test", function_identifier="", cfg=cfg, options=options))
 
 
 def test_no_propagation_no_change():

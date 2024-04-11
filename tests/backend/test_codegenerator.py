@@ -121,7 +121,14 @@ class TestCodeGeneration:
             params = []
         if not options:
             options = _generate_options(compounding=False)
-        return DecompilerTask("test_function", None, ast=ast, options=options, function_parameters=params, function_return_type=return_type)
+        return DecompilerTask(
+            name="test_function",
+            function_identifier="",
+            ast=ast,
+            options=options,
+            function_parameters=params,
+            function_return_type=return_type,
+        )
 
     @staticmethod
     def _regex_matches(regex: str, task: DecompilerTask):
@@ -621,7 +628,7 @@ class TestCodeGeneration:
 class TestExpression:
     @staticmethod
     def _visit_code(dfo: DataflowObject, options: Options = _generate_options()) -> str:
-        return CodeVisitor(DecompilerTask("test", None, options=options)).visit(dfo)
+        return CodeVisitor(DecompilerTask(name="test", function_identifier="", options=options)).visit(dfo)
 
     @pytest.mark.parametrize(
         "expr, result",
@@ -1296,7 +1303,7 @@ class TestLocalDeclarationGenerator:
             ),
             {},
         )
-        assert LocalDeclarationGenerator.from_task(DecompilerTask("", None, ast, options)) == expected
+        assert LocalDeclarationGenerator.from_task(DecompilerTask(name="", function_identifier="", ast=ast, options=options)) == expected
 
 
 class TestGlobalVisitor:

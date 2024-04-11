@@ -2,7 +2,8 @@
 """Main decompiler Interface."""
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Collection, Optional
 
 from decompiler.backend.codegenerator import CodeGenerator
 from decompiler.frontend import BinaryninjaFrontend, Frontend
@@ -40,33 +41,49 @@ class Decompiler:
         """Create a decompiler instance from existing frontend instance (e.g. a binaryninja view)."""
         return cls(frontend.from_raw(data))
 
-    def decompile(self, function: str, task_options: Optional[Options] = None) -> DecompilerTask:
-        """Decompile the target function."""
-        # Sanity check to ensure task_options is populated
-        if task_options is None:
-            task_options = Decompiler.create_options()
-        # Start decompiling
-        pipeline = DecompilerPipeline.from_strings(task_options.getlist("pipeline.cfg_stages"), task_options.getlist("pipeline.ast_stages"))
-        task = self._frontend.create_task(function, task_options)
-        pipeline.run(task)
-        task.code = self._backend.generate([task])
-        return task
+    def decompile_all(self, function_ids: Collection[object] | None = None, task_options: Options | None = None) -> Result:
+        """
+        Decompile a collection of functions specified by their identifiers.
 
-    def decompile_all(self, task_options: Optional[Options] = None) -> str:
-        """Decompile all functions in the binary"""
-        tasks = list()
-        # Sanity check to ensure task_options is populated
+        :param function_ids: A collection of function identifiers to decompile. If None, decompiles all functions.
+        :param task_options: Options for the decompilation tasks. If None, default options are used.
+        :return: A Result object containing decompiled tasks and generated code.
+        """
+        if function_ids is None:  # decompile all functions when none are specified
+            function_ids = self._frontend.get_all_function_names()
         if task_options is None:
             task_options = Decompiler.create_options()
-        # Start decompiling
+
         pipeline = DecompilerPipeline.from_strings(task_options.getlist("pipeline.cfg_stages"), task_options.getlist("pipeline.ast_stages"))
-        functions = self._frontend.get_all_function_names()
-        for function in functions:
-            task = self._frontend.create_task(function, task_options)
-            pipeline.run(task)
+
+        tasks = []
+        for func_id in function_ids:
+            task = DecompilerTask(str(func_id), func_id, task_options)
             tasks.append(task)
+
+            self._frontend.lift(task)
+            pipeline.run(task)
+
         code = self._backend.generate(tasks)
-        return code
+
+        return Decompiler.Result(tasks, code)
+
+    def decompile(self, function_id: object, task_options: Options | None = None) -> tuple[DecompilerTask, str]:
+        """
+        Decompile a specific function specified by its identifier.
+        This method servers as a shorthand for decompiling a single function and simply delegates to decompile_all.
+
+        :param function_id: The identifier of the function to decompile.
+        :param task_options: Options for the decompilation task. If None, default options are used.
+        :return: A tuple containing the DecompilerTask object and the generated code.
+        """
+        result = self.decompile_all([function_id], task_options)
+        return result.tasks[0], result.code
+
+    @dataclass
+    class Result:
+        tasks: list[DecompilerTask]
+        code: str
 
 
 """When invoked as a script, run the commandline interface."""
