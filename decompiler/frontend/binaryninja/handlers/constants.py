@@ -3,7 +3,7 @@
 import math
 from typing import Union
 
-from binaryninja import DataVariable, SymbolType, Type, mediumlevelil, BinaryView
+from binaryninja import BinaryView, DataVariable, SymbolType, Type, mediumlevelil
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import (
     Constant,
