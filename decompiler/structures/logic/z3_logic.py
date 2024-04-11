@@ -149,6 +149,10 @@ class Z3LogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         """Check whether the condition is complementary to the given condition, i.e. self == Not(other)."""
         if self.is_true or self.is_false or other.is_true or other.is_false:
             return False
+        condition_symbols = set(self.get_symbols_as_string())
+        other_symbols = set(other.get_symbols_as_string())
+        if len(condition_symbols) != len(other_symbols) or any(symbol not in condition_symbols for symbol in other_symbols):
+            return False
         return self.z3.does_imply(self._condition, Not(other._condition)) and self.z3.does_imply(Not(other._condition), self._condition)
 
     def to_cnf(self) -> LOGICCLASS:
@@ -191,6 +195,9 @@ class Z3LogicCondition(ConditionInterface, Generic[LOGICCLASS]):
         Example: substituting in the expression (a∨b)∧c the condition (a∨b) by true results in the condition c,
              and substituting the condition c by true in the condition (a∨b)
         """
+        if self.is_equal_to(condition):
+            self._condition = BoolVal(True, ctx=self.context)
+            return self
         self._condition = self.z3.simplify_z3_condition(And(self._condition, condition._condition))
         if condition_handler:
             self.remove_redundancy(condition_handler)

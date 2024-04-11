@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Iterator, Optional, Tuple, TypeVar
+from typing import Dict, Iterator, Optional, Tuple, TypeVar, Union
 
 from networkx import bfs_edges  # type: ignore
 from networkx import (
@@ -18,7 +18,7 @@ from networkx import (
     topological_sort,
 )
 
-from .interface import EDGE, NODE, GraphInterface
+from .interface import EDGE, NODE, GraphInterface, GraphNodeInterface
 
 T = TypeVar("T", bound=GraphInterface)
 
@@ -49,12 +49,20 @@ class NetworkXGraph(GraphInterface[NODE, EDGE]):
         self._graph.remove_edge(edge.source, edge.sink)
 
     def get_roots(self) -> Tuple[NODE, ...]:
-        """Return all nodes with in degree 0."""
+        """Return all nodes with in-degree 0."""
         return tuple(node for node, d in self._graph.in_degree() if not d)
 
     def get_leaves(self) -> Tuple[NODE, ...]:
-        """Return all nodes with out degree 0."""
+        """Return all nodes with out-degree 0."""
         return tuple(node for node, d in self._graph.out_degree() if not d)
+
+    def get_out_degree(self, node: NODE) -> int:
+        """Return the out-degree of the given node."""
+        return self._graph.out_degree(node)
+
+    def get_ancestors(self, node: NODE) -> Iterator[NODE]:
+        """Iterate all ancestors of the given node."""
+        yield from (child for _, child in bfs_edges(self._graph, node, reverse=True))
 
     def __len__(self) -> int:
         """Return the amount of nodes in the graph."""
@@ -67,6 +75,12 @@ class NetworkXGraph(GraphInterface[NODE, EDGE]):
     def __iter__(self) -> Iterator[NODE]:
         """Iterate all nodes in the graph."""
         yield from self._graph.nodes
+
+    def __contains__(self, obj: Union[NODE, EDGE]):
+        """Check if a node or edge is contained in the graph."""
+        if isinstance(obj, GraphNodeInterface):
+            return obj in self._graph
+        return (obj.source, obj.sink, {"data": obj}) in self._graph.edges(data=True)
 
     def iter_depth_first(self, source: NODE) -> Iterator[NODE]:
         """Iterate all nodes in dfs fashion."""
