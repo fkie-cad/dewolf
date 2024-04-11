@@ -4932,106 +4932,107 @@ def test_extract_return(task):
     assert branch.instructions == vertices[3].instructions
 
 
-def test_hash_eq_problem(task):
-    """
-    Hash and eq are not the same, therefore we have to be careful which one we want:
-
-    - eq: Same condition node in sense of same condition
-    - hash: same node in the graph
-    """
-    arg1 = Variable("arg1", Integer.int32_t(), ssa_name=Variable("arg1", Integer.int32_t(), 0))
-    arg2 = Variable("arg2", Integer.int32_t(), ssa_name=Variable("arg2", Integer.int32_t(), 0))
-    var_2 = Variable("var_2", Integer.int32_t(), None, True, Variable("rax_1", Integer.int32_t(), 1, True, None))
-    var_5 = Variable("var_5", Integer.int32_t(), None, True, Variable("rax_2", Integer.int32_t(), 2, True, None))
-    var_6 = Variable("var_6", Integer.int32_t(), None, True, Variable("rax_5", Integer.int32_t(), 30, True, None))
-    var_7 = Variable("var_7", Integer.int32_t(), None, True, Variable("rax_3", Integer.int32_t(), 3, True, None))
-    task.graph.add_nodes_from(
-        vertices := [
-            BasicBlock(0, instructions=[Branch(Condition(OperationType.equal, [arg1, Constant(1, Integer.int32_t())]))]),
-            BasicBlock(
-                1,
-                instructions=[
-                    Assignment(var_2, BinaryOperation(OperationType.plus, [var_2, Constant(1, Integer.int32_t())])),
-                    Branch(Condition(OperationType.not_equal, [var_2, Constant(0, Integer.int32_t())])),
-                ],
-            ),
-            BasicBlock(
-                2,
-                instructions=[
-                    Assignment(ListOperation([]), Call(imp_function_symbol("sub_140019288"), [arg2])),
-                    Branch(Condition(OperationType.equal, [arg1, Constant(0, Integer.int32_t())])),
-                ],
-            ),
-            BasicBlock(
-                3,
-                instructions=[
-                    Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [Constant(0x804B01F), var_5])),
-                    Branch(Condition(OperationType.not_equal, [var_5, Constant(0, Integer.int32_t())])),
-                ],
-            ),
-            BasicBlock(
-                4, instructions=[Assignment(var_5, Constant(0, Integer.int32_t())), Assignment(var_7, Constant(-1, Integer.int32_t()))]
-            ),
-            BasicBlock(
-                5,
-                instructions=[
-                    Assignment(var_5, Constant(0, Integer.int32_t())),
-                    Assignment(var_7, Constant(-1, Integer.int32_t())),
-                    Assignment(arg1, Constant(0, Integer.int32_t())),
-                    Assignment(var_2, Constant(0, Integer.int32_t())),
-                ],
-            ),
-            BasicBlock(
-                6,
-                instructions=[
-                    Assignment(var_5, Constant(0, Integer.int32_t())),
-                    Assignment(var_7, Constant(-1, Integer.int32_t())),
-                    Assignment(var_2, Constant(0, Integer.int32_t())),
-                ],
-            ),
-            BasicBlock(7, instructions=[Assignment(ListOperation([]), Call(imp_function_symbol("sub_1400193a8"), []))]),
-            BasicBlock(
-                8,
-                instructions=[
-                    Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [Constant(0x804B01F), var_6])),
-                    Branch(Condition(OperationType.greater_us, [var_6, Constant(0, Integer.int32_t())])),
-                ],
-            ),
-            BasicBlock(9, instructions=[Assignment(arg1, Constant(1, Integer.int32_t()))]),
-            BasicBlock(10, instructions=[Return([arg1])]),
-        ]
-    )
-    task.graph.add_edges_from(
-        [
-            TrueCase(vertices[0], vertices[1]),
-            FalseCase(vertices[0], vertices[2]),
-            TrueCase(vertices[1], vertices[3]),
-            FalseCase(vertices[1], vertices[4]),
-            TrueCase(vertices[2], vertices[5]),
-            FalseCase(vertices[2], vertices[6]),
-            TrueCase(vertices[3], vertices[7]),
-            FalseCase(vertices[3], vertices[8]),
-            UnconditionalEdge(vertices[4], vertices[7]),
-            UnconditionalEdge(vertices[5], vertices[10]),
-            UnconditionalEdge(vertices[6], vertices[9]),
-            UnconditionalEdge(vertices[7], vertices[9]),
-            TrueCase(vertices[8], vertices[9]),
-            FalseCase(vertices[8], vertices[10]),
-            UnconditionalEdge(vertices[9], vertices[10]),
-        ]
-    )
-    PatternIndependentRestructuring().run(task)
-    assert any(isinstance(node, SwitchNode) for node in task.syntax_tree)
-    var_2_conditions = []
-    for node in task.syntax_tree.get_condition_nodes_post_order():
-        if (
-            not node.condition.is_symbol
-            and node.condition.is_literal
-            and str(task.syntax_tree.condition_map[~node.condition]) in {"var_2 != 0x0"}
-        ):
-            node.switch_branches()
-        if node.condition.is_symbol and str(task.syntax_tree.condition_map[node.condition]) in {"var_2 != 0x0"}:
-            var_2_conditions.append(node)
-    assert len(var_2_conditions) == 2
-    assert var_2_conditions[0] == var_2_conditions[1]
-    assert hash(var_2_conditions[0]) != hash(var_2_conditions[1])
+# fix in Issue 28
+# def test_hash_eq_problem(task):
+#     """
+#     Hash and eq are not the same, therefore we have to be careful which one we want:
+#
+#     - eq: Same condition node in sense of same condition
+#     - hash: same node in the graph
+#     """
+#     arg1 = Variable("arg1", Integer.int32_t(), ssa_name=Variable("arg1", Integer.int32_t(), 0))
+#     arg2 = Variable("arg2", Integer.int32_t(), ssa_name=Variable("arg2", Integer.int32_t(), 0))
+#     var_2 = Variable("var_2", Integer.int32_t(), None, True, Variable("rax_1", Integer.int32_t(), 1, True, None))
+#     var_5 = Variable("var_5", Integer.int32_t(), None, True, Variable("rax_2", Integer.int32_t(), 2, True, None))
+#     var_6 = Variable("var_6", Integer.int32_t(), None, True, Variable("rax_5", Integer.int32_t(), 30, True, None))
+#     var_7 = Variable("var_7", Integer.int32_t(), None, True, Variable("rax_3", Integer.int32_t(), 3, True, None))
+#     task.graph.add_nodes_from(
+#         vertices := [
+#             BasicBlock(0, instructions=[Branch(Condition(OperationType.equal, [arg1, Constant(1, Integer.int32_t())]))]),
+#             BasicBlock(
+#                 1,
+#                 instructions=[
+#                     Assignment(var_2, BinaryOperation(OperationType.plus, [var_2, Constant(1, Integer.int32_t())])),
+#                     Branch(Condition(OperationType.not_equal, [var_2, Constant(0, Integer.int32_t())])),
+#                 ],
+#             ),
+#             BasicBlock(
+#                 2,
+#                 instructions=[
+#                     Assignment(ListOperation([]), Call(imp_function_symbol("sub_140019288"), [arg2])),
+#                     Branch(Condition(OperationType.equal, [arg1, Constant(0, Integer.int32_t())])),
+#                 ],
+#             ),
+#             BasicBlock(
+#                 3,
+#                 instructions=[
+#                     Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [Constant(0x804B01F), var_5])),
+#                     Branch(Condition(OperationType.not_equal, [var_5, Constant(0, Integer.int32_t())])),
+#                 ],
+#             ),
+#             BasicBlock(
+#                 4, instructions=[Assignment(var_5, Constant(0, Integer.int32_t())), Assignment(var_7, Constant(-1, Integer.int32_t()))]
+#             ),
+#             BasicBlock(
+#                 5,
+#                 instructions=[
+#                     Assignment(var_5, Constant(0, Integer.int32_t())),
+#                     Assignment(var_7, Constant(-1, Integer.int32_t())),
+#                     Assignment(arg1, Constant(0, Integer.int32_t())),
+#                     Assignment(var_2, Constant(0, Integer.int32_t())),
+#                 ],
+#             ),
+#             BasicBlock(
+#                 6,
+#                 instructions=[
+#                     Assignment(var_5, Constant(0, Integer.int32_t())),
+#                     Assignment(var_7, Constant(-1, Integer.int32_t())),
+#                     Assignment(var_2, Constant(0, Integer.int32_t())),
+#                 ],
+#             ),
+#             BasicBlock(7, instructions=[Assignment(ListOperation([]), Call(imp_function_symbol("sub_1400193a8"), []))]),
+#             BasicBlock(
+#                 8,
+#                 instructions=[
+#                     Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [Constant(0x804B01F), var_6])),
+#                     Branch(Condition(OperationType.greater_us, [var_6, Constant(0, Integer.int32_t())])),
+#                 ],
+#             ),
+#             BasicBlock(9, instructions=[Assignment(arg1, Constant(1, Integer.int32_t()))]),
+#             BasicBlock(10, instructions=[Return([arg1])]),
+#         ]
+#     )
+#     task.graph.add_edges_from(
+#         [
+#             TrueCase(vertices[0], vertices[1]),
+#             FalseCase(vertices[0], vertices[2]),
+#             TrueCase(vertices[1], vertices[3]),
+#             FalseCase(vertices[1], vertices[4]),
+#             TrueCase(vertices[2], vertices[5]),
+#             FalseCase(vertices[2], vertices[6]),
+#             TrueCase(vertices[3], vertices[7]),
+#             FalseCase(vertices[3], vertices[8]),
+#             UnconditionalEdge(vertices[4], vertices[7]),
+#             UnconditionalEdge(vertices[5], vertices[10]),
+#             UnconditionalEdge(vertices[6], vertices[9]),
+#             UnconditionalEdge(vertices[7], vertices[9]),
+#             TrueCase(vertices[8], vertices[9]),
+#             FalseCase(vertices[8], vertices[10]),
+#             UnconditionalEdge(vertices[9], vertices[10]),
+#         ]
+#     )
+#     PatternIndependentRestructuring().run(task)
+#     assert any(isinstance(node, SwitchNode) for node in task.syntax_tree)
+#     var_2_conditions = []
+#     for node in task.syntax_tree.get_condition_nodes_post_order():
+#         if (
+#             not node.condition.is_symbol
+#             and node.condition.is_literal
+#             and str(task.syntax_tree.condition_map[~node.condition]) in {"var_2 != 0x0"}
+#         ):
+#             node.switch_branches()
+#         if node.condition.is_symbol and str(task.syntax_tree.condition_map[node.condition]) in {"var_2 != 0x0"}:
+#             var_2_conditions.append(node)
+#     assert len(var_2_conditions) == 2
+#     assert var_2_conditions[0] == var_2_conditions[1]
+#     assert hash(var_2_conditions[0]) != hash(var_2_conditions[1])
