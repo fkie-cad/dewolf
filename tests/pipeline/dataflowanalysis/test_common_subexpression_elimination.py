@@ -32,7 +32,7 @@ def _generate_options(threshold: int = 4, intra: bool = True, str_threshold: int
 
 def _run_cse(cfg: ControlFlowGraph, options: Options = _generate_options()):
     """Run common subexpression elimination on the given control flow graph."""
-    CommonSubexpressionElimination().run(DecompilerTask("test", cfg, options=options))
+    CommonSubexpressionElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg, options=options))
 
 
 def test_no_cse_for_calls_1():

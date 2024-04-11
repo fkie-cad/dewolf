@@ -119,7 +119,7 @@ def construct_graph_non_aliased(number: int) -> (List[Instruction], DecompilerTa
             UnconditionalEdge(nodes[3], nodes[4]),
         ]
     )
-    task = DecompilerTask("test", cfg)
+    task = DecompilerTask(name="test", function_identifier="", cfg=cfg)
 
     # First Graph - everything defined
     if number == 1:
@@ -368,7 +368,7 @@ def construct_graph_aliased(number: int) -> (List[Instruction], List[Variable], 
     nodes[3].instructions = [i.copy() for i in list_instructions[26:34]]
 
     cfg = ControlFlowGraph()
-    task = DecompilerTask("test", cfg)
+    task = DecompilerTask(name="test", function_identifier="", cfg=cfg)
     cfg.add_node(nodes[0])
     if number == 1:
         return list_instructions, aliased_variables, task
@@ -391,7 +391,7 @@ def construct_graph_aliased(number: int) -> (List[Instruction], List[Variable], 
 
     if number == 5:
         cfg = ControlFlowGraph()
-        task = DecompilerTask("test", cfg)
+        task = DecompilerTask(name="test", function_identifier="", cfg=cfg)
         cfg.add_node(nodes[3])
         return list_instructions, aliased_variables + aliased_variables_y, task
 
@@ -945,7 +945,7 @@ def test_memory_version_does_not_exist():
     ]
 
     cfg = ControlFlowGraph()
-    task = DecompilerTask("test", cfg)
+    task = DecompilerTask(name="test", function_identifier="", cfg=cfg)
     cfg.add_node(BasicBlock(1, instructions))
 
     with pytest.raises(ValueError):
@@ -971,7 +971,7 @@ def test_same_instruction_with_different_memory_version():
 
     cfg = ControlFlowGraph()
     cfg.add_node(BasicBlock(1, instructions))
-    task = DecompilerTask("test", cfg)
+    task = DecompilerTask(name="test", function_identifier="", cfg=cfg)
 
     InsertMissingDefinitions().run(task)
 
@@ -1053,7 +1053,7 @@ def test_missing_definitions_for_global_variables_are_correct():
     cfg.add_node(n1 := BasicBlock(1, instructions_1))
     cfg.add_node(n2 := BasicBlock(2, instructions_2))
     cfg.add_edges_from([UnconditionalEdge(n0, n1), UnconditionalEdge(n0, n2), UnconditionalEdge(n1, n2)])
-    task = DecompilerTask("test", cfg)
+    task = DecompilerTask(name="test", function_identifier="", cfg=cfg)
     InsertMissingDefinitions().run(task)
     expected_inserted_definition = Relation(globals[1], globals[0])
     inserted_definition: Assignment = n0.instructions[1]
@@ -1094,7 +1094,7 @@ def test_relation_and_assignment_insertion_after_memory_changing_instructions():
     )
     cfg = ControlFlowGraph()
     cfg.add_node(BasicBlock(0, [instruction_0, instruction_1, instruction_2]))
-    task = DecompilerTask("test", cfg)
+    task = DecompilerTask(name="test", function_identifier="", cfg=cfg)
     InsertMissingDefinitions().run(task)
 
     assert task.graph.nodes[0].instructions[:-2] == [

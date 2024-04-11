@@ -37,12 +37,23 @@ class CodeGenerator:
 
     def generate_function(self, task: DecompilerTask) -> str:
         """Generate C-Code for the function described in the given DecompilerTask."""
-        return self.TEMPLATE.substitute(
-            return_type=task.function_return_type,
-            name=task.name,
-            parameters=", ".join(
-                map(lambda param: CExpressionGenerator.format_variables_declaration(param.type, [param.name]), task.function_parameters)
-            ),
-            local_declarations=LocalDeclarationGenerator.from_task(task) if not task.failed else "",
-            function_body=CodeVisitor(task).visit(task.syntax_tree.root) if not task.failed else task.failure_message,
-        )
+        if task.failed:
+            return self.generate_failure_message(task)
+        else:
+            return self.TEMPLATE.substitute(
+                return_type=task.function_return_type,
+                name=task.name,
+                parameters=", ".join(
+                    map(lambda param: CExpressionGenerator.format_variables_declaration(param.type, [param.name]), task.function_parameters)
+                ),
+                local_declarations=LocalDeclarationGenerator.from_task(task),
+                function_body=CodeVisitor(task).visit(task.syntax_tree.root),
+            )
+
+    @staticmethod
+    def generate_failure_message(task: DecompilerTask):
+        """Returns the message to be shown for a failed task."""
+        msg = f"Failed to decompile {task.name}"
+        if origin := task.failure_origin:  # checks if the string is empty (should never be None when this method is called)
+            msg += f" due to error during {origin}."
+        return msg
