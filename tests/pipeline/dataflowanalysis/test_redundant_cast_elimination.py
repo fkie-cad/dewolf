@@ -77,7 +77,7 @@ def test_when_field_can_be_merged_with_casts():
         ),
     ]
     cfg.add_node(BasicBlock(0, instructions))
-    RedundantCastsElimination().run(DecompilerTask("test", cfg))
+    RedundantCastsElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
     assert [i for i in cfg.instructions] == [
         Assignment(r64[1], cast(unsigned_int, r64[0])),
         Branch(Condition(OperationType.less_or_equal, [int_var, Constant(0x4)])),

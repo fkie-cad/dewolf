@@ -1033,4 +1033,4 @@ def decompiler_task(cfg: ControlFlowGraph, mode: Optional[Union[SSAOptions, str]
     options = Options()
     if mode:
         options.set("out-of-ssa-translation.mode", mode.value if isinstance(mode, SSAOptions) else mode)
-    return DecompilerTask("out-of-ssa-test", cfg, options=options, function_parameters=args)
+    return DecompilerTask(name="out-of-ssa-test", function_identifier="", cfg=cfg, options=options, function_parameters=args)

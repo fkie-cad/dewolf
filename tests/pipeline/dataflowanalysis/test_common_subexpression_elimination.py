@@ -32,7 +32,7 @@ def _generate_options(threshold: int = 4, intra: bool = True, str_threshold: int
 
 def _run_cse(cfg: ControlFlowGraph, options: Options = _generate_options()):
     """Run common subexpression elimination on the given control flow graph."""
-    CommonSubexpressionElimination().run(DecompilerTask("test", cfg, options=options))
+    CommonSubexpressionElimination().run(DecompilerTask(name="test", function_identifier="", cfg=cfg, options=options))
 
 
 def test_no_cse_for_calls_1():
@@ -1282,4 +1282,33 @@ def test_common_subexpression_elimination_correct_place():
         Assignment(Variable("c", ssa_label=1), BinaryOperation(OperationType.minus, [Variable("a", ssa_label=4), replacement1])),
         Assignment(Variable("d", ssa_label=4), BinaryOperation(OperationType.plus, [Variable("e", ssa_label=2), replacement0])),
         Assignment(Variable("f", ssa_label=1), BinaryOperation(OperationType.minus, [Variable("g", ssa_label=4), replacement1])),
+    ]
+
+
+def test_common_subexpression_elimination_correct_place2():
+    """Check that the instruction is inserted at the correct position"""
+    expr0 = BinaryOperation(OperationType.multiply, [Variable("a", Integer.int32_t()), Constant(2, Integer.int32_t())])
+    expr1 = BinaryOperation(OperationType.plus, [expr0.copy(), Constant(5, Integer.int32_t())])
+
+    cfg = ControlFlowGraph()
+    cfg.add_node(
+        node := BasicBlock(
+            0,
+            instructions=[
+                Assignment(ListOperation([]), Call(FunctionSymbol("func", 0), [expr0.copy(), expr1.copy()])),
+                Assignment(ListOperation([]), Call(FunctionSymbol("func", 0), [expr1.copy()])),
+            ],
+        )
+    )
+    _run_cse(cfg, _generate_options(threshold=2))
+
+    replacement0 = Variable("c0", Integer.int32_t(), ssa_label=0)
+    replacement1 = Variable("c1", Integer.int32_t(), ssa_label=0)
+    expr_new = BinaryOperation(OperationType.plus, [replacement1.copy(), Constant(5, Integer.int32_t())])
+
+    assert node.instructions == [
+        Assignment(replacement1.copy(), expr0.copy()),
+        Assignment(replacement0.copy(), expr_new.copy()),
+        Assignment(ListOperation([]), Call(FunctionSymbol("func", 0), [replacement1.copy(), replacement0.copy()])),
+        Assignment(ListOperation([]), Call(FunctionSymbol("func", 0), [replacement0.copy()])),
     ]

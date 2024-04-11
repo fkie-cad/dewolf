@@ -5,7 +5,7 @@
 from decompile import Decompiler
 
 decompiler = Decompiler.from_path("tests/samples/bin/systemtests/32/0/test_loop")
-task = decompiler.decompile("test7")
+task, code = decompiler.decompile("test7")
 
 # Serialize an AST
 from decompiler.util.serialization.ast_serializer import AstSerializer
