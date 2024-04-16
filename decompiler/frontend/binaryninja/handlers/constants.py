@@ -3,7 +3,7 @@
 import math
 from typing import Union
 
-from binaryninja import BinaryView, DataVariable, SymbolType, Type, mediumlevelil
+from binaryninja import DataVariable, SymbolType, Type, mediumlevelil
 from decompiler.frontend.binaryninja.handlers.globals import addr_in_section
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import (
