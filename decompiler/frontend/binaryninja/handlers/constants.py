@@ -4,6 +4,7 @@ import math
 from typing import Union
 
 from binaryninja import BinaryView, DataVariable, SymbolType, Type, mediumlevelil
+from decompiler.frontend.binaryninja.handlers.globals import addr_in_section
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import (
     Constant,
@@ -39,7 +40,7 @@ class ConstantHandler(Handler):
         """Lift the given constant value."""
         if constant.constant in [math.inf, -math.inf, math.nan]:
             return NotUseableConstant(str(constant.constant))
-        if self._addr_in_section(constant.function.view, constant.constant):
+        if addr_in_section(constant.function.view, constant.constant):
             return self.lift_constant_pointer(constant)
         return Constant(constant.constant, vartype=self._lifter.lift(constant.expr_type))
 
@@ -82,17 +83,3 @@ class ConstantHandler(Handler):
             [res],
             vartype=res.type,
         )
-
-    def _in_read_only_section(self, addr: int, view: BinaryView) -> bool:
-        """Returns True if address is contained in a read only section, False otherwise"""
-        for _, section in view.sections.items():
-            if addr >= section.start and addr <= section.end and section.semantics == SectionSemantics.ReadOnlyDataSectionSemantics:
-                return True
-        return False
-
-    def _addr_in_section(self, view: BinaryView, addr: int) -> bool:
-        """Returns True if address is contained in a section, False otherwise"""
-        for _, section in view.sections.items():
-            if addr >= section.start and addr <= section.end:
-                return True
-        return False

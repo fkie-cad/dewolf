@@ -15,7 +15,6 @@ from binaryninja.types import (
     Type,
     VoidType,
 )
-from decompiler.frontend.binaryninja.handlers.constants import BYTE_SIZE
 from decompiler.frontend.binaryninja.handlers.symbols import GLOBAL_VARIABLE_PREFIX
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import ArrayType as PseudoArrayType
@@ -32,6 +31,8 @@ from decompiler.structures.pseudo import (
     Symbol,
     UnaryOperation,
 )
+
+BYTE_SIZE = 8
 
 """
     Lift a given address inside of a binary by BNinjas DataVariable type.
