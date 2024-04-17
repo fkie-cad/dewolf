@@ -4,6 +4,7 @@ import math
 from typing import Union
 
 from binaryninja import DataVariable, SymbolType, Type, mediumlevelil
+from decompiler.frontend.binaryninja.handlers.globals import addr_in_section
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import (
     Constant,
@@ -35,10 +36,12 @@ class ConstantHandler(Handler):
             }
         )
 
-    def lift_constant(self, constant: mediumlevelil.MediumLevelILConst, **kwargs) -> Constant:
+    def lift_constant(self, constant: mediumlevelil.MediumLevelILConst, **kwargs):
         """Lift the given constant value."""
         if constant.constant in [math.inf, -math.inf, math.nan]:
             return NotUseableConstant(str(constant.constant))
+        if addr_in_section(constant.function.view, constant.constant):
+            return self.lift_constant_pointer(constant)
         return Constant(constant.constant, vartype=self._lifter.lift(constant.expr_type))
 
     @staticmethod
