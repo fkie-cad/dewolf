@@ -1,5 +1,6 @@
 """Module for renaming variables in Out of SSA."""
 
+import itertools
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -7,14 +8,17 @@ from itertools import combinations
 from operator import attrgetter
 from typing import DefaultDict, Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union
 
+import networkx
+from decompiler.pipeline.ssa.dependency_graph import dependency_graph_from_cfg
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import BaseAssignment, Instruction, Relation
 from decompiler.structures.pseudo.typing import Type
 from decompiler.task import DecompilerTask
+from decompiler.util.decoration import DecoratedGraph
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 from decompiler.util.lexicographical_bfs import LexicographicalBFS
-from networkx import Graph, connected_components
+from networkx import Graph, MultiDiGraph, connected_components
 
 
 @dataclass
@@ -334,3 +338,93 @@ class MinimalVariableRenamer(VariableRenamer):
         for neighbor in neighborhood:
             if neighbor in self._variable_classes_handler.color_class_of:
                 yield self._variable_classes_handler.color_class_of[neighbor]
+
+
+class ConditionalVariableRenamer(VariableRenamer):
+    """
+    A minimal renaming strategy, that renames the SSA-variables such that the total number of non SSA-variables is (almost) minimal.
+    Therefore, we construct color-classes by using lexicographical BFS on the interference graph. When the interference graph is chordal
+    this leads to a minimum number of possible variables.
+    """
+
+    def __init__(self, task, interference_graph: InterferenceGraph):
+        """
+        self._color_classes is a dictionary where the set of keys is the set of colors
+        and to each color we assign the set of variables of this color.
+        """
+        super().__init__(task, interference_graph.copy())
+
+        dependency_graph = dependency_graph_from_cfg(task.graph)
+
+        mapping = {}
+        for variable in self.interference_graph.nodes():
+            contracted = tuple(self._variables_contracted_to[variable])
+            for var in contracted:
+                mapping[(var,)] = contracted
+
+        # Merge nodes which need to be contracted from self._variables_contracted_to
+        dependency_graph = networkx.relabel_nodes(dependency_graph, mapping)
+
+        # counter = 0
+        # self._decorate_graph(dependency_graph, f"dep{counter}.svg")
+
+        dependency_graph.edge = dependency_graph.edges(data=True)
+        while True:
+            for u, v, _ in sorted(dependency_graph.edges(data=True), key=lambda edge: edge[2]["score"], reverse=True):
+                if u == v:  # self loop
+                    continue
+
+                variables = u + v
+                if interference_graph.are_interfering(*variables):
+                    continue
+                if u[0].type != v[0].type:
+                    continue
+                if u[0].is_aliased != v[0].is_aliased:
+                    continue
+
+                break
+            else:
+                # We didn't find any remaining nodes to contract, break outer loop
+                break
+
+            networkx.relabel_nodes(dependency_graph, {u: (*u, *v), v: (*u, *v)}, copy=False)
+            # counter += 1
+            # self._decorate_graph(dependency_graph, f"dep{counter}.svg")
+
+        # counter += 1
+        # self._decorate_graph(dependency_graph, f"dep{counter}.svg")
+
+        self._variable_classes_handler = VariableClassesHandler(defaultdict(set))
+        for (i, vars) in enumerate(dependency_graph.nodes):
+            for var in vars:
+                self._variable_classes_handler.add_variable_to_class(var, i)
+
+        self.compute_new_name_for_each_variable()
+
+    def _decorate_graph(self, dependency_graph: MultiDiGraph, path: str):
+        decorated_graph = MultiDiGraph()
+        for node in dependency_graph.nodes:
+            decorated_graph.add_node(node, label="\n".join(map(lambda n: f"{n}: {n.type}, aliased: {n.is_aliased}", node)))
+        for u, v, data in dependency_graph.edges.data():
+            decorated_graph.add_edge(u, v, label=f"{data['score']}")
+        for nodes in networkx.weakly_connected_components(dependency_graph):
+            for node_1, node_2 in combinations(nodes, 2):
+                if any(self.interference_graph.has_edge(pair[0], pair[1]) for pair in itertools.product(node_1, node_2)):
+                    decorated_graph.add_edge(node_1, node_2, color="red", dir="none")
+
+        DecoratedGraph(decorated_graph).export_plot(path, type="svg")
+
+    def _variables_can_have_same_name(self, source: Variable, sink: Variable) -> bool:
+        """
+        Two variable can have the same name, if they have the same type, are both aliased or both non-aliased variables, and if they
+        do not interfere.
+
+        :param source: The potential source vertex.
+        :param sink: The potential sink vertex
+        :return: True, if the given variables can have the same name, and false otherwise.
+        """
+        if self.interference_graph.are_interfering(source, sink) or source.type != sink.type or source.is_aliased != sink.is_aliased:
+            return False
+        if source.is_aliased and sink.is_aliased and source.name != sink.name:
+            return False
+        return True
