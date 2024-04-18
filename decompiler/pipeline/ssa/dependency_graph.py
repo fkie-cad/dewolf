@@ -10,11 +10,11 @@ from networkx import MultiDiGraph
 
 def dependency_graph_from_cfg(cfg: ControlFlowGraph) -> MultiDiGraph:
     """
-        Construct the dependency graph of the given CFG, i.e. adds an edge between two variables if they depend on each other.
-            - Add an edge the definition to at most one requirement for each instruction.
-            - All variables that where not defined via Phi-functions before have out-degree of at most 1, because they are defined at most once.
-            - Variables that are defined via Phi-functions can have one successor for each required variable of the Phi-function.
-        """
+    Construct the dependency graph of the given CFG, i.e. adds an edge between two variables if they depend on each other.
+        - Add an edge the definition to at most one requirement for each instruction.
+        - All variables that where not defined via Phi-functions before have out-degree of at most 1, because they are defined at most once.
+        - Variables that are defined via Phi-functions can have one successor for each required variable of the Phi-function.
+    """
     dependency_graph = MultiDiGraph()
 
     for variable in _collect_variables(cfg):

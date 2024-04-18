@@ -395,7 +395,7 @@ class ConditionalVariableRenamer(VariableRenamer):
         # self._decorate_graph(dependency_graph, f"dep{counter}.svg")
 
         self._variable_classes_handler = VariableClassesHandler(defaultdict(set))
-        for (i, vars) in enumerate(dependency_graph.nodes):
+        for i, vars in enumerate(dependency_graph.nodes):
             for var in vars:
                 self._variable_classes_handler.add_variable_to_class(var, i)
 

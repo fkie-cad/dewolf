@@ -100,7 +100,9 @@ class OutOfSsaTranslation(PipelineStage):
         """
         strategy = self.out_of_ssa_strategy.get(self._optimization, None)
         if strategy is None:
-            raise NotImplementedError(f"The Out of SSA according to the optimization level {self._optimization.value} is not implemented so far.")
+            raise NotImplementedError(
+                f"The Out of SSA according to the optimization level {self._optimization.value} is not implemented so far."
+            )
 
         strategy(self)
 
