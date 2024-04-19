@@ -393,7 +393,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
                 case_node.reaching_condition.is_disjunction_of_literals
             ), f"The condition of a case node should be a disjunction, but it is {case_node.reaching_condition}!"
 
-            if isinstance(cond_node := case_node.child, ConditionNode) and cond_node.false_branch is None:
+            if (cond_node := case_node.child).is_single_branch:
                 self._update_condition_for(cond_node, case_node)
 
             case_node.child.reaching_condition = case_node.child.reaching_condition.substitute_by_true(case_node.reaching_condition)

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from itertools import chain, combinations
 from typing import Dict, Iterator, List, Optional, Set, Tuple
 
-from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, SeqNode
+from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, SeqNode, ConditionNode
 from decompiler.structures.ast.reachability_graph import SiblingReachability
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition
@@ -23,17 +23,32 @@ class Formula:
     - setting eq to false implies that two objects are equal and have the same hash iff they are the same object
     """
 
-    condition: LogicCondition
     ast_node: AbstractSyntaxTreeNode
 
-    def clauses(self) -> List[LogicCondition]:
+    @property
+    def is_if_else_formula(self) -> bool:
+        """Check whether condition of formula belongs to an if-else condition."""
+        return self.ast_node.reaching_condition.is_true and not self.ast_node.is_single_branch
+
+    @property
+    def condition(self) -> LogicCondition:
+        if self.ast_node.reaching_condition.is_true:
+            assert isinstance(self.ast_node, ConditionNode), "The ast-node must be a condition node if the RC is true"
+            return self.ast_node.condition
+        return self.ast_node.reaching_condition
+
+    def clauses(self) -> List[Clause]:
         """
         Returns all clauses of the given formula in cnf-form.
 
         - formula = (a | b) & (c | d) & e, it returns [a | b, c | d, e] --> here each operand is a new logic-condition
         - formula = a | b | c, it returns [a | b | c] --> to ensure that we get a new logic-condition we copy it in this case.
         """
-        return list(self.condition.operands) if self.condition.is_conjunction else [self.condition.copy()]
+        if self.is_if_else_formula:
+            return [ClauseFormula(self.ast_node.condition.copy(), self)]
+        else:
+            clauses = list(self.condition.operands) if self.condition.is_conjunction else [self.condition.copy()]
+            return [Clause(c, self) for c in clauses]
 
 
 @dataclass(frozen=True, eq=False)
@@ -45,6 +60,14 @@ class Clause:
 
     condition: LogicCondition
     formula: Formula
+
+
+@dataclass(frozen=True, eq=False)
+class ClauseFormula(Clause):
+    """
+    Dataclass for logic-formula that can not be split into clauses for the grouping.
+    - setting eq to false implies that two objects are equal and have the same hash iff they are the same object
+    """
 
 
 @dataclass(frozen=True, eq=True)
@@ -70,7 +93,7 @@ class ConditionCandidates:
         - unconsidered_nodes: a set of all nodes that we still have to consider for grouping into conditions.
         - logic_graph: representation of all logic-formulas relevant
         """
-        self._candidates: Dict[AbstractSyntaxTreeNode, Formula] = {c: Formula(c.reaching_condition, c) for c in candidates}
+        self._candidates: Dict[AbstractSyntaxTreeNode, Formula] = {c: Formula(c) for c in candidates}
         self._unconsidered_nodes: InsertionOrderedSet[AbstractSyntaxTreeNode] = InsertionOrderedSet()
         self._logic_graph: DiGraph = DiGraph()
         self._initialize_logic_graph()
@@ -89,9 +112,9 @@ class ConditionCandidates:
         all_symbols = set()
         for formula in self._candidates.values():
             self._logic_graph.add_node(formula)
-            for logic_clause in formula.clauses():
-                self._logic_graph.add_edge(formula, clause := Clause(logic_clause, formula))
-                for symbol_name in logic_clause.get_symbols_as_string():
+            for clause in formula.clauses():
+                self._logic_graph.add_edge(formula, clause)
+                for symbol_name in clause.condition.get_symbols_as_string():
                     self._logic_graph.add_edge(clause, symbol := Symbol(symbol_name))
                     self._logic_graph.add_edge(formula, symbol, auxiliary=True)
                     all_symbols.add(symbol)
@@ -101,6 +124,10 @@ class ConditionCandidates:
     def candidates(self) -> Iterator[AbstractSyntaxTreeNode]:
         """Iterates over all candidates considered for grouping into conditions."""
         yield from self._candidates
+
+    def get_condition(self, ast_node: AbstractSyntaxTreeNode) -> Tuple[LogicCondition, bool]:
+        """Return the condition that is relevant for grouping into branches."""
+        return self._candidates[ast_node].condition, self._candidates[ast_node].is_if_else_formula
 
     def maximum_subexpression_size(self) -> int:
         """Returns the maximum possible subexpression that is relevant to consider for clustering into conditions."""
@@ -129,6 +156,18 @@ class ConditionCandidates:
     def remove_ast_nodes(self, nodes_to_remove: List[AbstractSyntaxTreeNode]) -> None:
         """Remove formulas associated with the given nodes from the graph."""
         self._remove_formulas(set(self._candidates[node] for node in nodes_to_remove))
+
+    def add_ast_node(self, condition_node: ConditionNode):
+        """Add new node to the logic-graph"""
+        formula = Formula(condition_node)
+        self._candidates[condition_node] = formula
+        self._unconsidered_nodes.add(condition_node)
+        self._logic_graph.add_node(formula)
+        for clause in formula.clauses():
+            self._logic_graph.add_edge(formula, clause)
+            for symbol_name in clause.condition.get_symbols_as_string():
+                self._logic_graph.add_edge(clause, symbol := Symbol(symbol_name))
+                self._logic_graph.add_edge(formula, symbol, auxiliary=True)
 
     @property
     def _auxiliary_graph(self) -> DiGraph:
@@ -231,6 +270,7 @@ class ConditionBasedRefinement:
         """Init an instance of the condition-based refinement."""
         self.asforest: AbstractSyntaxForest = asforest
         self.root: AbstractSyntaxTreeNode = asforest.current_root
+        self._condition_candidates: Optional[ConditionCandidates] = None
 
     @classmethod
     def refine(cls, asforest: AbstractSyntaxForest) -> None:
@@ -297,14 +337,26 @@ class ConditionBasedRefinement:
         """
         newly_created_sequence_nodes: Set[SeqNode] = set()
         sibling_reachability: SiblingReachability = self.asforest.get_sibling_reachability_of_children_of(sequence_node)
-        condition_candidates = ConditionCandidates([child for child in sequence_node.children if not child.reaching_condition.is_true])
-        for child, subexpression in condition_candidates.get_next_subexpression():
-            true_cluster, false_cluster = self._cluster_by_condition(subexpression, child, condition_candidates)
+        self._condition_candidates = ConditionCandidates(
+            [child for child in sequence_node.children if not child.reaching_condition.is_true or isinstance(child, ConditionNode)]
+        )
+        for child, subexpression in self._condition_candidates.get_next_subexpression():
+            true_cluster, false_cluster, existing_if_else_conditions = self._cluster_by_condition(subexpression, child)
             all_cluster_nodes = true_cluster + false_cluster
 
             if len(all_cluster_nodes) < 2:
                 continue
             if self._can_place_condition_node_with_branches(all_cluster_nodes, sibling_reachability):
+                for existing_if_else_cond in existing_if_else_conditions:
+                    if existing_if_else_cond in true_cluster:
+                        true_cluster.remove(existing_if_else_cond)
+                        true_cluster.append(existing_if_else_cond.true_branch_child)
+                        false_cluster.append(existing_if_else_cond.false_branch_child)
+                    else:
+                        false_cluster.remove(existing_if_else_cond)
+                        true_cluster.append(existing_if_else_cond.false_branch_child)
+                        false_cluster.append(existing_if_else_cond.true_branch_child)
+                    self.asforest.transform_branch_to_reaching_conditions(existing_if_else_cond)
                 condition_node = self.asforest.create_condition_node_with(subexpression, true_cluster, false_cluster)
                 if len(true_cluster) > 1:
                     newly_created_sequence_nodes.add(condition_node.true_branch_child)
@@ -312,13 +364,14 @@ class ConditionBasedRefinement:
                     newly_created_sequence_nodes.add(condition_node.false_branch_child)
                 sibling_reachability.merge_siblings_to(condition_node, all_cluster_nodes)
                 sequence_node._sorted_children = sibling_reachability.sorted_nodes()
-                condition_candidates.remove_ast_nodes(all_cluster_nodes)
+                self._condition_candidates.add_ast_node(condition_node)
+                self._condition_candidates.remove_ast_nodes(all_cluster_nodes)
 
         return newly_created_sequence_nodes
 
     def _cluster_by_condition(
-        self, sub_expression: LogicCondition, node_with_subexpression: AbstractSyntaxTreeNode, condition_candidates: ConditionCandidates
-    ) -> Tuple[List[AbstractSyntaxTreeNode], List[AbstractSyntaxTreeNode]]:
+        self, sub_expression: LogicCondition, node_with_subexpression: AbstractSyntaxTreeNode
+    ) -> Tuple[List[AbstractSyntaxTreeNode], List[AbstractSyntaxTreeNode], List[ConditionNode]]:
         """
         Cluster the nodes in sequence_nodes according to the input condition.
 
@@ -331,17 +384,30 @@ class ConditionBasedRefinement:
         true_children = []
         false_children = []
         symbols_of_condition = set(sub_expression.get_symbols_as_string())
-        negated_condition = None
-        for ast_node in condition_candidates.candidates:
-            if symbols_of_condition - condition_candidates.get_symbol_names_of(ast_node):
+        negated_condition: Optional[LogicCondition] = None
+        existing_if_else_condition: List[ConditionNode] = []
+        for ast_node in self._condition_candidates.candidates:
+            if symbols_of_condition - self._condition_candidates.get_symbol_names_of(ast_node):
                 continue
-            if ast_node == node_with_subexpression or self._is_subexpression_of_cnf_formula(sub_expression, ast_node.reaching_condition):
+            condition, is_if_else_node = self._condition_candidates.get_condition(ast_node)
+            if (
+                ast_node == node_with_subexpression
+                or (not is_if_else_node and self._is_subexpression_of_cnf_formula(sub_expression, condition))
+                or (is_if_else_node and sub_expression.is_equivalent_to(condition))
+            ):
                 true_children.append(ast_node)
+                if is_if_else_node:
+                    existing_if_else_condition.append(ast_node)
             else:
                 negated_condition = self._get_negated_condition_of(sub_expression, negated_condition)
-                if self._is_subexpression_of_cnf_formula(negated_condition, ast_node.reaching_condition):
+                if (not is_if_else_node and self._is_subexpression_of_cnf_formula(negated_condition, condition)) or (
+                    is_if_else_node and negated_condition.is_equivalent_to(condition)
+                ):
                     false_children.append(ast_node)
-        return true_children, false_children
+                    if is_if_else_node:
+                        existing_if_else_condition.append(ast_node)
+
+        return true_children, false_children, existing_if_else_condition
 
     @staticmethod
     def _get_negated_condition_of(condition: LogicCondition, negated_condition: Optional[LogicCondition]) -> LogicCondition:

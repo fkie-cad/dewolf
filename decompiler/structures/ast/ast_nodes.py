@@ -166,6 +166,11 @@ class AbstractSyntaxTreeNode(BaseAbstractSyntaxTreeNode, ABC):
         """Checks whether the node is a CodeNode and ends with a return."""
         return isinstance(self, CodeNode) and self.does_end_with_return
 
+    @property
+    def is_single_branch(self) -> bool:
+        """Check whether the node is a condition node with one branch."""
+        return isinstance(self, ConditionNode) and len(self.children) == 1
+
     def get_end_nodes(self) -> Iterable[Union[CodeNode, SwitchNode, LoopNode, ConditionNode]]:
         """Yields all nodes where the subtree can terminate."""
         for child in self.children:
@@ -595,8 +600,12 @@ class ConditionNode(AbstractSyntaxTreeNode):
         """Standardizing a Condition node is to remove empty True/False Branches and to make sure that the true branch always exists."""
         for dead_child in (child for child in self.children if child.child is None):
             self._ast.remove_subtree(dead_child)
-        if len(self.children) == 1 and self.true_branch is None:
+        if (len(self.children) == 1 and self.true_branch is None) or self.condition.is_false:
             self.switch_branches()
+        if self.condition.is_true:
+            if self.false_branch is not None:
+                self._ast.remove_subtree(self.false_branch)
+            self._ast.replace_condition_node_by_single_branch(self)
         super().clean()
 
     def replace_variable(self, replacee: Variable, replacement: Variable) -> None:
