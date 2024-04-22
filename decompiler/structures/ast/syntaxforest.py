@@ -342,8 +342,7 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         else:
             branch = self.add_seq_node_with_reaching_condition_before(branch_nodes, self.condition_handler.get_true_value())
         for node in branch_nodes:
-            if node.reaching_condition.is_true:
-                assert isinstance(node, ConditionNode), "The node must be a condition node if its RC is true"
+            if node.reaching_condition.is_true and isinstance(node, ConditionNode):
                 node.condition.substitute_by_true(condition)
             else:
                 node.reaching_condition.substitute_by_true(condition)
