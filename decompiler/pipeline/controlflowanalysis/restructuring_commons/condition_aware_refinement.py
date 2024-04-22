@@ -2,6 +2,8 @@
 Module for Condition Aware Refinement
 """
 
+from typing import Set
+
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.base_class_car import (
     BaseClassConditionAwareRefinement,
 )
@@ -21,6 +23,7 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
     SwitchExtractor,
 )
 from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
+from decompiler.structures.ast.ast_nodes import SwitchNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 
 
@@ -35,13 +38,14 @@ class ConditionAwareRefinement(BaseClassConditionAwareRefinement):
     ]
 
     @classmethod
-    def refine(cls, asforest: AbstractSyntaxForest, options: RestructuringOptions):
+    def refine(cls, asforest: AbstractSyntaxForest, options: RestructuringOptions) -> Set[SwitchNode]:
         condition_aware_refinement = cls(asforest, options)
         for stage in condition_aware_refinement.REFINEMENT_PIPELINE:
             asforest.clean_up(asforest.current_root)
-            stage(asforest, options)
+            condition_aware_refinement.updated_switch_nodes.update(stage(asforest, options))
             condition_aware_refinement._remove_redundant_reaching_condition_from_switch_nodes()
         asforest.clean_up(asforest.current_root)
+        return condition_aware_refinement.updated_switch_nodes
 
     def _remove_redundant_reaching_condition_from_switch_nodes(self):
         """Remove the reaching condition from all switch nodes if it is redundant."""

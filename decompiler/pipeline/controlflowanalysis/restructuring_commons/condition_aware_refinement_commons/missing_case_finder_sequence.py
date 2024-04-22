@@ -38,7 +38,7 @@ class MissingCaseFinderSequence(MissingCaseFinder):
         self._switch_node_of_expression: Dict[ExpressionUsages, SwitchNode] = dict()
 
     @classmethod
-    def find(cls, asforest: AbstractSyntaxForest, options: RestructuringOptions):
+    def find(cls, asforest: AbstractSyntaxForest, options: RestructuringOptions) -> Set[SwitchNode]:
         """
         Try to find missing cases that are children of sequence nodes.
 
@@ -58,6 +58,7 @@ class MissingCaseFinderSequence(MissingCaseFinder):
 
             if seq_node in asforest:
                 seq_node.clean()
+        return missing_case_finder.updated_switch_nodes
 
     def _initialize_switch_node_of_expression_dictionary(self) -> None:
         """

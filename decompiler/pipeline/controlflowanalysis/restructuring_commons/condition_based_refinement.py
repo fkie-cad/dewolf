@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from itertools import chain, combinations
 from typing import Dict, Iterator, List, Optional, Set, Tuple
 
-from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, SeqNode, ConditionNode
+from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, ConditionNode, SeqNode
 from decompiler.structures.ast.reachability_graph import SiblingReachability
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition
@@ -151,6 +151,8 @@ class ConditionCandidates:
             while current_size > 0 and ast_node in self._candidates:
                 for new_operands in combinations(clauses, current_size):
                     yield ast_node, LogicCondition.conjunction_of(new_operands)
+                    if ast_node not in self._candidates:
+                        break
                 current_size -= 1
 
     def remove_ast_nodes(self, nodes_to_remove: List[AbstractSyntaxTreeNode]) -> None:
@@ -266,18 +268,20 @@ class ConditionBasedRefinement:
     Because ¬b1 ∨ ¬b2 is equivalent to ¬(b1∧b2) according to De Morgan's law.
     """
 
-    def __init__(self, asforest: AbstractSyntaxForest):
+    def __init__(self, asforest: AbstractSyntaxForest, root: Optional[AbstractSyntaxTreeNode] = None):
         """Init an instance of the condition-based refinement."""
         self.asforest: AbstractSyntaxForest = asforest
-        self.root: AbstractSyntaxTreeNode = asforest.current_root
+        self.root: AbstractSyntaxTreeNode = asforest.current_root if root is None else root
         self._condition_candidates: Optional[ConditionCandidates] = None
 
     @classmethod
-    def refine(cls, asforest: AbstractSyntaxForest) -> None:
+    def refine(cls, asforest: AbstractSyntaxForest, root: Optional[AbstractSyntaxTreeNode] = None) -> None:
         """Apply the condition-based-refinement to the given abstract-syntax-forest."""
-        if not isinstance(asforest.current_root, SeqNode):
+        if root is None:
+            root = asforest.current_root
+        if not isinstance(root, SeqNode):
             return
-        if_refinement = cls(asforest)
+        if_refinement = cls(asforest, root)
         if_refinement._condition_based_refinement()
 
     def _condition_based_refinement(self) -> None:
