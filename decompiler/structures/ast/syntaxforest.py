@@ -327,9 +327,6 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         condition_node = self._add_condition_node_with(condition, true_branch, false_branch)
         self._add_edge(parent, condition_node)
 
-        for branch in true_cases + false_cases:
-            branch.clean()
-
         return condition_node
 
     def __create_branch_for(self, branch_nodes: List[AbstractSyntaxTreeNode], condition: LogicCondition):

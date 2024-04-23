@@ -368,6 +368,8 @@ class ConditionBasedRefinement:
                     newly_created_sequence_nodes.add(condition_node.false_branch_child)
                 sibling_reachability.merge_siblings_to(condition_node, all_cluster_nodes)
                 sequence_node._sorted_children = sibling_reachability.sorted_nodes()
+                for true_condition_branch in (b for b in true_cluster + false_cluster if b.is_single_branch and b.condition.is_true):
+                    self.asforest.replace_condition_node_by_single_branch(true_condition_branch)
                 self._condition_candidates.add_ast_node(condition_node)
                 self._condition_candidates.remove_ast_nodes(all_cluster_nodes)
 

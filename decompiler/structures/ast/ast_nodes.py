@@ -600,12 +600,8 @@ class ConditionNode(AbstractSyntaxTreeNode):
         """Standardizing a Condition node is to remove empty True/False Branches and to make sure that the true branch always exists."""
         for dead_child in (child for child in self.children if child.child is None):
             self._ast.remove_subtree(dead_child)
-        if (len(self.children) == 1 and self.true_branch is None) or self.condition.is_false:
+        if len(self.children) == 1 and self.true_branch is None:
             self.switch_branches()
-        if self.condition.is_true:
-            if self.false_branch is not None:
-                self._ast.remove_subtree(self.false_branch)
-            self._ast.replace_condition_node_by_single_branch(self)
         super().clean()
 
     def replace_variable(self, replacee: Variable, replacement: Variable) -> None:

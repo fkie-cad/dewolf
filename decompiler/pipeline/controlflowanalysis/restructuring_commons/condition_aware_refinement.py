@@ -45,7 +45,7 @@ class ConditionAwareRefinement(BaseClassConditionAwareRefinement):
             condition_aware_refinement.updated_switch_nodes.update(stage(asforest, options))
             condition_aware_refinement._remove_redundant_reaching_condition_from_switch_nodes()
         asforest.clean_up(asforest.current_root)
-        return condition_aware_refinement.updated_switch_nodes
+        return set(switch for switch in condition_aware_refinement.updated_switch_nodes if switch in asforest)
 
     def _remove_redundant_reaching_condition_from_switch_nodes(self):
         """Remove the reaching condition from all switch nodes if it is redundant."""
