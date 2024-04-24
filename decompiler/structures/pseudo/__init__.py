@@ -15,6 +15,7 @@ from .expressions import (
     Tag,
     UnknownExpression,
     Variable,
+    StructTesting,
 )
 from .instructions import (
     Assignment,

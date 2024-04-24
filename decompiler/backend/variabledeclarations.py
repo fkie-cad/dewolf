@@ -7,6 +7,7 @@ from decompiler.backend.cexpressiongenerator import CExpressionGenerator, inline
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.pseudo import GlobalVariable, Integer, Variable
 from decompiler.structures.pseudo.typing import ArrayType, CustomType, Pointer
+from decompiler.structures.pseudo.complextypes import Struct
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
@@ -66,6 +67,12 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
                     if not variable.type.type in [Integer.char(), CustomType.wchar16(), CustomType.wchar32()]:
                         br, bl = "{", "}"
                     yield f"{base}{variable.type.type} {variable.name}[{hex(variable.type.elements)}] = {br}{CExpressionGenerator().visit(variable.initial_value)}{bl};"
+                case Struct():
+                    string = f"struct {variable.name}" + "{\n"
+                    for m_type, m_value in zip(variable.type.members.values(), variable.initial_value.value.values()):
+                        string += f"\t.{m_type.name} = {m_value.name};\n"
+                    string += '}'
+                    yield base + string
                 case _:
                     yield f"{base}{variable.type} {variable.name} = {CExpressionGenerator().visit(variable.initial_value)};"
 

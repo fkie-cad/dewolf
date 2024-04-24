@@ -15,6 +15,9 @@ from binaryninja.types import (
     Type,
     VoidType,
 )
+
+from binaryninja.enums import NamedTypeReferenceClass
+
 from decompiler.frontend.binaryninja.handlers.symbols import GLOBAL_VARIABLE_PREFIX
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import ArrayType as PseudoArrayType
@@ -30,6 +33,9 @@ from decompiler.structures.pseudo import (
     Pointer,
     Symbol,
     UnaryOperation,
+    StructTesting,
+    Struct, 
+    ComplexTypeMember,
 )
 
 BYTE_SIZE = 8
@@ -101,9 +107,17 @@ class GlobalHandler(Handler):
         lifted_names = [v.name for v in self._lifted_globals.values()]
         if bninjaName is None:
             return GLOBAL_VARIABLE_PREFIX + f"{addr:x}"
-        if bninjaName in lifted_names:
-            return bninjaName + "_" + f"{addr:x}"
-        return bninjaName
+        name = bninjaName.translate(
+            {
+                ord(" "): "_",
+                ord("'"): "",
+                ord("."): "_",
+                ord("`"): "",
+                ord('"'): "",
+            }).strip()
+        if name in lifted_names:
+            return name + "_" + f"{addr:x}"
+        return name
 
     def _build_global_variable(self, name: Optional[str], type: Type, addr: int, init_value, ssa_label: Optional[int]) -> GlobalVariable:
         """Wrapper for building global variables."""
@@ -237,9 +251,31 @@ class GlobalHandler(Handler):
 
     def _lift_named_type_ref(self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None, **_):
         """Lift a named custom type (Enum, Structs)"""
-        return Constant(
-            "Unknown value", self._lifter.lift(variable.type)
-        )  # BNinja error, need to check with the issue to get the correct value + entry for structs
+        match variable.type.named_type_class:
+            case NamedTypeReferenceClass.StructNamedTypeClass:
+                struct_type = self._view.get_type_by_id(variable.type.type_id)
+                values = {} 
+                types = {}
+                for member_type, member_value in zip(struct_type.members, variable.value.keys()):
+                    dv = DataVariable(self._view, variable.address + member_type.offset, member_type.type, False)
+                    lift = self._lifter.lift(dv, view=self._view)
+                    values[member_type.offset] = lift
+                    types[member_type.offset] = ComplexTypeMember(member_type.type.width * BYTE_SIZE, member_value, member_type.offset, self._lifter.lift(member_type.type))
+                
+                s_type = Struct(struct_type.width * BYTE_SIZE, variable.name, types)
+                return self._build_global_variable(variable.name, 
+                    s_type, 
+                    variable.address, 
+                    StructTesting(values, s_type), 
+                    parent.ssa_memory_version if parent else 0
+                )
+
+            case NamedTypeReferenceClass.EnumNamedTypeClass:  # BNinja error, need to check with the issue to get the correct value
+                return Constant(
+                    "Unknown value", self._lifter.lift(variable.type)
+                )
+            case _:
+                raise NotImplementedError(f"No handler for '{variable.type.named_type_class}' in lifter")
 
     def _get_unknown_value(self, variable: DataVariable):
         """Return string or bytes at dv.address(!) (dv.type must be void)"""

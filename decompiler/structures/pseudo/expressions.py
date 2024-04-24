@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Generic, Iterator, List, Optional, Tuple, TypeVar, Union, final
 
 from ...util.insertion_ordered_set import InsertionOrderedSet
-from .complextypes import Enum
+from .complextypes import Enum, Struct
 from .typing import ArrayType, CustomType, Type, UnknownType
 
 T = TypeVar("T")
@@ -518,3 +518,26 @@ class ConstantComposition(Constant):
     def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
         """Invoke the appropriate visitor for this Expression."""
         return visitor.visit_constant_composition(self)
+
+
+class StructTesting(Constant):
+    def __init__(self, value: dict[int, Expression], vartype: Struct, tags: Optional[Tuple[Tag, ...]] = None):
+        super().__init__(
+            value,
+            vartype,
+            None,
+            tags,
+        )
+
+    def __str__(self) -> str:
+        """Return a string representation of the ConstantComposition"""
+        return f"to_fix_struct_repr."
+
+    def __iter__(self) -> Iterator[Expression]:
+        yield from self.value.values()
+
+    def copy(self) -> StructTesting:
+        """Generate a copy of the UnknownExpression with the same message."""
+        return StructTesting(self.value.copy(), self._type.copy()) # Deep copy needed for all Expr inside.
+
+
