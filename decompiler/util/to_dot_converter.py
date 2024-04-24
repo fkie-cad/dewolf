@@ -24,9 +24,9 @@ class ToDotConverter:
         """Create dot-file content."""
         content = HEADER + "\n"
         for node, data in self._graph.nodes(data=True):
-            content += f"{hash(node)} [{self._get_attributes(data)}]; \n"
+            content += f"{node} [{self._get_attributes(data)}]; \n"
         for source, sink, data in self._graph.edges(data=True):
-            content += f"{hash(source)} -> {hash(sink)} [{self._get_attributes(data)}]; \n"
+            content += f"{source} -> {sink} [{self._get_attributes(data)}]; \n"
         content += FOOTER
         return content
 
