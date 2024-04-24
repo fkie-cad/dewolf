@@ -333,8 +333,7 @@ class AbstractSyntaxInterface(ABC):
         """This function replaces the given AST- condition node by its single child in the AST."""
         assert isinstance(node, ConditionNode), f"This transformation works only for condition nodes!"
         assert len(node.children) == 1, f"This works only if the Condition node has only one child!"
-        if (len(node.children) == 1 and node.true_branch is None) or node.condition.is_false:
-            node.switch_branches()
+        node.clean()
         self._replace_subtree(node, node.true_branch_child)
 
     def replace_variable_in_subtree(self, head: AbstractSyntaxTreeNode, replacee: Variable, replacement: Variable):

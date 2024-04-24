@@ -5719,10 +5719,10 @@ def test_intersecting_cases(task):
     PatternIndependentRestructuring().run(task)
 
     assert len(list(task.ast.get_switch_nodes_post_order())) == 2
-    assert isinstance(seq_node := task.ast.root, SeqNode) and len(children := seq_node.children) == 6
-    assert isinstance(children[0], CodeNode) and isinstance(children[5], CodeNode)
-    assert all(isinstance(child, ConditionNode) for child in children[1:4])
-    assert isinstance(children[4], SwitchNode) and isinstance(children[3].true_branch_child, SwitchNode)
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(children := seq_node.children) == 5
+    assert isinstance(children[0], CodeNode) and isinstance(children[4], CodeNode)
+    assert all(isinstance(child, ConditionNode) for child in children[1:3])
+    assert isinstance(children[3], SwitchNode) and isinstance(children[2].true_branch_child, SwitchNode)
 
 
 def test_missing_cases_switch_in_sequence(task):
