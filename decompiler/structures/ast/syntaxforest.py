@@ -347,7 +347,12 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         self._remove_edge(branch.parent, branch)
         return branch
 
-    def add_branches_to_condition_node(self, condition_node: ConditionNode, true_branch: AbstractSyntaxTreeNode = None, false_branch: Optional[AbstractSyntaxTreeNode] = None):
+    def add_branches_to_condition_node(
+        self,
+        condition_node: ConditionNode,
+        true_branch: AbstractSyntaxTreeNode = None,
+        false_branch: Optional[AbstractSyntaxTreeNode] = None,
+    ):
         """TODO"""
         if true_branch:
             self._remove_edge(true_branch.parent, true_branch)

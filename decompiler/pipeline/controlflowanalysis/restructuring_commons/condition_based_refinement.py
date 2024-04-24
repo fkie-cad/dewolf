@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import chain, combinations
-from typing import Dict, Iterator, List, Optional, Set, Tuple, Literal
+from typing import Dict, Iterator, List, Literal, Optional, Set, Tuple
 
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, ConditionNode, SeqNode
 from decompiler.structures.ast.reachability_graph import SiblingReachability
@@ -185,7 +185,9 @@ class ConditionCandidates:
         """update the graph for the given condition-node."""
         assert ast_node in self._candidates, "The condition node must be a candidate."
         formula = self._candidates[ast_node]
-        if not ast_node.is_single_branch and not all(isinstance(clause, ClauseFormula) for clause in self._formula_graph.successors(formula)):
+        if not ast_node.is_single_branch and not all(
+            isinstance(clause, ClauseFormula) for clause in self._formula_graph.successors(formula)
+        ):
             assert len(clauses := formula.clauses()) == 1, "A non-single condition node should have one formula clause"
             self._logic_graph.remove_nodes_from(list(self._formula_graph.successors(formula)))
             self._logic_graph.add_edge(ast_node, clauses[0])
