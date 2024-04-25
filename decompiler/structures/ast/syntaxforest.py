@@ -350,10 +350,16 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
     def add_branches_to_condition_node(
         self,
         condition_node: ConditionNode,
-        true_branch: AbstractSyntaxTreeNode = None,
+        true_branch: Optional[AbstractSyntaxTreeNode] = None,
         false_branch: Optional[AbstractSyntaxTreeNode] = None,
     ):
-        """TODO"""
+        """
+        Add the given branches to the given condition-node.
+
+        -> true-branch will be part of the true-branch of the condition node after this transformation
+        -> false-branch will be part of the false-branch of the condition node after this transformation
+        - since a clean-condition-node always has a true-branch but may not have a false-branch, we have to add it if it does not exist.
+        """
         if true_branch:
             self._remove_edge(true_branch.parent, true_branch)
             new_seq_node = self._add_sequence_node_before(condition_node.true_branch_child)

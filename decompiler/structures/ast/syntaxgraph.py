@@ -330,7 +330,7 @@ class AbstractSyntaxInterface(ABC):
             node.clean()
 
     def replace_condition_node_by_single_branch(self, node: ConditionNode):
-        """This function replaces the given AST- condition node by its single child in the AST."""
+        """This function replaces the given AST-condition node by its single child in the AST."""
         assert isinstance(node, ConditionNode), f"This transformation works only for condition nodes!"
         assert len(node.children) == 1, f"This works only if the Condition node has only one child!"
         node.clean()

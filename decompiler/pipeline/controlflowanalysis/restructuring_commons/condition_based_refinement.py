@@ -28,13 +28,19 @@ class Formula:
     @property
     def is_if_else_formula(self) -> bool:
         """
-        Check whether condition of formula belongs to an if-else condition.
+        Check whether the condition of the formula belongs to an if-else condition.
         The condition-node can only be grouped if it has not reaching-condition.
         """
         return self.ast_node.reaching_condition.is_true and not self.ast_node.is_single_branch
 
     @property
     def condition(self) -> LogicCondition:
+        """
+        Return the condition of the formula.
+
+        If the AST-node of the formula as a reaching-condition that is not true, we return the reaching-condition.
+        Otherwise,  the AS-node must be a condition node and we return its condition.
+        """
         if self.ast_node.reaching_condition.is_true:
             assert isinstance(self.ast_node, ConditionNode), "The ast-node must be a condition node if the RC is true"
             return self.ast_node.condition
@@ -86,17 +92,19 @@ class Symbol:
 class ConditionCandidates:
     """A graph implementation handling conditions for the condition-based refinement algorithm."""
 
-    def __init__(self, sequence_node: SeqNode) -> None:
+    def __init__(self, sequence_node: SeqNode, sibling_reachability: SiblingReachability) -> None:
         """
         Init for the condition-candidates.
 
-        param candidates:: list of all AST-nodes that we want to cluster into conditions.
+        param sequence-node:: The sequence node whose children we want to cluster
+        param sibling_reachability: The sibling-reachability of the given sequence-node
 
         - candidates: maps all relevant ast-nodes to their formula (reaching condition)
         - unconsidered_nodes: a set of all nodes that we still have to consider for grouping into conditions.
         - logic_graph: representation of all logic-formulas relevant
         """
         self.sequence_node: SeqNode = sequence_node
+        self.sibling_reachability: SiblingReachability = sibling_reachability
         self._candidates: Dict[AbstractSyntaxTreeNode, Formula] = {
             child: Formula(child)
             for child in sequence_node.children
@@ -165,11 +173,26 @@ class ConditionCandidates:
                         break
                 current_size -= 1
 
-    def remove_ast_nodes(self, nodes_to_remove: List[AbstractSyntaxTreeNode]) -> None:
+    def update_properties_for_integrating_second_node_into_first(self, cond_node: ConditionNode, merged_node: AbstractSyntaxTreeNode):
+        """
+        Update the condition-candidate properties when the merged-node is integrated into the given condition-node.
+
+        - Update the sibling-reachability
+        - Add the condition-node if it is new and update it otherwise
+        - remove the merged-node from the candidate list.
+        """
+        self.sibling_reachability.merge_siblings_to(cond_node, [merged_node])
+        if cond_node not in self._candidates:
+            self._add_ast_node(cond_node)
+        else:
+            self._update_ast_node(cond_node)
+        self._remove_ast_nodes([merged_node])
+
+    def _remove_ast_nodes(self, nodes_to_remove: List[AbstractSyntaxTreeNode]) -> None:
         """Remove formulas associated with the given nodes from the graph."""
         self._remove_formulas(set(self._candidates[node] for node in nodes_to_remove))
 
-    def add_ast_node(self, condition_node: ConditionNode):
+    def _add_ast_node(self, condition_node: ConditionNode):
         """Add new node to the logic-graph"""
         formula = Formula(condition_node)
         self._candidates[condition_node] = formula
@@ -181,14 +204,17 @@ class ConditionCandidates:
                 self._logic_graph.add_edge(clause, symbol := Symbol(symbol_name))
                 self._logic_graph.add_edge(formula, symbol, auxiliary=True)
 
-    def update(self, ast_node: ConditionNode):
-        """update the graph for the given condition-node."""
+    def _update_ast_node(self, ast_node: ConditionNode):
+        """
+        Update the graph properties for the given condition-node.
+
+        - If it was a single-branch condition node before and is now a condition node with two branches, then we have to update its clauses
+        in the logic-graph.
+        """
         assert ast_node in self._candidates, "The condition node must be a candidate."
         formula = self._candidates[ast_node]
-        if not ast_node.is_single_branch and not all(
-            isinstance(clause, ClauseFormula) for clause in self._formula_graph.successors(formula)
-        ):
-            assert len(clauses := formula.clauses()) == 1, "A non-single condition node should have one formula clause"
+        if not ast_node.is_single_branch and not all(isinstance(c, ClauseFormula) for c in self._formula_graph.successors(formula)):
+            assert len(clauses := formula.clauses()) == 1, "A non-single condition node should have one formula clause!"
             self._logic_graph.remove_nodes_from(list(self._formula_graph.successors(formula)))
             self._logic_graph.add_edge(ast_node, clauses[0])
             for symbol in self._auxiliary_graph.successors(formula):
@@ -299,7 +325,7 @@ class ConditionBasedRefinement:
 
     @classmethod
     def refine(cls, asforest: AbstractSyntaxForest, root: Optional[AbstractSyntaxTreeNode] = None) -> None:
-        """Apply the condition-based-refinement to the given abstract-syntax-forest."""
+        """Apply the condition-based-refinement to the given abstract-syntax-forest starting at the given root."""
         if root is None:
             root = asforest.current_root
         if not isinstance(root, SeqNode):
@@ -364,97 +390,88 @@ class ConditionBasedRefinement:
         """
         newly_created_sequence_nodes: Set[SeqNode] = set()
         sibling_reachability: SiblingReachability = self.asforest.get_sibling_reachability_of_children_of(sequence_node)
-        self._condition_candidates = ConditionCandidates(sequence_node)
+        self._condition_candidates = ConditionCandidates(sequence_node, sibling_reachability)
         for child, subexpression in self._condition_candidates.get_next_subexpression():
-            newly_created_sequence_nodes.update(self._cluster_by_condition(subexpression, child, sibling_reachability))
+            newly_created_sequence_nodes.update(self._cluster_by_condition(subexpression, child))
 
         return newly_created_sequence_nodes
 
-    def _cluster_by_condition(
-        self,
-        sub_expression: LogicCondition,
-        current_node: AbstractSyntaxTreeNode,
-        sibling_reachability: SiblingReachability,
-    ) -> List[SeqNode]:
+    def _cluster_by_condition(self, sub_expression: LogicCondition, current_node: AbstractSyntaxTreeNode) -> List[SeqNode]:
         """
-        Cluster the nodes in sequence_nodes according to the input condition.
+        Cluster the nodes of the current-sequence node according to the input condition belonging to the given ast-node.
 
-        :param sub_expression: The condition for which we check whether it or its negation is a subexpression of the list of input nodes.
-        :param current_node: The node of which the given sub_expression is a sub-expression
-        :param condition_candidates: class-object handling all condition candidates.
-        :return: A 2-tuple, where the first list is the set of nodes that have condition as subexpression, the second list is the set of
-                 nodes that have the negated condition as subexpression.
+        :param sub_expression: The condition for which we check whether it or its negation is a subexpression of a sequence-node child.
+        :param current_node: The node of which the given sub_expression is a sub-expression.
+        :return: A list of all new created sequence-nodes that should be considered for a future iteration of the CBR.
         """
         symbols_of_condition = set(sub_expression.get_symbols_as_string())
         negated_condition: Optional[LogicCondition] = None
         for ast_node in [candidate for candidate in self._condition_candidates.candidates if candidate != current_node]:
-            if symbols_of_condition - self._condition_candidates.get_symbol_names_of(ast_node):
-                continue
-            condition, is_if_else_node = self._condition_candidates.get_condition(ast_node)
-            if self._is_possible_branch(condition, is_if_else_node, sub_expression) and self._can_place_condition_node_with_branches(
-                [current_node, ast_node], sibling_reachability
+            if symbols_of_condition - self._condition_candidates.get_symbol_names_of(
+                ast_node
+            ) or not self._can_place_condition_node_with_branches(
+                [current_node, ast_node], self._condition_candidates.sibling_reachability
             ):
-                current_node = self._add_condition_node_if_needed(current_node, sub_expression, sibling_reachability)
-                self._cluster_to_condition(current_node, ast_node, "true", sibling_reachability)
-            else:
-                negated_condition = self._get_negated_condition_of(sub_expression, negated_condition)
-                if self._is_possible_branch(condition, is_if_else_node, negated_condition) and self._can_place_condition_node_with_branches(
-                    [current_node, ast_node], sibling_reachability
-                ):
-                    current_node = self._add_condition_node_if_needed(current_node, sub_expression, sibling_reachability)
-                    self._cluster_to_condition(current_node, ast_node, "false", sibling_reachability)
+                continue
+            if self._is_possible_branch(ast_node, sub_expression):
+                current_node = self._add_condition_node_if_needed(current_node, sub_expression)
+                self._add_node_to_condition(current_node, ast_node, "true")
+            elif self._is_possible_branch(ast_node, negated_condition := self._get_negated_condition_of(sub_expression, negated_condition)):
+                current_node = self._add_condition_node_if_needed(current_node, sub_expression)
+                self._add_node_to_condition(current_node, ast_node, "false")
 
         if isinstance(current_node, ConditionNode):
             return [branch.child for branch in current_node.children if isinstance(branch.child, SeqNode)]
         return []
 
-    def _add_condition_node_if_needed(self, node_with_subexpression, sub_expression, sibling_reachability):
-        if self._need_to_add_condition_node(node_with_subexpression, sub_expression):
-            tmp = node_with_subexpression
-            node_with_subexpression = self.asforest.create_condition_node_with(sub_expression, [node_with_subexpression], [])
-            sibling_reachability.merge_siblings_to(node_with_subexpression, [tmp])
-            self._condition_candidates.add_ast_node(node_with_subexpression)
-            self._condition_candidates.remove_ast_nodes([tmp])
-        return node_with_subexpression
-
-    def _need_to_add_condition_node(self, node_with_subexpression, sub_expression):
-        return not isinstance(node_with_subexpression, ConditionNode) or not sub_expression.is_equal_to(node_with_subexpression.condition)
-
-    def _is_possible_branch(self, condition, is_if_else_node, sub_expression) -> bool:
+    def _is_possible_branch(self, ast_node: AbstractSyntaxTreeNode, sub_expression: LogicCondition) -> bool:
+        """
+        Check whether the given ast-node is a possible branch for a condition-node where one branch-condition is the given sub-expression.
+        """
+        condition, is_if_else_node = self._condition_candidates.get_condition(ast_node)
         return (not is_if_else_node and self._is_subexpression_of_cnf_formula(sub_expression, condition)) or (
             is_if_else_node and sub_expression.is_equivalent_to(condition)
         )
 
-    def _cluster_to_condition(
-        self,
-        clustering_node: ConditionNode,
-        new_node: AbstractSyntaxTreeNode,
-        branch: Literal["true", "false"],
-        sibling_reachability: SiblingReachability,
-    ):
+    def _add_condition_node_if_needed(self, ast_node: AbstractSyntaxTreeNode, sub_expression: LogicCondition) -> ConditionNode:
+        """
+        If the given AST-node is not a condition-node whose condition is equal to the sub-expression,
+        then we create a condition with the given condition and the ast-node as true-child.
+        We return a condition node having the given sub-expression as condition.
+        """
+        if not isinstance(ast_node, ConditionNode) or not sub_expression.is_equal_to(ast_node.condition):
+            tmp = ast_node
+            ast_node = self.asforest.create_condition_node_with(sub_expression, [ast_node], [])
+            self._condition_candidates.update_properties_for_integrating_second_node_into_first(ast_node, tmp)
+        return ast_node
+
+    def _add_node_to_condition(self, condition_node: ConditionNode, ast_node: AbstractSyntaxTreeNode, branch: Literal["true", "false"]):
+        """
+        Add the given ast-node as a branch to the given condition-node.
+
+        - If the branch is "true" the ast-node will be part of the true-branch of the given condition-node.
+        - If the branch is "false" the ast-node will be part of the false-branch of the given condition-node.
+        """
         true_cluster, false_cluster = None, None
-        if isinstance(new_node, ConditionNode) and new_node.reaching_condition.is_true:
-            if new_node.false_branch:
-                true_cluster = new_node.true_branch_child
-                false_cluster = new_node.false_branch_child
+        if isinstance(ast_node, ConditionNode) and ast_node.reaching_condition.is_true:
+            true_cluster = ast_node.true_branch_child
+            if ast_node.false_branch:
+                false_cluster = ast_node.false_branch_child
             else:
-                true_cluster = new_node.true_branch_child
-                assert true_cluster.reaching_condition.is_true, "single-branch Condition nodes should not have a RC at this point."
-                true_cluster.reaching_condition = new_node.true_branch.branch_condition.copy()
-                true_expression = clustering_node.condition if branch == "true" else ~clustering_node.condition
+                assert true_cluster.reaching_condition.is_true, "single-branch Conditions should not have a RC at this point."
+                true_cluster.reaching_condition = ast_node.true_branch.branch_condition.copy()
+                true_expression = condition_node.condition if branch == "true" else ~condition_node.condition
                 true_cluster.reaching_condition.substitute_by_true(true_expression)
         else:
-            true_cluster = new_node
-            true_expression = clustering_node.condition if branch == "true" else ~clustering_node.condition
+            true_cluster = ast_node
+            true_expression = condition_node.condition if branch == "true" else ~condition_node.condition
             true_cluster.reaching_condition.substitute_by_true(true_expression)
         if branch == "false":
             true_cluster, false_cluster = false_cluster, true_cluster
-        self.asforest.add_branches_to_condition_node(clustering_node, true_cluster, false_cluster)
 
-        sibling_reachability.merge_siblings_to(clustering_node, [new_node])
-        self._condition_candidates.update(clustering_node)
-        self._condition_candidates.remove_ast_nodes([new_node])
-        self._condition_candidates.sequence_node._sorted_children = sibling_reachability.sorted_nodes()
+        self.asforest.add_branches_to_condition_node(condition_node, true_cluster, false_cluster)
+        self._condition_candidates.update_properties_for_integrating_second_node_into_first(condition_node, ast_node)
+        self._condition_candidates.sequence_node._sorted_children = self._condition_candidates.sibling_reachability.sorted_nodes()
 
     @staticmethod
     def _get_negated_condition_of(condition: LogicCondition, negated_condition: Optional[LogicCondition]) -> LogicCondition:
