@@ -1084,7 +1084,7 @@ class CaseNode(ConditionalNode):
 
     def copy(self) -> CaseNode:
         """Return a copy of the ast node."""
-        return CaseNode(self.expression.copy(), self.constant.copy(), self.reaching_condition.copy, self.break_case)
+        return CaseNode(self.expression.copy(), self.constant.copy(), self.reaching_condition.copy(), self.break_case)
 
     @property
     def does_end_with_break(self) -> bool:
