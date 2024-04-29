@@ -1031,7 +1031,7 @@ def test_dangerous_relation_in_between():
     |   y#1 -> y#0    |
     | z#0 = rand(x#0) |
     |   return z#0    |
-    +-----------------+ 
+    +-----------------+
 
     +-----------------+
     |       0.        |
@@ -1077,6 +1077,7 @@ def _graph_with_dangerous_relation_between():
     )
     out_cfg.add_node(out_node)
     return in_cfg, out_cfg
+
 
 def _graphs_with_dangerous_reference_use() -> Tuple[ControlFlowGraph, ControlFlowGraph]:
     in_cfg = ControlFlowGraph()
