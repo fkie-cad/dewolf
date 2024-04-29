@@ -274,7 +274,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         for aliased_variable in set(self._iter_aliased_variables(definition)):
             dangerous_address_uses = self._get_dangerous_uses_of_variable_address(aliased_variable)
             dangerous_pointer_uses = self._get_dangerous_uses_of_pointer_to_variable(aliased_variable)
-            dangerous_alias_uses = self._get_dangerous_relations(aliased_variable)
+            dangerous_alias_uses = self._get_dangerous_relations_between_definition_and_target(aliased_variable)
             dangerous_uses = dangerous_pointer_uses | dangerous_address_uses | dangerous_alias_uses
             if dangerous_uses:
                 if self._has_any_of_dangerous_uses_between_definition_and_target(definition, target, dangerous_uses):
@@ -356,21 +356,14 @@ class ExpressionPropagationBase(PipelineStage, ABC):
             dangerous_uses.update(self._get_dangerous_uses_of_pointer(pointer))
         return dangerous_uses
 
-    def _get_dangerous_relations(self, alias_variable: Variable) -> Set[Instruction]:
+    def _get_dangerous_relations_between_definition_and_target(self, alias_variable: Variable) -> Set[Relation]:
         """Return all relations of the alias variable."""
         relations = set()
-        todo = self._use_map.get(alias_variable)
-        done = set()
-
-        while todo:
-            instr = todo.pop()
-            if instr in done:
-                continue
-            if isinstance(instr, Assignment):
-                todo |= self._use_map.get(instr.destination)
-            if isinstance(instr, Relation):
-                relations |= {instr}
-            done |= {instr}
+        # Collect all relations for alias_variable ignoring SSA
+        for bb in self._cfg:
+            for instr in bb:
+                if isinstance(instr, Relation) and instr.destination.name == alias_variable.name:
+                    relations |= {instr}
 
         return relations
 
