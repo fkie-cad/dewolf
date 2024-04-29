@@ -1021,6 +1021,63 @@ def test_dangerous_reference_use_in_single_block_graph():
     assert _graphs_equal(in_cfg, out_cfg)
 
 
+def test_dangerous_relation_in_between():
+    """
+    Don't propagate y#0 into rand(x#0) because of possible change in between (relation)
+    +-----------------+
+    |       0.        |
+    |    x#0 = y#0    |
+    |   memset(y#0)   |
+    |   y#1 -> y#0    |
+    | z#0 = rand(x#0) |
+    |   return z#0    |
+    +-----------------+ 
+
+    +-----------------+
+    |       0.        |
+    |    x#0 = y#0    |
+    |   memset(y#0)   |
+    |   y#1 -> y#0    |
+    | z#0 = rand(x#0) |
+    |   return z#0    |
+    +-----------------+
+    """
+    in_cfg, out_cfg = _graph_with_dangerous_relation_between()
+    _run_expression_propagation(in_cfg)
+    assert _graphs_equal(in_cfg, out_cfg)
+
+
+def _graph_with_dangerous_relation_between():
+    in_cfg = ControlFlowGraph()
+    x = vars("x", 2, aliased=False)
+    y = vars("y", 2, aliased=True)
+    z = vars("z", 1, aliased=False)
+    c = const(11)
+    in_node = BasicBlock(
+        0,
+        [
+            _assign(x[0], y[0]),
+            _call("memset", [], [y[0]]),
+            Relation(y[1], y[0]),
+            _call("rand", [z[0]], [x[0]]),
+            _ret(z[0]),
+        ],
+    )
+    in_cfg.add_node(in_node)
+    out_cfg = ControlFlowGraph()
+    out_node = BasicBlock(
+        0,
+        [
+            _assign(x[0], y[0]),
+            _call("memset", [], [y[0]]),
+            Relation(y[1], y[0]),
+            _call("rand", [z[0]], [x[0]]),
+            _ret(z[0]),
+        ],
+    )
+    out_cfg.add_node(out_node)
+    return in_cfg, out_cfg
+
 def _graphs_with_dangerous_reference_use() -> Tuple[ControlFlowGraph, ControlFlowGraph]:
     in_cfg = ControlFlowGraph()
     x = vars("x", 2, aliased=False)
