@@ -1,7 +1,13 @@
 """Pytest for renaming SSA-variables to non-SSA-variables."""
+import string
 
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
-from decompiler.pipeline.ssa.variable_renaming import MinimalVariableRenamer, SimpleVariableRenamer, VariableRenamer
+from decompiler.pipeline.ssa.variable_renaming import (
+    ConditionalVariableRenamer,
+    MinimalVariableRenamer,
+    SimpleVariableRenamer,
+    VariableRenamer,
+)
 from decompiler.structures.interferencegraph import InterferenceGraph
 
 from tests.pipeline.SSA.utils_out_of_ssa_tests import *
@@ -492,6 +498,23 @@ def test_minimal_renaming_basic_relation(graph_with_relations_easy, variable):
     }
 
 
+def test_conditional_renaming_basic_relation(graph_with_relations_easy, variable):
+    """Checks that conditional renaming can handle relations."""
+    task, interference_graph = graph_with_relations_easy
+    minimal_variable_renamer = MinimalVariableRenamer(task, interference_graph)
+
+    var_18 = [Variable("var_18", Integer(32, True), i, True, None) for i in range(4)]
+    var_10_1 = Variable("var_10", Pointer(Integer(32, True), 32), 1, False, None)
+    variable[0].is_aliased = True
+    variable[1]._type = Pointer(Integer(32, True), 32)
+
+    assert minimal_variable_renamer.renaming_map == {
+        var_10_1: variable[1],
+        var_18[2]: variable[0],
+        var_18[3]: variable[0],
+    }
+
+
 @pytest.fixture()
 def graph_with_relation() -> Tuple[DecompilerTask, InterferenceGraph]:
     """
@@ -771,4 +794,62 @@ def test_minimal_renaming_relation(graph_with_relation, variable):
         var_1c[2]: variable[0],
         var_1c[3]: variable[1],
         var_1c[4]: variable[1],
+    }
+
+
+def test_conditional_renaming_relation(graph_with_relation, variable):
+    """Test for relations with simple renaming"""
+    task, interference_graph = graph_with_relation
+    conditional_variable_renamer = ConditionalVariableRenamer(task, interference_graph)
+
+    var_28 = Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
+    var_1c = [Variable("var_1c", Integer(32, True), i, True, None) for i in range(5)]
+    edx_3 = Variable("edx_3", Integer(32, True), 4, False, None)
+    eax_7 = Variable("eax_7", Integer(32, True), 8, False, None)
+    variable[0].is_aliased = True
+    variable[1]._type = Pointer(Integer(32, True), 32)
+    variable[2].is_aliased = True
+
+    assert conditional_variable_renamer.renaming_map == {
+        var_28: variable[1],
+        edx_3: variable[3],
+        eax_7: variable[3],
+        var_1c[0]: variable[0],
+        var_1c[2]: variable[0],
+        var_1c[3]: variable[2],
+        var_1c[4]: variable[2],
+    }
+
+
+def test_conditional_renaming():
+    """Test that conditional renaming only combines related variables"""
+    orig_variables = [Variable(letter, Integer.int32_t()) for letter in string.ascii_lowercase]
+    new_variables = [Variable(f"var_{index}", Integer.int32_t()) for index in range(10)]
+
+    cfg = ControlFlowGraph()
+    cfg.add_node(
+        BasicBlock(
+            0,
+            [
+                Assignment(orig_variables[0], Constant(0, Integer.int32_t())),
+                Assignment(ListOperation([]), Call(FunctionSymbol("fun", 0), [orig_variables[0]])),
+                Assignment(orig_variables[1], Constant(1, Integer.int32_t())),
+                Assignment(ListOperation([]), Call(FunctionSymbol("fun", 0), [orig_variables[1]])),
+                Assignment(orig_variables[2], orig_variables[1]),
+                Assignment(ListOperation([]), Call(FunctionSymbol("fun", 0), [orig_variables[2]])),
+                Assignment(orig_variables[3], Constant(3, Integer.int32_t())),
+                Assignment(ListOperation([]), Call(FunctionSymbol("fun", 0), [orig_variables[3]])),
+            ],
+        )
+    )
+
+    task = decompiler_task(cfg, SSAOptions.conditional)
+    interference_graph = InterferenceGraph(cfg)
+    renamer = ConditionalVariableRenamer(task, interference_graph)
+
+    assert renamer.renaming_map == {
+        orig_variables[0]: new_variables[0],
+        orig_variables[1]: new_variables[2],
+        orig_variables[2]: new_variables[2],
+        orig_variables[3]: new_variables[1],
     }
