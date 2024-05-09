@@ -1,4 +1,5 @@
 """Pytest for renaming SSA-variables to non-SSA-variables."""
+
 import string
 
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
