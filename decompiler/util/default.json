@@ -239,6 +239,16 @@
                 "argument_name": "--variable-generation-notation"
             },
             {
+                "dest": "variable-name-generation.variable_name",
+                "default": "var",
+                "title": "Variable Base Name for hungarian notation",
+                "type": "string",
+                "description": "",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--variable-generation-variable-name"
+            },
+            {
                 "dest": "variable-name-generation.pointer_base",
                 "default": true,
                 "title": "Pointer base type prefix for hungarian notation",
