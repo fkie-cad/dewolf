@@ -66,10 +66,10 @@ def constant_fold(operation: OperationType, constants: list[Constant], result_ty
 
 
 def _constant_fold_arithmetic_binary(
-        constants: list[Constant],
-        fun: Callable[[int, int], int],
-        norm_sign: Optional[bool] = None,
-        allow_mismatched_sizes: bool = False,
+    constants: list[Constant],
+    fun: Callable[[int, int], int],
+    norm_sign: Optional[bool] = None,
+    allow_mismatched_sizes: bool = False,
 ) -> int:
     """
     Fold an arithmetic binary operation with constants as operands.
