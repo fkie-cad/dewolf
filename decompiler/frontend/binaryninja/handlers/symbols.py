@@ -26,8 +26,12 @@ class SymbolHandler(Handler):
             SymbolType.ImportedDataSymbol: Symbol,
             SymbolType.ExternalSymbol: ImportedFunctionSymbol,
             SymbolType.LibraryFunctionSymbol: Symbol,
-            SymbolType.SymbolicFunctionSymbol: FunctionSymbol,
         }
+        # SymbolicFunctionSymbol is not available for Binary Ninja < 4
+        try:
+            self.SYMBOL_MAP[SymbolType.SymbolicFunctionSymbol] = FunctionSymbol
+        except AttributeError:
+            pass
 
     def register(self):
         """Register the handler at the parent lifter."""
