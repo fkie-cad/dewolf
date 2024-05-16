@@ -283,13 +283,13 @@ class GlobalHandler(Handler):
             type = PseudoArrayType(self._lifter.lift(data[1]), len(data[0]))
             data = ConstantComposition([Constant(x, type.type) for x in data[0]], type)
         else:
-            data, type = get_raw_bytes(variable.address, self._view), Pointer(CustomType.void())
+            data, type = get_raw_bytes(variable.address, self._view), Pointer(CustomType.void(), self._view.address_size * BYTE_SIZE)
         return data, type
 
     def _get_unknown_pointer_value(self, variable: DataVariable, callers: list[int] = None):
         """Return symbol, datavariable, address, string or raw bytes for a value of a datavariable(!) (dv should be a pointer)."""
         if not addr_in_section(self._view, variable.value):
-            type = Pointer(CustomType.void())
+            type = Pointer(CustomType.void(), self._view.address_size * BYTE_SIZE)
             return Constant(variable.value, type), type
 
         if datavariable := self._view.get_data_var_at(variable.value):
@@ -324,7 +324,7 @@ class GlobalHandler(Handler):
                 type,
             )
         else:
-            data, type = get_raw_bytes(variable.value, self._view), Pointer(CustomType.void())
+            data, type = get_raw_bytes(variable.value, self._view), Pointer(CustomType.void(), self._view.address_size * BYTE_SIZE)
         return data, type
 
 
