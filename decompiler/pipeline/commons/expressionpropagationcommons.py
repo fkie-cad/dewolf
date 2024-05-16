@@ -360,10 +360,10 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         """Return all relations of the alias variable."""
         relations = set()
         # Collect all relations for alias_variable ignoring SSA
-        for bb in self._cfg:
-            for instr in bb:
-                if isinstance(instr, Relation) and instr.destination.name == alias_variable.name:
-                    relations |= {instr}
+        for basic_block in self._cfg:
+            for instruction in basic_block:
+                if isinstance(instruction, Relation) and instruction.destination.name == alias_variable.name:
+                    relations |= {instruction}
 
         return relations
 
