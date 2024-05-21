@@ -3,7 +3,12 @@
 from collections import defaultdict
 from typing import Iterable, Iterator, List
 
-from decompiler.backend.cexpressiongenerator import CExpressionGenerator, inline_global_variable
+from decompiler.backend.cexpressiongenerator import (
+    CExpressionGenerator,
+    get_data_of_complex_string_struct,
+    inline_global_variable,
+    is_complex_string_struct,
+)
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.pseudo import GlobalVariable, Integer, Variable
 from decompiler.structures.pseudo.complextypes import Struct
@@ -69,7 +74,10 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
                         br, bl = "{", "}"
                     yield f"{base}{variable.type.type} {variable.name}[{hex(variable.type.elements)}] = {br}{CExpressionGenerator().visit(variable.initial_value)}{bl};"
                 case Struct():
-                    string = f"struct {variable.name}" + "{\n"
+                    if is_complex_string_struct(variable.type):
+                        yield base + f"struct {variable.type.name} {variable.name} = {CExpressionGenerator().visit(get_data_of_complex_string_struct(variable))};"
+                        continue
+                    string = f"struct {variable.type.name} {variable.name}" + "{\n"
                     for m_type, m_value in zip(variable.type.members.values(), variable.initial_value.value.values()):
                         value = CExpressionGenerator().visit(m_value)
                         string += f"\t.{m_type.name} = {value};\n"
