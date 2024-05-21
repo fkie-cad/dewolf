@@ -3,6 +3,7 @@
 from typing import Callable, Optional, Tuple, Union
 
 from binaryninja import BinaryView, DataVariable, Endianness, MediumLevelILInstruction, SectionSemantics, Type
+from binaryninja.enums import NamedTypeReferenceClass
 from binaryninja.types import (
     ArrayType,
     BoolType,
@@ -12,16 +13,15 @@ from binaryninja.types import (
     IntegerType,
     NamedTypeReferenceType,
     PointerType,
+    StructureType,
     Type,
     VoidType,
 )
-
-from binaryninja.enums import NamedTypeReferenceClass
-
 from decompiler.frontend.binaryninja.handlers.symbols import GLOBAL_VARIABLE_PREFIX
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import ArrayType as PseudoArrayType
 from decompiler.structures.pseudo import (
+    ComplexTypeMember,
     Constant,
     ConstantComposition,
     CustomType,
@@ -31,11 +31,10 @@ from decompiler.structures.pseudo import (
     Integer,
     OperationType,
     Pointer,
+    Struct,
+    StructTesting,
     Symbol,
     UnaryOperation,
-    StructTesting,
-    Struct, 
-    ComplexTypeMember,
 )
 
 BYTE_SIZE = 8
@@ -94,8 +93,11 @@ class GlobalHandler(Handler):
             ArrayType: self._lift_array_type,
             PointerType: self._lift_pointer_type,
             NamedTypeReferenceType: self._lift_named_type_ref,
+            StructureType: self._lift_structure_type,
         }
-        self._lifted_globals: dict[int, GlobalVariable] = {}  # Cache for already lifted global variables, keys are addresses
+        self._lifted_globals: dict[tuple, GlobalVariable] = (
+            {}
+        )  # Cache for already lifted global variables, keys are addresses + type (required to distinguish struct from its first member)
         self._view: Optional[BinaryView] = None  # Will be set in first call to lift_global_variable
 
     def register(self):
@@ -114,7 +116,8 @@ class GlobalHandler(Handler):
                 ord("."): "_",
                 ord("`"): "",
                 ord('"'): "",
-            }).strip()
+            }
+        ).strip()
         if name in lifted_names:
             return name + "_" + f"{addr:x}"
         return name
@@ -131,10 +134,10 @@ class GlobalHandler(Handler):
             case _:
                 raise TypeError(f"Type violation: '{init_value}'")
 
-        self._lifted_globals[addr] = GlobalVariable(
+        self._lifted_globals[(addr, type)] = GlobalVariable(
             name=vname, vartype=type, initial_value=vinit_value, ssa_label=ssa_label, is_constant=addr_in_ro_section(self._view, addr)
         )
-        return self._lifted_globals[addr]
+        return self._lifted_globals[(addr, type)]
 
     def lift_global_variable(
         self,
@@ -150,11 +153,12 @@ class GlobalHandler(Handler):
             self._view = view
 
         # If addr was already lifted: Return lifted GlobalVariable with updated SSA
-        if variable.address in self._lifted_globals.keys():
+        variable_identifier = (variable.address, self._lifter.lift(variable.type))
+        if variable_identifier in self._lifted_globals.keys():
             return (
-                self._lifted_globals[variable.address].copy(ssa_label=parent.ssa_memory_version)
+                self._lifted_globals[variable_identifier].copy(ssa_label=parent.ssa_memory_version)
                 if parent
-                else self._lifted_globals[variable.address]
+                else self._lifted_globals[variable_identifier]
             )
 
         # BNinja error cases: nullptr/small numbers (0, -12...)
@@ -254,28 +258,43 @@ class GlobalHandler(Handler):
         match variable.type.named_type_class:
             case NamedTypeReferenceClass.StructNamedTypeClass:
                 struct_type = self._view.get_type_by_id(variable.type.type_id)
-                values = {} 
+                values = {}
                 types = {}
-                for member_type, member_value in zip(struct_type.members, variable.value.keys()):
+                s_type = self._lifter.lift(struct_type)
+                for member_type in struct_type.members:
                     dv = DataVariable(self._view, variable.address + member_type.offset, member_type.type, False)
                     lift = self._lifter.lift(dv, view=self._view)
-                    values[member_type.offset] = lift
-                    types[member_type.offset] = ComplexTypeMember(member_type.type.width * BYTE_SIZE, member_value, member_type.offset, self._lifter.lift(member_type.type))
-                
-                s_type = Struct(struct_type.width * BYTE_SIZE, variable.name, types)
-                return self._build_global_variable(variable.name, 
-                    s_type, 
-                    variable.address, 
-                    StructTesting(values, s_type), 
-                    parent.ssa_memory_version if parent else 0
+                    values[member_type.offset] = lift.initial_value
+                    types[member_type.offset] = s_type.get_member_by_offset(member_type.offset)
+                return self._build_global_variable(
+                    variable.name, s_type, variable.address, StructTesting(values, s_type), parent.ssa_memory_version if parent else 0
                 )
 
-            case NamedTypeReferenceClass.EnumNamedTypeClass:  # BNinja error, need to check with the issue to get the correct value
-                return Constant(
-                    "Unknown value", self._lifter.lift(variable.type)
+            case NamedTypeReferenceClass.EnumNamedTypeClass:
+                value = Constant(variable.value, self._lifter.lift(variable.type))
+                return self._build_global_variable(
+                    variable.name,
+                    value.type,
+                    variable.address,
+                    value,
+                    parent.ssa_memory_version if parent else 0,
                 )
             case _:
                 raise NotImplementedError(f"No handler for '{variable.type.named_type_class}' in lifter")
+
+    def _lift_structure_type(self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None, **_):
+        struct_type = variable.type
+        values = {}
+        types = {}
+        s_type = self._lifter.lift(struct_type)
+        for member_type in struct_type.members:
+            dv = DataVariable(self._view, variable.address + member_type.offset, member_type.type, False)
+            lift = self._lifter.lift(dv, view=self._view)
+            values[member_type.offset] = lift.initial_value
+            types[member_type.offset] = s_type.get_member_by_offset(member_type.offset)
+        return self._build_global_variable(
+            variable.name, s_type, variable.address, StructTesting(values, s_type), parent.ssa_memory_version if parent else 0
+        )
 
     def _get_unknown_value(self, variable: DataVariable):
         """Return string or bytes at dv.address(!) (dv.type must be void)"""
