@@ -538,6 +538,4 @@ class StructTesting(Constant):
 
     def copy(self) -> StructTesting:
         """Generate a copy of the UnknownExpression with the same message."""
-        return StructTesting(self.value.copy(), self._type.copy()) # Deep copy needed for all Expr inside.
-
-
+        return StructTesting(self.value.copy(), self._type.copy())  # Deep copy needed for all Expr inside.
