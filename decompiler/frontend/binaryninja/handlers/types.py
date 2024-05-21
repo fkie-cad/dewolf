@@ -77,6 +77,9 @@ class TypeHandler(Handler):
     def lift_enum(self, binja_enum: EnumerationType, name: str = None, **kwargs) -> Enum:
         """Lift enum type."""
         type_id = hash(binja_enum)
+        cached_type = self._lifter.complex_types.retrieve_by_id(type_id)
+        if cached_type is not None:
+            return cached_type
         enum_name = self._get_data_type_name(binja_enum, keyword="enum", provided_name=name)
         enum = Enum(binja_enum.width * self.BYTE_SIZE, enum_name, {})
         for member in binja_enum.members:
