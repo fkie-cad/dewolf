@@ -1,4 +1,3 @@
-from functools import reduce
 from typing import Iterator
 
 from decompiler.structures.graphs.cfg import ControlFlowGraph
@@ -47,18 +46,27 @@ def _expression_dependencies(expression: Expression) -> dict[Variable, float]:
         case Variable():
             return {expression: 1.0}
         case Operation():
-            operation_type_penalty = {
-                OperationType.call: 0,
-                OperationType.address: 0,
-                OperationType.dereference: 0,
-                OperationType.member_access: 0,
-            }.get(expression.operation, 0.5)
+            if expression.operation in {
+                OperationType.call,
+                OperationType.address,
+                OperationType.dereference,
+                OperationType.member_access,
+            }:
+                return {}
 
-            operands_dependencies = (_expression_dependencies(operand) for operand in expression.operands)
-            dependencies: dict[Variable, float] = reduce(dict.__or__, operands_dependencies, {})
-            for var in dependencies:
-                dependencies[var] /= len(dependencies)
-                dependencies[var] *= operation_type_penalty
+            operands_dependencies = list(filter(lambda d: d, (_expression_dependencies(operand) for operand in expression.operands)))
+            dependencies: dict[Variable, float] = {}
+            for deps in operands_dependencies:
+                for var in deps:
+                    score = deps[var]
+                    score /= len(operands_dependencies)
+                    score *= 0.5  # penalize operations, so that expressions like (a + (a + (a + (a + a)))) gets a lower score than just (a)
+
+                    if var not in dependencies:
+                        dependencies[var] = score
+                    else:
+                        dependencies[var] += score
+
             return dependencies
         case _:
             return {}
