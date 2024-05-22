@@ -10,6 +10,7 @@ from typing import DefaultDict, Dict, Iterable, Iterator, List, Optional, Set, T
 
 import networkx
 from decompiler.pipeline.ssa.dependency_graph import dependency_graph_from_cfg
+from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import BaseAssignment, Instruction, Relation
@@ -353,18 +354,27 @@ class ConditionalVariableRenamer(VariableRenamer):
         and to each color we assign the set of variables of this color.
         """
         super().__init__(task, interference_graph.copy())
+        self._generate_renaming_map(task.graph)
 
-        dependency_graph = dependency_graph_from_cfg(task.graph)
+    def _generate_renaming_map(self, cfg: ControlFlowGraph):
+        dependency_graph = dependency_graph_from_cfg(cfg)
+        dependency_graph = self.merge_contracted_variables(dependency_graph)
 
+        self.create_variable_classes(dependency_graph)
+        self.compute_new_name_for_each_variable()
+
+    def merge_contracted_variables(self, dependency_graph):
+        """Merge nodes which need to be contracted from self._variables_contracted_to"""
         mapping: dict[tuple[Variable], tuple[Variable, ...]] = {}
         for variable in self.interference_graph.nodes():
             contracted = tuple(self._variables_contracted_to[variable])
             for var in contracted:
                 mapping[(var,)] = contracted
 
-        # Merge nodes which need to be contracted from self._variables_contracted_to
-        dependency_graph = networkx.relabel_nodes(dependency_graph, mapping)
+        return networkx.relabel_nodes(dependency_graph, mapping)
 
+    def create_variable_classes(self, dependency_graph):
+        """Create the variable classes based on the given dependency graph."""
         while True:
             for u, v, _ in sorted(dependency_graph.edges(data="score"), key=lambda edge: edge[2], reverse=True):
                 if u == v:  # self loop
@@ -384,29 +394,14 @@ class ConditionalVariableRenamer(VariableRenamer):
             for var in vars:
                 self._variable_classes_handler.add_variable_to_class(var, i)
 
-        self.compute_new_name_for_each_variable()
-
-    def _decorate_graph(self, dependency_graph: MultiDiGraph, path: str):
-        decorated_graph = MultiDiGraph()
-        for node in dependency_graph.nodes:
-            decorated_graph.add_node(hash(node), label="\n".join(map(lambda n: f"{n}: {n.type}, aliased: {n.is_aliased}", node)))
-        for u, v, data in dependency_graph.edges.data():
-            decorated_graph.add_edge(u, v, label=f"{data['score']}")
-        for nodes in networkx.weakly_connected_components(dependency_graph):
-            for node_1, node_2 in combinations(nodes, 2):
-                if any(self.interference_graph.has_edge(pair[0], pair[1]) for pair in itertools.product(node_1, node_2)):
-                    decorated_graph.add_edge(hash(node_1), hash(node_2), color="red", dir="none")
-
-        DecoratedGraph(decorated_graph).export_plot(path, type="svg")
-
     def _variables_can_have_same_name(self, source: tuple[Variable, ...], sink: tuple[Variable, ...]) -> bool:
         """
-        Two variable can have the same name, if they have the same type, are both aliased or both non-aliased variables, and if they
+        Two sets of variables can have the same name, if they have the same type, are both aliased or both non-aliased variables, and if they
         do not interfere.
 
         :param source: The potential source vertex.
         :param sink: The potential sink vertex
-        :return: True, if the given variables can have the same name, and false otherwise.
+        :return: True, if the given sets of variables can have the same name, and false otherwise.
         """
         if (
             self.interference_graph.are_interfering(*(source + sink))
@@ -417,3 +412,16 @@ class ConditionalVariableRenamer(VariableRenamer):
         if source[0].is_aliased and sink[0].is_aliased and source[0].name != sink[0].name:
             return False
         return True
+
+    def _decorate_graph(self, dependency_graph: MultiDiGraph) -> DecoratedGraph:
+        decorated_graph = MultiDiGraph()
+        for node in dependency_graph.nodes:
+            decorated_graph.add_node(hash(node), label="\n".join(map(lambda n: f"{n}: {n.type}, aliased: {n.is_aliased}", node)))
+        for u, v, data in dependency_graph.edges.data():
+            decorated_graph.add_edge(u, v, label=f"{data['score']}")
+        for nodes in networkx.weakly_connected_components(dependency_graph):
+            for node_1, node_2 in combinations(nodes, 2):
+                if any(self.interference_graph.has_edge(pair[0], pair[1]) for pair in itertools.product(node_1, node_2)):
+                    decorated_graph.add_edge(hash(node_1), hash(node_2), color="red", dir="none")
+
+        return DecoratedGraph(decorated_graph)
