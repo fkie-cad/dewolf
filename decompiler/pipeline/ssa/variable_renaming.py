@@ -412,16 +412,3 @@ class ConditionalVariableRenamer(VariableRenamer):
         if source[0].is_aliased and sink[0].is_aliased and source[0].name != sink[0].name:
             return False
         return True
-
-    def _decorate_graph(self, dependency_graph: MultiDiGraph) -> DecoratedGraph:
-        decorated_graph = MultiDiGraph()
-        for node in dependency_graph.nodes:
-            decorated_graph.add_node(hash(node), label="\n".join(map(lambda n: f"{n}: {n.type}, aliased: {n.is_aliased}", node)))
-        for u, v, data in dependency_graph.edges.data():
-            decorated_graph.add_edge(u, v, label=f"{data['score']}")
-        for nodes in networkx.weakly_connected_components(dependency_graph):
-            for node_1, node_2 in combinations(nodes, 2):
-                if any(self.interference_graph.has_edge(pair[0], pair[1]) for pair in itertools.product(node_1, node_2)):
-                    decorated_graph.add_edge(hash(node_1), hash(node_2), color="red", dir="none")
-
-        return DecoratedGraph(decorated_graph)
