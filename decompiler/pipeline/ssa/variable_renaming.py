@@ -356,7 +356,7 @@ class ConditionalVariableRenamer(VariableRenamer):
 
         dependency_graph = dependency_graph_from_cfg(task.graph)
 
-        mapping = {}
+        mapping: dict[tuple[Variable], tuple[Variable, ...]] = {}
         for variable in self.interference_graph.nodes():
             contracted = tuple(self._variables_contracted_to[variable])
             for var in contracted:
