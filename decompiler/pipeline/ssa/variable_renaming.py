@@ -342,9 +342,9 @@ class MinimalVariableRenamer(VariableRenamer):
 
 class ConditionalVariableRenamer(VariableRenamer):
     """
-    A minimal renaming strategy, that renames the SSA-variables such that the total number of non SSA-variables is (almost) minimal.
-    Therefore, we construct color-classes by using lexicographical BFS on the interference graph. When the interference graph is chordal
-    this leads to a minimum number of possible variables.
+    A renaming strategy that renames the SSA-variables, such that only variables that have a relation with each other can get the same name.
+    Therefore, we construct a dependency-graph with weights, telling us how likely these two variables are the same variable, i.e.,
+    copy-assignments are more likely to be identically than complicated computations.
     """
 
     def __init__(self, task, interference_graph: InterferenceGraph):
