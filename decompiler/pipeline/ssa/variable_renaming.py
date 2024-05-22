@@ -365,9 +365,6 @@ class ConditionalVariableRenamer(VariableRenamer):
         # Merge nodes which need to be contracted from self._variables_contracted_to
         dependency_graph = networkx.relabel_nodes(dependency_graph, mapping)
 
-        # counter = 0
-        # self._decorate_graph(dependency_graph, f"dep{counter}.svg")
-
         dependency_graph.edge = dependency_graph.edges(data=True)
         while True:
             for u, v, _ in sorted(dependency_graph.edges(data=True), key=lambda edge: edge[2]["score"], reverse=True):
@@ -388,11 +385,6 @@ class ConditionalVariableRenamer(VariableRenamer):
                 break
 
             networkx.relabel_nodes(dependency_graph, {u: (*u, *v), v: (*u, *v)}, copy=False)
-            # counter += 1
-            # self._decorate_graph(dependency_graph, f"dep{counter}.svg")
-
-        # counter += 1
-        # self._decorate_graph(dependency_graph, f"dep{counter}.svg")
 
         self._variable_classes_handler = VariableClassesHandler(defaultdict(set))
         for i, vars in enumerate(dependency_graph.nodes):
