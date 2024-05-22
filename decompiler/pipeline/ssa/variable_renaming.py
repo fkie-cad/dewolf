@@ -370,13 +370,7 @@ class ConditionalVariableRenamer(VariableRenamer):
             for u, v, _ in sorted(dependency_graph.edges(data=True), key=lambda edge: edge[2]["score"], reverse=True):
                 if u == v:  # self loop
                     continue
-
-                variables = u + v
-                if interference_graph.are_interfering(*variables):
-                    continue
-                if u[0].type != v[0].type:
-                    continue
-                if u[0].is_aliased != v[0].is_aliased:
+                if not self._variables_can_have_same_name(u, v):
                     continue
 
                 break
@@ -406,7 +400,7 @@ class ConditionalVariableRenamer(VariableRenamer):
 
         DecoratedGraph(decorated_graph).export_plot(path, type="svg")
 
-    def _variables_can_have_same_name(self, source: Variable, sink: Variable) -> bool:
+    def _variables_can_have_same_name(self, source: tuple[Variable, ...], sink: tuple[Variable, ...]) -> bool:
         """
         Two variable can have the same name, if they have the same type, are both aliased or both non-aliased variables, and if they
         do not interfere.
@@ -415,8 +409,12 @@ class ConditionalVariableRenamer(VariableRenamer):
         :param sink: The potential sink vertex
         :return: True, if the given variables can have the same name, and false otherwise.
         """
-        if self.interference_graph.are_interfering(source, sink) or source.type != sink.type or source.is_aliased != sink.is_aliased:
+        if (
+            self.interference_graph.are_interfering(*(source + sink))
+            or source[0].type != sink[0].type
+            or source[0].is_aliased != sink[0].is_aliased
+        ):
             return False
-        if source.is_aliased and sink.is_aliased and source.name != sink.name:
+        if source[0].is_aliased and sink[0].is_aliased and source[0].name != sink[0].name:
             return False
         return True
