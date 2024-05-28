@@ -61,10 +61,19 @@ class ConstantHandler(Handler):
             res = self._lifter.lift(variable, view=view, parent=pointer)
 
         elif (symbol := view.get_symbol_at(pointer.constant)) and symbol.type != SymbolType.DataSymbol:
-            return self._lifter.lift(symbol)
+            result = self._lifter.lift(symbol)
+            can_return = None
+            try:
+                can_return = view.get_function_at(pointer.constant).can_return.value
+            except Exception:
+                pass
+            result.can_return = can_return
+            return result
 
         elif function := view.get_function_at(pointer.constant):
-            return self._lifter.lift(function.symbol)
+            result = self._lifter.lift(function.symbol)
+            result.can_return = function.can_return.value
+            return result
 
         else:
             res = self._lifter.lift(DataVariable(view, pointer.constant, Type.void(), False), view=view, parent=pointer)
