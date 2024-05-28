@@ -7,6 +7,7 @@ import logging
 import binaryninja
 from binaryninja import BinaryView
 from binaryninja.types import SymbolType
+from decompiler.frontend.binaryninja.rust_string_detection import RustStringDetection
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
@@ -66,6 +67,9 @@ class BinaryninjaFrontend(Frontend):
         try:
             function = self._get_binninja_function(task.function_identifier)
             lifter, parser = self._create_lifter_parser(task.options)
+
+            rust_string_detection = RustStringDetection(self._bv, task.options)
+            rust_string_detection.run()
 
             task.function_return_type = lifter.lift(function.return_type)
             task.function_parameters = [lifter.lift(param_type) for param_type in function.type.parameters]
