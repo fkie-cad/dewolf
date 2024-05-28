@@ -56,7 +56,7 @@ class RemoveGoPrologue(PipelineStage):
 
         return False
 
-    def _find_morestack_node(self, node: BasicBlock):
+    def _find_morestack_node_in_loop(self, node: BasicBlock):
         if len(node.instructions) != 0:
             return node
 
@@ -66,9 +66,19 @@ class RemoveGoPrologue(PipelineStage):
         if successor == self._cfg.root:
             return node
 
-        return self._find_morestack_node(successor)
+        return self._find_morestack_node_in_loop(successor)
 
     def _verify_graph_structure(self) -> Optional[Tuple[BasicBlock, BasicBlock]]:
+        """
+        returns morestack_node and start_node if graph structure matches go prologue, otherwise None
+        """
+        # Typically Binary ninja successfully detected the loop leading form the morestack_node back to the root.
+        # Since 3.5 this is no longer the case. Therefore, we also check if an alternative (loopless) graph structure matches.
+
+        return self._verify_graph_structure_loop() or  self._verify_graph_structure_loopless()
+
+
+    def _verify_graph_structure_loopless(self) -> Optional[Tuple[BasicBlock, BasicBlock]]:
         """
         returns morestack_node and start_node if graph structure matches go prologue, otherwise None
         """
@@ -76,6 +86,90 @@ class RemoveGoPrologue(PipelineStage):
         # The other successor (morestack_node) contains a call to runtime_morestack(_noctxt_abi0)
         # and has the root as its only successor.
         # morestack_node is the only predecessor of root.
+        # root is the only predecessor of morestack_node. EXCEPT IF A NON-RETURNING FUNCTION RIGHT BEFORE IT IS NOT DETECTED!
+
+        # Function should have a root node
+        root = self._cfg.root
+        if root is None:
+            return None
+
+        # root node should have no incoming node: not even from morestack node 
+        if self._cfg.in_degree(root) != 0:
+            return None
+
+        # root node needs exactly two successors
+        successors = self._cfg.get_successors(root)
+        if len(successors) != 2:
+            return None
+
+        # The following code determines start_node and morestack_node
+        morestack_node = None
+        start_node = None
+        for successor in successors:
+            # TODO: consider indirection
+            # if root in self._cfg.get_successors(successor):
+            if (result := self._find_morestack_node_loopless(successor, set())):
+                morestack_node = result
+            else:
+                start_node = successor
+
+        if (start_node is None) or (morestack_node is None):
+            return None
+
+        # Dont check (self._cfg.in_degree(morestack_node) != 1), because of non-returning functions...
+        # however, check that those edges are unconditional
+        conditional_in_edges = [edge for edge in self._cfg.get_in_edges(morestack_node) if isinstance(edge, ConditionalEdge)]
+        if len(conditional_in_edges) > 1:  # zero is ok, because the graph could be root -> goto_node -> morestack_node
+            return None
+
+        return start_node, morestack_node
+
+    def _find_morestack_node_loopless(self, node, visited):
+        if node in visited:
+            return None
+
+        visited.add(node)
+        successors = self._cfg.get_successors(node)
+
+        if len(successors) > 1:
+            return None
+
+        if len(successors) == 1:
+            successor = successors[0]
+            if len(node.instructions) == 0 and self._cfg.in_degree(node) == 1:
+                return self._find_morestack_node_loopless(successor, visited)
+            else:
+                return None
+
+        # zero successors, check for no return
+        if self._is_noreturn_node(node):
+            return node
+
+        return None
+
+    def _get_called_functions(self, instructions):
+        for instruction in instructions:
+            if isinstance(instruction, Assignment) and isinstance(instruction.value, Call):
+                yield instruction.value.function
+
+    def _is_noreturn_node(self, node: BasicBlock) -> bool:
+        """
+        Check if node contains call to __stack_chk_fail
+        """
+        called_functions = list(self._get_called_functions(node.instructions))
+        if len(called_functions) != 1:
+            return False
+        return called_functions[0].can_return == False
+
+
+    def _verify_graph_structure_loop(self) -> Optional[Tuple[BasicBlock, BasicBlock]]:
+        """
+        returns morestack_node and start_node if graph structure matches go prologue, otherwise None
+        """
+        # In a Go function prologue one of the successors (start_node) marks the start of the function.
+        # The other successor (morestack_node) contains a call to runtime_morestack(_noctxt_abi0)
+        # and has the root as its only successor.
+        # root has no predecessor
         # root is the only predecessor of morestack_node. EXCEPT IF A NON-RETURNING FUNCTION RIGHT BEFORE IT IS NOT DETECTED!
 
         # Function should have a root node
@@ -98,7 +192,7 @@ class RemoveGoPrologue(PipelineStage):
         for successor in successors:
             # if root in self._cfg.get_successors(successor):
             if self._is_root_single_indirect_successor(successor):
-                morestack_node = self._find_morestack_node(successor)
+                morestack_node = self._find_morestack_node_in_loop(successor)
             else:
                 start_node = successor
 
