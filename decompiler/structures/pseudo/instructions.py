@@ -57,6 +57,12 @@ class Comment(Instruction):
         self._comment_style = comment_style
         self._open_comment, self._close_comment = self.STYLES.get(comment_style, self.STYLES[self.DEFAULT_STYLE])
 
+    def __eq__(self, __value):
+        return isinstance(__value, Comment) and self._comment == __value._comment and self._comment_style == __value._comment_style
+
+    def __hash__(self):
+        return hash((self._comment, self._comment_style))
+
     def __repr__(self) -> str:
         """Return representation of comment."""
         return f"{self._open_comment} {self._comment} {self._close_comment}"
@@ -161,6 +167,12 @@ class Assignment(BaseAssignment[Expression, Expression]):
         """Init a new Assignment."""
         super(Assignment, self).__init__(destination, value, tags=tags)
 
+    def __eq__(self, __value):
+        return isinstance(__value, Assignment) and self._destination == __value._destination and self._value == __value._value
+
+    def __hash__(self):
+        return hash((self._destination, self._value))
+
     def __str__(self) -> str:
         """Return a string representation starting with the lhs."""
         if isinstance(self._destination, ListOperation) and not self._destination.operands:
@@ -210,6 +222,12 @@ class Relation(BaseAssignment[Variable, Variable]):
     def __init__(self, destination: Variable, value: Variable, tags: Optional[Tuple[Tag, ...]] = None):
         """Init a new Relation."""
         super(Relation, self).__init__(destination, value, tags=tags)
+
+    def __eq__(self, __value):
+        return isinstance(__value, Relation) and self._destination == __value._destination and self._value == __value._value
+
+    def __hash__(self):
+        return hash((self._destination, self._value))
 
     def __str__(self) -> str:
         """Return a string representation starting with the lhs."""
@@ -314,6 +332,12 @@ class Branch(GenericBranch[Condition]):
         """Init a new branch instruction."""
         super(Branch, self).__init__(condition, tags=tags)
 
+    def __eq__(self, __value):
+        return isinstance(__value, Branch) and self._condition == __value._condition
+
+    def __hash__(self):
+        return hash(self._condition)
+
     def __repr__(self) -> str:
         """Return a debug representation of a branch"""
         return f"if {repr(self.condition)}"
@@ -332,6 +356,12 @@ class IndirectBranch(GenericBranch[Expression]):
     def __init__(self, condition: Expression, tags: Optional[Tuple[Tag, ...]] = None):
         """Init a new branch instruction."""
         super(IndirectBranch, self).__init__(condition, tags=tags)
+
+    def __eq__(self, __value):
+        return isinstance(__value, IndirectBranch) and self._condition
+
+    def __hash__(self):
+        return hash(self._condition)
 
     def __repr__(self) -> str:
         """Return a debug representation of a branch"""
@@ -354,6 +384,12 @@ class Return(Instruction):
         """Create a new return instruction."""
         super().__init__(tags)
         self._values = ListOperation(values)
+
+    def __eq__(self, __value):
+        return isinstance(__value, Return) and self._values == __value._values
+
+    def __hash__(self):
+        return hash(self._values)
 
     def __repr__(self) -> str:
         return f"return {repr(self._values)}"
@@ -395,6 +431,12 @@ class Return(Instruction):
 
 
 class Break(Instruction):
+    def __eq__(self, __value):
+        return isinstance(__value, Break)
+
+    def __hash__(self):
+        return hash(Break)
+
     def __iter__(self) -> Iterator[Expression]:
         yield from ()
 
@@ -417,6 +459,12 @@ class Break(Instruction):
 
 
 class Continue(Instruction):
+    def __eq__(self, __value):
+        return isinstance(__value, Continue)
+
+    def __hash__(self):
+        return hash(Continue)
+
     def __iter__(self) -> Iterator[Expression]:
         yield from ()
 
@@ -456,6 +504,12 @@ class Phi(Assignment):
         """
         self._origin_block = origin_block if origin_block else {}
         super().__init__(destination, ListOperation(value), tags=tags)
+
+    def __eq__(self, __value):
+        return isinstance(__value, Phi) and self._destination == __value._destination and self._value == __value._value
+
+    def __hash__(self):
+        return hash((self._destination, self._value))
 
     def __repr__(self):
         return f"{repr(self.destination)} = ϕ({repr(self.value)})"
@@ -515,6 +569,12 @@ class MemPhi(Phi):
 
     def __init__(self, destination_var: Variable, source_vars: Sequence[Variable], tags: Optional[Tuple[Tag, ...]] = None):
         super().__init__(destination_var, source_vars, tags=tags)
+
+    def __eq__(self, __value):
+        return isinstance(__value, MemPhi) and super().__eq__(__value)
+
+    def __hash__(self):
+        return super().__hash__()
 
     def __str__(self) -> str:
         return f"{self.destination} = ϕ({self.value})"
