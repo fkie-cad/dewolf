@@ -72,6 +72,15 @@ def _assignments_in_cfg(cfg: ControlFlowGraph) -> Iterator[Assignment]:
 
 
 def _expression_dependencies(expression: Expression) -> dict[Variable, float]:
+    """
+    Calculate the dependencies of an expression in terms of its constituent variables.
+
+    This function analyzes the given `expression` and returns a dictionary mapping each
+    `Variable` to a float score representing its contribution or dependency weight within
+    the expression.
+    The scoring mechanism accounts for different types of operations and
+    penalizes nested operations to reflect their complexity.
+    """
     match expression:
         case Variable():
             return {expression: 1.0}
