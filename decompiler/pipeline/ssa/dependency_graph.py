@@ -13,6 +13,14 @@ from networkx import MultiDiGraph
 
 
 def _decorate_dependency_graph(dependency_graph: MultiDiGraph, interference_graph: InterferenceGraph) -> DecoratedGraph:
+    """
+    Creates a decorated graph from the given dependency and interference graphs.
+
+    This function constructs a new graph where:
+    - Variables are represented as nodes.
+    - Dependencies between variables are represented as directed edges.
+    - Interferences between variables are represented as red, undirected edges.
+    """
     decorated_graph = MultiDiGraph()
     for node in dependency_graph.nodes:
         decorated_graph.add_node(hash(node), label="\n".join(map(lambda n: f"{n}: {n.type}, aliased: {n.is_aliased}", node)))
