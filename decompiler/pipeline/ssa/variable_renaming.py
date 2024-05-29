@@ -357,6 +357,16 @@ class ConditionalVariableRenamer(VariableRenamer):
         self._generate_renaming_map(task.graph)
 
     def _generate_renaming_map(self, cfg: ControlFlowGraph):
+        """
+        Generate the renaming map for SSA variables.
+
+        This function constructs a dependency graph from the given CFG, merges contracted variables,
+        creates variable classes, and computes new names for each variable. The process ensures that
+        only variables with specific relationships can share the same name, as determined by the
+        dependency graph.
+
+        :param cfg: The control flow graph from which the dependency graph is derived.
+        """
         dependency_graph = dependency_graph_from_cfg(cfg)
         dependency_graph = self.merge_contracted_variables(dependency_graph)
 
