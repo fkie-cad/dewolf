@@ -55,6 +55,9 @@ def dependency_graph_from_cfg(cfg: ControlFlowGraph) -> MultiDiGraph:
 
 
 def _collect_variables(cfg: ControlFlowGraph) -> Iterator[Variable]:
+    """
+    Yields all variables contained in the given control flow graph.
+    """
     for instruction in cfg.instructions:
         for subexpression in instruction.subexpressions():
             if isinstance(subexpression, Variable):
