@@ -1,6 +1,5 @@
 """Module for renaming variables in Out of SSA."""
 
-import itertools
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -16,7 +15,6 @@ from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import BaseAssignment, Instruction, Relation
 from decompiler.structures.pseudo.typing import Type
 from decompiler.task import DecompilerTask
-from decompiler.util.decoration import DecoratedGraph
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 from decompiler.util.lexicographical_bfs import LexicographicalBFS
 from networkx import Graph, MultiDiGraph, connected_components
@@ -373,7 +371,7 @@ class ConditionalVariableRenamer(VariableRenamer):
         self.create_variable_classes(dependency_graph)
         self.compute_new_name_for_each_variable()
 
-    def merge_contracted_variables(self, dependency_graph):
+    def merge_contracted_variables(self, dependency_graph: MultiDiGraph):
         """Merge nodes which need to be contracted from self._variables_contracted_to"""
         mapping: dict[tuple[Variable], tuple[Variable, ...]] = {}
         for variable in self.interference_graph.nodes():
@@ -383,10 +381,15 @@ class ConditionalVariableRenamer(VariableRenamer):
 
         return networkx.relabel_nodes(dependency_graph, mapping)
 
-    def create_variable_classes(self, dependency_graph):
+    def create_variable_classes(self, dependency_graph: MultiDiGraph):
         """Create the variable classes based on the given dependency graph."""
         while True:
-            for u, v, _ in sorted(dependency_graph.edges(data="score"), key=lambda edge: edge[2], reverse=True):
+            merged_edges: dict[frozenset[tuple[Variable, ...]], float] = defaultdict(lambda: 0)
+            for u, v, score in dependency_graph.edges(data="score"):
+                if u != v:
+                    merged_edges[frozenset([u, v])] += score
+
+            for (u, v), _ in sorted(merged_edges.items(), key=lambda edge: edge[1], reverse=True):
                 if u == v:  # self loop
                     continue
                 if not self._variables_can_have_same_name(u, v):
