@@ -11,6 +11,9 @@ from decompiler.structures.pseudo.instructions import Assignment
 from decompiler.util.decoration import DecoratedGraph
 from networkx import MultiDiGraph
 
+# Multiplicative constant applied to dependency scores when encountering operations, to penalize too much nesting.
+operation_penalty = 0.9
+
 
 def decorate_dependency_graph(dependency_graph: MultiDiGraph, interference_graph: InterferenceGraph) -> DecoratedGraph:
     """
@@ -99,7 +102,7 @@ def _expression_dependencies(expression: Expression) -> dict[Variable, float]:
                 for var in deps:
                     score = deps[var]
                     score /= len(operands_dependencies)
-                    score *= 0.5  # penalize operations, so that expressions like (a + (a + (a + (a + a)))) gets a lower score than just (a)
+                    score *= operation_penalty  # penalize operations, so that expressions like (a + (a + (a + (a + a)))) gets a lower score than just (a)
 
                     if var not in dependencies:
                         dependencies[var] = score
