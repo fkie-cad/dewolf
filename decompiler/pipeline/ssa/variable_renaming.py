@@ -124,10 +124,11 @@ class VariableRenamer:
 
     def _replace_variable_in_instruction(self, variable: Variable, instruction: Instruction) -> None:
         """Replace the given variable in the given instruction"""
-        if variable.ssa_label is None:
+        if variable not in self.renaming_map:
             return
         replacement_variable = self.renaming_map[variable].copy()
-        replacement_variable.ssa_name = variable.copy()
+        if variable.ssa_label is not None:
+            replacement_variable.ssa_name = variable.copy()
         instruction.substitute(variable, replacement_variable)
         if isinstance(instruction, Relation):
             instruction.rename(variable, replacement_variable)
