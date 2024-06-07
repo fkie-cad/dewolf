@@ -12,7 +12,7 @@ from decompiler.util.decoration import DecoratedGraph
 from networkx import MultiDiGraph
 
 # Multiplicative constant applied to dependency scores when encountering operations, to penalize too much nesting.
-operation_penalty = 0.9
+OPERATION_PENALTY = 0.9
 
 
 def decorate_dependency_graph(dependency_graph: MultiDiGraph, interference_graph: InterferenceGraph) -> DecoratedGraph:
