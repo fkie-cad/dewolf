@@ -102,7 +102,7 @@ def _expression_dependencies(expression: Expression) -> dict[Variable, float]:
                 for var in deps:
                     score = deps[var]
                     score /= len(operands_dependencies)
-                    score *= operation_penalty  # penalize operations, so that expressions like (a + (a + (a + (a + a)))) gets a lower score than just (a)
+                    score *= OPERATION_PENALTY  # penalize operations, so that expressions like (a + (a + (a + (a + a)))) gets a lower score than just (a)
 
                     if var not in dependencies:
                         dependencies[var] = score
