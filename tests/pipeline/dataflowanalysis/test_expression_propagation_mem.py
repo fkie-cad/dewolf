@@ -1676,6 +1676,44 @@ def test_correct_propagation_relation():
     ]
 
 
+def test_address_into_dereference():
+    """
+    Test with cast in destination (x#0 stays the same type)
+    +---------------------+
+    |         0.          |
+    | (long) x#0 = &(x#1) |
+    |    *(x#0) = x#0     |
+    +---------------------+
+
+    +---------------------+
+    |         0.          |
+    | (long) x#0 = &(x#1) |
+    |    *(x#0) = x#0     |
+    +---------------------+
+    """
+    input_cfg, output_cfg = graphs_addr_into_deref()
+    _run_expression_propagation(input_cfg)
+    assert _graphs_equal(input_cfg, output_cfg)
+
+
+def graphs_addr_into_deref():
+    x = vars("x", 2)
+    c = const(10)
+    in_n0 = BasicBlock(
+        0,
+        [_assign(_cast(int64, x[0]), _addr(x[1])), _assign(_deref(x[0]), x[0])],
+    )
+    in_cfg = ControlFlowGraph()
+    in_cfg.add_node(in_n0)
+    out_n0 = BasicBlock(
+        0,
+        [_assign(_cast(int64, x[0]), _addr(x[1])), _assign(_deref(x[0]), x[0])],
+    )
+    out_cfg = ControlFlowGraph()
+    out_cfg.add_node(out_n0)
+    return in_cfg, out_cfg
+
+
 def graphs_with_no_propagation_of_contraction_address_assignment():
     x = vars("x", 3)
     ptr = vars("ptr", 1, type=Pointer(int32))
