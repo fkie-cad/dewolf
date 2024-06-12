@@ -177,4 +177,4 @@ def test_different_custom_names_1():
     )
     ast = AbstractSyntaxTree(node, {})
     _run_vng(ast, _generate_options())
-    assert node.instructions[0].destination.name == "dLoopBreak0"
+    assert node.instructions[0].destination.name == "dLoopbreak0"

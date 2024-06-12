@@ -214,16 +214,6 @@
                 "argument_name": "--for-loop-exclude-conditions"
             },
             {
-                "dest": "readability-based-refinement.rename_while_loop_variables",
-                "default": true,
-                "type": "boolean",
-                "title": "Rename while-loop variables",
-                "description": "Rename while-loop counter variables to counter, counter1, ...",
-                "is_hidden_from_gui": false,
-                "is_hidden_from_cli": false,
-                "argument_name": "--rename-while-loop-variables"
-            },
-            {
                 "dest": "variable-name-generation.notation",
                 "default": "system_hungarian",
                 "title": "Variable Naming Convention",

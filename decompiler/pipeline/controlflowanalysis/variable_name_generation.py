@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Counter, List
 
 from decompiler.pipeline.stage import PipelineStage
-from decompiler.structures.pseudo import CustomType, Float, GlobalVariable, Integer, Pointer, Type, Variable
+from decompiler.structures.pseudo import ArrayType, CustomType, Float, GlobalVariable, Integer, Pointer, Type, Variable
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.structures.visitors.substitute_visitor import SubstituteVisitor
 from decompiler.task import DecompilerTask
@@ -80,7 +80,7 @@ class HungarianScheme(RenamingScheme):
             var_type = vars[0].type
             name_identifier = self._get_name_identifier(variable_id.name)
 
-            counter_postfix = f"{self._counter_separator}{counter[(name_identifier, var_type)]}"
+            counter_postfix = f"{self._counter_separator}{counter[(name_identifier, var_type)]}"  # array[0x12] != array[0x13] kriegt aber selben Namen, da Typen unterschiedlich sind
             counter[(name_identifier, var_type)] += 1
 
             prefix = self._hungarian_prefix(var_type)
@@ -112,17 +112,18 @@ class HungarianScheme(RenamingScheme):
     def _hungarian_prefix(self, var_type: Type) -> str | None:
         """Return hungarian prefix to a given variable type."""
         match var_type:
-            case Pointer():
+            case Pointer() | ArrayType():
                 if self._pointer_base:
-                    return f"{self._hungarian_prefix(var_type.type)}p"
+                    pprefix = self._hungarian_prefix(var_type.type)
+                    return f"{pprefix}p" if pprefix is not None else "unkp"
                 else:
                     return "p"
             case CustomType():
                 if var_type.is_boolean:
                     return "b"
-                elif var_type.size == 0:
+                if var_type.size == 0:
                     return "v"
-            case _ if isinstance(var_type, Integer | Float):
+            case Integer() | Float():
                 sign = "u" if isinstance(var_type, Integer) and not var_type.is_signed else ""
                 prefix = self.type_prefix[type(var_type)].get(var_type.size, "unk")
                 return f"{sign}{prefix}"
