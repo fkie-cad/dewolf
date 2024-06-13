@@ -69,7 +69,7 @@ class HungarianScheme(RenamingScheme):
 
         self._variables = self._get_variables_to_rename()
 
-        counter = Counter[tuple[str, Type]]()
+        counter = Counter[tuple[str, str]]()
         self._variable_rename_map: dict[VariableIdentifier, str] = {}
 
         variable_id: VariableIdentifier
@@ -79,17 +79,12 @@ class HungarianScheme(RenamingScheme):
             # we just take the first assuming that they are all the same...
             var_type = vars[0].type
             name_identifier = self._get_name_identifier(variable_id.name)
-
-            counter_postfix = f"{self._counter_separator}{counter[(name_identifier, var_type)]}"  # array[0x12] != array[0x13] kriegt aber selben Namen, da Typen unterschiedlich sind
-            counter[(name_identifier, var_type)] += 1
-
             prefix = self._hungarian_prefix(var_type)
 
-            new_name: str
-            if prefix is not None:
-                new_name = f"{prefix}{self._type_separator}{name_identifier.capitalize()}{counter_postfix}"
-            else:
-                new_name = f"{name_identifier}{counter_postfix}"
+            counter_postfix = f"{self._counter_separator}{counter[(name_identifier, prefix)]}"
+            counter[(name_identifier, prefix)] += 1
+
+            new_name: str = f"{prefix}{self._type_separator}{name_identifier.capitalize()}{counter_postfix}"
 
             self._variable_rename_map[variable_id] = new_name
 
@@ -112,12 +107,13 @@ class HungarianScheme(RenamingScheme):
     def _hungarian_prefix(self, var_type: Type) -> str | None:
         """Return hungarian prefix to a given variable type."""
         match var_type:
-            case Pointer() | ArrayType():
+            case Pointer():
                 if self._pointer_base:
-                    pprefix = self._hungarian_prefix(var_type.type)
-                    return f"{pprefix}p" if pprefix is not None else "unkp"
+                    return f"{self._hungarian_prefix(var_type.type)}p"
                 else:
                     return "p"
+            case ArrayType():
+                return f"arr{self._hungarian_prefix(var_type.type)}"
             case CustomType():
                 if var_type.is_boolean:
                     return "b"
@@ -128,7 +124,7 @@ class HungarianScheme(RenamingScheme):
                 prefix = self.type_prefix[type(var_type)].get(var_type.size, "unk")
                 return f"{sign}{prefix}"
 
-        return None
+        return "unk"
 
     def _get_variables_to_rename(self) -> dict[VariableIdentifier, list[Variable]]:
         collector = VariableCollector()
