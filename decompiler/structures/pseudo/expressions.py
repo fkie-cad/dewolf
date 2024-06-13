@@ -35,7 +35,7 @@ from typing import TYPE_CHECKING, Generic, Iterator, List, Optional, Tuple, Type
 
 from ...util.insertion_ordered_set import InsertionOrderedSet
 from .complextypes import Enum
-from .typing import ArrayType, CustomType, Type, UnknownType
+from .typing import CustomType, Type, UnknownType
 
 T = TypeVar("T")
 DecompiledType = TypeVar("DecompiledType", bound=Type)
@@ -178,7 +178,12 @@ class Constant(Expression[DecompiledType]):
         super().__init__(tags)
 
     def __eq__(self, __value):
-        return isinstance(__value, Constant) and self.value == __value.value and self._type == __value._type and self._pointee == __value.pointee
+        return (
+            isinstance(__value, Constant)
+            and self.value == __value.value
+            and self._type == __value._type
+            and self._pointee == __value.pointee
+        )
 
     def __hash__(self):
         return hash((tuple(self.value) if isinstance(self.value, list) else self.value, self._type, self._pointee))
@@ -355,7 +360,13 @@ class Variable(Expression[DecompiledType]):
         super().__init__(tags)
 
     def __eq__(self, __value):
-        return isinstance(__value, Variable) and self._name == __value._name and self.ssa_label == __value.ssa_label and self._type == __value._type and self.is_aliased == __value.is_aliased
+        return (
+            isinstance(__value, Variable)
+            and self._name == __value._name
+            and self.ssa_label == __value.ssa_label
+            and self._type == __value._type
+            and self.is_aliased == __value.is_aliased
+        )
 
     def __hash__(self):
         return hash((self._name, self.ssa_label, self._type, self.is_aliased))
@@ -488,7 +499,9 @@ class RegisterPair(Variable):
         self._type = vartype
 
     def __eq__(self, __value):
-        return isinstance(__value, RegisterPair) and self._high == __value._high and self._low == __value._low and self._type == __value._type
+        return (
+            isinstance(__value, RegisterPair) and self._high == __value._high and self._low == __value._low and self._type == __value._type
+        )
 
     def __hash__(self):
         return hash((self._high, self._low, self._type))

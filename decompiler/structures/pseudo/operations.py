@@ -194,7 +194,12 @@ class Operation(Expression, ABC):
         super().__init__(tags)
 
     def __eq__(self, __value):
-        return isinstance(__value, Operation) and self._operation == __value._operation and self._operands == __value._operands and self.type == __value.type
+        return (
+            isinstance(__value, Operation)
+            and self._operation == __value._operation
+            and self._operands == __value._operands
+            and self.type == __value.type
+        )
 
     def __hash__(self):
         return hash((self._operation, tuple(self._operands), self.type))
@@ -344,7 +349,12 @@ class UnaryOperation(Operation):
         self.array_info = array_info
 
     def __eq__(self, __value):
-        return isinstance(__value, UnaryOperation) and self.contraction == __value.contraction and self.array_info == __value.array_info and super().__eq__(__value)
+        return (
+            isinstance(__value, UnaryOperation)
+            and self.contraction == __value.contraction
+            and self.array_info == __value.array_info
+            and super().__eq__(__value)
+        )
 
     def __hash__(self):
         return hash((self.contraction, self.array_info, super().__hash__()))
