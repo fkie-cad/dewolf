@@ -271,14 +271,19 @@ class GlobalHandler(Handler):
                 )
 
             case NamedTypeReferenceClass.EnumNamedTypeClass:
-                value = Constant(variable.value, self._lifter.lift(variable.type))
-                return self._build_global_variable(
-                    variable.name,
-                    value.type,
-                    variable.address,
-                    value,
-                    parent.ssa_memory_version if parent else 0,
-                )
+                try: 
+                    value = Constant(variable.value, self._lifter.lift(variable.type))
+                    return self._build_global_variable(
+                        variable.name,
+                        value.type,
+                        variable.address,
+                        value,
+                        parent.ssa_memory_version if parent else 0,
+                    )
+                except Exception:
+                    return Constant(
+                        "Unknown value", self._lifter.lift(variable.type)
+                    )  # BNinja error
             case _:
                 raise NotImplementedError(f"No handler for '{variable.type.named_type_class}' in lifter")
 
