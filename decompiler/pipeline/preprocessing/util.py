@@ -60,12 +60,13 @@ def _init_basicblocks_usages_variable(cfg: ControlFlowGraph) -> DefaultDict[Vari
                 basicblocks_usages_variable[variable].add(node)
     return basicblocks_usages_variable
 
+
 def _get_last_definition(node: BasicBlock, var: Variable, max_instr_num: int) -> Optional[Tuple[int, Expression]]:
-        for index in reversed(range(max_instr_num+1)):
-            instruction = node.instructions[index]
-            if isinstance(instruction, Assignment) and instruction.destination == var:
-                return index, instruction.value
-        return None
+    for index in reversed(range(max_instr_num + 1)):
+        instruction = node.instructions[index]
+        if isinstance(instruction, Assignment) and instruction.destination == var:
+            return index, instruction.value
+    return None
 
 
 def match_expression(node: BasicBlock, expression: Expression, pattern, instr_num=None):
@@ -86,9 +87,7 @@ def match_expression(node: BasicBlock, expression: Expression, pattern, instr_nu
                 definition_instruction_num, defined_value = last_def
                 # important: dont use inner_pattern here
                 return match_expression(node, defined_value, pattern, definition_instruction_num)
-        case UnaryOperation(
-            OperationType.dereference, BinaryOperation(OperationType.plus, inner_expression, Constant(value=deref_offset))
-        ):
+        case UnaryOperation(OperationType.dereference, BinaryOperation(OperationType.plus, inner_expression, Constant(value=deref_offset))):
             return match_expression(node, inner_expression, inner_pattern, instr_num)
         case UnaryOperation(
             OperationType.dereference, BinaryOperation(OperationType.minus, inner_expression, Constant(value=neg_deref_offset))

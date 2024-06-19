@@ -1,4 +1,5 @@
 """Module for removing go idioms"""
+
 import os
 import shelve
 from typing import Callable, Generator, Iterator, List, Optional, Set, Tuple
@@ -45,7 +46,7 @@ class RemoveNoreturnBoilerplate(PipelineStage):
             return  # do not remove the only node
         noreturn_nodes = list(self._get_noreturn_nodes())
         for node in noreturn_nodes:
-            # # this might be too weak 
+            # # this might be too weak
             # if not any(self._are_ingoing_edges_conditional(node)):
             # This might be too strong
             if not all(self._are_ingoing_edges_conditional(node)):
@@ -56,7 +57,7 @@ class RemoveNoreturnBoilerplate(PipelineStage):
         for instruction in instructions:
             if isinstance(instruction, Assignment) and isinstance(instruction.value, Call):
                 yield instruction.value.function
-        
+
     def _get_noreturn_nodes(self) -> Iterator[BasicBlock]:
         """
         Iterate leaf nodes of cfg, yield nodes containing canary check.
@@ -112,9 +113,8 @@ class RemoveNoreturnBoilerplate(PipelineStage):
         else:
             raise RuntimeError("did not expect to reach canary check this way")
 
-
     ######################## super aggressive removal code below####
-    # Idea remove everything that will always end in noreturn, 
+    # Idea remove everything that will always end in noreturn,
     # except if everything ends in noreturn
     # postdominance....
     # consider set of all no-return nodes N
@@ -168,7 +168,7 @@ class RemoveNoreturnBoilerplate(PipelineStage):
             ],
         )
 
-    ######################## super aggressive removal code (post dominator frontier edition) below####
+    ######################## super aggressive removal code (post dominator frontier edition) below ####
 
     def _aggressive_removal_postdominators(self):
         if len(self._cfg) == 1:
@@ -216,7 +216,7 @@ class RemoveNoreturnBoilerplate(PipelineStage):
         wrapped_reverse_cfg = RootedGraph(reversed_cfg_shallow_copy, virtual_end_node)
         for post_dominator in post_dominance_frontier[virtual_merged_noreturn_node]:
             for edge_from_post_dominator in list(self._cfg.get_out_edges(post_dominator)):
-            # for edge_from_post_dominator in self._cfg.get_out_edges(post_dominator):
+                # for edge_from_post_dominator in self._cfg.get_out_edges(post_dominator):
                 if wrapped_reverse_cfg.is_dominating(virtual_merged_noreturn_node, edge_from_post_dominator.sink):
                     condition_edges.add(edge_from_post_dominator)
         self._patch_condition_edges(list(condition_edges))
