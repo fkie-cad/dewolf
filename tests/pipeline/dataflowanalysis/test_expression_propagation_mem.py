@@ -1696,9 +1696,28 @@ def test_address_into_dereference():
     assert _graphs_equal(input_cfg, output_cfg)
 
 
+def test_address_into_dereference_with_multiple_defs():
+    """
+    Extended test of above where we have two definitions (as a ListOp).
+    +---------------------+
+    |         0.          |
+    | (long) x#1 = &(x#0) |
+    |  *(x#1),y#0 = x#1   |
+    +---------------------+
+
+    +---------------------+
+    |         0.          |
+    | (long) x#1 = &(x#0) |
+    |  *(x#1),y#0 = x#1   |
+    +---------------------+
+    """
+    input_cfg, output_cfg = graphs_addr_into_deref_multiple_defs()
+    _run_expression_propagation(input_cfg)
+    assert _graphs_equal(input_cfg, output_cfg)
+
+
 def graphs_addr_into_deref():
     x = vars("x", 2)
-    c = const(10)
     in_n0 = BasicBlock(
         0,
         [_assign(_cast(int64, x[0]), _addr(x[1])), _assign(_deref(x[0]), x[0])],
@@ -1708,6 +1727,24 @@ def graphs_addr_into_deref():
     out_n0 = BasicBlock(
         0,
         [_assign(_cast(int64, x[0]), _addr(x[1])), _assign(_deref(x[0]), x[0])],
+    )
+    out_cfg = ControlFlowGraph()
+    out_cfg.add_node(out_n0)
+    return in_cfg, out_cfg
+
+
+def graphs_addr_into_deref_multiple_defs():
+    x = vars("x", 2)
+    y = vars("y", 1)
+    in_n0 = BasicBlock(
+        0,
+        [_assign(_cast(int64, x[1]), _addr(x[0])), _assign(ListOperation([_deref(x[1]), y[0]]), x[1])],
+    )
+    in_cfg = ControlFlowGraph()
+    in_cfg.add_node(in_n0)
+    out_n0 = BasicBlock(
+        0,
+        [_assign(_cast(int64, x[1]), _addr(x[0])), _assign(ListOperation([_deref(x[1]), y[0]]), x[1])],
     )
     out_cfg = ControlFlowGraph()
     out_cfg.add_node(out_n0)
