@@ -10,6 +10,7 @@ from decompiler.pipeline.ssa.variable_renaming import (
     VariableRenamer,
 )
 from decompiler.structures.interferencegraph import InterferenceGraph
+from decompiler.structures.pseudo import Expression, Float, GlobalVariable
 
 from tests.pipeline.SSA.utils_out_of_ssa_tests import *
 
@@ -854,3 +855,43 @@ def test_conditional_renaming():
         orig_variables[2]: new_variables[2],
         orig_variables[3]: new_variables[1],
     }
+
+def test_conditional_parallel_edges():
+    """
+    Test that conditional renaming prioritizes paralles edges of single edges, whose sum of
+    weights is bigger than the weight of the single edge
+    """
+
+    def _v(name: str) -> Variable:
+        return Variable(name, Float.float())
+    def _c(value: float) -> Constant:
+        return Constant(value, Float.float())
+    def _op(exp: Expression) -> BinaryOperation:
+        return BinaryOperation(OperationType.plus_float, [exp, _c(0)])
+
+    cfg = ControlFlowGraph()
+    cfg.add_node(b1 := BasicBlock(1, [
+        Assignment(_v("b"), _op(BinaryOperation(OperationType.plus_float, [_v("a0"), GlobalVariable("g0", Float.float(), _c(0))]))),
+        Assignment(_v("c"), _v("b")),
+        Assignment(_v("a1"), BinaryOperation(OperationType.plus_float, [_op(_v("b")), _v("c")])),
+        Assignment(_v("a0"), _v("a1"))  # lifted phi function
+    ]))
+    cfg.add_node(b0 := BasicBlock(0, [
+        # Phi(_v("a0"), [_c(0), _v("a1")], origin_block={b1: _v("a1")}),
+        Branch(Condition(OperationType.less, [_v("a0"), _c(100)]))
+    ]))
+    cfg.add_node(b2 := BasicBlock(2, [Return([])]))
+
+    cfg.add_edge(TrueCase(b0, b1))
+    cfg.add_edge(FalseCase(b0, b2))
+    cfg.add_edge(UnconditionalEdge(b1, b0))
+
+    task = decompiler_task(cfg, SSAOptions.conditional)
+    interference_graph = InterferenceGraph(cfg)
+    renamer = ConditionalVariableRenamer(task, interference_graph)
+
+    assert frozenset(frozenset(c) for c in renamer._variable_classes_handler.variable_class.values()) == frozenset({
+        frozenset({GlobalVariable("g0", Float.float(), _c(0))}),
+        frozenset({_v("c")}),
+        frozenset({_v("a0"), _v("a1"), _v("b")})
+    })
