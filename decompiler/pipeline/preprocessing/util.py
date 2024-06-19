@@ -1,7 +1,7 @@
 """Helper functions for modules in the preprocessing pipeline."""
 
 from collections import defaultdict
-from typing import Callable, DefaultDict, Dict, Optional, Set, Tuple
+from typing import Callable, DefaultDict, Dict, Optional, Set, Tuple, List
 
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.maps import DefMap, UseMap
@@ -24,6 +24,21 @@ def _init_maps(cfg: ControlFlowGraph) -> Tuple[DefMap, UseMap]:
         def_map.add(instruction)
         use_map.add(instruction)
     return def_map, use_map
+
+
+def _unused_addresses(cfg: ControlFlowGraph, amount: int = 1) -> List[int]:
+    used_addresses = {c.address for c in cfg.nodes}
+    address = 0
+
+    addresses = list()
+
+    for _ in range(amount):
+        while address in used_addresses:
+            address += 1
+        used_addresses.add(address)
+        addresses.append(address)
+
+    return addresses
 
 
 def _init_basicblocks_of_definition(cfg: ControlFlowGraph) -> Dict[Variable, BasicBlock]:

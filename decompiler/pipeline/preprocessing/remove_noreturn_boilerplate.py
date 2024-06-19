@@ -16,6 +16,7 @@ from decompiler.structures.pseudo.expressions import Constant, Expression, Varia
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Comment, Phi
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import Integer
+from decompiler.pipeline.preprocessing.util import _unused_addresses
 from decompiler.task import DecompilerTask
 
 
@@ -175,7 +176,7 @@ class RemoveNoreturnBoilerplate(PipelineStage):
             return  # do not remove the only node
         noreturn_nodes = list(self._get_noreturn_nodes())
         leaf_nodes = [x for x in self._cfg.nodes if self._cfg.out_degree(x) == 0]
-        virtual_end_node = BasicBlock(address=-1)
+        virtual_end_node = BasicBlock(address=_unused_addresses(self._cfg)[0])
         # TODO: MultiDiGraph or DiGraph?
         reversed_cfg_view: MultiDiGraph = self._cfg._graph.reverse(copy=False)
         reversed_cfg_shallow_copy = MultiDiGraph(reversed_cfg_view)
@@ -196,11 +197,11 @@ class RemoveNoreturnBoilerplate(PipelineStage):
         if len(self._cfg) == 1:
             return  # do not remove the only node
         noreturn_nodes = list(self._get_noreturn_nodes())
-        virtual_end_node = BasicBlock(address=-1)
         leaf_nodes = [x for x in self._cfg.nodes if self._cfg.out_degree(x) == 0]
         returning_leaf_nodes = [node for node in leaf_nodes if node not in noreturn_nodes]
-        virtual_end_node = BasicBlock(address=-1)
-        virtual_merged_noreturn_node = BasicBlock(address=-2)
+        unused_addresses = _unused_addresses(cfg=self._cfg, amount=2)
+        virtual_end_node = BasicBlock(address=unused_addresses[0])
+        virtual_merged_noreturn_node = BasicBlock(address=unused_addresses[1])
         # TODO: MultiDiGraph or DiGraph?
         reversed_cfg_view: MultiDiGraph = self._cfg._graph.reverse(copy=False)
         reversed_cfg_shallow_copy = MultiDiGraph(reversed_cfg_view)
