@@ -126,7 +126,7 @@ def test_custom_type():
     true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
     ast = AbstractSyntaxTree(CodeNode([assignment := Assignment(Variable("var_0", CustomType("size_t", 64)), Constant(0))], true_value), {})
     _run_vng(ast, _generate_options())
-    assert assignment.destination.name == "var0"  # if there is no type, the first char should be lower
+    assert assignment.destination.name == "unkVar0"
 
 
 def test_bninja_invalid_type():
