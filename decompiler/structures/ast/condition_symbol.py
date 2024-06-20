@@ -212,6 +212,34 @@ class ConditionHandler:
         self._condition_map[symbol] = condition_symbol
         return symbol
 
+    def get_true_value(self) -> LogicCondition:
+        """Return a true value."""
+        return LogicCondition.initialize_true(self._logic_context)
+
+    def get_false_value(self) -> LogicCondition:
+        """Return a false value."""
+        return LogicCondition.initialize_false(self._logic_context)
+
+    def get_literal_and_constant_of(self, condition: LogicCondition) -> Iterable[LogicCondition, Constant]:
+        """Get the constant for each literal of the given condition."""
+        for literal in condition.get_literals():
+            yield literal, self.get_potential_switch_constant_of(literal)
+
+    def get_constants_of(self, condition: LogicCondition) -> Iterable[Constant]:
+        """Get the constant for each literal of the given condition."""
+        for literal in condition.get_literals():
+            yield self.get_potential_switch_constant_of(literal)
+
+    def get_potential_switch_constant_of(self, condition: LogicCondition) -> Optional[Constant]:
+        """Check whether the given condition is a potential switch case, and if return the corresponding constant."""
+        if (case_node_property := self._get_case_node_property_of(condition)) is not None:
+            return case_node_property.constant
+
+    def get_potential_switch_expression_of(self, condition: LogicCondition) -> Optional[ExpressionUsages]:
+        """Check whether the given condition is a potential switch case, and if return the corresponding expression."""
+        if (case_node_property := self._get_case_node_property_of(condition)) is not None:
+            return case_node_property.expression
+
     def _condition_already_exists(self, z3_condition: PseudoLogicCondition) -> Optional[ConditionSymbol]:
         """Check whether the given condition already exists and returns the corresponding Condition Symbol."""
         for value in self._condition_map.values():
@@ -224,14 +252,6 @@ class ConditionHandler:
         """Get the next unused symbol name."""
         self._symbol_counter += 1
         return LogicCondition.initialize_symbol(f"x{self._symbol_counter}", self._logic_context)
-
-    def get_true_value(self) -> LogicCondition:
-        """Return a true value."""
-        return LogicCondition.initialize_true(self._logic_context)
-
-    def get_false_value(self) -> LogicCondition:
-        """Return a false value."""
-        return LogicCondition.initialize_false(self._logic_context)
 
     def _set_switch_case_property_for_condition(self, condition_symbol: ConditionSymbol) -> None:
         """Compute the switch-case property."""
@@ -275,6 +295,7 @@ class ConditionHandler:
                 self._update_case_property_for(
                     possible_zero_case_condition_symbol, possible_zero_case, ExpressionUsages.from_expression(zero_case.expression)
                 )
+                del self._switch_handler.possible_zero_cases[possible_zero_case_condition_symbol]
 
     def _compute_zero_case_condition_for(self, expression_usage: ExpressionUsages) -> Optional[ZeroCaseCondition]:
         """Construct the zero-case condition and add it to the dictionary."""
@@ -339,37 +360,6 @@ class ConditionHandler:
         except ValueError:
             return None
 
-    @staticmethod
-    def _get_ssa_expression(expression_usage: ExpressionUsages) -> Expression:
-        """Construct SSA-expression of the given expression."""
-        if isinstance(expression_usage.expression, Variable):
-            return expression_usage.expression.ssa_name if expression_usage.expression.ssa_name else expression_usage.expression
-        ssa_expression = expression_usage.expression.copy()
-        for variable in [var for var in ssa_expression.requirements if var.ssa_name]:
-            ssa_expression.substitute(variable, variable.ssa_name)
-        return ssa_expression
-
-    # Old Switch-Node Handler functions
-    def get_literal_and_constant_for(self, condition: LogicCondition) -> Iterable[LogicCondition, Constant]:
-        """Get the constant for each literal of the given condition."""
-        for literal in condition.get_literals():
-            yield literal, self.get_potential_switch_constant(literal)
-
-    def get_constants_for(self, condition: LogicCondition) -> Iterable[Constant]:
-        """Get the constant for each literal of the given condition."""
-        for literal in condition.get_literals():
-            yield self.get_potential_switch_constant(literal)
-
-    def get_potential_switch_constant(self, condition: LogicCondition) -> Optional[Constant]:
-        """Check whether the given condition is a potential switch case, and if return the corresponding constant."""
-        if (case_node_property := self._get_case_node_property_of(condition)) is not None:
-            return case_node_property.constant
-
-    def get_potential_switch_expression(self, condition: LogicCondition) -> Optional[ExpressionUsages]:
-        """Check whether the given condition is a potential switch case, and if return the corresponding expression."""
-        if (case_node_property := self._get_case_node_property_of(condition)) is not None:
-            return case_node_property.expression
-
     def _get_case_node_property_of(self, condition: LogicCondition) -> Optional[CaseNodeProperties]:
         """Return the case-property of a given literal."""
         negation = False
@@ -381,3 +371,13 @@ class ConditionHandler:
             if case_node_property is not None and case_node_property.negation == negation:
                 return case_node_property
         return None
+
+    @staticmethod
+    def _get_ssa_expression(expression_usage: ExpressionUsages) -> Expression:
+        """Construct SSA-expression of the given expression."""
+        if isinstance(expression_usage.expression, Variable):
+            return expression_usage.expression.ssa_name if expression_usage.expression.ssa_name else expression_usage.expression
+        ssa_expression = expression_usage.expression.copy()
+        for variable in [var for var in ssa_expression.requirements if var.ssa_name]:
+            ssa_expression.substitute(variable, variable.ssa_name)
+        return ssa_expression
