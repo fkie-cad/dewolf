@@ -12,8 +12,8 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
 )
 from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, ConditionNode, FalseNode, SeqNode, SwitchNode, TrueNode
+from decompiler.structures.ast.condition_symbol import ExpressionUsages
 from decompiler.structures.ast.reachability_graph import SiblingReachabilityGraph
-from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition, PseudoLogicCondition
 from decompiler.structures.pseudo import Condition, Constant, OperationType
