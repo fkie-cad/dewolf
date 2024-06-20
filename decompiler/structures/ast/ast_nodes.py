@@ -261,7 +261,7 @@ class VirtualRootNode(AbstractSyntaxTreeNode):
 
     def copy(self) -> VirtualRootNode:
         """Return a copy of the ast node."""
-        return VirtualRootNode(self.reaching_condition)
+        return VirtualRootNode(self.reaching_condition.copy())
 
     def accept(self, visitor: ASTVisitorInterface[T]) -> T:
         return visitor.visit_root_node(self)
@@ -288,7 +288,7 @@ class SeqNode(AbstractSyntaxTreeNode):
 
     def copy(self) -> SeqNode:
         """Return a copy of the ast node."""
-        return SeqNode(self.reaching_condition)
+        return SeqNode(self.reaching_condition.copy())
 
     @property
     def children(self) -> Tuple[AbstractSyntaxTreeNode, ...]:
@@ -375,7 +375,7 @@ class CodeNode(AbstractSyntaxTreeNode):
 
     def copy(self) -> CodeNode:
         """Return a copy of the ast node."""
-        return CodeNode(self.instructions.copy(), self.reaching_condition)
+        return CodeNode([i.copy() for i in self.instructions], self.reaching_condition.copy())
 
     @property
     def children(self) -> Tuple[AbstractSyntaxTreeNode, ...]:
@@ -508,7 +508,7 @@ class ConditionNode(AbstractSyntaxTreeNode):
 
     def copy(self) -> ConditionNode:
         """Return a copy of the ast node."""
-        return ConditionNode(self.condition, self.reaching_condition)
+        return ConditionNode(self.condition.copy(), self.reaching_condition.copy())
 
     @property
     def children(self) -> Tuple[Union[TrueNode, FalseNode], ...]:
@@ -655,7 +655,7 @@ class TrueNode(ConditionalNode):
 
     def copy(self) -> TrueNode:
         """Return a copy of the ast node."""
-        return TrueNode(self.reaching_condition)
+        return TrueNode(self.reaching_condition.copy())
 
     @property
     def branch_condition(self) -> LogicCondition:
@@ -680,7 +680,7 @@ class FalseNode(ConditionalNode):
 
     def copy(self) -> FalseNode:
         """Return a copy of the ast node."""
-        return FalseNode(self.reaching_condition)
+        return FalseNode(self.reaching_condition.copy())
 
     @property
     def branch_condition(self) -> LogicCondition:
@@ -810,7 +810,7 @@ class WhileLoopNode(LoopNode):
 
     def copy(self) -> WhileLoopNode:
         """Return a copy of the ast node."""
-        return WhileLoopNode(self.condition, self.reaching_condition)
+        return WhileLoopNode(self.condition.copy(), self.reaching_condition.copy())
 
     @property
     def loop_type(self) -> LoopType:
@@ -837,7 +837,7 @@ class DoWhileLoopNode(LoopNode):
 
     def copy(self) -> DoWhileLoopNode:
         """Return a copy of the ast node."""
-        return DoWhileLoopNode(self.condition, self.reaching_condition)
+        return DoWhileLoopNode(self.condition.copy(), self.reaching_condition.copy())
 
     @property
     def loop_type(self) -> LoopType:
@@ -882,7 +882,7 @@ class ForLoopNode(LoopNode):
 
     def copy(self) -> ForLoopNode:
         """Return a copy of the ast node."""
-        return ForLoopNode(self.declaration, self.condition, self.modification, self.reaching_condition)
+        return ForLoopNode(self.declaration.copy(), self.condition.copy(), self.modification.copy(), self.reaching_condition.copy())
 
     @property
     def loop_type(self) -> LoopType:
@@ -950,7 +950,7 @@ class SwitchNode(AbstractSyntaxTreeNode):
 
     def copy(self) -> SwitchNode:
         """Return a copy of the ast node."""
-        return SwitchNode(self.expression, self.reaching_condition)
+        return SwitchNode(self.expression.copy(), self.reaching_condition.copy())
 
     @property
     def children(self) -> Tuple[CaseNode]:
@@ -1084,7 +1084,7 @@ class CaseNode(ConditionalNode):
 
     def copy(self) -> CaseNode:
         """Return a copy of the ast node."""
-        return CaseNode(self.expression, self.constant, self.reaching_condition, self.break_case)
+        return CaseNode(self.expression.copy(), self.constant.copy(), self.reaching_condition.copy(), self.break_case)
 
     @property
     def does_end_with_break(self) -> bool:
