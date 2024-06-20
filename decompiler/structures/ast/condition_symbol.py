@@ -290,12 +290,15 @@ class ConditionHandler:
 
     def _find_missing_zero_cases_for(self, zero_case: ZeroCaseCondition):
         """We check for each potential zero-case whether it matches the given zero-case."""
+        found_zero_cases = set()
         for possible_zero_case_condition_symbol, possible_zero_case in self._switch_handler.possible_zero_cases.items():
             if zero_case.are_equivalent(possible_zero_case):
                 self._update_case_property_for(
                     possible_zero_case_condition_symbol, possible_zero_case, ExpressionUsages.from_expression(zero_case.expression)
                 )
-                del self._switch_handler.possible_zero_cases[possible_zero_case_condition_symbol]
+                found_zero_cases.add(possible_zero_case_condition_symbol)
+        for zc in found_zero_cases:
+            del self._switch_handler.possible_zero_cases[zc]
 
     def _compute_zero_case_condition_for(self, expression_usage: ExpressionUsages) -> Optional[ZeroCaseCondition]:
         """Construct the zero-case condition and add it to the dictionary."""
