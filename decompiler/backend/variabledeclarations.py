@@ -3,9 +3,16 @@
 from collections import defaultdict
 from typing import Iterable, Iterator, List
 
-from decompiler.backend.cexpressiongenerator import CExpressionGenerator, inline_global_variable
+from decompiler.backend.cexpressiongenerator import (
+    CExpressionGenerator,
+    get_data_of_complex_string_struct,
+    inline_global_variable,
+    is_complex_string_struct,
+)
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.pseudo import GlobalVariable, Integer, Variable
+from decompiler.structures.pseudo.complextypes import Struct
+from decompiler.structures.pseudo.expressions import StructTesting
 from decompiler.structures.pseudo.typing import ArrayType, CustomType, Pointer
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask
@@ -66,6 +73,16 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
                     if not variable.type.type in [Integer.char(), CustomType.wchar16(), CustomType.wchar32()]:
                         br, bl = "{", "}"
                     yield f"{base}{variable.type.type} {variable.name}[{hex(variable.type.elements)}] = {br}{CExpressionGenerator().visit(variable.initial_value)}{bl};"
+                case Struct():
+                    if is_complex_string_struct(variable.type):
+                        yield base + f"struct {variable.type.name} {variable.name} = {CExpressionGenerator().visit(get_data_of_complex_string_struct(variable))};"
+                        continue
+                    string = f"struct {variable.type.name} {variable.name}" + "{\n"
+                    for m_type, m_value in zip(variable.type.members.values(), variable.initial_value.value.values()):
+                        value = CExpressionGenerator().visit(m_value)
+                        string += f"\t.{m_type.name} = {value};\n"
+                    string += "}"
+                    yield base + string
                 case _:
                     yield f"{base}{variable.type} {variable.name} = {CExpressionGenerator().visit(variable.initial_value)};"
 
@@ -88,3 +105,6 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
             self._global_vars.add(expr.copy(ssa_label=0, ssa_name=None))
         if not expr.is_constant or expr.type == Pointer(CustomType.void()):
             self._global_vars.add(expr.copy(ssa_label=0, ssa_name=None))
+        if isinstance(expr.initial_value, StructTesting):
+            for member_value in expr.initial_value.value.values():
+                self.visit(member_value)

@@ -15,11 +15,48 @@ from decompiler.structures.pseudo import (
 )
 from decompiler.structures.pseudo import instructions as instructions
 from decompiler.structures.pseudo import operations as operations
+from decompiler.structures.pseudo.complextypes import Struct
 from decompiler.structures.pseudo.operations import MemberAccess
 from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInterface
 from decompiler.util.integer_util import normalize_int
 
 MAX_GLOBAL_INIT_LENGTH = 128
+
+
+def get_complex_string_struct_address_offset(vartype) -> str | None:
+    if not isinstance(vartype, Struct):
+        return None
+    if len(vartype.members) != 2:
+        return None
+    address_offset = None
+    length_offset = None
+    for offset, member in vartype.members.items():
+        match member.type:
+            case Pointer(type=Integer(size=8)):
+                address_offset = offset
+            case Integer():
+                length_offset = offset
+            case _:
+                return None
+    if address_offset is None or length_offset is None:
+        return None
+    return address_offset
+
+
+INLINE_COMPLEX_STRINGS = False
+DETECT_COMPLEX_STRINGS = True
+
+
+def is_complex_string_struct(vartype) -> bool:
+    if not DETECT_COMPLEX_STRINGS:
+        return False
+    return get_complex_string_struct_address_offset(vartype) is not None
+
+
+def get_data_of_complex_string_struct(variable) -> str:
+    address_offset = get_complex_string_struct_address_offset(variable.type)
+    address = variable.initial_value.value[address_offset]
+    return address
 
 
 def inline_global_variable(var) -> bool:
@@ -28,6 +65,9 @@ def inline_global_variable(var) -> bool:
     match var.type:
         case ArrayType():
             if var.type.type in [Integer.char(), CustomType.wchar16(), CustomType.wchar32()]:
+                return True
+        case Struct():
+            if INLINE_COMPLEX_STRINGS and is_complex_string_struct(var.type):
                 return True
         case _:
             return False
@@ -212,6 +252,8 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
     def visit_global_variable(self, expr: expressions.GlobalVariable):
         """Inline a global variable if its initial value is constant and not of void type"""
         if inline_global_variable(expr):
+            if is_complex_string_struct(expr.type):
+                return self.visit(get_data_of_complex_string_struct(expr))
             return self.visit(expr.initial_value)
         return expr.name
 
