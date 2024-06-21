@@ -12,14 +12,14 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
     SwitchExtractor,
 )
 from decompiler.pipeline.controlflowanalysis.restructuring_options import LoopBreakOptions, RestructuringOptions
-from decompiler.structures.ast.ast_nodes import ConditionNode, SeqNode, SwitchNode, CodeNode
+from decompiler.structures.ast.ast_nodes import CodeNode, ConditionNode, SeqNode, SwitchNode
 from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.structures.ast.reachability_graph import SiblingReachabilityGraph
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
-from decompiler.structures.pseudo.expressions import Constant, Variable, ImportedFunctionSymbol
+from decompiler.structures.pseudo.expressions import Constant, ImportedFunctionSymbol, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Return
-from decompiler.structures.pseudo.operations import BinaryOperation, Condition, OperationType, ListOperation, Call
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType
 from decompiler.structures.pseudo.typing import CustomType, Integer
 from decompiler.task import DecompilerTask
 
