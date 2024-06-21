@@ -17,12 +17,22 @@ def _is_equivalent(cond1: BoolRef, cond2: BoolRef):
     return z3_implementation.does_imply(cond1, cond2) and z3_implementation.does_imply(cond2, cond1)
 
 
+def _get_ssa_expression(expression_usage: ExpressionUsages) -> Expression:
+    """Construct SSA-expression of the given expression."""
+    if isinstance(expression_usage.expression, Variable):
+        return expression_usage.expression.ssa_name if expression_usage.expression.ssa_name else expression_usage.expression
+    ssa_expression = expression_usage.expression.copy()
+    for variable in [var for var in ssa_expression.requirements if var.ssa_name]:
+        ssa_expression.substitute(variable, variable.ssa_name)
+    return ssa_expression
+
+
 @dataclass(frozen=True)
 class ExpressionUsages:
     """Dataclass maintaining for a condition the used SSA-variables."""
 
     expression: Expression
-    ssa_usages: Tuple[Optional[Variable]]
+    ssa_usages: Tuple[Optional[Variable], ...]
 
     @classmethod
     def from_expression(cls, expression: Expression) -> ExpressionUsages:
@@ -43,7 +53,7 @@ class ZeroCaseCondition:
 
 @dataclass(frozen=True)
 class PotentialZeroCaseCondition:
-    """Possible switch expression together with its zero-case condition."""
+    """Possible zero-case condition with its z3-condition and ssa-usages."""
 
     expression: Condition
     ssa_usages: Set[Optional[Variable]]
@@ -60,6 +70,7 @@ class CaseNodeProperties:
 
     -> symbol: symbol that belongs to the expression and constant
     -> constant: the compared constant
+    -> negation: whether the symbol or its negation belongs to a switch-case
     -> The condition that the new case node should get.
     """
 
@@ -103,23 +114,66 @@ class ConditionSymbol:
 
     def __eq__(self, other):
         """Check whether two condition-symbols are equal."""
-        return (
-            isinstance(other, ConditionSymbol)
-            and self.condition == other.condition
-            and self.symbol == other.symbol
-            # and self.z3_condition.is_equivalent_to(other.z3_condition)
-        )
+        return isinstance(other, ConditionSymbol) and self.condition == other.condition and self.symbol == other.symbol
 
 
 @dataclass
 class SwitchHandler:
     z3_converter: Z3Converter
     zero_case_of_switch_expression: Dict[ExpressionUsages, ZeroCaseCondition]
-    possible_zero_cases: Dict[ConditionSymbol, PotentialZeroCaseCondition]
+    potential_zero_cases: Dict[ConditionSymbol, PotentialZeroCaseCondition]
 
     @classmethod
     def initialize(cls, condition_map: Optional[Dict[LogicCondition, ConditionSymbol]]) -> SwitchHandler:
-        return SwitchHandler(Z3Converter(), {}, {})
+        handler = cls(Z3Converter(), {}, {})
+        if condition_map is None:
+            return handler
+        for cond_symbol in condition_map.values():
+            if cond_symbol.case_node_property is not None:
+                handler.have_new_zero_case_for(cond_symbol.case_node_property.expression)
+            elif cond_symbol.condition.operation in {OperationType.equal, OperationType.not_equal} and not any(
+                isinstance(operand, Constant) for operand in cond_symbol.condition.operands
+            ):
+                handler.have_new_potential_zero_case_for(cond_symbol)
+        return handler
+
+    def have_new_zero_case_for(self, expression_usage: ExpressionUsages) -> bool:
+        """Returns whether we added a new zero-case condition for the given expression."""
+        return expression_usage not in self.zero_case_of_switch_expression and self._successfully_compute_zero_case_condition_for(
+            expression_usage
+        )
+
+    def have_new_potential_zero_case_for(self, condition_symbol: ConditionSymbol) -> bool:
+        """Returns whether we added a new zero-case condition for the given expression."""
+        return self._successfully_compute_potential_zero_case_condition_for(condition_symbol)
+
+    def _successfully_compute_zero_case_condition_for(self, expression_usage: ExpressionUsages) -> bool:
+        """Return whether the construction of the zero-case condition was successful and add it to the dictionary."""
+        ssa_expression = _get_ssa_expression(expression_usage)
+        try:
+            z3_condition = self.z3_converter.convert(Condition(OperationType.equal, [ssa_expression, Constant(0, ssa_expression.type)]))
+            self.zero_case_of_switch_expression[expression_usage] = ZeroCaseCondition(
+                expression_usage.expression, set(expression_usage.ssa_usages), z3_condition
+            )
+            return True
+        except ValueError:
+            return False
+
+    def _successfully_compute_potential_zero_case_condition_for(self, condition_symbol: ConditionSymbol) -> bool:
+        """Construct the potential zero-case condition."""
+        condition = condition_symbol.condition
+        expression_usage = ExpressionUsages.from_expression(condition)
+        ssa_condition = _get_ssa_expression(expression_usage)
+        assert isinstance(ssa_condition, Condition), f"{ssa_condition} must be of type Condition!"
+        ssa_condition = ssa_condition.negate() if ssa_condition.operation == OperationType.not_equal else ssa_condition
+        try:
+            z3_condition = self.z3_converter.convert(ssa_condition)
+            self.potential_zero_cases[condition_symbol] = PotentialZeroCaseCondition(
+                condition, set(expression_usage.ssa_usages), z3_condition
+            )
+            return True
+        except ValueError:
+            return False
 
 
 class ConditionHandler:
@@ -131,12 +185,6 @@ class ConditionHandler:
         self._symbol_counter = 0
         self._logic_context = next(iter(self._condition_map)).context if self._condition_map else LogicCondition.generate_new_context()
         self._switch_handler: SwitchHandler = SwitchHandler.initialize(condition_map)
-        # self._z3_converter: Z3Converter = Z3Converter()
-        # self._zero_case_of_switch_expression: Dict[ExpressionUsages, ZeroCaseCondition] = dict()
-        # for cond_symbol in condition_map.values():
-        #     expression = cond_symbol.case_node_property.expression
-        #     if zero_case := self._get_zero_case_condition(expression) is not None:
-        #         self._zero_case_of_switch_expression[expression] = zero_case
 
     def __eq__(self, other) -> bool:
         """Checks whether two condition handlers are equal."""
@@ -200,18 +248,6 @@ class ConditionHandler:
         """Return the reverse z3-condition map that maps z3-conditions to symbols."""
         return dict((condition_symbol.z3_condition, symbol) for symbol, condition_symbol in self._condition_map.items())
 
-    def add_condition(self, condition: Condition) -> LogicCondition:
-        """Adds a new condition to the condition map and returns the corresponding condition_symbol"""
-        z3_condition = PseudoLogicCondition.initialize_from_condition(condition, self._logic_context)
-        if symbol := self._condition_already_exists(z3_condition):
-            return symbol
-
-        symbol = self._get_next_symbol()
-        condition_symbol = ConditionSymbol(condition, symbol, z3_condition)
-        self._set_switch_case_property_for_condition(condition_symbol)
-        self._condition_map[symbol] = condition_symbol
-        return symbol
-
     def get_true_value(self) -> LogicCondition:
         """Return a true value."""
         return LogicCondition.initialize_true(self._logic_context)
@@ -240,6 +276,18 @@ class ConditionHandler:
         if (case_node_property := self._get_case_node_property_of(condition)) is not None:
             return case_node_property.expression
 
+    def add_condition(self, condition: Condition) -> LogicCondition:
+        """Adds a new condition to the condition map and returns the corresponding condition_symbol"""
+        z3_condition = PseudoLogicCondition.initialize_from_condition(condition, self._logic_context)
+        if symbol := self._condition_already_exists(z3_condition):
+            return symbol
+
+        symbol = self._get_next_symbol()
+        condition_symbol = ConditionSymbol(condition, symbol, z3_condition)
+        self._set_switch_case_property_for_condition(condition_symbol)
+        self._condition_map[symbol] = condition_symbol
+        return symbol
+
     def _condition_already_exists(self, z3_condition: PseudoLogicCondition) -> Optional[ConditionSymbol]:
         """Check whether the given condition already exists and returns the corresponding Condition Symbol."""
         for value in self._condition_map.values():
@@ -255,83 +303,56 @@ class ConditionHandler:
 
     def _set_switch_case_property_for_condition(self, condition_symbol: ConditionSymbol) -> None:
         """Compute the switch-case property."""
-        condition = condition_symbol.condition
+        condition: Condition = condition_symbol.condition
         if condition.operation not in {OperationType.equal, OperationType.not_equal}:
             return None
         constants: List[Constant] = [operand for operand in condition.operands if isinstance(operand, Constant)]
         expressions: List[Expression] = [operand for operand in condition.operands if not isinstance(operand, Constant)]
 
-        if len(constants) == 1 or len(expressions) == 1:
+        if len(constants) == 1 and len(expressions) == 1:
             expression_usage = ExpressionUsages.from_expression(expressions[0])
             condition_symbol.case_node_property = CaseNodeProperties(
                 condition_symbol.symbol, expression_usage, constants[0], condition.operation == OperationType.not_equal
             )
             self._update_potential_zero_cases_for(expression_usage)
         elif len(constants) == 0:
-            potential_zero_case = self._compute_potential_zero_case_condition_for(condition)
-            if potential_zero_case is not None and not self._find_zero_case_condition_for(potential_zero_case, condition_symbol):
-                self._switch_handler.possible_zero_cases[condition_symbol] = potential_zero_case  # ssa_condition with ==
+            if self._switch_handler.have_new_potential_zero_case_for(condition_symbol):
+                self._add_zero_case_condition_for(condition_symbol)
 
     def _update_potential_zero_cases_for(self, expression_usage: ExpressionUsages) -> None:
         """
         Update the Zero-cases for the given expression.
 
-        1. Check whether there already exists a zero-case for this expression.
-        2. If not, we compute the according zero-case (if possible).
-        3. If we find a new zero-case, we check whether one of the potential zero-cases matches this zero-case.
+        If the switch handler adds a new zero-case condition, we check whether one of the potential zero-cases matches this zero-case.
         """
-        if expression_usage in self._switch_handler.zero_case_of_switch_expression:
-            return None
-        zero_case = self._compute_zero_case_condition_for(expression_usage)  # always e == 0
-        if zero_case is None:
-            return None
-        self._switch_handler.zero_case_of_switch_expression[expression_usage] = zero_case
-        self._find_missing_zero_cases_for(zero_case)
+        if self._switch_handler.have_new_zero_case_for(expression_usage):
+            self._add_missing_zero_cases_for(self._switch_handler.zero_case_of_switch_expression[expression_usage])
 
-    def _find_missing_zero_cases_for(self, zero_case: ZeroCaseCondition):
+    def _add_missing_zero_cases_for(self, zero_case: ZeroCaseCondition) -> None:
         """We check for each potential zero-case whether it matches the given zero-case."""
         found_zero_cases = set()
-        for possible_zero_case_condition_symbol, possible_zero_case in self._switch_handler.possible_zero_cases.items():
-            if zero_case.are_equivalent(possible_zero_case):
+        for condition_symbol, potential_zero_case in self._switch_handler.potential_zero_cases.items():
+            if zero_case.are_equivalent(potential_zero_case):
                 self._update_case_property_for(
-                    possible_zero_case_condition_symbol, possible_zero_case, ExpressionUsages.from_expression(zero_case.expression)
+                    condition_symbol, potential_zero_case, ExpressionUsages.from_expression(zero_case.expression)
                 )
-                found_zero_cases.add(possible_zero_case_condition_symbol)
-        for zc in found_zero_cases:
-            del self._switch_handler.possible_zero_cases[zc]
+                found_zero_cases.add(condition_symbol)
+        for zero_case_condition_symbol in found_zero_cases:
+            del self._switch_handler.potential_zero_cases[zero_case_condition_symbol]
 
-    def _compute_zero_case_condition_for(self, expression_usage: ExpressionUsages) -> Optional[ZeroCaseCondition]:
-        """Construct the zero-case condition and add it to the dictionary."""
-        ssa_expression = self._get_ssa_expression(expression_usage)
-        try:
-            z3_condition = self._switch_handler.z3_converter.convert(
-                Condition(OperationType.equal, [ssa_expression, Constant(0, ssa_expression.type)])
-            )
-        except ValueError:
-            return None
-        return ZeroCaseCondition(expression_usage.expression, set(expression_usage.ssa_usages), z3_condition)
-
-    def _compute_potential_zero_case_condition_for(self, condition: Condition) -> Optional[PotentialZeroCaseCondition]:
-        """Construct the potential zero-case condition."""
-        expressions_usage = ExpressionUsages.from_expression(condition)
-        ssa_condition = self._get_z3_condition(expressions_usage)  # always a ==
-        if ssa_condition is not None:
-            return PotentialZeroCaseCondition(condition, set(expressions_usage.ssa_usages), ssa_condition)
-        return None
-
-    def _find_zero_case_condition_for(
-        self, possible_zero_case: PotentialZeroCaseCondition, possible_zero_case_condition_symbol: ConditionSymbol
-    ) -> bool:
+    def _add_zero_case_condition_for(self, potential_zero_case_condition_symbol: ConditionSymbol) -> None:
         """
         Check whether the condition belongs to a zero-case of a switch expression.
 
         If this is the case, we return the switch expression and the zero-constant
         """
+        potential_zero_case: PotentialZeroCaseCondition = self._switch_handler.potential_zero_cases[potential_zero_case_condition_symbol]
         for expression_usage, zero_case in self._switch_handler.zero_case_of_switch_expression.items():
-            if possible_zero_case.are_equivalent(zero_case):
-                self._update_case_property_for(possible_zero_case_condition_symbol, possible_zero_case, expression_usage)
-                return True
-        return False
+            if potential_zero_case.are_equivalent(zero_case):
+                self._update_case_property_for(potential_zero_case_condition_symbol, potential_zero_case, expression_usage)
+                del self._switch_handler.potential_zero_cases[potential_zero_case_condition_symbol]
+                return None
+        return None
 
     def _update_case_property_for(
         self, condition_symbol: ConditionSymbol, zero_case: PotentialZeroCaseCondition, expression_usage: ExpressionUsages
@@ -353,16 +374,6 @@ class ConditionHandler:
             zero_case.expression.operation == OperationType.not_equal,
         )
 
-    def _get_z3_condition(self, expression_usage: ExpressionUsages) -> Optional[BoolRef]:
-        """Get z3-condition of the expression usage in SSA-form if there is one"""
-        ssa_condition = self._get_ssa_expression(expression_usage)
-        assert isinstance(ssa_condition, Condition), f"{ssa_condition} must be of type Condition!"
-        ssa_condition = ssa_condition.negate() if ssa_condition.operation == OperationType.not_equal else ssa_condition
-        try:
-            return self._switch_handler.z3_converter.convert(ssa_condition)
-        except ValueError:
-            return None
-
     def _get_case_node_property_of(self, condition: LogicCondition) -> Optional[CaseNodeProperties]:
         """Return the case-property of a given literal."""
         negation = False
@@ -374,13 +385,3 @@ class ConditionHandler:
             if case_node_property is not None and case_node_property.negation == negation:
                 return case_node_property
         return None
-
-    @staticmethod
-    def _get_ssa_expression(expression_usage: ExpressionUsages) -> Expression:
-        """Construct SSA-expression of the given expression."""
-        if isinstance(expression_usage.expression, Variable):
-            return expression_usage.expression.ssa_name if expression_usage.expression.ssa_name else expression_usage.expression
-        ssa_expression = expression_usage.expression.copy()
-        for variable in [var for var in ssa_expression.requirements if var.ssa_name]:
-            ssa_expression.substitute(variable, variable.ssa_name)
-        return ssa_expression
