@@ -8,15 +8,18 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.missing_case_finder_intersecting_constants import (
     MissingCaseFinderIntersectingConstants,
 )
+from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.switch_extractor import (
+    SwitchExtractor,
+)
 from decompiler.pipeline.controlflowanalysis.restructuring_options import LoopBreakOptions, RestructuringOptions
 from decompiler.structures.ast.ast_nodes import ConditionNode, SeqNode, SwitchNode
 from decompiler.structures.ast.condition_symbol import ConditionHandler
 from decompiler.structures.ast.reachability_graph import SiblingReachabilityGraph
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
-from decompiler.structures.pseudo.expressions import Constant, Variable
+from decompiler.structures.pseudo.expressions import Constant, Variable, ImportedFunctionSymbol
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Return
-from decompiler.structures.pseudo.operations import BinaryOperation, Condition, OperationType
+from decompiler.structures.pseudo.operations import BinaryOperation, Condition, OperationType, ListOperation, Call
 from decompiler.structures.pseudo.typing import CustomType, Integer
 from decompiler.task import DecompilerTask
 
@@ -183,3 +186,44 @@ def test_insert_intersecting_cases_anywhere(task):
 
     assert isinstance(ast.current_root, SeqNode) and len(ast.current_root.children) == 1
     assert isinstance(switch := ast.current_root.children[0], SwitchNode) and switch.cases == (case2, case1)
+
+
+def test_switch_extractor_sequence(task):
+    """Test, switch gets extracted from sequence nodes with Reaching Condition."""
+    condition_handler = ConditionHandler()
+    # cond_1_symbol = condition_handler.add_condition(Condition(OperationType.equal, [var_c, const[1]]))
+    cond_2_symbol = condition_handler.add_condition(Condition(OperationType.not_equal, [var_c, const[1]]))
+
+    ast = AbstractSyntaxForest(condition_handler=condition_handler)
+    root = ast.factory.create_seq_node(reaching_condition=cond_2_symbol)
+    code_node = ast.factory.create_code_node(
+        [Assignment(ListOperation([]), Call(ImportedFunctionSymbol("scanf", 0x42), [Constant(0x804B01F), var_c]))]
+    )
+    switch = ast.factory.create_switch_node(var_c)
+    case1 = ast.factory.create_case_node(var_c, const[2], break_case=True)
+    case2 = ast.factory.create_case_node(var_c, const[3], break_case=True)
+    case_content = [
+        ast.factory.create_code_node([Assignment(var_b, BinaryOperation(OperationType.plus, [var_b, const[i + 1]]))]) for i in range(2)
+    ]
+    ast._add_nodes_from(case_content + [root, code_node, switch, case1, case2])
+    ast._add_edges_from(
+        [
+            (root, code_node),
+            (root, switch),
+            (switch, case1),
+            (switch, case2),
+            (case1, case_content[0]),
+            (case2, case_content[1]),
+        ]
+    )
+    ast._code_node_reachability_graph.add_reachability_from(
+        [(code_node, case_content[0]), (code_node, case_content[1]), (case_content[0], case_content[1])]
+    )
+    root.sort_children()
+    switch.sort_cases()
+    ast.set_current_root(root)
+
+    SwitchExtractor.extract(ast, RestructuringOptions(True, True, 2, LoopBreakOptions.structural_variable))
+    assert isinstance(ast.current_root, SeqNode) and ast.current_root.reaching_condition.is_true and  len(ast.current_root.children) == 2
+    assert ast.current_root.children[0].reaching_condition == cond_2_symbol
+    assert isinstance(switch := ast.current_root.children[1], SwitchNode) and switch.cases == (case1, case2)

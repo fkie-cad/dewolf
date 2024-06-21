@@ -37,7 +37,7 @@ class MissingCaseFinderCondition(MissingCaseFinder):
                     case_candidate_information.case_node, case_candidate_information.case_constants, case_candidate_information.switch_node
                 )
                 if case_candidate_information.in_sequence:
-                    asforest.extract_switch_from_condition_sequence(case_candidate_information.switch_node, condition_node)
+                    asforest.extract_switch_from_sequence(case_candidate_information.switch_node)
                 else:
                     asforest.replace_condition_node_by_single_branch(condition_node)
 

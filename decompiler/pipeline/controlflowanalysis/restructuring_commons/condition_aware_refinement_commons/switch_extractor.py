@@ -4,8 +4,9 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
     BaseClassConditionAwareRefinement,
 )
 from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
-from decompiler.structures.ast.ast_nodes import ConditionNode, FalseNode, SeqNode, TrueNode
+from decompiler.structures.ast.ast_nodes import ConditionNode, FalseNode, SeqNode, TrueNode, SwitchNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
+from decompiler.structures.logic.logic_condition import LogicCondition
 
 
 class SwitchExtractor(BaseClassConditionAwareRefinement):
@@ -28,6 +29,8 @@ class SwitchExtractor(BaseClassConditionAwareRefinement):
         for condition_node in asforest.get_condition_nodes_post_order(asforest.current_root):
             switch_extractor._current_cond_node = condition_node
             switch_extractor._extract_switches_from_condition()
+        for sequence_node in (n for n in asforest.get_sequence_nodes_post_order(asforest.current_root) if not n.reaching_condition.is_true):
+            switch_extractor._extract_switch_from_first_or_last_child_of(sequence_node, sequence_node.reaching_condition)
 
     def _extract_switches_from_condition(self) -> None:
         """Extract switch nodes in the true and false branch of the given condition node."""
@@ -49,9 +52,7 @@ class SwitchExtractor(BaseClassConditionAwareRefinement):
         if self._condition_is_redundant_for_switch_node(branch.child, branch_condition):
             self._extract_switch_node_from_branch(branch)
         elif isinstance(sequence_node := branch.child, SeqNode):
-            for switch_node in [sequence_node.children[0], sequence_node.children[-1]]:
-                if self._condition_is_redundant_for_switch_node(switch_node, branch_condition):
-                    self.asforest.extract_switch_from_condition_sequence(switch_node, self._current_cond_node)
+            self._extract_switch_from_first_or_last_child_of(sequence_node, branch_condition)
 
     def _extract_switch_node_from_branch(self, branch: Union[TrueNode, FalseNode]) -> None:
         """
@@ -68,3 +69,13 @@ class SwitchExtractor(BaseClassConditionAwareRefinement):
             self.asforest.replace_condition_node_by_single_branch(self._current_cond_node)
         else:
             self.asforest.extract_branch_from_condition_node(self._current_cond_node, branch, False)
+
+    def _extract_switch_from_first_or_last_child_of(self, sequence_node: SeqNode, condition: LogicCondition):
+        """
+        Check whether the first or last child of the sequence node is a switch-node for which the given condition is redundant.
+        If this is the case, extract the switch-node from the sequence.
+        """
+        for switch_node in [sequence_node.children[0], sequence_node.children[-1]]:
+            if self._condition_is_redundant_for_switch_node(switch_node, condition):
+                assert isinstance(switch_node, SwitchNode), f"The node {switch_node} must be a switch-node!"
+                self.asforest.extract_switch_from_sequence(switch_node)
