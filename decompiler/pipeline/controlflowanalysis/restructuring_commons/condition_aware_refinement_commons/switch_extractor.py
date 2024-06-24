@@ -17,17 +17,17 @@ class SwitchExtractor(BaseClassConditionAwareRefinement):
         """Extract switch nodes from condition nodes, or sequence-nodes with a non-trivial reaching-condition."""
         switch_extractor = cls(asforest, options)
         for switch_node in list(asforest.get_switch_nodes_post_order(asforest.current_root)):
-            while switch_extractor._switch_can_be_extracted(switch_node):
+            while switch_extractor._successfully_extracts_switch_nodes(switch_node):
                 pass
 
-    def _switch_can_be_extracted(self, switch_node: SwitchNode) -> bool:
+    def _successfully_extracts_switch_nodes(self, switch_node: SwitchNode) -> bool:
         """
-        We extract the given switch-node, if possible and return whether it was successfully extracted.
+        We extract the given switch-node, if possible, and return whether it was successfully extracted.
 
         1. If the switch node has a sequence node as parent and is its first or last child
-            i) sequence node has a non-trivial reaching-condition
+            i) Sequence node has a non-trivial reaching-condition
                --> extract the switch from the sequence node if the reaching-condition is redundant for the switch
-           ii) sequence node has a trivial reaching-condition and its parent is a branch of a condition node
+           ii) Sequence node has a trivial reaching-condition, and its parent is a branch of a condition node
                --> extract the switch from the condition-node if the branch-condition is redundant for the switch
         2. If the switch node has a branch of a condition-node as parent
                --> extract the switch from the condition node if the branch-condition is redundant for the switch
@@ -35,9 +35,9 @@ class SwitchExtractor(BaseClassConditionAwareRefinement):
         switch_parent = switch_node.parent
         if isinstance(switch_parent, SeqNode):
             if not switch_parent.reaching_condition.is_true:
-                return self._extract_switch_from_first_or_last_child_of(switch_parent, switch_parent.reaching_condition)
+                return self._successfully_extract_switch_from_first_or_last_child_of(switch_parent, switch_parent.reaching_condition)
             elif isinstance(branch := switch_parent.parent, TrueNode | FalseNode):
-                return self._extract_switch_from_first_or_last_child_of(switch_parent, branch.branch_condition)
+                return self._successfully_extract_switch_from_first_or_last_child_of(switch_parent, branch.branch_condition)
         elif isinstance(switch_parent, TrueNode | FalseNode) and self._condition_is_redundant_for_switch_node(
             switch_node, switch_parent.branch_condition
         ):
@@ -62,7 +62,7 @@ class SwitchExtractor(BaseClassConditionAwareRefinement):
         else:
             self.asforest.extract_branch_from_condition_node(condition_node, branch, False)
 
-    def _extract_switch_from_first_or_last_child_of(self, sequence_node: SeqNode, condition: LogicCondition) -> bool:
+    def _successfully_extract_switch_from_first_or_last_child_of(self, sequence_node: SeqNode, condition: LogicCondition) -> bool:
         """
         Check whether the first or last child of the sequence node is a switch-node for which the given condition is redundant.
         If this is the case, extract the switch-node from the sequence.
