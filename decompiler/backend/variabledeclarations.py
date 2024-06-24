@@ -63,7 +63,7 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
             match variable.type:
                 case ArrayType():
                     br, bl = "", ""
-                    if not variable.type.type in [Integer.char(), CustomType.wchar16(), CustomType.wchar32()]:
+                    if not variable.type.type in [Integer.char(), Integer.uint8_t(), CustomType.wchar16(), CustomType.wchar32()]:
                         br, bl = "{", "}"
                     yield f"{base}{variable.type.type} {variable.name}[{hex(variable.type.elements)}] = {br}{CExpressionGenerator().visit(variable.initial_value)}{bl};"
                 case _:
