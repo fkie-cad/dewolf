@@ -77,7 +77,7 @@ class HungarianScheme(RenamingScheme):
         for variable_id, vars in self._variables.items():
             # because the way our cfg works, each use site of each variable could theoretically have a different type
             # we just take the first assuming that they are all the same...
-            var_type = vars[0].type
+            var_type = Counter(vars).most_common()[0][0].type
             name_identifier = self._get_name_identifier(variable_id.name)
             prefix = self._hungarian_prefix(var_type)
 
