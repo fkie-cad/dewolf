@@ -114,7 +114,7 @@ def test_hungarian_notation(variable, name):
     assert assignment.destination.name == name
 
 
-@pytest.mark.parametrize("type_sep, counter_sep", [("", ""), ("_", "_")])
+@pytest.mark.parametrize("type_sep, counter_sep", [("", ""), ("_", "_"), ("", "_"), ("_", "")])
 def test_hungarian_notation_separators(type_sep: str, counter_sep: str):
     true_value = LogicCondition.initialize_true(LogicCondition.generate_new_context())
     ast = AbstractSyntaxTree(CodeNode([assignment := Assignment(Variable("var_0", I32), Constant(0))], true_value), {})
@@ -164,11 +164,18 @@ def test_same_variable_idx():
 
 def test_different_custom_names_0():
     node = CodeNode(
-        [Assignment(Variable("tmp_42", Float(64)), Constant(0))], LogicCondition.initialize_true(LogicCondition.generate_new_context())
+        [
+            Assignment(Variable("tmp_42", Float(64)), Constant(0)),
+            Assignment(Variable("entry_", Float(64)), Constant(0)),
+            Assignment(Variable("exit_", Float(64)), Constant(0)),
+        ],
+        LogicCondition.initialize_true(LogicCondition.generate_new_context()),
     )
     ast = AbstractSyntaxTree(node, {})
     _run_vng(ast, _generate_options())
     assert node.instructions[0].destination.name == "dTmp0"
+    assert node.instructions[1].destination.name == "dEntry0"
+    assert node.instructions[2].destination.name == "dExit0"
 
 
 def test_different_custom_names_1():

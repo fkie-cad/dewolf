@@ -340,10 +340,6 @@ class AbstractSyntaxInterface(ABC):
         for node in self.topological_order(head):
             node.replace_variable(replacee, replacement)
 
-    def replace_variables_in_subtree(self, head: AbstractSyntaxTreeNode, replacement_dictionary: dict[Variable, Variable]):
-        for node in self.topological_order(head):
-            node.replace_variables(replacement_dictionary)
-
     # Graph manipulation - intern
 
     def _add_node(self, node: AbstractSyntaxTreeNode):
