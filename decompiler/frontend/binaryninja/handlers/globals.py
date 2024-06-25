@@ -247,7 +247,9 @@ class GlobalHandler(Handler):
             type = PseudoArrayType(self._lifter.lift(data[1]), len(data[0]))
             data = ConstantComposition([Constant(x, type.type) for x in data[0]], type)
         else:
-            data, type = get_raw_bytes(variable.address, self._view), Pointer(CustomType.void(), self._view.address_size * BYTE_SIZE)
+            rbytes = get_raw_bytes(variable.address, self._view)
+            type = PseudoArrayType(Integer.uint8_t(), len(rbytes))
+            data = ConstantComposition([Constant(b, type.type) for b in rbytes], type)
         return data, type
 
     def _get_unknown_pointer_value(self, variable: DataVariable, callers: list[int] = None):

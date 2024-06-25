@@ -239,25 +239,41 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         if new_seq.parent is not None:
             new_seq.parent.clean()
 
-    def extract_switch_from_condition_sequence(self, switch_node: SwitchNode, condition_node: ConditionNode):
-        """Extract the given switch-node, that is the first or last child of a seq-node Branch from the condition node"""
-        seq_node_branch = switch_node.parent
-        seq_node_branch_children = seq_node_branch.children
-        assert seq_node_branch.parent in condition_node.children, f"{seq_node_branch} must be a branch of {condition_node}"
-        new_seq_node = self._add_sequence_node_before(condition_node)
-        self._remove_edge(seq_node_branch, switch_node)
-        self._add_edge(new_seq_node, switch_node)
-        if switch_node is seq_node_branch_children[0]:
-            new_seq_node._sorted_children = (new_seq_node, condition_node)
-            seq_node_branch._sorted_children = seq_node_branch_children[1:]
-        elif switch_node is seq_node_branch_children[-1]:
-            new_seq_node._sorted_children = (condition_node, new_seq_node)
-            seq_node_branch._sorted_children = seq_node_branch_children[:-1]
+    def extract_switch_from_sequence(self, switch_node: SwitchNode):
+        """
+        Extract the given switch-node, that is the first or last child of a seq-node Branch from the condition node
+        or sequence node with a non-trivial reaching-condition.
+        """
+        switch_parent = switch_node.parent
+        assert isinstance(switch_parent, SeqNode), f"The parent of the switch-node {switch_node} must be a sequence node!"
+        if isinstance(switch_parent, SeqNode) and not switch_parent.reaching_condition.is_true:
+            new_seq_node = self._extract_switch_from_subtree(switch_parent, switch_node)
+        elif isinstance(condition_node := switch_parent.parent.parent, ConditionNode):
+            new_seq_node = self._extract_switch_from_subtree(condition_node, switch_node)
+            condition_node.clean()
+        else:
+            raise ValueError(
+                f"The parent of the switch node {switch_node} must either have a non-trivial reaching-condition or is a branch of a condition-node!"
+            )
 
-        seq_node_branch.clean()
-        condition_node.clean()
         if new_seq_node.parent is not None:
             new_seq_node.parent.clean()
+
+    def _extract_switch_from_subtree(self, subtree_head: AbstractSyntaxTreeNode, switch_node: SwitchNode):
+        switch_parent = switch_node.parent
+        switch_parent_children = switch_node.children
+        new_seq_node = self._add_sequence_node_before(subtree_head)
+        self._remove_edge(switch_parent, switch_node)
+        self._add_edge(new_seq_node, switch_node)
+        if switch_node is switch_parent_children[0]:
+            new_seq_node._sorted_children = (new_seq_node, subtree_head)
+            switch_parent._sorted_children = switch_parent_children[1:]
+        elif switch_node is switch_parent_children[-1]:
+            new_seq_node._sorted_children = (subtree_head, new_seq_node)
+            switch_parent._sorted_children = switch_parent_children[:-1]
+
+        switch_parent.clean()
+        return new_seq_node
 
     def extract_all_breaks_from_condition_node(self, cond_node: ConditionNode):
         """Remove all break instructions at the end of the condition node and extracts them, i.e., add a break after the condition."""
