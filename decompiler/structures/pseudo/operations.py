@@ -193,6 +193,17 @@ class Operation(Expression, ABC):
         self._type = vartype
         super().__init__(tags)
 
+    def __eq__(self, __value):
+        return (
+            isinstance(__value, Operation)
+            and self._operation == __value._operation
+            and self._operands == __value._operands
+            and self.type == __value.type
+        )
+
+    def __hash__(self):
+        return hash((self._operation, tuple(self._operands), self.type))
+
     def __repr__(self) -> str:
         """Return debug representation of an operation. Used in equality checks"""
         return f"{self.operation.name} [{','.join(map(repr, self._operands))}] {self.type}"
@@ -267,6 +278,12 @@ class ListOperation(Operation):
     def __init__(self, operands: Sequence[Expression], tags: Optional[Tuple[Tag, ...]] = None):
         super().__init__(OperationType.list_op, operands, tags=tags)
 
+    def __eq__(self, __value):
+        return isinstance(__value, ListOperation) and super().__eq__(__value)
+
+    def __hash__(self):
+        return super().__hash__()
+
     def __str__(self) -> str:
         return ",".join(map(str, self.operands))
 
@@ -283,7 +300,7 @@ class ListOperation(Operation):
         return visitor.visit_list_operation(self)
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class ArrayInfo:
     """Class to store array info information for dereference if available
     base: variable storing start address of an array
@@ -330,6 +347,17 @@ class UnaryOperation(Operation):
         self._writes_memory = writes_memory
         self.contraction = contraction
         self.array_info = array_info
+
+    def __eq__(self, __value):
+        return (
+            isinstance(__value, UnaryOperation)
+            and self.contraction == __value.contraction
+            and self.array_info == __value.array_info
+            and super().__eq__(__value)
+        )
+
+    def __hash__(self):
+        return hash((self.contraction, self.array_info, super().__hash__()))
 
     def __str__(self):
         """Return a string representation of the unary operation"""
@@ -401,6 +429,12 @@ class MemberAccess(UnaryOperation):
         self.member_offset = offset
         self.member_name = member_name
 
+    def __eq__(self, __value):
+        return isinstance(__value, MemberAccess) and super().__eq__(__value)
+
+    def __hash__(self):
+        return super().__hash__()
+
     def __str__(self):
         # use -> when accessing member via a pointer to a struct: ptrBook->title
         # use . when accessing struct member directly: book.title
@@ -440,6 +474,12 @@ class BinaryOperation(Operation):
     """Class representing operations with two operands."""
 
     __match_args__ = ("operation", "left", "right")
+
+    def __eq__(self, __value):
+        return isinstance(__value, BinaryOperation) and super().__eq__(__value)
+
+    def __hash__(self):
+        return super().__hash__()
 
     def __str__(self) -> str:
         """Return a string representation with infix notation."""
@@ -483,6 +523,12 @@ class Call(Operation):
         self._function = function
         self._writes_memory = writes_memory
         self._meta_data = meta_data
+
+    def __eq__(self, __value):
+        return isinstance(__value, Call) and self._function == __value._function and self._operands == __value._operands
+
+    def __hash__(self):
+        return hash((self._function, tuple(self._operands)))
 
     def __repr__(self):
         """Return debug representation of a call"""
@@ -574,6 +620,13 @@ class Condition(BinaryOperation):
         OperationType.less_us: OperationType.greater_or_equal_us,
     }
 
+    def __eq__(self, __value):
+        v_ = isinstance(__value, Condition) and super().__eq__(__value)
+        return v_
+
+    def __hash__(self):
+        return super().__hash__()
+
     @property
     def type(self) -> Type:
         """Conditions always return a boolean value."""
@@ -607,6 +660,12 @@ class TernaryExpression(Operation):
     def __init__(self, condition: Expression, true: Expression, false: Expression, tags: Optional[Tuple[Tag, ...]] = None):
         """Initialize a new inline-if operation."""
         super().__init__(OperationType.ternary, [condition, true, false], true.type, tags=tags)
+
+    def __eq__(self, __value):
+        return isinstance(__value, TernaryExpression) and super().__eq__(__value)
+
+    def __hash__(self):
+        return super().__hash__()
 
     def __str__(self) -> str:
         """Returns string representation"""

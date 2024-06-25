@@ -2,14 +2,14 @@
 
 from networkx import DiGraph
 
-HEADER = "strict digraph  {"
+HEADER = "digraph  {"
 FOOTER = "}"
 
 
 class ToDotConverter:
     """Class in charge of writing a networkx DiGraph into dot-format"""
 
-    ATTRIBUTES = {"color", "fillcolor", "label", "shape", "style"}
+    ATTRIBUTES = {"color", "fillcolor", "label", "shape", "style", "dir"}
 
     def __init__(self, graph: DiGraph):
         self._graph = graph
