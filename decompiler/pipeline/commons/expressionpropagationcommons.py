@@ -225,8 +225,9 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         if self._is_address(definition.value):
             for subexpr in target:
                 for sub in self._find_subexpressions(subexpr):
-                    if self._is_dereference(sub) and sub.operand == definition.destination:
+                    if self._is_dereference(sub) and sub.operand in definition.definitions:
                         return True
+        return False
 
     def _contains_aliased_variables(self, definition: Assignment) -> bool:
         """
@@ -326,14 +327,13 @@ class ExpressionPropagationBase(PipelineStage, ABC):
     def _get_dangerous_uses_of_variable_address(self, var: Variable) -> Set[Instruction]:
         """
         Dangerous use of & of x is func(&x) cause it can potentially modify x.
-        *(&x) could also do the job but I consider it to be too exotic so that we could get such instruction from Binary Ninja
-        If it happens we can handle it later.
+        Another case is an Assignment where the left side is *(&).
         :param var: aliased variable
         :return: set of function call assignments that take &var as parameter
         """
         dangerous_uses = set()
         for use in self._use_map.get(var):
-            if not self._is_call_assignment(use):
+            if not self._is_call_assignment(use) and not (isinstance(use, Assignment) and self._is_dereference(use.destination)):
                 continue
             for subexpr in self._find_subexpressions(use):
                 if self._is_address(subexpr):
