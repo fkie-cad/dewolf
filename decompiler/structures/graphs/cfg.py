@@ -8,6 +8,7 @@ from typing import Dict, Iterator, List, Optional, Set
 from decompiler.structures.pseudo import Assignment, Condition, Expression, Instruction, Variable
 from networkx import DiGraph
 
+from ..pseudo.locations import InstructionLocation
 from .basicblock import BasicBlock
 from .branches import (
     BasicBlockEdge,
@@ -63,6 +64,12 @@ class ControlFlowGraph(ClassifiedGraph[BasicBlock, BasicBlockEdge]):
         """Iterate all instructions in the basic block."""
         for block in self.nodes:
             yield from block
+
+    @property
+    def instruction_locations(self) -> Iterator[InstructionLocation]:
+        for block in self.nodes:
+            for index, _ in enumerate(block):
+                yield InstructionLocation(block, index)
 
     def get_definitions(self, variable: Variable) -> Iterator[Instruction]:
         """Return all definitions of the given variable in the graph."""

@@ -3,7 +3,7 @@
 from logging import info, warning
 from typing import Dict, Generator, Optional, Tuple, Union
 
-from decompiler.pipeline.preprocessing.util import _init_basicblocks_of_definition, _init_maps
+from decompiler.pipeline.preprocessing.util import _init_basicblocks_of_definition, init_maps
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.graphs.interface import GraphEdgeInterface, GraphInterface
@@ -46,7 +46,7 @@ class DeadLoopElimination(DeadPathElimination, PipelineStage):
             warning(f"[{self.__class__.__name__}] Can not detect dead blocks because the cfg has no head.")
             return
         self._dom_tree = task.graph.dominator_tree
-        self._def_map, self._use_map = _init_maps(task.graph)
+        self._def_map, self._use_map = init_maps(task.graph)
         self._bb_of_def = _init_basicblocks_of_definition(task.graph)
         if not (dead_edges := set(self.find_prunable_edges(task.graph))):
             return
@@ -119,8 +119,9 @@ class DeadLoopElimination(DeadPathElimination, PipelineStage):
         for requirement in branch.requirements:
             if requirement.is_aliased:
                 continue  # skip if aliased
-            if type(definition := self._def_map.get(requirement)) is Phi:
-                phi_dependencies[requirement] = definition
+            location = self._def_map.get(requirement)
+            if location is not None and isinstance(location.instruction, Phi):
+                phi_dependencies[requirement] = location.instruction
         return phi_dependencies
 
     def _resolve_phi_values(self, dependency_dict: Dict[Variable, Phi], block: BasicBlock) -> Dict[Variable, Union[Variable, Constant]]:

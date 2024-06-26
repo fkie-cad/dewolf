@@ -14,7 +14,7 @@ from decompiler.task import DecompilerTask
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 from networkx import DiGraph
 
-from .util import _init_basicblocks_of_definition, _init_basicblocks_usages_variable, _init_maps
+from .util import _init_basicblocks_of_definition, _init_basicblocks_usages_variable, init_maps
 
 
 class _VariableCopyPool:
@@ -113,7 +113,7 @@ class InsertMissingDefinitions(PipelineStage):
     def _setup(self, cfg: ControlFlowGraph):
         """Initialize all necessary attributes."""
         self.cfg: ControlFlowGraph = cfg
-        self._def_map, self._use_map = _init_maps(self.cfg)
+        self._def_map, self._use_map = init_maps(self.cfg)
         self._basicblock_usages_variable: DefaultDict[Variable, Set[BasicBlock]] = _init_basicblocks_usages_variable(self.cfg)
         self._basicblock_definition_variable: Dict[Variable, BasicBlock] = _init_basicblocks_of_definition(self.cfg)
         self._node_of_memory_version: Dict[int, Tuple[BasicBlock, Assignment]] = self._compute_node_of_memory_version()
@@ -196,6 +196,9 @@ class InsertMissingDefinitions(PipelineStage):
         else:
             definition = Assignment(variable, rhs_variable)
         basicblock_for_definition.instructions.insert(position_insert_definition, definition)
+
+        self._def_map.update_block_range(basicblock_for_definition, position_insert_definition, 0, 1)
+        self._use_map.update_block_range(basicblock_for_definition, position_insert_definition, 0, 1)
 
         self._update_pointer_info_for(definition)
         self._update_usages_and_definitions(definition, basicblock_for_definition)
@@ -331,8 +334,8 @@ class InsertMissingDefinitions(PipelineStage):
         After inserting the given definition in the given basic block we have to update the usage and definition information.
         """
         assert isinstance(definition.value, Variable) and isinstance(definition.destination, Variable)
-        self._def_map.add(definition)
-        self._use_map.add(definition)
+        # self._def_map.update_block(basicblock)
+        # self._use_map.update_block(basicblock)
         self._basicblock_usages_variable[definition.value].add(basicblock)
         self._basicblock_definition_variable[definition.destination] = basicblock
 

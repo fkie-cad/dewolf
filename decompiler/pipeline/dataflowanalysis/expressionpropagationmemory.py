@@ -3,6 +3,7 @@ from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.pointers import Pointers
 from decompiler.structures.pseudo import Variable
 from decompiler.structures.pseudo.instructions import Assignment, Instruction
+from decompiler.structures.pseudo.locations import InstructionLocation
 from decompiler.task import DecompilerTask
 
 
@@ -29,7 +30,7 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
         self._propagate_postponed_aliased_definitions()
         return is_changed
 
-    def _definition_can_be_propagated_into_target(self, definition: Assignment, target: Instruction):
+    def _definition_can_be_propagated_into_target(self, definition_location: InstructionLocation, target_location: InstructionLocation) -> bool:
         """Tests if propagation is allowed based on set of rules, namely
         definition can be propagated into target if:
         - definition is assignment
@@ -46,6 +47,8 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
         :param target: instruction in which definition could be propagated
         :return: true if propagation is allowed false otherwise
         """
+        definition = definition_location.instruction
+        target = target_location.instruction
         return isinstance(definition, Assignment) and not (
             self._is_phi(definition)
             or self._is_call_assignment(definition)
@@ -55,23 +58,13 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
             or self._operation_is_propagated_in_phi(target, definition)
             or self._is_invalid_propagation_into_address_operation(target, definition)
             or self._is_aliased_postponed_for_propagation(target, definition)
-            or self._definition_value_could_be_modified_via_memory_access_between_definition_and_target(definition, target)
-            or self._pointer_value_used_in_definition_could_be_modified_via_memory_access_between_definition_and_target(definition, target)
+            or self._definition_value_could_be_modified_via_memory_access_between_definition_and_target(definition_location, target_location)
+            or self._pointer_value_used_in_definition_could_be_modified_via_memory_access_between_definition_and_target(definition_location, target_location)
         )
 
     def _initialize_pointers(self, cfg: ControlFlowGraph):
         """Initialize pointer information for the given cfg"""
         self._pointers_info = Pointers().from_cfg(cfg)
-
-    def _update_block_map(self, old_instr_str: str, new_instr_str: str, basic_block: BasicBlock, index: int):
-        """
-        Update blocks map if instruction is changed:
-        for old instruction string, remove basic block - index pair
-        for new instruction string, add basic block - index pair
-        """
-        self._blocks_map[new_instr_str].add((basic_block, index))
-        if (basic_block, index) in self._blocks_map[old_instr_str]:
-            self._blocks_map[old_instr_str].remove((basic_block, index))
 
     def _update_use_map(self, variable: Variable, instruction: Instruction):
         """

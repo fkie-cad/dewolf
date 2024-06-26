@@ -1,5 +1,6 @@
 from decompiler.pipeline.commons.expressionpropagationcommons import ExpressionPropagationBase
 from decompiler.structures.pseudo.instructions import Assignment, Instruction
+from decompiler.structures.pseudo.locations import InstructionLocation
 
 
 class ExpressionPropagation(ExpressionPropagationBase):
@@ -8,7 +9,7 @@ class ExpressionPropagation(ExpressionPropagationBase):
     def __init__(self):
         ExpressionPropagationBase.__init__(self)
 
-    def _definition_can_be_propagated_into_target(self, definition: Assignment, target: Instruction):
+    def _definition_can_be_propagated_into_target(self, definition_location: InstructionLocation, target_location: InstructionLocation) -> bool:
         """Tests if propagation is allowed based on set of rules, namely
         definition can be propagated into target if:
         - definition is assignment
@@ -21,10 +22,11 @@ class ExpressionPropagation(ExpressionPropagationBase):
         - propagation result is longer than propagation limits in task
         - definition rhs in address of definition's lhs as it leads to incorrect decompilation
 
-        :param definition: definition to be propagated
+        :param definition_location: definition to be propagated
         :param target: instruction in which definition could be propagated
         :return: true if propagation is allowed false otherwise
         """
+        definition = definition_location.instruction
         return isinstance(definition, Assignment) and not (
             self._is_phi(definition)
             or self._is_call_assignment(definition)
@@ -32,7 +34,7 @@ class ExpressionPropagation(ExpressionPropagationBase):
             or self._contains_aliased_variables(definition)
             or self._is_address_assignment(definition)
             or self._contains_writeable_global_variable(definition)
-            or self._operation_is_propagated_in_phi(target, definition)
-            or self._is_invalid_propagation_into_address_operation(target, definition)
+            or self._operation_is_propagated_in_phi(target_location.instruction, definition)
+            or self._is_invalid_propagation_into_address_operation(target_location.instruction, definition)
             or self._is_dereference_assignment(definition)
         )

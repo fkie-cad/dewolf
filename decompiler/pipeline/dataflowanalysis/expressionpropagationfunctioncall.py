@@ -3,6 +3,7 @@ from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.pointers import Pointers
 from decompiler.structures.pseudo.expressions import Constant
 from decompiler.structures.pseudo.instructions import Assignment, Instruction
+from decompiler.structures.pseudo.locations import InstructionLocation
 from decompiler.task import DecompilerTask
 
 
@@ -38,11 +39,11 @@ class ExpressionPropagationFunctionCall(ExpressionPropagationBase):
             for index, instruction in enumerate(basic_block.instructions):
                 old = str(instruction)
                 for var in instruction.requirements:
-                    if var_definition := self._def_map.get(var):
-                        if self._definition_can_be_propagated_into_target(var_definition, instruction):
-                            instruction.substitute(var, var_definition.value.copy())
-                            self._replace_call_assignment_with_const(var_definition)  # differs from base
-                            self._update_block_map(old, str(instruction), basic_block, index)
+                    if def_location := self._def_map.get(var):
+                        definition = def_location.instruction
+                        if self._definition_can_be_propagated_into_target(def_location, InstructionLocation(basic_block, index)):
+                            instruction.substitute(var, definition.value.copy())
+                            self._replace_call_assignment_with_const(definition)  # differs from base
                             if not is_changed:
                                 is_changed = old != str(instruction)
         return is_changed
@@ -80,7 +81,7 @@ class ExpressionPropagationFunctionCall(ExpressionPropagationBase):
 
         return usages == 1
 
-    def _definition_can_be_propagated_into_target(self, definition: Assignment, target: Instruction):
+    def _definition_can_be_propagated_into_target(self, definition_location: InstructionLocation, target_location: InstructionLocation):
         """Tests if propagation is allowed based on set of rules, namely
         - definition is call assignment
         - assigned variable is only used once
@@ -97,6 +98,8 @@ class ExpressionPropagationFunctionCall(ExpressionPropagationBase):
         :param target: instruction in which definition could be propagated
         :return: true if propagation is allowed false otherwise
         """
+        definition = definition_location.instruction
+        target = target_location.instruction
         return (
             self._is_call_assignment(definition)
             and self._is_call_value_used_exactly_once(definition)
@@ -109,9 +112,9 @@ class ExpressionPropagationFunctionCall(ExpressionPropagationBase):
                 or self._operation_is_propagated_in_phi(target, definition)
                 or self._is_invalid_propagation_into_address_operation(target, definition)
                 or self._is_dereference_assignment(definition)
-                or self._definition_value_could_be_modified_via_memory_access_between_definition_and_target(definition, target)
+                or self._definition_value_could_be_modified_via_memory_access_between_definition_and_target(definition_location, target_location)
                 or self._pointer_value_used_in_definition_could_be_modified_via_memory_access_between_definition_and_target(
-                    definition, target
+                    definition_location, target_location
                 )
             )
         )
@@ -119,13 +122,3 @@ class ExpressionPropagationFunctionCall(ExpressionPropagationBase):
     def _initialize_pointers(self, cfg: ControlFlowGraph):
         """Initialize pointer information for the given cfg"""
         self._pointers_info = Pointers().from_cfg(cfg)
-
-    def _update_block_map(self, old_instr_str: str, new_instr_str: str, basic_block: BasicBlock, index: int):
-        """
-        Update blocks map if instruction is changed:
-        for old instruction string, remove basic block - index pair
-        for new instruction string, add basic block - index pair
-        """
-        self._blocks_map[new_instr_str].add((basic_block, index))
-        if (basic_block, index) in self._blocks_map[old_instr_str]:
-            self._blocks_map[old_instr_str].remove((basic_block, index))

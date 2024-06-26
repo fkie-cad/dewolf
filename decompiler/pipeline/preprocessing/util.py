@@ -8,7 +8,7 @@ from decompiler.structures.maps import DefMap, UseMap
 from decompiler.structures.pseudo.expressions import Variable
 
 
-def _init_maps(cfg: ControlFlowGraph) -> Tuple[DefMap, UseMap]:
+def init_maps(cfg: ControlFlowGraph) -> tuple[DefMap, UseMap]:
     """
     Initialize the UseMap and DefMap of a given control flow graph.
 
@@ -18,9 +18,9 @@ def _init_maps(cfg: ControlFlowGraph) -> Tuple[DefMap, UseMap]:
     """
     def_map = DefMap()
     use_map = UseMap()
-    for instruction in cfg.instructions:
-        def_map.add(instruction)
-        use_map.add(instruction)
+    for location in cfg.instruction_locations:
+        def_map.add(location)
+        use_map.add(location)
     return def_map, use_map
 
 
