@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import Counter
 from enum import Enum
 from itertools import chain
 from logging import info
-from typing import DefaultDict, Iterator, List, Set, Tuple
+from typing import Iterator, List, Tuple
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import ControlFlowGraph
@@ -29,7 +29,6 @@ class TypeGraph(DiGraph):
     def __init__(self, **attr):
         """Generate a new TypeGraph, appending a dict for usage tracking."""
         super().__init__(**attr)
-        self._usages: DefaultDict[Expression, Set] = defaultdict(set)
 
     @classmethod
     def from_cfg(cls, cfg: ControlFlowGraph) -> TypeGraph:
@@ -57,7 +56,6 @@ class TypeGraph(DiGraph):
         while todo:
             head = todo.pop()
             self.add_node(self._make_node(head), **{str(id(head)): head})
-            self._usages[self._make_node(head)].add(parent)
             children = list(head)
             todo.extend(children)
             for sub_expression in children:
