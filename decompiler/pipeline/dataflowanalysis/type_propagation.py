@@ -29,7 +29,6 @@ class TypeGraph(DiGraph):
     def __init__(self, **attr):
         """Generate a new TypeGraph, appending a dict for usage tracking."""
         super().__init__(**attr)
-        # self._usages: DefaultDict[Expression, Set] = defaultdict(set)
 
     @classmethod
     def from_cfg(cls, cfg: ControlFlowGraph) -> TypeGraph:
@@ -57,7 +56,6 @@ class TypeGraph(DiGraph):
         while todo:
             head = todo.pop()
             self.add_node(self._make_node(head), **{str(id(head)): head})
-            # self._usages[self._make_node(head)].add(parent)
             children = list(head)
             todo.extend(children)
             for sub_expression in children:
