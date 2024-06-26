@@ -223,7 +223,7 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         """
         Extract the given Branch from the condition node.
 
-        -> Afterwards, the Branch must always be executed after the condition node.
+        -> Afterward, the Branch must always be executed after the condition node.
         """
         assert isinstance(cond_node, ConditionNode) and branch in cond_node.children, f"{branch} must be a child of {cond_node}."
         new_seq = self._add_sequence_node_before(cond_node)
@@ -337,10 +337,42 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         else:
             branch = self.add_seq_node_with_reaching_condition_before(branch_nodes, self.condition_handler.get_true_value())
         for node in branch_nodes:
-            node.reaching_condition.substitute_by_true(condition)
+            if node.reaching_condition.is_true and isinstance(node, ConditionNode):
+                node.condition.substitute_by_true(condition)
+            else:
+                node.reaching_condition.substitute_by_true(condition)
 
         self._remove_edge(branch.parent, branch)
         return branch
+
+    def add_branches_to_condition_node(
+        self,
+        condition_node: ConditionNode,
+        true_branch: Optional[AbstractSyntaxTreeNode] = None,
+        false_branch: Optional[AbstractSyntaxTreeNode] = None,
+    ):
+        """
+        Add the given branches to the given condition-node.
+
+        -> true-branch will be part of the true-branch of the condition node after this transformation
+        -> false-branch will be part of the false-branch of the condition node after this transformation
+        - since a clean-condition-node always has a true-branch but may not have a false-branch, we have to add it if it does not exist.
+        """
+        if true_branch:
+            self._remove_edge(true_branch.parent, true_branch)
+            new_seq_node = self._add_sequence_node_before(condition_node.true_branch_child)
+            self._add_edge(new_seq_node, true_branch)
+            new_seq_node.clean()
+        if false_branch:
+            self._remove_edge(false_branch.parent, false_branch)
+            if condition_node.false_branch is None:
+                false_node = self.factory.create_false_node()
+                self._add_node(false_node)
+                self._add_edges_from(((condition_node, false_node), (false_node, false_branch)))
+            else:
+                new_seq_node = self._add_sequence_node_before(condition_node.false_branch_child)
+                self._add_edge(new_seq_node, false_branch)
+                new_seq_node.clean()
 
     def create_switch_node_with(self, expression: Expression, cases: List[Tuple[CaseNode, AbstractSyntaxTreeNode]]) -> SwitchNode:
         """Create a switch node with the given expression and the given list of case nodes."""

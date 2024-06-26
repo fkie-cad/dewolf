@@ -214,13 +214,14 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
     """Class that constructs switch nodes."""
 
     @classmethod
-    def construct(cls, asforest: AbstractSyntaxForest, options: RestructuringOptions):
+    def construct(cls, asforest: AbstractSyntaxForest, options: RestructuringOptions) -> Set[SwitchNode]:
         """Constructs initial switch nodes if possible."""
         initial_switch_constructor = cls(asforest, options)
         for cond_node in asforest.get_condition_nodes_post_order(asforest.current_root):
             initial_switch_constructor._extract_case_nodes_from_nested_condition(cond_node)
         for seq_node in asforest.get_sequence_nodes_post_order(asforest.current_root):
             initial_switch_constructor._try_to_construct_initial_switch_node_for(seq_node)
+        return initial_switch_constructor.updated_switch_nodes
 
     def _extract_case_nodes_from_nested_condition(self, cond_node: ConditionNode) -> None:
         """
@@ -336,6 +337,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
             sibling_reachability = self.asforest.get_sibling_reachability_of_children_of(seq_node)
             switch_cases = list(possible_switch_node.construct_switch_cases())
             switch_node = self.asforest.create_switch_node_with(possible_switch_node.expression, switch_cases)
+            self.updated_switch_nodes.add(switch_node)
             case_dependency = CaseDependencyGraph.construct_case_dependency_for(self.asforest.children(switch_node), sibling_reachability)
             self._update_reaching_condition_for_case_node_children(switch_node)
             self._add_constants_to_cases(switch_node, case_dependency)
@@ -393,7 +395,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
                 case_node.reaching_condition.is_disjunction_of_literals
             ), f"The condition of a case node should be a disjunction, but it is {case_node.reaching_condition}!"
 
-            if isinstance(cond_node := case_node.child, ConditionNode) and cond_node.false_branch is None:
+            if (cond_node := case_node.child).is_single_branch:
                 self._update_condition_for(cond_node, case_node)
 
             case_node.child.reaching_condition = case_node.child.reaching_condition.substitute_by_true(case_node.reaching_condition)

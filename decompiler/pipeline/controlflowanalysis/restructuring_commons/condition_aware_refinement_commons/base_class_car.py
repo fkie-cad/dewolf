@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Iterator, Optional, Tuple
+from typing import Iterator, Optional, Set, Tuple
 
 from decompiler.pipeline.controlflowanalysis.restructuring_options import LoopBreakOptions, RestructuringOptions
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, FalseNode, SwitchNode, TrueNode
@@ -62,6 +62,7 @@ class BaseClassConditionAwareRefinement:
         self.asforest: AbstractSyntaxForest = asforest
         self.condition_handler: ConditionHandler = asforest.condition_handler
         self.options: RestructuringOptions = options
+        self.updated_switch_nodes: Set[SwitchNode] = set()
 
     def _get_constant_equality_check_expressions_and_conditions(
         self, condition: LogicCondition
