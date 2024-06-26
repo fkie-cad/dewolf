@@ -35,7 +35,7 @@ from typing import TYPE_CHECKING, Generic, Iterator, List, Optional, Tuple, Type
 
 from ...util.insertion_ordered_set import InsertionOrderedSet
 from .complextypes import Enum
-from .typing import ArrayType, CustomType, Type, UnknownType
+from .typing import CustomType, Type, UnknownType
 
 T = TypeVar("T")
 DecompiledType = TypeVar("DecompiledType", bound=Type)
@@ -57,18 +57,6 @@ class DataflowObject(ABC):
 
     def __init__(self, tags: Optional[Tuple[Tag, ...]] = None):
         self.tags = tags
-
-    def __eq__(self, other) -> bool:
-        """Check for equality."""
-        return type(other) == type(self) and hash(self) == hash(other)
-
-    def __hash__(self) -> int:
-        """Return a hash value for the expression."""
-        return hash(repr(self))
-
-    def __repr__(self):
-        """Return a debug representation."""
-        return str(self)
 
     @abstractmethod
     def __iter__(self) -> Iterator[DataflowObject]:
@@ -149,6 +137,12 @@ class UnknownExpression(Expression[UnknownType]):
         self.msg = msg
         super().__init__(tags)
 
+    def __eq__(self, __value):
+        return isinstance(__value, UnknownExpression) and self.msg == __value.msg
+
+    def __hash__(self):
+        return hash(self.msg)
+
     def __str__(self) -> str:
         """Return the error message as string representation."""
         return self.msg
@@ -182,6 +176,17 @@ class Constant(Expression[DecompiledType]):
         self._type = vartype
         self._pointee = pointee
         super().__init__(tags)
+
+    def __eq__(self, __value):
+        return (
+            isinstance(__value, Constant)
+            and self.value == __value.value
+            and self._type == __value._type
+            and self._pointee == __value.pointee
+        )
+
+    def __hash__(self):
+        return hash((tuple(self.value) if isinstance(self.value, list) else self.value, self._type, self._pointee))
 
     def __repr__(self) -> str:
         value = str(self) if isinstance(self.value, str) else self.value
@@ -235,6 +240,12 @@ class NotUseableConstant(Constant):
     def __init__(self, value: str, tags: Optional[Tuple[Tag, ...]] = None):
         super().__init__(value, CustomType("double", 0), tags=tags)
 
+    def __eq__(self, __value):
+        return isinstance(__value, NotUseableConstant) and self.value == __value.value
+
+    def __hash__(self):
+        return hash(self.value)
+
     def __str__(self) -> str:
         """Return a string because NotUseableConstant are string only"""
         return self.value
@@ -254,6 +265,12 @@ class Symbol(Constant):
     def __init__(self, name: str, value: Union[int, float], vartype: Type = UnknownType(), tags: Optional[Tuple[Tag, ...]] = None):
         super().__init__(value, vartype, tags=tags)
         self._name = name
+
+    def __eq__(self, __value):
+        return isinstance(__value, Symbol) and self._name == __value._name and self.value == __value.value
+
+    def __hash__(self):
+        return hash((self._name, self.value))
 
     @property
     def name(self) -> str:
@@ -278,12 +295,24 @@ class Symbol(Constant):
 class FunctionSymbol(Symbol):
     """Represents a function name"""
 
+    def __eq__(self, __value):
+        return isinstance(__value, FunctionSymbol) and super().__eq__(__value)
+
+    def __hash__(self):
+        return super().__hash__()
+
     def copy(self) -> FunctionSymbol:
         return FunctionSymbol(self.name, self.value, self._type.copy(), self.tags)
 
 
 class ImportedFunctionSymbol(FunctionSymbol):
     """Represents an imported function name"""
+
+    def __eq__(self, __value):
+        return isinstance(__value, ImportedFunctionSymbol) and super().__eq__(__value)
+
+    def __hash__(self):
+        return super().__hash__()
 
     def copy(self) -> ImportedFunctionSymbol:
         return ImportedFunctionSymbol(self._name, self.value, self._type.copy(), self.tags)
@@ -296,6 +325,12 @@ class IntrinsicSymbol(FunctionSymbol):
 
     def __init__(self, name: str):
         super().__init__(name, self.INTRINSIC_ADDRESS)
+
+    def __eq__(self, __value):
+        return isinstance(__value, IntrinsicSymbol) and self.name == __value.name
+
+    def __hash__(self):
+        return hash(self.name)
 
     def __repr__(self):
         return f"intrinsic '{self.name}'"
@@ -323,6 +358,18 @@ class Variable(Expression[DecompiledType]):
         self._type = vartype
         self.ssa_name = ssa_name
         super().__init__(tags)
+
+    def __eq__(self, __value):
+        return (
+            isinstance(__value, Variable)
+            and self._name == __value._name
+            and self.ssa_label == __value.ssa_label
+            and self._type == __value._type
+            and self.is_aliased == __value.is_aliased
+        )
+
+    def __hash__(self):
+        return hash((self._name, self.ssa_label, self._type, self.is_aliased))
 
     def __repr__(self) -> str:
         """Return a debug representation of the variable, which includes all the attributes"""
@@ -399,6 +446,12 @@ class GlobalVariable(Variable):
         self.initial_value = initial_value
         self.is_constant = is_constant
 
+    def __eq__(self, __value):
+        return isinstance(__value, GlobalVariable) and super().__eq__(__value)
+
+    def __hash__(self):
+        return super().__hash__()
+
     def copy(
         self,
         name: str = None,
@@ -444,6 +497,14 @@ class RegisterPair(Variable):
         self._high = high
         self._low = low
         self._type = vartype
+
+    def __eq__(self, __value):
+        return (
+            isinstance(__value, RegisterPair) and self._high == __value._high and self._low == __value._low and self._type == __value._type
+        )
+
+    def __hash__(self):
+        return hash((self._high, self._low, self._type))
 
     def __repr__(self) -> str:
         """Return debug representation of register pair"""
@@ -506,6 +567,12 @@ class ConstantComposition(Constant):
             None,
             tags,
         )
+
+    def __eq__(self, __value):
+        return isinstance(__value, ConstantComposition) and super().__eq__(__value)
+
+    def __hash__(self):
+        return super().__hash__()
 
     def __str__(self) -> str:
         """Return a string representation of the ConstantComposition"""

@@ -4,12 +4,12 @@ import logging
 from collections import defaultdict
 from configparser import NoOptionError
 from enum import Enum
-from typing import DefaultDict, List
+from typing import Callable, DefaultDict, List
 
 from decompiler.pipeline.ssa.phi_cleaner import PhiFunctionCleaner
 from decompiler.pipeline.ssa.phi_dependency_resolver import PhiDependencyResolver
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
-from decompiler.pipeline.ssa.variable_renaming import MinimalVariableRenamer, SimpleVariableRenamer
+from decompiler.pipeline.ssa.variable_renaming import ConditionalVariableRenamer, MinimalVariableRenamer, SimpleVariableRenamer
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock
 from decompiler.structures.interferencegraph import InterferenceGraph
@@ -98,12 +98,13 @@ class OutOfSsaTranslation(PipelineStage):
 
         -> There are different optimization levels
         """
-        try:
-            self.out_of_ssa_strategy[self._optimization](self)
-        except KeyError:
-            error_message = f"The Out of SSA according to the optimization level {self._optimization.value} is not implemented so far."
-            logging.error(error_message)
-            raise NotImplementedError(error_message)
+        strategy = self.out_of_ssa_strategy.get(self._optimization, None)
+        if strategy is None:
+            raise NotImplementedError(
+                f"The Out of SSA according to the optimization level {self._optimization.value} is not implemented so far."
+            )
+
+        strategy(self)
 
     def _simple_out_of_ssa(self) -> None:
         """
@@ -158,12 +159,15 @@ class OutOfSsaTranslation(PipelineStage):
         This is a more advanced algorithm for out of SSA:
             - We first remove the circular dependency of the Phi-functions
             - Then, we remove the Phi-functions by lifting them to their predecessor basic blocks.
-            - Afterwards, we rename the variables, by considering their dependency on each other.
+            - Afterwards, we rename the variables by considering their dependency on each other.
         """
-        pass
+        PhiDependencyResolver(self._phi_functions_of).resolve()
+        self.interference_graph = InterferenceGraph(self.task.graph)
+        PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift()
+        ConditionalVariableRenamer(self.task, self.interference_graph).rename()
 
     # This translator maps the optimization levels to the functions.
-    out_of_ssa_strategy = {
+    out_of_ssa_strategy: dict[SSAOptions, Callable[["OutOfSsaTranslation"], None]] = {
         SSAOptions.simple: _simple_out_of_ssa,
         SSAOptions.minimization: _minimization_out_of_ssa,
         SSAOptions.lift_minimal: _lift_minimal_out_of_ssa,

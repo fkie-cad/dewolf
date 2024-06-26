@@ -28,7 +28,7 @@ class MissingCaseFinderCondition(MissingCaseFinder):
     """
 
     @classmethod
-    def find(cls, asforest: AbstractSyntaxForest, options: RestructuringOptions):
+    def find(cls, asforest: AbstractSyntaxForest, options: RestructuringOptions) -> Set[SwitchNode]:
         """Try to find missing cases that are branches of condition nodes."""
         missing_case_finder = cls(asforest, options)
         for condition_node in asforest.get_condition_nodes_post_order(asforest.current_root):
@@ -37,9 +37,10 @@ class MissingCaseFinderCondition(MissingCaseFinder):
                     case_candidate_information.case_node, case_candidate_information.case_constants, case_candidate_information.switch_node
                 )
                 if case_candidate_information.in_sequence:
-                    asforest.extract_switch_from_condition_sequence(case_candidate_information.switch_node, condition_node)
+                    asforest.extract_switch_from_sequence(case_candidate_information.switch_node)
                 else:
                     asforest.replace_condition_node_by_single_branch(condition_node)
+        return missing_case_finder.updated_switch_nodes
 
     def _can_insert_missing_case_node(self, condition_node: ConditionNode) -> Optional[CaseCandidateInformation]:
         """

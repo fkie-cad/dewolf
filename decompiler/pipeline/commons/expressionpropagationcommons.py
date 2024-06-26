@@ -18,6 +18,7 @@ from decompiler.structures.pseudo import (
     Operation,
     OperationType,
     Phi,
+    Relation,
     Return,
     UnaryOperation,
     UnknownExpression,
@@ -224,8 +225,9 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         if self._is_address(definition.value):
             for subexpr in target:
                 for sub in self._find_subexpressions(subexpr):
-                    if self._is_dereference(sub) and sub.operand == definition.destination:
+                    if self._is_dereference(sub) and sub.operand in definition.definitions:
                         return True
+        return False
 
     def _contains_aliased_variables(self, definition: Assignment) -> bool:
         """
@@ -265,15 +267,17 @@ class ExpressionPropagationBase(PipelineStage, ABC):
     ) -> bool:
         """
         Tests for definition containing aliased if a modification of the aliased value is possible, i.e.
-        via its pointer (ptr = &aliased) or via use of its reference (aka address) in function calls.
+        via its pointer (ptr = &aliased) or via use of its reference (aka address) in function calls
+        or if a relation is in between.
 
         :return: true if a modification of the aliased value is possible (hence, the propagation should be avoided) false otherwise
         """
         for aliased_variable in set(self._iter_aliased_variables(definition)):
             dangerous_address_uses = self._get_dangerous_uses_of_variable_address(aliased_variable)
             dangerous_pointer_uses = self._get_dangerous_uses_of_pointer_to_variable(aliased_variable)
-            if dangerous_address_uses or dangerous_pointer_uses:
-                dangerous_uses = dangerous_pointer_uses.union(dangerous_address_uses)
+            dangerous_alias_uses = self._get_dangerous_relations_between_definition_and_target(aliased_variable)
+            dangerous_uses = dangerous_pointer_uses | dangerous_address_uses | dangerous_alias_uses
+            if dangerous_uses:
                 if self._has_any_of_dangerous_uses_between_definition_and_target(definition, target, dangerous_uses):
                     return True
         return False
@@ -323,14 +327,13 @@ class ExpressionPropagationBase(PipelineStage, ABC):
     def _get_dangerous_uses_of_variable_address(self, var: Variable) -> Set[Instruction]:
         """
         Dangerous use of & of x is func(&x) cause it can potentially modify x.
-        *(&x) could also do the job but I consider it to be too exotic so that we could get such instruction from Binary Ninja
-        If it happens we can handle it later.
+        Another case is an Assignment where the left side is *(&).
         :param var: aliased variable
         :return: set of function call assignments that take &var as parameter
         """
         dangerous_uses = set()
         for use in self._use_map.get(var):
-            if not self._is_call_assignment(use):
+            if not self._is_call_assignment(use) and not (isinstance(use, Assignment) and self._is_dereference(use.destination)):
                 continue
             for subexpr in self._find_subexpressions(use):
                 if self._is_address(subexpr):
@@ -352,6 +355,17 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         for pointer in is_pointed_by:
             dangerous_uses.update(self._get_dangerous_uses_of_pointer(pointer))
         return dangerous_uses
+
+    def _get_dangerous_relations_between_definition_and_target(self, alias_variable: Variable) -> Set[Relation]:
+        """Return all relations of the alias variable."""
+        relations = set()
+        # Collect all relations for alias_variable ignoring SSA
+        for basic_block in self._cfg:
+            for instruction in basic_block:
+                if isinstance(instruction, Relation) and instruction.destination.name == alias_variable.name:
+                    relations |= {instruction}
+
+        return relations
 
     def _get_dangerous_uses_of_pointer(self, pointer: Variable) -> Set[Instruction]:
         """
@@ -438,7 +452,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
     def _contains_writeable_global_variable(expression: Assignment) -> bool:
         """
         :param expression: Assignment expression to be tested
-        :return: true if any requirement of expression is a GlobalVariable
+        :return: true if any requirement of expression is a writeable GlobalVariable
         """
         for expr in expression.destination.requirements:
             if isinstance(expr, GlobalVariable) and not expr.is_constant:

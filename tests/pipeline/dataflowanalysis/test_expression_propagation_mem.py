@@ -1021,6 +1021,64 @@ def test_dangerous_reference_use_in_single_block_graph():
     assert _graphs_equal(in_cfg, out_cfg)
 
 
+def test_dangerous_relation_in_between():
+    """
+    Don't propagate y#0 into rand(x#0) because of possible change in between (relation)
+    +-----------------+
+    |       0.        |
+    |    x#0 = y#0    |
+    |   memset(y#0)   |
+    |   y#1 -> y#0    |
+    | z#0 = rand(x#0) |
+    |   return z#0    |
+    +-----------------+
+
+    +-----------------+
+    |       0.        |
+    |    x#0 = y#0    |
+    |   memset(y#0)   |
+    |   y#1 -> y#0    |
+    | z#0 = rand(x#0) |
+    |   return z#0    |
+    +-----------------+
+    """
+    in_cfg, out_cfg = _graph_with_dangerous_relation_between()
+    _run_expression_propagation(in_cfg)
+    assert _graphs_equal(in_cfg, out_cfg)
+
+
+def _graph_with_dangerous_relation_between():
+    in_cfg = ControlFlowGraph()
+    x = vars("x", 2, aliased=False)
+    y = vars("y", 2, aliased=True)
+    z = vars("z", 1, aliased=False)
+    c = const(11)
+    in_node = BasicBlock(
+        0,
+        [
+            _assign(x[0], y[0]),
+            _call("memset", [], [y[0]]),
+            Relation(y[1], y[0]),
+            _call("rand", [z[0]], [x[0]]),
+            _ret(z[0]),
+        ],
+    )
+    in_cfg.add_node(in_node)
+    out_cfg = ControlFlowGraph()
+    out_node = BasicBlock(
+        0,
+        [
+            _assign(x[0], y[0]),
+            _call("memset", [], [y[0]]),
+            Relation(y[1], y[0]),
+            _call("rand", [z[0]], [x[0]]),
+            _ret(z[0]),
+        ],
+    )
+    out_cfg.add_node(out_node)
+    return in_cfg, out_cfg
+
+
 def _graphs_with_dangerous_reference_use() -> Tuple[ControlFlowGraph, ControlFlowGraph]:
     in_cfg = ControlFlowGraph()
     x = vars("x", 2, aliased=False)
@@ -1616,6 +1674,81 @@ def test_correct_propagation_relation():
         ),
         instructions[10],
     ]
+
+
+def test_address_into_dereference():
+    """
+    Test with cast in destination (x#0 stays the same type)
+    +---------------------+
+    |         0.          |
+    | (long) x#0 = &(x#1) |
+    |    *(x#0) = x#0     |
+    +---------------------+
+
+    +---------------------+
+    |         0.          |
+    | (long) x#0 = &(x#1) |
+    |    *(x#0) = x#0     |
+    +---------------------+
+    """
+    input_cfg, output_cfg = graphs_addr_into_deref()
+    _run_expression_propagation(input_cfg)
+    assert _graphs_equal(input_cfg, output_cfg)
+
+
+def test_address_into_dereference_with_multiple_defs():
+    """
+    Extended test of above where we have two definitions (as a ListOp).
+    +---------------------+
+    |         0.          |
+    | (long) x#1 = &(x#0) |
+    |  *(x#1),y#0 = x#1   |
+    +---------------------+
+
+    +---------------------+
+    |         0.          |
+    | (long) x#1 = &(x#0) |
+    |  *(x#1),y#0 = x#1   |
+    +---------------------+
+    """
+    input_cfg, output_cfg = graphs_addr_into_deref_multiple_defs()
+    _run_expression_propagation(input_cfg)
+    assert _graphs_equal(input_cfg, output_cfg)
+
+
+def graphs_addr_into_deref():
+    x = vars("x", 2)
+    in_n0 = BasicBlock(
+        0,
+        [_assign(_cast(int64, x[0]), _addr(x[1])), _assign(_deref(x[0]), x[0])],
+    )
+    in_cfg = ControlFlowGraph()
+    in_cfg.add_node(in_n0)
+    out_n0 = BasicBlock(
+        0,
+        [_assign(_cast(int64, x[0]), _addr(x[1])), _assign(_deref(x[0]), x[0])],
+    )
+    out_cfg = ControlFlowGraph()
+    out_cfg.add_node(out_n0)
+    return in_cfg, out_cfg
+
+
+def graphs_addr_into_deref_multiple_defs():
+    x = vars("x", 2)
+    y = vars("y", 1)
+    in_n0 = BasicBlock(
+        0,
+        [_assign(_cast(int64, x[1]), _addr(x[0])), _assign(ListOperation([_deref(x[1]), y[0]]), x[1])],
+    )
+    in_cfg = ControlFlowGraph()
+    in_cfg.add_node(in_n0)
+    out_n0 = BasicBlock(
+        0,
+        [_assign(_cast(int64, x[1]), _addr(x[0])), _assign(ListOperation([_deref(x[1]), y[0]]), x[1])],
+    )
+    out_cfg = ControlFlowGraph()
+    out_cfg.add_node(out_n0)
+    return in_cfg, out_cfg
 
 
 def graphs_with_no_propagation_of_contraction_address_assignment():
