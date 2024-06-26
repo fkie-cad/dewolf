@@ -7,6 +7,7 @@ from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, Switc
 from decompiler.structures.maps import DefMap, UseMap
 from decompiler.structures.pseudo.expressions import Expression, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, IndirectBranch, Instruction
+from decompiler.structures.pseudo.locations import InstructionLocation
 from decompiler.structures.pseudo.operations import Condition, OperationType, UnaryOperation
 from decompiler.task import DecompilerTask
 
@@ -70,9 +71,9 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
     name = "backward-slice-switch-variable-detection"
 
     def __init__(self):
-        self._def_map: DefMap
-        self._use_map: UseMap
-        self._dereferences_used_in_branches: set
+        self._def_map = DefMap()
+        self._use_map = UseMap()
+        self._dereferences_used_in_branches: set[Expression] = set()
 
     def run(self, task: DecompilerTask):
         """
@@ -94,9 +95,10 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
     def _init_map(self, cfg: ControlFlowGraph):
         """Init the def and use maps on the given cfg-"""
         self._use_map, self._def_map, self._dereferences_used_in_branches = UseMap(), DefMap(), set()
-        for instruction in cfg.instructions:
-            self._def_map.add(instruction)
-            self._use_map.add(instruction)
+        for location in cfg.instruction_locations:
+            self._def_map.add(location)
+            self._use_map.add(location)
+            instruction = location.instruction
             if isinstance(instruction, Branch) and not instruction.requirements:
                 new_expressions = {expr for expr in instruction.condition if is_dereference(expr)}
                 self._dereferences_used_in_branches.update(new_expressions)
@@ -121,7 +123,8 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
         """
         Check if `value` is used in an Assignment with RHS being Condition solely requiring `value`
         """
-        for usage in self._use_map.get(value):
+        for use_location in self._use_map.get(value):
+            usage = use_location.instruction
             if isinstance(usage, Assignment) and isinstance(usage.value, Condition) and usage.requirements == [value]:
                 return True
         return False
@@ -130,7 +133,8 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
         """
         Check if `value` is used in Branch solely requiring `value`
         """
-        for usage in self._use_map.get(value):
+        for use_location in self._use_map.get(value):
+            usage = use_location.instruction
             if isinstance(usage, Branch) and usage.requirements == [value]:
                 return True
         return False
@@ -139,7 +143,9 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
         """
         Check if any predecessors of `value` are used as dereferences in branches.
         """
-        if definition := self._def_map.get(value):
+        if location := self._def_map.get(value):
+            definition = location.instruction
+            assert isinstance(definition, Assignment)
             return (
                 any(exp in self._dereferences_used_in_branches for exp in definition.value)
                 or definition.value in self._dereferences_used_in_branches
@@ -150,7 +156,9 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
         """
         Check if variable is defined in copy assignment of the form Var1 = Var2.
         """
-        if definition := self._def_map.get(value):
+        if location := self._def_map.get(value):
+            definition = location.instruction
+            assert isinstance(definition, Assignment)
             return isinstance(definition.value, Variable)
         return False
 
@@ -174,6 +182,8 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
         while todo and (current := todo.pop()):
             yield current
             visited.add(current)
-            definition = self._def_map.get(current)
-            if definition:
+            location = self._def_map.get(current)
+            if location:
+                definition = location.instruction
+                assert isinstance(definition, Assignment)
                 todo.extend([requirement for requirement in definition.requirements if requirement not in visited])

@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import DefaultDict, Iterator, Optional, Set
+from typing import Iterator, Optional, Set
 
 from decompiler.pipeline.ssa.phi_cleaner import PhiFunctionCleaner
 from decompiler.pipeline.stage import PipelineStage
@@ -24,6 +24,7 @@ from decompiler.structures.pseudo import (
     UnknownExpression,
     Variable,
 )
+from decompiler.structures.pseudo.locations import InstructionLocation
 from decompiler.task import DecompilerTask
 
 
@@ -34,7 +35,6 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         self._use_map: UseMap
         self._def_map: DefMap
         self._pointers_info: Optional[Pointers] = None
-        self._blocks_map: Optional[DefaultDict[str, Set]] = None
         self._cfg: Optional[ControlFlowGraph] = None
         # to collect aliased variables that should be propagated in a separate round after everything else
         # is propagated. For more details, see _is_aliased_postponed_for_propagation method.
@@ -48,7 +48,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
             iteration += 1
         logging.info(f"{self.name} took {iteration} iterations")
 
-    def perform(self, graph, iteration) -> bool:
+    def perform(self, graph: ControlFlowGraph, iteration: int) -> bool:
         """expression propagation forward pass:
         initialize defmap and use map
         iterate through all the blocks and all the instructions in the blocks
@@ -60,18 +60,20 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         """
         self._remove_redundant_phis(graph)
 
-        is_changed = False
         self._cfg = graph
         self._initialize_maps(graph)
+
+        is_changed = False
         for basic_block in graph.nodes:
             for index, instruction in enumerate(basic_block.instructions):
                 old = str(instruction)
                 self._try_to_propagate_contractions(instruction)
                 for var in instruction.requirements:
-                    if var_definition := self._def_map.get(var):
-                        if self._definition_can_be_propagated_into_target(var_definition, instruction):
+                    if var_definition_location := self._def_map.get(var):
+                        var_definition = var_definition_location.instruction
+                        assert isinstance(var_definition, Assignment)
+                        if self._definition_can_be_propagated_into_target(var_definition_location, InstructionLocation(basic_block, index)):
                             instruction.substitute(var, var_definition.value.copy())
-                            self._update_block_map(old, str(instruction), basic_block, index)
                             self._update_use_map(var, instruction)
                             if not is_changed:
                                 is_changed = old != str(instruction)
@@ -82,7 +84,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         PhiFunctionCleaner(phi_functions_of).clean_up()
 
     @abstractmethod
-    def _definition_can_be_propagated_into_target(self, definition: Assignment, target: Instruction) -> bool:
+    def _definition_can_be_propagated_into_target(self, definition: InstructionLocation, target_location: InstructionLocation) -> bool:
         """
         Tests (based on set of rules) if definition allowed to be propagated into target.
         Child classes EP and EPM should implement this method by deciding which exactly rules are tested in each case
@@ -100,16 +102,11 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         """
         self._def_map = DefMap()
         self._use_map = UseMap()
-        self._blocks_map = defaultdict(set)
         for basic_block in cfg.nodes:
             for index, instruction in enumerate(basic_block.instructions):
-                self._blocks_map[str(instruction)].add((basic_block, index))
-                self._use_map.add(instruction)
-                self._def_map.add(instruction)
-
-    def _update_block_map(self, old_instr_str: str, new_instr_str: str, basic_block: BasicBlock, index: int):
-        """Do nothing if EP, EPM re-implements this method to update the map when instructions change"""
-        pass
+                location = InstructionLocation(basic_block, index)
+                self._use_map.add(location)
+                self._def_map.add(location)
 
     def _update_use_map(self, variable: Variable, instruction: Instruction):
         """Do nothing if EP, EPM re-implements this method to update the map when instructions change"""
@@ -134,7 +131,8 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         target = instruction if not isinstance(instruction, Assignment) else instruction.value
         for subexpr in self._find_subexpressions(target):
             if self._is_variable_contraction(subexpr):
-                if definition := self._def_map.get(subexpr.operand):
+                if location := self._def_map.get(subexpr.operand):
+                    definition = location.instruction
                     if isinstance(definition, Assignment) and self._is_address_assignment(definition):
                         continue
                     defined_contraction, value = definition.destination, definition.value
@@ -238,7 +236,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         return any([self._is_aliased_variable(expr) for expr in self._find_subexpressions(definition)])
 
     def _pointer_value_used_in_definition_could_be_modified_via_memory_access_between_definition_and_target(
-        self, definition: Assignment, target: Instruction
+        self, definition_location: InstructionLocation, target_location: InstructionLocation
     ) -> bool:
         """Do not propagate definition with dereference on the right-hand-side, if a modification of a value via its pointer
         lies between definition and target
@@ -254,16 +252,18 @@ class ExpressionPropagationBase(PipelineStage, ABC):
          :return true if modification is possible false otherwise
 
         """
+        definition = definition_location.instruction
+        assert isinstance(definition, Assignment)
         for subexpr in self._find_subexpressions(definition.value):
             if self._is_dereference(subexpr):
                 for variable in subexpr.requirements:
                     if variable in self._pointers_info.points_to:
                         dangerous_uses = self._get_dangerous_uses_of_pointer(variable)
-                        return self._has_any_of_dangerous_uses_between_definition_and_target(definition, target, dangerous_uses)
+                        return self._has_any_of_dangerous_uses_between_definition_and_target(definition_location, target_location, dangerous_uses)
         return False
 
     def _definition_value_could_be_modified_via_memory_access_between_definition_and_target(
-        self, definition: Assignment, target: Instruction
+        self, definition_location: InstructionLocation, target_location: InstructionLocation
     ) -> bool:
         """
         Tests for definition containing aliased if a modification of the aliased value is possible, i.e.
@@ -272,18 +272,18 @@ class ExpressionPropagationBase(PipelineStage, ABC):
 
         :return: true if a modification of the aliased value is possible (hence, the propagation should be avoided) false otherwise
         """
-        for aliased_variable in set(self._iter_aliased_variables(definition)):
+        for aliased_variable in set(self._iter_aliased_variables(definition_location.instruction)):
             dangerous_address_uses = self._get_dangerous_uses_of_variable_address(aliased_variable)
             dangerous_pointer_uses = self._get_dangerous_uses_of_pointer_to_variable(aliased_variable)
             dangerous_alias_uses = self._get_dangerous_relations_between_definition_and_target(aliased_variable)
             dangerous_uses = dangerous_pointer_uses | dangerous_address_uses | dangerous_alias_uses
             if dangerous_uses:
-                if self._has_any_of_dangerous_uses_between_definition_and_target(definition, target, dangerous_uses):
+                if self._has_any_of_dangerous_uses_between_definition_and_target(definition_location, target_location, dangerous_uses):
                     return True
         return False
 
     def _has_any_of_dangerous_uses_between_definition_and_target(
-        self, definition: Assignment, target: Instruction, dangerous_uses: Set[Instruction]
+        self, definition_location: InstructionLocation, target_location: InstructionLocation, dangerous_uses: set[InstructionLocation]
     ) -> bool:
         """
         Checks if any instruction from the set of dangerous uses lies on the way between definition and target(s)
@@ -294,37 +294,31 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         :type dangerous_uses:
         :return: true if there exist at least one path containing any of dangerous instructions  between definition and target, false otherwise
         """
-        definition_block_info = self._blocks_map[str(definition)]
-        if len(definition_block_info) == 0:
-            raise RuntimeError(f"No blocks found for definition {definition}")
-        if len(definition_block_info) > 1:
-            raise RuntimeError(f"Same definition {definition} in multiple blocks")
-        definition_block, definition_index = list(definition_block_info)[0]
-        for target_block, target_index in self._blocks_map[str(target)]:
-            if target_block == definition_block:
-                # then one of dangerous uses should lie between definition and target in the same block
-                for use in dangerous_uses:
-                    if use in definition_block.instructions[definition_index:target_index]:
-                        return True
+        definition_block = definition_location.block
+        definition_index = definition_location.index
+        target_block = target_location.block
+        target_index = target_location.index
+
+        for use_location in dangerous_uses:
+            use_block = use_location.block
+            use_index = use_location.index
+
+            # if dangerous use in the same block as target, its index should be less than target index
+            if use_block == target_block:
+                if use_index < target_index:
+                    return True
+            # if dangerous use in the same block as definition, its index should be greater than definition index
+            elif use_block == definition_block:
+                if use_index > definition_index:
+                    return True
             else:
-                for use in dangerous_uses:
-                    for use_block, use_index in self._blocks_map[str(use)]:
-                        # if dangerous use in the same block as target, its index should be less than target index
-                        if use_block == target_block:
-                            if use_index < target_index:
-                                return True
-                        # if dangerous use in the same block as definition, its index should be greater than definition index
-                        elif use_block == definition_block:
-                            if use_index > definition_index:
-                                return True
-                        else:
-                            # if dangerous use block is different than target or definition block
-                            # then it should lie at at least one path between definition and target blocks
-                            if self._cfg.has_path(definition_block, use_block) and self._cfg.has_path(use_block, target_block):
-                                return True
+                # if dangerous use block is different than target or definition block
+                # then it should lie at at least one path between definition and target blocks
+                if self._cfg.has_path(definition_block, use_block) and self._cfg.has_path(use_block, target_block):
+                    return True
         return False
 
-    def _get_dangerous_uses_of_variable_address(self, var: Variable) -> Set[Instruction]:
+    def _get_dangerous_uses_of_variable_address(self, var: Variable) -> set[InstructionLocation]:
         """
         Dangerous use of & of x is func(&x) cause it can potentially modify x.
         Another case is an Assignment where the left side is *(&).
@@ -332,16 +326,17 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         :return: set of function call assignments that take &var as parameter
         """
         dangerous_uses = set()
-        for use in self._use_map.get(var):
+        for use_location in self._use_map.get(var):
+            use = use_location.instruction
             if not self._is_call_assignment(use) and not (isinstance(use, Assignment) and self._is_dereference(use.destination)):
                 continue
             for subexpr in self._find_subexpressions(use):
                 if self._is_address(subexpr):
-                    dangerous_uses.add(use)
+                    dangerous_uses.add(use_location)
                     break
         return dangerous_uses
 
-    def _get_dangerous_uses_of_pointer_to_variable(self, var: Variable) -> Set[Instruction]:
+    def _get_dangerous_uses_of_pointer_to_variable(self, var: Variable) -> set[InstructionLocation]:
         """
         Dangerous use of pointer is using it in function call cause func(ptr) could potentially
         change value of pointed variable and *ptr = ... cause it changes value of pointed variable,
@@ -356,18 +351,18 @@ class ExpressionPropagationBase(PipelineStage, ABC):
             dangerous_uses.update(self._get_dangerous_uses_of_pointer(pointer))
         return dangerous_uses
 
-    def _get_dangerous_relations_between_definition_and_target(self, alias_variable: Variable) -> Set[Relation]:
+    def _get_dangerous_relations_between_definition_and_target(self, alias_variable: Variable) -> set[InstructionLocation]:
         """Return all relations of the alias variable."""
         relations = set()
         # Collect all relations for alias_variable ignoring SSA
         for basic_block in self._cfg:
-            for instruction in basic_block:
+            for index, instruction in enumerate(basic_block):
                 if isinstance(instruction, Relation) and instruction.destination.name == alias_variable.name:
-                    relations.add(instruction)
+                    relations.add(InstructionLocation(basic_block, index))
 
         return relations
 
-    def _get_dangerous_uses_of_pointer(self, pointer: Variable) -> Set[Instruction]:
+    def _get_dangerous_uses_of_pointer(self, pointer: Variable) -> set[InstructionLocation]:
         """
         :param pointer to a variable
         :return: set of instructions that may potentially change the value pointed by the given pointer. To such instructions belong:
@@ -376,13 +371,14 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         - *(ptr + offset) = new_val - potential change of structure member or array element
         """
         dangerous_uses = set()
-        for use in self._use_map.get(pointer):
+        for use_location in self._use_map.get(pointer):
+            use = use_location.instruction
             if not isinstance(use, Assignment):
                 continue
             if self._is_dereference(use.destination) and pointer in use.destination.requirements:
-                dangerous_uses.add(use)
+                dangerous_uses.add(use_location)
             elif self._is_call_assignment(use) and pointer in use.value.requirements:
-                dangerous_uses.add(use)
+                dangerous_uses.add(use_location)
         return dangerous_uses
 
     def _iter_aliased_variables(self, expression: DataflowObject) -> Iterator[Variable]:

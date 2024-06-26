@@ -2,6 +2,7 @@
 """Main decompiler Interface."""
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from typing import Collection, Optional
 
@@ -90,4 +91,5 @@ class Decompiler:
 if __name__ == "__main__":
     from decompiler.util.commandline import main
 
+    # sys.setrecursionlimit(0x100000)
     main(Decompiler)

@@ -9,7 +9,7 @@ from decompiler.structures.pseudo.instructions import Phi
 from decompiler.task import DecompilerTask
 from networkx import DiGraph
 
-from .util import _init_basicblocks_of_definition, _init_maps
+from .util import _init_basicblocks_of_definition, init_maps
 
 
 class PhiFunctionFixer(PipelineStage):
@@ -26,7 +26,7 @@ class PhiFunctionFixer(PipelineStage):
     def run(self, task: DecompilerTask):
         self.cfg = task.graph
         self.head = task.graph.root
-        self._def_map, self._use_map = _init_maps(self.cfg)
+        self._def_map, self._use_map = init_maps(self.cfg)
         self._basic_block_of_definition = _init_basicblocks_of_definition(self.cfg)
         self.extend_phi_functions()
 
