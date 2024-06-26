@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Set, Union
 
 from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_aware_refinement_commons.base_class_car import (
     BaseClassConditionAwareRefinement,
@@ -19,6 +19,7 @@ class SwitchExtractor(BaseClassConditionAwareRefinement):
         for switch_node in list(asforest.get_switch_nodes_post_order(asforest.current_root)):
             while switch_extractor._successfully_extracts_switch_nodes(switch_node):
                 pass
+        return switch_extractor.updated_switch_nodes
 
     def _successfully_extracts_switch_nodes(self, switch_node: SwitchNode) -> bool:
         """

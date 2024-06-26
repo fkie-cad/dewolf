@@ -33,6 +33,7 @@ class MissingCaseFinder(BaseClassConditionAwareRefinement):
         if default_case := switch_node.default:
             new_children.append(default_case)
         switch_node._sorted_cases = tuple(new_children)
+        self.updated_switch_nodes.add(switch_node)
 
     def _new_case_nodes_for(
         self, new_case_node: AbstractSyntaxTreeNode, switch_node: SwitchNode, sorted_case_constants: List[Constant]
