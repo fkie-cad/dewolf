@@ -1,6 +1,7 @@
 from collections import defaultdict
 from typing import DefaultDict, Dict, Iterator, Optional, Set, Tuple
 
+import line_profiler
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.pseudo import Instruction, Variable
 from decompiler.structures.pseudo.locations import InstructionLocation
@@ -33,11 +34,15 @@ class DefMap:
     def pop(self, definition: Variable) -> InstructionLocation:
         return self._map.pop(definition)
 
+    @line_profiler.profile
     def update_block_range(self, block: BasicBlock, start: int, len: int, new_len: int):
         # remove usages in range which got updated
-        for definition, location in list(self._map.items()):
+        definitions_to_remove = []
+        for definition, location in self._map.items():
             if id(location.block) == id(block) and start <= location.index < start + len:
-                self._map.pop(definition)
+                definitions_to_remove.append(definition)
+        for definition in definitions_to_remove:
+            self._map.pop(definition)
 
         # update definitions which got shifted because of range
         if len != new_len:
@@ -47,8 +52,8 @@ class DefMap:
                     self._map[definition] = InstructionLocation(location.block, location.index + dif)
 
         # add new usages
-        for index, instruction in list(enumerate(block.instructions))[start:(start + new_len)]:
-            self.add(InstructionLocation(block, index))
+        for index, instruction in enumerate(block.instructions[start:(start + new_len)]):
+            self.add(InstructionLocation(block, start + index))
 
     @property
     def defined_variables(self) -> InsertionOrderedSet[Variable]:
@@ -73,28 +78,37 @@ class UseMap:
     def get(self, used: Variable) -> set[InstructionLocation]:
         return self._map[used]
 
+    @line_profiler.profile
     def update_block_range(self, block: BasicBlock, start: int, len: int, new_len: int):
         # remove usages in range which got updated
         if len > 0:
             for var in self._map:
-                for location in list(self._map[var]):
+                locations_to_remove = []
+                use_locations = self._map[var]
+                for location in use_locations:
                     if id(location.block) == id(block) and start <= location.index < start + len:
-                        self._map[var].remove(location)
+                        locations_to_remove.append(location)
+                use_locations.difference_update(locations_to_remove)
 
         # update usages which got shifted because of range
         if len != new_len:
             dif = new_len - len
 
             for var in self._map:
-                for location in list(self._map[var]):
+                locations_to_remove = []
+                locations_to_add = []
+                use_locations = self._map[var]
+                for location in use_locations:
                     if id(location.block) == id(block) and location.index >= start + len:
-                        self._map[var].remove(location)
-                        self._map[var].add(InstructionLocation(location.block, location.index + dif))
+                        locations_to_remove.append(location)
+                        locations_to_add.append(InstructionLocation(location.block, location.index + dif))
+                use_locations.difference_update(locations_to_remove)
+                use_locations.update(locations_to_add)
 
         # add new usages
         if new_len > 0:
-            for index, instruction in list(enumerate(block.instructions))[start:(start + new_len)]:
-                self.add(InstructionLocation(block, index))
+            for index, instruction in enumerate(block.instructions[start:(start + new_len)]):
+                self.add(InstructionLocation(block, start + index))
 
     def remove_use(self, variable: Variable, location: InstructionLocation) -> None:
         """Remove the instruction from the uses of a certain variable
