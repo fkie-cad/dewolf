@@ -4,6 +4,7 @@ from collections import defaultdict
 from logging import error
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple, Union
 
+import line_profiler
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.pointers import Pointers
@@ -171,6 +172,7 @@ class InsertMissingDefinitions(PipelineStage):
                 raise ValueError(f"Every non-aliased variable should be defined, but variable {variable} has no definition.")
             self._insert_definition_of_aliased(variable, previous_ssa_labels)
 
+    @line_profiler.profile
     def _insert_definition_of_aliased(self, variable: Variable, prev_ssa_labels: Set[int]) -> None:
         """
         This functions inserts the Assignment 'variable = prev_variable' if the value of the aliased variable does not change in the

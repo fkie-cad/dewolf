@@ -1,16 +1,31 @@
+from array import array
 from collections import defaultdict
-from typing import DefaultDict, Dict, Iterator, Optional, Set, Tuple
+from dataclasses import dataclass, field
+from typing import DefaultDict, Dict, Iterable, Iterator, Optional, Set, Tuple
 
 import line_profiler
+import numpy as np
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.pseudo import Instruction, Variable
 from decompiler.structures.pseudo.locations import InstructionLocation
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
+from numba import jit
+
+
+@dataclass(frozen=True, slots=True)
+class BasicBlockIdentyWrapper:
+    block: BasicBlock
+
+    def __eq__(self, other):
+        return isinstance(other, BasicBlockIdentyWrapper) and self.block is other.block
+    def __hash__(self):
+        return hash(id(self.block))
 
 
 class DefMap:
     def __init__(self) -> None:
-        self._map: dict[Variable, InstructionLocation] = dict()
+        self._index_lookup: dict[BasicBlockIdentyWrapper, array[int]] = defaultdict(lambda: array('L'))
+        self._map: dict[Variable, tuple[BasicBlockIdentyWrapper, int]] = dict()
 
     def __contains__(self, definition: Variable) -> bool:
         return definition in self._map.keys()
@@ -20,40 +35,58 @@ class DefMap:
             yield definition, instruction
 
     def add(self, location: InstructionLocation) -> None:
+        block_wrapper = BasicBlockIdentyWrapper(location.block)
+
+        indices = self._index_lookup[block_wrapper]
+        indices.append(location.index)
+
         for definition in location.instruction.definitions:
             if definition in self._map:
                 raise ValueError(
                     f"Program is not in SSA-Form. Variable {definition} is defined twice, "
                     f"once in instruction {self._map[definition]} and once in instruction {location}"
                 )
-            self._map[definition] = location
+            self._map[definition] = (block_wrapper, len(indices) - 1)
 
     def get(self, definition: Variable) -> InstructionLocation | None:
-        return self._map.get(definition)
+        if (location := self._map.get(definition)) is None:
+            return None
+
+        block_wrapper, index_id = location
+        return InstructionLocation(block_wrapper.block, self._index_lookup[block_wrapper][index_id])
 
     def pop(self, definition: Variable) -> InstructionLocation:
-        return self._map.pop(definition)
+        block_wrapper, index_id = self._map.pop(definition)
+        return InstructionLocation(block_wrapper.block, self._index_lookup[block_wrapper][index_id])
 
     @line_profiler.profile
-    def update_block_range(self, block: BasicBlock, start: int, len: int, new_len: int):
-        # remove usages in range which got updated
-        definitions_to_remove = []
-        for definition, location in self._map.items():
-            if id(location.block) == id(block) and start <= location.index < start + len:
-                definitions_to_remove.append(definition)
-        for definition in definitions_to_remove:
-            self._map.pop(definition)
+    def update_block_range(self, block: BasicBlock, start: int, length: int, new_len: int):
+        block_identy_wrapper = BasicBlockIdentyWrapper(block)
 
-        # update definitions which got shifted because of range
-        if len != new_len:
-            dif = new_len - len
-            for definition, location in self._map.items():
-                if id(location.block) == id(block) and location.index >= start + len:
-                    self._map[definition] = InstructionLocation(location.block, location.index + dif)
+        # remove definitions in range which got updated
+        if length > 0:
+            vars_to_remove = []
+            for var, def_location in self._map.items():
+                location_block, index_id = def_location
+                if location_block is block and start <= self._index_lookup[location_block][index_id] < start + length:
+                    vars_to_remove.append(var)
+
+            for var in vars_to_remove:
+                self._map.pop(var)
+
+        # update usages which got shifted because of range
+        if length != new_len:
+            dif = new_len - length
+            locations = self._index_lookup[block_identy_wrapper]
+            # shift_indices(locations, start + length, dif)
+            locations_np = np.asarray(locations, copy=False)
+            locations_np[locations_np >= start + length] += dif
+            del locations_np
 
         # add new usages
-        for index, instruction in enumerate(block.instructions[start:(start + new_len)]):
-            self.add(InstructionLocation(block, start + index))
+        if new_len > 0:
+            for index, instruction in enumerate(block.instructions[start:(start + new_len)]):
+                self.add(InstructionLocation(block, start + index))
 
     @property
     def defined_variables(self) -> InsertionOrderedSet[Variable]:
@@ -62,48 +95,55 @@ class DefMap:
 
 class UseMap:
     def __init__(self) -> None:
-        self._map: defaultdict[Variable, set[InstructionLocation]] = defaultdict(set)
+        self._index_lookup: dict[BasicBlockIdentyWrapper, array[int]] = defaultdict(lambda: array('L'))
+        self._map: defaultdict[Variable, set[tuple[BasicBlockIdentyWrapper, int]]] = defaultdict(set)
 
     def __contains__(self, used: Variable) -> bool:
         return used in self._map.keys()
 
-    def __iter__(self) -> Iterator[tuple[Variable, set[InstructionLocation]]]:
-        for used, instructions in self._map.items():
-            yield used, instructions
+    def __iter__(self) -> Iterator[tuple[Variable, Iterator[InstructionLocation]]]:
+        for used, locations in self._map.items():
+            yield used, self._get_locations(locations)
 
     def add(self, location: InstructionLocation) -> None:
-        for used in location.instruction.requirements:
-            self._map[used].add(location)
+        block_wrapper = BasicBlockIdentyWrapper(location.block)
 
-    def get(self, used: Variable) -> set[InstructionLocation]:
-        return self._map[used]
+        indices = self._index_lookup[block_wrapper]
+        indices.append(location.index)
+
+        for used in location.instruction.requirements:
+            self._map[used].add((block_wrapper, len(indices) - 1))
+
+    def get(self, used: Variable) -> Iterator[InstructionLocation]:
+        return self._get_locations(self._map[used])
+
+    def _get_locations(self, locations: Iterable[tuple[BasicBlockIdentyWrapper, int]]) -> Iterator[InstructionLocation]:
+        for block_wrapper, index in locations:
+            yield InstructionLocation(block_wrapper.block, self._index_lookup[block_wrapper][index])
 
     @line_profiler.profile
-    def update_block_range(self, block: BasicBlock, start: int, len: int, new_len: int):
+    def update_block_range(self, block: BasicBlock, start: int, length: int, new_len: int):
+        block_identy_wrapper = BasicBlockIdentyWrapper(block)
+
         # remove usages in range which got updated
-        if len > 0:
-            for var in self._map:
+        if length > 0:
+            for var, used_locations in self._map.items():
                 locations_to_remove = []
-                use_locations = self._map[var]
-                for location in use_locations:
-                    if id(location.block) == id(block) and start <= location.index < start + len:
+                for location in used_locations:
+                    location_block, index_id = location
+                    if location_block is block and start <= self._index_lookup[location_block][index_id] < start + length:
                         locations_to_remove.append(location)
-                use_locations.difference_update(locations_to_remove)
+
+                used_locations.difference_update(locations_to_remove)
 
         # update usages which got shifted because of range
-        if len != new_len:
-            dif = new_len - len
-
-            for var in self._map:
-                locations_to_remove = []
-                locations_to_add = []
-                use_locations = self._map[var]
-                for location in use_locations:
-                    if id(location.block) == id(block) and location.index >= start + len:
-                        locations_to_remove.append(location)
-                        locations_to_add.append(InstructionLocation(location.block, location.index + dif))
-                use_locations.difference_update(locations_to_remove)
-                use_locations.update(locations_to_add)
+        if length != new_len:
+            dif = new_len - length
+            locations = self._index_lookup[block_identy_wrapper]
+            # shift_indices(locations, start + length, dif)
+            locations_np = np.asarray(locations, copy=False)
+            locations_np[locations_np >= start + length] += dif
+            del locations_np
 
         # add new usages
         if new_len > 0:
@@ -111,6 +151,7 @@ class UseMap:
                 self.add(InstructionLocation(block, start + index))
 
     def remove_use(self, variable: Variable, location: InstructionLocation) -> None:
+        raise NotImplemented()
         """Remove the instruction from the uses of a certain variable
         e.g. if the instruction has been changed and the variable is not being used by it anymore."""
         self.get(variable).discard(location)
@@ -118,3 +159,10 @@ class UseMap:
     @property
     def used_variables(self) -> InsertionOrderedSet[Variable]:
         return InsertionOrderedSet(self._map.keys())
+
+
+@jit
+def shift_indices(locations: array, start: int, dif: int):
+    for i in range(len(locations)):
+        if locations[i] >= start:
+            locations[i] += dif
