@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Iterator, Optional, Set
 
+from decompiler.pipeline.preprocessing.util import init_maps
 from decompiler.pipeline.ssa.phi_cleaner import PhiFunctionCleaner
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
@@ -10,6 +11,7 @@ from decompiler.structures.maps import DefMap, UseMap
 from decompiler.structures.pointers import Pointers
 from decompiler.structures.pseudo import (
     Assignment,
+    BaseAssignment,
     Call,
     DataflowObject,
     Expression,
@@ -71,7 +73,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                 for var in instruction.requirements:
                     if var_definition_location := self._def_map.get(var):
                         var_definition = var_definition_location.instruction
-                        assert isinstance(var_definition, Assignment)
+                        assert isinstance(var_definition, BaseAssignment)
                         if self._definition_can_be_propagated_into_target(var_definition_location, InstructionLocation(basic_block, index)):
                             instruction.substitute(var, var_definition.value.copy())
                             self._update_use_map(var, instruction)
@@ -100,13 +102,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         Fills use and def maps.
         :param cfg: control flow graph for which the maps are computed
         """
-        self._def_map = DefMap()
-        self._use_map = UseMap()
-        for basic_block in cfg.nodes:
-            for index, instruction in enumerate(basic_block.instructions):
-                location = InstructionLocation(basic_block, index)
-                self._use_map.add(location)
-                self._def_map.add(location)
+        self._def_map, self._use_map = init_maps(cfg)
 
     def _update_use_map(self, variable: Variable, instruction: Instruction):
         """Do nothing if EP, EPM re-implements this method to update the map when instructions change"""
