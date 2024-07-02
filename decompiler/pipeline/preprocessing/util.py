@@ -28,13 +28,13 @@ def _init_maps(cfg: ControlFlowGraph) -> Tuple[DefMap, UseMap]:
 
 def _unused_addresses(cfg: ControlFlowGraph, amount: int = 1) -> List[int]:
     used_addresses = {c.address for c in cfg.nodes}
-    address = 0
+    address = -1
 
     addresses = list()
 
     for _ in range(amount):
         while address in used_addresses:
-            address += 1
+            address -= 1
         used_addresses.add(address)
         addresses.append(address)
 
