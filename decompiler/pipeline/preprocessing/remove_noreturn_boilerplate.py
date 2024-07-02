@@ -143,6 +143,11 @@ class RemoveNoreturnBoilerplate(PipelineStage):
                     yield a
 
     def _patch_condition_edges(self, edges: List[ConditionalEdge]) -> None:
+        # TODO: analyze removed code + statistics.
+        removed_nodes = set()
+        for edge in edges:
+            removed_nodes.update(self._cfg.iter_depth_first(edge.sink))
+
         for edge in edges:
             match edge:
                 case TrueCase():
