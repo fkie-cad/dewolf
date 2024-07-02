@@ -40,7 +40,7 @@ class ConstantHandler(Handler):
         """Lift the given constant value."""
         if constant.constant in [math.inf, -math.inf, math.nan]:
             return NotUseableConstant(str(constant.constant))
-        if addr_in_section(constant.function.view, constant.constant):
+        if isinstance(constant.constant, int) and addr_in_section(constant.function.view, constant.constant):
             return self.lift_constant_pointer(constant)
         return Constant(constant.constant, vartype=self._lifter.lift(constant.expr_type))
 
