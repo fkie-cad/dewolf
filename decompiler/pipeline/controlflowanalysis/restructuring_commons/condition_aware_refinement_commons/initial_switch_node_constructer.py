@@ -11,8 +11,8 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
 )
 from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, CodeNode, ConditionNode, SeqNode, SwitchNode, TrueNode
+from decompiler.structures.ast.condition_symbol import ExpressionUsages
 from decompiler.structures.ast.reachability_graph import CaseDependencyGraph, LinearOrderDependency, SiblingReachability
-from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import Constant, Expression
@@ -90,8 +90,8 @@ class SwitchNodeProcessor:
         """
         for candidate_1, candidate_2 in permutations(self.switch_candidate.cases, 2):
             if self.sibling_reachability.reaches(candidate_1.node, candidate_2.node) and not (
-                set(self.asforest.switch_node_handler.get_constants_for(candidate_1.condition))
-                & set(self.asforest.switch_node_handler.get_constants_for(candidate_2.condition))
+                set(self.asforest.condition_handler.get_constants_of(candidate_1.condition))
+                & set(self.asforest.condition_handler.get_constants_of(candidate_2.condition))
             ):
                 self.asforest._code_node_reachability_graph.remove_reachability_between([candidate_1.node, candidate_2.node])
                 self.sibling_reachability.remove_reachability_between([candidate_1.node, candidate_2.node])
@@ -214,13 +214,14 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
     """Class that constructs switch nodes."""
 
     @classmethod
-    def construct(cls, asforest: AbstractSyntaxForest, options: RestructuringOptions):
+    def construct(cls, asforest: AbstractSyntaxForest, options: RestructuringOptions) -> Set[SwitchNode]:
         """Constructs initial switch nodes if possible."""
         initial_switch_constructor = cls(asforest, options)
         for cond_node in asforest.get_condition_nodes_post_order(asforest.current_root):
             initial_switch_constructor._extract_case_nodes_from_nested_condition(cond_node)
         for seq_node in asforest.get_sequence_nodes_post_order(asforest.current_root):
             initial_switch_constructor._try_to_construct_initial_switch_node_for(seq_node)
+        return initial_switch_constructor.updated_switch_nodes
 
     def _extract_case_nodes_from_nested_condition(self, cond_node: ConditionNode) -> None:
         """
@@ -336,6 +337,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
             sibling_reachability = self.asforest.get_sibling_reachability_of_children_of(seq_node)
             switch_cases = list(possible_switch_node.construct_switch_cases())
             switch_node = self.asforest.create_switch_node_with(possible_switch_node.expression, switch_cases)
+            self.updated_switch_nodes.add(switch_node)
             case_dependency = CaseDependencyGraph.construct_case_dependency_for(self.asforest.children(switch_node), sibling_reachability)
             self._update_reaching_condition_for_case_node_children(switch_node)
             self._add_constants_to_cases(switch_node, case_dependency)
@@ -393,7 +395,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
                 case_node.reaching_condition.is_disjunction_of_literals
             ), f"The condition of a case node should be a disjunction, but it is {case_node.reaching_condition}!"
 
-            if isinstance(cond_node := case_node.child, ConditionNode) and cond_node.false_branch is None:
+            if (cond_node := case_node.child).is_single_branch:
                 self._update_condition_for(cond_node, case_node)
 
             case_node.child.reaching_condition = case_node.child.reaching_condition.substitute_by_true(case_node.reaching_condition)
@@ -519,7 +521,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
                 case_node.constant = Constant("add_to_previous_case")
             else:
                 considered_conditions.update(
-                    (c, l) for l, c in self.asforest.switch_node_handler.get_literal_and_constant_for(case_node.reaching_condition)
+                    (c, l) for l, c in self.asforest.condition_handler.get_literal_and_constant_of(case_node.reaching_condition)
                 )
 
     def _update_reaching_condition_of(self, case_node: CaseNode, considered_conditions: Dict[Constant, LogicCondition]) -> None:
@@ -535,8 +537,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         :param considered_conditions: The conditions (literals) that are already fulfilled when we reach the given case node.
         """
         constant_of_case_node_literal = {
-            const: literal
-            for literal, const in self.asforest.switch_node_handler.get_literal_and_constant_for(case_node.reaching_condition)
+            const: literal for literal, const in self.asforest.condition_handler.get_literal_and_constant_of(case_node.reaching_condition)
         }
         exception_condition: LogicCondition = self.condition_handler.get_true_value()
 
@@ -576,7 +577,7 @@ class InitialSwitchNodeConstructor(BaseClassConditionAwareRefinement):
         the list of new case nodes.
         """
         condition_for_constant: Dict[Constant, LogicCondition] = dict()
-        for l, c in self.asforest.switch_node_handler.get_literal_and_constant_for(case.reaching_condition):
+        for l, c in self.asforest.condition_handler.get_literal_and_constant_of(case.reaching_condition):
             if c is None:
                 raise ValueError(
                     f"The case node should have a reaching-condition that is a disjunction of literals, but it has the clause {l}."

@@ -16,7 +16,6 @@ from decompiler.structures.ast.ast_nodes import (
     VirtualRootNode,
 )
 from decompiler.structures.ast.condition_symbol import ConditionHandler
-from decompiler.structures.ast.switch_node_handler import SwitchNodeHandler
 from decompiler.structures.ast.syntaxgraph import AbstractSyntaxInterface
 from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock
 from decompiler.structures.logic.logic_condition import LogicCondition
@@ -37,7 +36,6 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         self.condition_handler: ConditionHandler = condition_handler
         self._current_root: VirtualRootNode = self.factory.create_virtual_node()
         self._add_node(self._current_root)
-        self.switch_node_handler: SwitchNodeHandler = SwitchNodeHandler(condition_handler)
 
     @property
     def current_root(self) -> Optional[AbstractSyntaxTreeNode]:
@@ -225,7 +223,7 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         """
         Extract the given Branch from the condition node.
 
-        -> Afterwards, the Branch must always be executed after the condition node.
+        -> Afterward, the Branch must always be executed after the condition node.
         """
         assert isinstance(cond_node, ConditionNode) and branch in cond_node.children, f"{branch} must be a child of {cond_node}."
         new_seq = self._add_sequence_node_before(cond_node)
@@ -241,25 +239,41 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         if new_seq.parent is not None:
             new_seq.parent.clean()
 
-    def extract_switch_from_condition_sequence(self, switch_node: SwitchNode, condition_node: ConditionNode):
-        """Extract the given switch-node, that is the first or last child of a seq-node Branch from the condition node"""
-        seq_node_branch = switch_node.parent
-        seq_node_branch_children = seq_node_branch.children
-        assert seq_node_branch.parent in condition_node.children, f"{seq_node_branch} must be a branch of {condition_node}"
-        new_seq_node = self._add_sequence_node_before(condition_node)
-        self._remove_edge(seq_node_branch, switch_node)
-        self._add_edge(new_seq_node, switch_node)
-        if switch_node is seq_node_branch_children[0]:
-            new_seq_node._sorted_children = (new_seq_node, condition_node)
-            seq_node_branch._sorted_children = seq_node_branch_children[1:]
-        elif switch_node is seq_node_branch_children[-1]:
-            new_seq_node._sorted_children = (condition_node, new_seq_node)
-            seq_node_branch._sorted_children = seq_node_branch_children[:-1]
+    def extract_switch_from_sequence(self, switch_node: SwitchNode):
+        """
+        Extract the given switch-node, that is the first or last child of a seq-node Branch from the condition node
+        or sequence node with a non-trivial reaching-condition.
+        """
+        switch_parent = switch_node.parent
+        assert isinstance(switch_parent, SeqNode), f"The parent of the switch-node {switch_node} must be a sequence node!"
+        if isinstance(switch_parent, SeqNode) and not switch_parent.reaching_condition.is_true:
+            new_seq_node = self._extract_switch_from_subtree(switch_parent, switch_node)
+        elif isinstance(condition_node := switch_parent.parent.parent, ConditionNode):
+            new_seq_node = self._extract_switch_from_subtree(condition_node, switch_node)
+            condition_node.clean()
+        else:
+            raise ValueError(
+                f"The parent of the switch node {switch_node} must either have a non-trivial reaching-condition or is a branch of a condition-node!"
+            )
 
-        seq_node_branch.clean()
-        condition_node.clean()
         if new_seq_node.parent is not None:
             new_seq_node.parent.clean()
+
+    def _extract_switch_from_subtree(self, subtree_head: AbstractSyntaxTreeNode, switch_node: SwitchNode):
+        switch_parent = switch_node.parent
+        switch_parent_children = switch_node.children
+        new_seq_node = self._add_sequence_node_before(subtree_head)
+        self._remove_edge(switch_parent, switch_node)
+        self._add_edge(new_seq_node, switch_node)
+        if switch_node is switch_parent_children[0]:
+            new_seq_node._sorted_children = (new_seq_node, subtree_head)
+            switch_parent._sorted_children = switch_parent_children[1:]
+        elif switch_node is switch_parent_children[-1]:
+            new_seq_node._sorted_children = (subtree_head, new_seq_node)
+            switch_parent._sorted_children = switch_parent_children[:-1]
+
+        switch_parent.clean()
+        return new_seq_node
 
     def extract_all_breaks_from_condition_node(self, cond_node: ConditionNode):
         """Remove all break instructions at the end of the condition node and extracts them, i.e., add a break after the condition."""
@@ -323,10 +337,42 @@ class AbstractSyntaxForest(AbstractSyntaxInterface):
         else:
             branch = self.add_seq_node_with_reaching_condition_before(branch_nodes, self.condition_handler.get_true_value())
         for node in branch_nodes:
-            node.reaching_condition.substitute_by_true(condition)
+            if node.reaching_condition.is_true and isinstance(node, ConditionNode):
+                node.condition.substitute_by_true(condition)
+            else:
+                node.reaching_condition.substitute_by_true(condition)
 
         self._remove_edge(branch.parent, branch)
         return branch
+
+    def add_branches_to_condition_node(
+        self,
+        condition_node: ConditionNode,
+        true_branch: Optional[AbstractSyntaxTreeNode] = None,
+        false_branch: Optional[AbstractSyntaxTreeNode] = None,
+    ):
+        """
+        Add the given branches to the given condition-node.
+
+        -> true-branch will be part of the true-branch of the condition node after this transformation
+        -> false-branch will be part of the false-branch of the condition node after this transformation
+        - since a clean-condition-node always has a true-branch but may not have a false-branch, we have to add it if it does not exist.
+        """
+        if true_branch:
+            self._remove_edge(true_branch.parent, true_branch)
+            new_seq_node = self._add_sequence_node_before(condition_node.true_branch_child)
+            self._add_edge(new_seq_node, true_branch)
+            new_seq_node.clean()
+        if false_branch:
+            self._remove_edge(false_branch.parent, false_branch)
+            if condition_node.false_branch is None:
+                false_node = self.factory.create_false_node()
+                self._add_node(false_node)
+                self._add_edges_from(((condition_node, false_node), (false_node, false_branch)))
+            else:
+                new_seq_node = self._add_sequence_node_before(condition_node.false_branch_child)
+                self._add_edge(new_seq_node, false_branch)
+                new_seq_node.clean()
 
     def create_switch_node_with(self, expression: Expression, cases: List[Tuple[CaseNode, AbstractSyntaxTreeNode]]) -> SwitchNode:
         """Create a switch node with the given expression and the given list of case nodes."""

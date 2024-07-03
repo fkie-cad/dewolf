@@ -239,6 +239,9 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
             case CustomType(text="wchar16") | CustomType(text="wchar32"):
                 val = "".join([x.value for x in expr.value])
                 return f'L"{val}"' if len(val) <= MAX_GLOBAL_INIT_LENGTH else f'L"{val[:MAX_GLOBAL_INIT_LENGTH]}..."'
+            case Integer(size=8, signed=False):
+                val = "".join([f"\\x{x.value:02X}" for x in expr.value][:MAX_GLOBAL_INIT_LENGTH])
+                return f'"{val}"' if len(val) <= MAX_GLOBAL_INIT_LENGTH else f'"{val[:MAX_GLOBAL_INIT_LENGTH]}..."'
             case Integer(8):
                 val = "".join([x.value for x in expr.value][:MAX_GLOBAL_INIT_LENGTH])
                 return f'"{val}"' if len(val) <= MAX_GLOBAL_INIT_LENGTH else f'"{val[:MAX_GLOBAL_INIT_LENGTH]}..."'

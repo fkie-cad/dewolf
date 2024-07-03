@@ -4156,12 +4156,15 @@ def test_only_one_occurrence_of_each_case(task):
     assert isinstance(switch := seq_node.children[1], SwitchNode) and len(switch.cases) == 7
     assert isinstance(case1 := switch.cases[0], CaseNode) and case1.constant.value == 1 and isinstance(case1_seq := case1.child, SeqNode)
     assert all(case1.constant != case2.constant for case1, case2 in combinations(switch.cases, 2))
-    assert len(case1_seq.children) == 3
-    assert isinstance(cn := case1_seq.children[0], ConditionNode) and cn.false_branch is None
+    assert len(case1_seq.children) == 2
+    assert isinstance(cn := case1_seq.children[0], ConditionNode)
+    assert cn.condition.is_literal
+    pseudo_condition = task.ast.condition_map[cn.condition] if cn.condition.is_symbol else task.ast.condition_map[~cn.condition].negate()
+    if pseudo_condition.operation != OperationType.equal:
+        cn.switch_branches()
     assert isinstance(tb := cn.true_branch_child, CodeNode) and tb.instructions == vertices[3].instructions
-    assert isinstance(cn := case1_seq.children[1], ConditionNode) and cn.false_branch is None
-    assert isinstance(tb := cn.true_branch_child, CodeNode) and tb.instructions == vertices[17].instructions
-    assert isinstance(cn := case1_seq.children[2], CodeNode) and cn.instructions == vertices[5].instructions
+    assert isinstance(fb := cn.false_branch_child, CodeNode) and fb.instructions == vertices[17].instructions
+    assert isinstance(cn := case1_seq.children[1], CodeNode) and cn.instructions == vertices[5].instructions
     assert isinstance(seq_node.children[2], CodeNode) and seq_node.children[2].instructions == vertices[18].instructions
 
 
@@ -5716,10 +5719,10 @@ def test_intersecting_cases(task):
     PatternIndependentRestructuring().run(task)
 
     assert len(list(task.ast.get_switch_nodes_post_order())) == 2
-    assert isinstance(seq_node := task.ast.root, SeqNode) and len(children := seq_node.children) == 6
-    assert isinstance(children[0], CodeNode) and isinstance(children[5], CodeNode)
-    assert all(isinstance(child, ConditionNode) for child in children[1:4])
-    assert isinstance(children[4], SwitchNode) and isinstance(children[3].true_branch_child, SwitchNode)
+    assert isinstance(seq_node := task.ast.root, SeqNode) and len(children := seq_node.children) == 5
+    assert isinstance(children[0], CodeNode) and isinstance(children[4], CodeNode)
+    assert all(isinstance(child, ConditionNode) for child in children[1:3])
+    assert isinstance(children[3], SwitchNode) and isinstance(children[2].true_branch_child, SwitchNode)
 
 
 def test_missing_cases_switch_in_sequence(task):

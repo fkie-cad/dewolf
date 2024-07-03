@@ -7,6 +7,9 @@ from itertools import combinations
 from operator import attrgetter
 from typing import DefaultDict, Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union
 
+import networkx
+from decompiler.pipeline.ssa.dependency_graph import dependency_graph_from_cfg
+from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import BaseAssignment, Instruction, Relation
@@ -14,7 +17,7 @@ from decompiler.structures.pseudo.typing import Type
 from decompiler.task import DecompilerTask
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 from decompiler.util.lexicographical_bfs import LexicographicalBFS
-from networkx import Graph, connected_components
+from networkx import Graph, MultiDiGraph, connected_components
 
 
 @dataclass
@@ -121,10 +124,11 @@ class VariableRenamer:
 
     def _replace_variable_in_instruction(self, variable: Variable, instruction: Instruction) -> None:
         """Replace the given variable in the given instruction"""
-        if variable.ssa_label is None:
+        if variable not in self.renaming_map:
             return
         replacement_variable = self.renaming_map[variable].copy()
-        replacement_variable.ssa_name = variable.copy()
+        if variable.ssa_label is not None:
+            replacement_variable.ssa_name = variable.copy()
         instruction.substitute(variable, replacement_variable)
         if isinstance(instruction, Relation):
             instruction.rename(variable, replacement_variable)
@@ -334,3 +338,91 @@ class MinimalVariableRenamer(VariableRenamer):
         for neighbor in neighborhood:
             if neighbor in self._variable_classes_handler.color_class_of:
                 yield self._variable_classes_handler.color_class_of[neighbor]
+
+
+class ConditionalVariableRenamer(VariableRenamer):
+    """
+    A renaming strategy that renames the SSA-variables, such that only variables that have a relation with each other can get the same name.
+    Therefore, we construct a dependency-graph with weights, telling us how likely these two variables are the same variable, i.e.,
+    copy-assignments are more likely to be identically than complicated computations.
+    """
+
+    def __init__(self, task, interference_graph: InterferenceGraph):
+        """
+        self._color_classes is a dictionary where the set of keys is the set of colors
+        and to each color we assign the set of variables of this color.
+        """
+        super().__init__(task, interference_graph.copy())
+        self._generate_renaming_map(task.graph)
+
+    def _generate_renaming_map(self, cfg: ControlFlowGraph):
+        """
+        Generate the renaming map for SSA variables.
+
+        This function constructs a dependency graph from the given CFG, merges contracted variables,
+        creates variable classes, and computes new names for each variable. The process ensures that
+        only variables with specific relationships can share the same name, as determined by the
+        dependency graph.
+
+        :param cfg: The control flow graph from which the dependency graph is derived.
+        """
+        dependency_graph = dependency_graph_from_cfg(cfg)
+        dependency_graph = self.merge_contracted_variables(dependency_graph)
+
+        self.create_variable_classes(dependency_graph)
+        self.compute_new_name_for_each_variable()
+
+    def merge_contracted_variables(self, dependency_graph: MultiDiGraph):
+        """Merge nodes which need to be contracted from self._variables_contracted_to"""
+        mapping: dict[tuple[Variable], tuple[Variable, ...]] = {}
+        for variable in self.interference_graph.nodes():
+            contracted = tuple(self._variables_contracted_to[variable])
+            for var in contracted:
+                mapping[(var,)] = contracted
+
+        return networkx.relabel_nodes(dependency_graph, mapping)
+
+    def create_variable_classes(self, dependency_graph: MultiDiGraph):
+        """Create the variable classes based on the given dependency graph."""
+        while True:
+            merged_edges: dict[frozenset[tuple[Variable, ...]], float] = defaultdict(lambda: 0)
+            for u, v, score in dependency_graph.edges(data="score"):
+                if u != v:
+                    merged_edges[frozenset([u, v])] += score
+
+            for (u, v), _ in sorted(merged_edges.items(), key=lambda edge: edge[1], reverse=True):
+                if u == v:  # self loop
+                    continue
+                if not self._variables_can_have_same_name(u, v):
+                    continue
+
+                break
+            else:
+                # We didn't find any remaining nodes to contract, break outer loop
+                break
+
+            networkx.relabel_nodes(dependency_graph, {u: (*u, *v), v: (*u, *v)}, copy=False)
+
+        self._variable_classes_handler = VariableClassesHandler(defaultdict(set))
+        for i, vars in enumerate(dependency_graph.nodes):
+            for var in vars:
+                self._variable_classes_handler.add_variable_to_class(var, i)
+
+    def _variables_can_have_same_name(self, source: tuple[Variable, ...], sink: tuple[Variable, ...]) -> bool:
+        """
+        Two sets of variables can have the same name, if they have the same type, are both aliased or both non-aliased variables, and if they
+        do not interfere.
+
+        :param source: The potential source vertex.
+        :param sink: The potential sink vertex
+        :return: True, if the given sets of variables can have the same name, and false otherwise.
+        """
+        if (
+            self.interference_graph.are_interfering(*(source + sink))
+            or source[0].type != sink[0].type
+            or source[0].is_aliased != sink[0].is_aliased
+        ):
+            return False
+        if source[0].is_aliased and sink[0].is_aliased and source[0].name != sink[0].name:
+            return False
+        return True

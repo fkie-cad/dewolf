@@ -47,7 +47,7 @@ class MissingCaseFinderIntersectingConstants(MissingCaseFinder):
           first fallthrough-cases.
         - If the possible-case node is reached by the switch-node, then the content must be after any other code.
           Thus, it must contain all constants from a block of fallthrough-cases. But here, it can contain more.
-        - If neither one reaches the other, then it can be insert anywhere, at long as it can be archived by only
+        - If neither one reaches the other, then it can be inserted anywhere, as long as it can be archived by only
           resorting fallthrough-cases all leading to the same code-execution.
         """
         cases_of_switch_node = {case.constant for case in self._switch_node.children}
@@ -70,6 +70,7 @@ class MissingCaseFinderIntersectingConstants(MissingCaseFinder):
                 return
 
         self._sibling_reachability_graph.update_when_inserting_new_case_node(compare_node, self._switch_node)
+        self.updated_switch_nodes.add(self._switch_node)
         compare_node.clean()
 
     def _add_case_before(self, intersecting_linear_case: Tuple[CaseNode], possible_case_properties: IntersectingCaseNodeProperties) -> bool:
