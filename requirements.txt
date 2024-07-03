@@ -10,4 +10,4 @@ pytest-xdist
 z3-solver == 4.8.10
 bidict
 numpy
-numba
+line-profiler

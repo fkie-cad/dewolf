@@ -9,7 +9,6 @@ from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.pseudo import Instruction, Variable
 from decompiler.structures.pseudo.locations import InstructionLocation
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
-from numba import jit
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,10 +158,3 @@ class UseMap:
     @property
     def used_variables(self) -> InsertionOrderedSet[Variable]:
         return InsertionOrderedSet(self._map.keys())
-
-
-@jit
-def shift_indices(locations: array, start: int, dif: int):
-    for i in range(len(locations)):
-        if locations[i] >= start:
-            locations[i] += dif
