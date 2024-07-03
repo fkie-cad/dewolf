@@ -65,7 +65,7 @@ class ExpressionPropagationFunctionCall(ExpressionPropagationBase):
             return False
 
         [required_variable] = return_values
-        requiring_instructions = self._use_map.get(required_variable)
+        requiring_instructions = list(self._use_map.get(required_variable))
 
         if len(requiring_instructions) != 1:
             return False
@@ -73,7 +73,7 @@ class ExpressionPropagationFunctionCall(ExpressionPropagationBase):
         [requiring_instruction] = requiring_instructions
 
         usages = 0
-        for variable in requiring_instruction.requirements_iter:
+        for variable in requiring_instruction.instruction.requirements_iter:
             if variable == required_variable:
                 usages += 1
             if usages > 1:

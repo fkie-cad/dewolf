@@ -69,15 +69,16 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         is_changed = False
         for basic_block in graph.nodes:
             for index, instruction in enumerate(basic_block.instructions):
+                var_target_location = InstructionLocation(basic_block, index)
                 old = str(instruction)
-                self._try_to_propagate_contractions(instruction)
+                self._try_to_propagate_contractions(var_target_location)
                 for var in instruction.requirements:
                     if var_definition_location := self._def_map.get(var):
                         var_definition = var_definition_location.instruction
                         assert isinstance(var_definition, BaseAssignment)
-                        if self._definition_can_be_propagated_into_target(var_definition_location, InstructionLocation(basic_block, index)):
+                        if self._definition_can_be_propagated_into_target(var_definition_location, var_target_location):
                             instruction.substitute(var, var_definition.value.copy())
-                            self._use_map.update_block_range(basic_block, var_definition_location.index, 1, 1)
+                            self._use_map.update_block_range(basic_block, var_target_location.index, 1, 1)
                             if not is_changed:
                                 is_changed = old != str(instruction)
         return is_changed
@@ -109,7 +110,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         """Do nothing if EP, EPM: one round of propagating postponed aliased definitions."""
         pass
 
-    def _try_to_propagate_contractions(self, instruction: Instruction):
+    def _try_to_propagate_contractions(self, instruction_location: InstructionLocation):
         """
         In case we have contraction in the instruction, we try to directly replace it in uses if contraction definition is same
         to contraction operand definition
@@ -121,6 +122,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
 
         So we could change ebx = (:1) eax#2 to ebx = var_10
         """
+        instruction = instruction_location.instruction
         target = instruction if not isinstance(instruction, Assignment) else instruction.value
         for subexpr in self._find_subexpressions(target):
             if self._is_variable_contraction(subexpr):
@@ -131,6 +133,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                     defined_contraction, value = definition.destination, definition.value
                     if subexpr == defined_contraction:
                         instruction.substitute(subexpr, value.copy())
+                        self._use_map.update_block_range(instruction_location.block, instruction_location.index, 1, 1)
 
     def _is_aliased_postponed_for_propagation(self, target: Instruction, definition: Assignment) -> bool:
         """
@@ -298,8 +301,11 @@ class ExpressionPropagationBase(PipelineStage, ABC):
             use_block = use_location.block
             use_index = use_location.index
 
+            if definition_block == target_block:
+                if use_block == definition_block and definition_index < use_index < target_index:
+                    return True
             # if dangerous use in the same block as target, its index should be less than target index
-            if use_block == target_block:
+            elif use_block == target_block:
                 if use_index < target_index:
                     return True
             # if dangerous use in the same block as definition, its index should be greater than definition index
