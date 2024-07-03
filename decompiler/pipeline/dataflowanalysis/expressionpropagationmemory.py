@@ -66,16 +66,6 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
         """Initialize pointer information for the given cfg"""
         self._pointers_info = Pointers().from_cfg(cfg)
 
-    def _update_use_map(self, variable: Variable, instruction: Instruction):
-        """
-        Update use map if instruction is changed and a variable is not being used by the instruction anymore:
-        - remove the instruction from the uses-set of the variable
-        - re-add the instruction to the map in order to update uses information for the instruction automatically
-        """
-        if variable not in instruction.requirements:
-            self._use_map.remove_use(variable, instruction)
-            self._use_map.add(instruction)
-
     def _propagate_postponed_aliased_definitions(self):
         """
         Propagate definitions of aliased variables, postponed for propagation, after everything else is propagated.
@@ -84,20 +74,20 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
         """
         self._initialize_maps(self._cfg)
         for var in self._postponed_aliased:
-            uses = self._use_map.get(var)
-            definition = self._def_map.get(var)
+            uses = list(self._use_map.get(var))
+            definition_location = self._def_map.get(var)
+            definition = definition_location.instruction
 
             if len(uses) == 1:
-                instruction = uses.pop()
+                instruction_location = uses.pop()
+                instruction = instruction_location.instruction
                 if self._is_aliased_postponed_for_propagation(instruction, definition):
                     if self._definition_value_could_be_modified_via_memory_access_between_definition_and_target(
-                        definition, instruction
+                        definition_location, instruction_location
                     ) or self._pointer_value_used_in_definition_could_be_modified_via_memory_access_between_definition_and_target(
-                        definition, instruction
+                        definition_location, instruction_location
                     ):
                         continue
-                    old_instr = str(instruction)
-                    block, index = self._blocks_map.get(old_instr).pop()
+
                     instruction.substitute(var, definition.value.copy())
-                    self._update_use_map(var, instruction)
-                    self._update_block_map(old_instr, str(instruction), block, index)
+                    self._use_map.update_block_range(instruction_location.block, instruction_location.index, 1, 1)

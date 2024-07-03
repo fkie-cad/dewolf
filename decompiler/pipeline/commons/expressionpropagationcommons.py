@@ -12,6 +12,7 @@ from decompiler.structures.pointers import Pointers
 from decompiler.structures.pseudo import (
     Assignment,
     BaseAssignment,
+    Branch,
     Call,
     DataflowObject,
     Expression,
@@ -76,7 +77,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                         assert isinstance(var_definition, BaseAssignment)
                         if self._definition_can_be_propagated_into_target(var_definition_location, InstructionLocation(basic_block, index)):
                             instruction.substitute(var, var_definition.value.copy())
-                            self._update_use_map(var, instruction)
+                            self._use_map.update_block_range(basic_block, var_definition_location.index, 1, 1)
                             if not is_changed:
                                 is_changed = old != str(instruction)
         return is_changed
@@ -103,10 +104,6 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         :param cfg: control flow graph for which the maps are computed
         """
         self._def_map, self._use_map = init_maps(cfg)
-
-    def _update_use_map(self, variable: Variable, instruction: Instruction):
-        """Do nothing if EP, EPM re-implements this method to update the map when instructions change"""
-        pass
 
     def _propagate_postponed_aliased_definitions(self):
         """Do nothing if EP, EPM: one round of propagating postponed aliased definitions."""
@@ -259,7 +256,9 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         return False
 
     def _definition_value_could_be_modified_via_memory_access_between_definition_and_target(
-        self, definition_location: InstructionLocation, target_location: InstructionLocation
+            self,
+            definition_location: InstructionLocation,
+            target_location: InstructionLocation
     ) -> bool:
         """
         Tests for definition containing aliased if a modification of the aliased value is possible, i.e.

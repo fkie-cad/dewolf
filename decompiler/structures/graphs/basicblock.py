@@ -30,13 +30,7 @@ class BasicBlock(GraphNodeInterface):
         graph -- The cfg object to report changes to."""
         self._address: int = address
         self._instructions: List[Instruction] = [] if not instructions else instructions
-        # Two dicts are used to buffer information about the instructions contained:
-        # _var_to_definitions -- maps variables to a list of instructions defining them
-        # _var_to_usages -- maps variables to a list of instructions utilizing them
-        self._var_to_definitions: Dict[Variable, List[Instruction]] = {}
-        self._var_to_usages: Dict[Variable, List[Instruction]] = {}
         self._graph: ControlFlowGraph = graph
-        self._update()
 
     def __iter__(self) -> Iterator[Instruction]:
         """Iterate all instructions in the basic block."""
@@ -80,7 +74,6 @@ class BasicBlock(GraphNodeInterface):
     def __setitem__(self, i: int, instruction: Instruction):
         """Set the instruction at the given index."""
         self._instructions[i] = instruction
-        self._update()
 
     @property
     def instructions(self) -> List[Instruction]:
@@ -91,7 +84,6 @@ class BasicBlock(GraphNodeInterface):
     def instructions(self, instructions: List[Instruction]):
         """Set the list of instructions."""
         self._instructions = instructions
-        self._update()
 
     @property
     def address(self) -> int:
@@ -112,21 +104,6 @@ class BasicBlock(GraphNodeInterface):
             return self.ControlFlowType.indirect
         return self.ControlFlowType.direct
 
-    @property
-    def definitions(self) -> Set[Variable]:
-        """Return a set of all variables defined in the block."""
-        return set(self._var_to_definitions.keys())
-
-    @property
-    def dependencies(self) -> Set[Variable]:
-        """Return a set of all dependencies."""
-        return set(self._var_to_usages.keys()) - set(self._var_to_definitions.keys())
-
-    @property
-    def variables(self) -> Set[Variable]:
-        """Return a set of all variables contained in the instructions of the block."""
-        return set(chain(self._var_to_definitions.keys(), self._var_to_usages.keys()))
-
     def copy(self) -> BasicBlock:
         """Return a deep copy of the node."""
         return BasicBlock(self._address, [instruction.copy() for instruction in self._instructions], graph=self._graph)
@@ -134,23 +111,6 @@ class BasicBlock(GraphNodeInterface):
     def add_instruction(self, instruction: Instruction, index=-1) -> None:
         """Add an instruction at the end of at the given index."""
         self._instructions.insert(index if index >= 0 else len(self), instruction)
-        self._update()
-
-    def add_instruction_where_possible(self, instruction: Instruction) -> None:
-        """Add an instruction at the first possible location."""
-        if isinstance(instruction, GenericBranch):
-            assert not isinstance(self._instructions[-1], GenericBranch), "There can only be one Branch instruction in a BasicBlock"
-            return self.add_instruction(instruction)
-        earliest_indices = [0]
-        if not isinstance(instruction, Phi):
-            earliest_indices = [
-                max([index + 1 for index, instruction in enumerate(self._instructions) if isinstance(instruction, Phi)], default=0)
-            ]
-        if requirements := set(instruction.requirements) & set(self._var_to_definitions):
-            required_definitions = [self.get_definitions(requirement) for requirement in requirements]
-            wait_for = [instruction for defining_instructions in required_definitions for instruction in defining_instructions]
-            earliest_indices.extend([self._instructions.index(instruction) + 1 for instruction in wait_for])
-        self.add_instruction(instruction, max(earliest_indices))
 
     def remove_instruction(self, instruction: Union[int, Instruction]) -> None:
         """Remove the given instruction from the block."""
@@ -160,7 +120,6 @@ class BasicBlock(GraphNodeInterface):
             self._instructions.remove(self._instructions[instruction])
         else:
             raise ValueError(f"Invalid argument to remove_instruction {instruction}")
-        self._update()
 
     def replace_instruction(self, replacee: Instruction, replacement: Union[Instruction, Sequence[Instruction]]):
         """Replace the given instruction with a list of instruction."""
@@ -169,27 +128,10 @@ class BasicBlock(GraphNodeInterface):
         else:
             index: int = self._instructions.index(replacee)
             self._instructions = self._instructions[:index] + [x for x in replacement] + self._instructions[index + 1 :]
-        self._update()
 
     def is_empty(self) -> bool:
         """Check if this basic block is empty."""
         return len(self._instructions) == 0
-
-    def _update(self) -> None:
-        """Update the definitions and dependencies of the block."""
-        definitions: Dict[Variable, List[Instruction]] = {}
-        dependencies: Dict[Variable, List[Instruction]] = {}
-        for instruction in self._instructions:
-            if isinstance(instruction, Assignment):
-                for defined_value in instruction.definitions:
-                    definitions[defined_value] = definitions.get(defined_value, []) + [instruction]
-            for dependency in instruction.requirements:
-                dependencies[dependency] = dependencies.get(dependency, []) + [instruction]
-        # set internal structures and notify the graph
-        self._var_to_definitions = definitions
-        self._var_to_usages = dependencies
-        if self._graph:
-            self._graph.notify(self)
 
     def substitute(self, replacee: Expression, replacement: Expression) -> None:
         """Substitute the given expression by another in the entire block."""
@@ -198,15 +140,6 @@ class BasicBlock(GraphNodeInterface):
         else:
             for instruction in self._instructions:
                 instruction.substitute(replacee, replacement)
-            self._update()
-
-    def get_definitions(self, variable: Variable) -> List[Instruction]:
-        """Return a list containing all definitions of the given variable in the block."""
-        return self._var_to_definitions.get(variable, [])
-
-    def get_usages(self, variable: Variable) -> List[Instruction]:
-        """Return a list with all instructions utilizing the given variable."""
-        return self._var_to_usages.get(variable, [])
 
     def subexpressions(self) -> Iterator[Union[Expression, Instruction]]:
         """Iterate all subexpressions in the block."""
