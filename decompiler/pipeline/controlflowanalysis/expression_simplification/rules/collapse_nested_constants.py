@@ -61,14 +61,14 @@ def _collect_constants(operation: Operation) -> Iterator[Constant]:
         current_operation = context_stack.pop()
 
         for i, operand in enumerate(current_operation.operands):
-            if operand.type != operand_type:  # This check could potentially be relaxed to only check for equal size
+            if operand.type.size != operand_type.size:
                 continue
 
             if isinstance(operand, Operation):
                 if operand.operation == operation_type:
                     context_stack.append(operand)
                     continue
-            elif isinstance(operand, Constant) and _identity_constant(operation_type, operand_type).value != operand.value:
+            elif isinstance(operand, Constant) and isinstance(operand.value, int) and _identity_constant(operation_type, operand_type).value != operand.value:
                 yield operand
 
 
