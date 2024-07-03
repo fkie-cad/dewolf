@@ -12,7 +12,7 @@ from decompiler.backend.cexpressiongenerator import (
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.pseudo import GlobalVariable, Integer, Variable
 from decompiler.structures.pseudo.complextypes import Struct
-from decompiler.structures.pseudo.expressions import StructTesting
+from decompiler.structures.pseudo.expressions import StructConstant
 from decompiler.structures.pseudo.typing import ArrayType, CustomType, Pointer
 from decompiler.structures.visitors.ast_dataflowobjectvisitor import BaseAstDataflowObjectVisitor
 from decompiler.task import DecompilerTask
@@ -105,6 +105,6 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
             self._global_vars.add(expr.copy(ssa_label=0, ssa_name=None))
         if not expr.is_constant or expr.type == Pointer(CustomType.void()):
             self._global_vars.add(expr.copy(ssa_label=0, ssa_name=None))
-        if isinstance(expr.initial_value, StructTesting):
+        if isinstance(expr.initial_value, StructConstant):
             for member_value in expr.initial_value.value.values():
                 self.visit(member_value)

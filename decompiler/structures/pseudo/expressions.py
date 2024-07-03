@@ -520,7 +520,7 @@ class ConstantComposition(Constant):
         return visitor.visit_constant_composition(self)
 
 
-class StructTesting(Constant):
+class StructConstant(Constant):
     def __init__(self, value: dict[int, Expression], vartype: Struct, tags: Optional[Tuple[Tag, ...]] = None):
         super().__init__(
             value,
@@ -536,6 +536,6 @@ class StructTesting(Constant):
     def __iter__(self) -> Iterator[Expression]:
         yield from self.value.values()
 
-    def copy(self) -> StructTesting:
+    def copy(self) -> StructConstant:
         """Generate a copy of the UnknownExpression with the same message."""
-        return StructTesting(self.value.copy(), self._type.copy())  # Deep copy needed for all Expr inside.
+        return StructConstant(self.value.copy(), self._type.copy())  # Deep copy needed for all Expr inside.

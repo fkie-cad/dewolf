@@ -32,7 +32,7 @@ from decompiler.structures.pseudo import (
     OperationType,
     Pointer,
     Struct,
-    StructTesting,
+    StructConstant,
     Symbol,
     UnaryOperation,
 )
@@ -267,7 +267,7 @@ class GlobalHandler(Handler):
                     values[member_type.offset] = lift.initial_value
                     types[member_type.offset] = s_type.get_member_by_offset(member_type.offset)
                 return self._build_global_variable(
-                    variable.name, s_type, variable.address, StructTesting(values, s_type), parent.ssa_memory_version if parent else 0
+                    variable.name, s_type, variable.address, StructConstant(values, s_type), parent.ssa_memory_version if parent else 0
                 )
 
             case NamedTypeReferenceClass.EnumNamedTypeClass:
@@ -296,7 +296,7 @@ class GlobalHandler(Handler):
             values[member_type.offset] = lift.initial_value
             types[member_type.offset] = s_type.get_member_by_offset(member_type.offset)
         return self._build_global_variable(
-            variable.name, s_type, variable.address, StructTesting(values, s_type), parent.ssa_memory_version if parent else 0
+            variable.name, s_type, variable.address, StructConstant(values, s_type), parent.ssa_memory_version if parent else 0
         )
 
     def _get_unknown_value(self, variable: DataVariable):
