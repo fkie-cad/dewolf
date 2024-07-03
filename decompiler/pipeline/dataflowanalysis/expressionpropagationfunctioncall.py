@@ -37,13 +37,15 @@ class ExpressionPropagationFunctionCall(ExpressionPropagationBase):
         self._initialize_maps(graph)
         for basic_block in graph.nodes:
             for index, instruction in enumerate(basic_block.instructions):
+                var_target_location = InstructionLocation(basic_block, index)
                 old = str(instruction)
                 for var in instruction.requirements:
                     if def_location := self._def_map.get(var):
                         definition = def_location.instruction
-                        if self._definition_can_be_propagated_into_target(def_location, InstructionLocation(basic_block, index)):
+                        if self._definition_can_be_propagated_into_target(def_location, var_target_location):
                             instruction.substitute(var, definition.value.copy())
                             self._replace_call_assignment_with_const(definition)  # differs from base
+                            self._use_map.update_block_range(basic_block, var_target_location.index, 1, 1)
                             if not is_changed:
                                 is_changed = old != str(instruction)
         return is_changed
