@@ -43,7 +43,7 @@ def get_struct_string_address_offset(vartype) -> int | None:
     return address_offset
 
 
-INLINE_COMPLEX_STRINGS = False 
+INLINE_COMPLEX_STRINGS = True
 DETECT_COMPLEX_STRINGS = True
 
 
