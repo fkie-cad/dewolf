@@ -45,7 +45,8 @@ class EdgePruner(PipelineStage):
         """Eliminate the given subexpression from the graph by a new variable and add and definition to the cfg."""
         new_var = Variable(f"c{self._i}", vartype=expression.type, ssa_label=0)
         cfg.substitute_expression(expression, new_var)
-        cfg.add_definition(new_var, expression)
+        raise NotImplementedError("cfg.add_definition no longer exists")
+        #cfg.add_definition(new_var, expression)
         self._i += 1
 
     def _find_candidates(self, graph: ExpressionGraph) -> Iterator[Expression]:

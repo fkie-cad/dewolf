@@ -34,8 +34,6 @@ class ControlFlowGraph(ClassifiedGraph[BasicBlock, BasicBlockEdge]):
         root -- The root node of the graph.
         """
         super().__init__(graph, root)
-        self._definitions: Dict[BasicBlock, Set[Variable]] = {}
-        self._dependencies: Dict[BasicBlock, Set[Variable]] = {}
 
     def __getitem__(self, address: int) -> BasicBlock:
         """Return a block at the given address."""
@@ -43,11 +41,6 @@ class ControlFlowGraph(ClassifiedGraph[BasicBlock, BasicBlockEdge]):
             if block.address == address:
                 return block
         raise ValueError(f"The CFG does not contain a block with address {address}!")
-
-    def notify(self, block: BasicBlock):
-        """Notify the graph that a basic block has changed."""
-        self._definitions[block] = block.definitions
-        self._dependencies[block] = block.dependencies
 
     def create_block(self, instructions: Optional[List[Instruction]] = None) -> BasicBlock:
         """Create a BasicBlock at an unique address."""
@@ -71,62 +64,15 @@ class ControlFlowGraph(ClassifiedGraph[BasicBlock, BasicBlockEdge]):
             for index, _ in enumerate(block):
                 yield InstructionLocation(block, index)
 
-    def get_definitions(self, variable: Variable) -> Iterator[Instruction]:
-        """Return all definitions of the given variable in the graph."""
-        for block, defined_variables in self._definitions.items():
-            if variable in defined_variables:
-                yield from block.get_definitions(variable)
-
-    def get_usages(self, variable: Variable) -> Iterator[Instruction]:
-        """Return all instructions utilizing the given variable."""
-        for block, dependencies in self._dependencies.items():
-            if variable in dependencies:
-                yield from block.get_usages(variable)
-
-    def get_defined_variables(self) -> Set[Variable]:
-        """Return all definitions for the given variable."""
-        definitions: Set[Variable] = set()
-        for defined_variables in self._definitions.values():
-            definitions.update(defined_variables)
-        return definitions
-
-    def get_undefined_variables(self) -> Set[Variable]:
-        """Return all variables not defined in the current graph."""
-        graph_dependencies: Set[Variable] = set()
-        for dependencies in self._dependencies.values():
-            graph_dependencies.update(dependencies)
-        return graph_dependencies - self.get_defined_variables()
-
-    def get_variables(self) -> Set[Variable]:
-        """Get all variables contained in the graph."""
-        varibles: Set[Variable] = set()
-        for block_variables in chain(self._definitions.values(), self._dependencies.values()):
-            varibles.update(block_variables)
-        return varibles
-
     def add_node(self, block: BasicBlock):
         """Add a node to the block, setting it as head if there is none defined."""
         assert isinstance(block, BasicBlock)
         block._graph = self
-        self.notify(block)
         super().add_node(block)
-
-    def add_definition(self, variable: Variable, definition: Expression):
-        """Add an definition for an undefined variable at the right location."""
-        blocks: List[BasicBlock] = []
-        for block, dependencies in self._dependencies.items():
-            if variable in dependencies:
-                blocks.append(block)
-        dominator = self.find_common_dominator(*blocks)
-        dominator.add_instruction_where_possible(Assignment(variable, definition))
 
     def remove_node(self, block: BasicBlock):
         """Remove the given node from the graph, given it is not the head node."""
         super().remove_node(block)
-        if block in self._definitions:
-            del self._definitions[block]
-        if block in self._dependencies:
-            del self._dependencies[block]
 
     def remove_instruction(self, instruction: Instruction):
         """Remove the given instruction from the cfg once."""

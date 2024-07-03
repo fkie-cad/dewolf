@@ -67,8 +67,8 @@ class DefMap:
         if length > 0:
             vars_to_remove = []
             for var, def_location in self._map.items():
-                location_block, index_id = def_location
-                if location_block is block and start <= self._index_lookup[location_block][index_id] < start + length:
+                block_wrapper, index_id = def_location
+                if block_wrapper.block is block and start <= self._index_lookup[block_wrapper][index_id] < start + length:
                     vars_to_remove.append(var)
 
             for var in vars_to_remove:
@@ -130,8 +130,8 @@ class UseMap:
             for var, used_locations in self._map.items():
                 locations_to_remove = []
                 for location in used_locations:
-                    location_block, index_id = location
-                    if location_block is block and start <= self._index_lookup[location_block][index_id] < start + length:
+                    block_wrapper, index_id = location
+                    if block_wrapper.block is block and start <= self._index_lookup[block_wrapper][index_id] < start + length:
                         locations_to_remove.append(location)
 
                 used_locations.difference_update(locations_to_remove)
