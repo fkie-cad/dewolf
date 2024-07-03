@@ -61,7 +61,7 @@ class RegisterPairHandling(PipelineStage):
             if definition_location := self._def_map.get(register_pair):
                 self._replace_definition_of_register_pair(definition_location, replacement_variable)
             else:
-                insert_location = self._find_definition_insert_location(self._use_map.get(register_pair))
+                insert_location = self._find_definition_insert_location(list(self._use_map.get(register_pair)))
                 self._add_definition_for_replacement(insert_location, register_pair, replacement_variable)
             self._replace_usages_of(register_pair, replacement_variable)
             handled_pairs.add(register_pair)
@@ -126,10 +126,9 @@ class RegisterPairHandling(PipelineStage):
 
     def _replace_usages_of(self, replacee: RegisterPair, replacement: Variable) -> None:
         """Replace all uses of register pair with the new variable"""
-        for using_instruction_location in self._use_map.get(replacee):
+        for using_instruction_location in list(self._use_map.get(replacee)):
             using_instruction_location.instruction.substitute(replacee, replacement)
-
-        # we don't need to update use/def map here, because we don't care about the register pair and replacment variable?
+            self._use_map.update_block_range(using_instruction_location.block, using_instruction_location.index, 1, 1)
 
     @staticmethod
     def _get_higher_register_definition_value(var: Variable, register_size_in_bits: int) -> BinaryOperation:
@@ -156,8 +155,7 @@ class RegisterPairHandling(PipelineStage):
         register_size_mask = 2**register_size_in_bits - 1
         return BinaryOperation(OperationType.bitwise_and, [var, Constant(register_size_mask, vartype=Integer(register_size_in_bits, True))])
 
-    @staticmethod
-    def _add_definition_for_replacement(location: InstructionLocation, register_pair: RegisterPair, replacement_variable: Variable):
+    def _add_definition_for_replacement(self, location: InstructionLocation, register_pair: RegisterPair, replacement_variable: Variable):
         """
         Add a definition for the replacement variable of the given register pair into the given basic block before the index at which the
         register pair is utilized. Easy.
@@ -175,3 +173,5 @@ class RegisterPairHandling(PipelineStage):
             ),
         )
         location.block.instructions.insert(location.index, assignment_of_replacement_variable)
+        self._def_map.update_block_range(location.block, location.index, 0, 1)
+        self._use_map.update_block_range(location.block, location.index, 0, 1)
