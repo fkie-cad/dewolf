@@ -67,7 +67,11 @@ def _collect_constants(operation: Operation) -> Iterator[Constant]:
                 if operand.operation == operation_type:
                     context_stack.append(operand)
                     continue
-            elif isinstance(operand, Constant) and isinstance(operand.value, int) and _identity_constant(operation_type, operand_type).value != operand.value:
+            elif (
+                isinstance(operand, Constant)
+                and isinstance(operand.value, int)
+                and _identity_constant(operation_type, operand_type).value != operand.value
+            ):
                 yield operand
 
 
