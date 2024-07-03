@@ -43,12 +43,12 @@ def get_struct_string_address_offset(vartype) -> int | None:
     return address_offset
 
 
-INLINE_COMPLEX_STRINGS = True
-DETECT_COMPLEX_STRINGS = True
+INLINE_STRUCT_STRINGS = True
+DETECT_STRUCT_STRINGS = True
 
 
 def is_struct_string(vartype) -> bool:
-    if not DETECT_COMPLEX_STRINGS:
+    if not DETECT_STRUCT_STRINGS:
         return False
     return get_struct_string_address_offset(vartype) is not None
 
@@ -67,7 +67,7 @@ def inline_global_variable(var) -> bool:
             if var.type.type in [Integer.char(), CustomType.wchar16(), CustomType.wchar32()]:
                 return True
         case Struct():
-            if INLINE_COMPLEX_STRINGS and is_struct_string(var.type):
+            if INLINE_STRUCT_STRINGS and is_struct_string(var.type):
                 return True
         case _:
             return False
