@@ -5,9 +5,9 @@ from typing import Iterable, Iterator, List
 
 from decompiler.backend.cexpressiongenerator import (
     CExpressionGenerator,
-    get_data_of_complex_string_struct,
+    get_data_of_struct_string,
     inline_global_variable,
-    is_complex_string_struct,
+    is_struct_string,
 )
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.pseudo import GlobalVariable, Integer, Variable
@@ -74,8 +74,8 @@ class GlobalDeclarationGenerator(BaseAstDataflowObjectVisitor):
                         br, bl = "{", "}"
                     yield f"{base}{variable.type.type} {variable.name}[{hex(variable.type.elements)}] = {br}{CExpressionGenerator().visit(variable.initial_value)}{bl};"
                 case Struct():
-                    if is_complex_string_struct(variable.type):
-                        yield base + f"struct {variable.type.name} {variable.name} = {CExpressionGenerator().visit(get_data_of_complex_string_struct(variable))};"
+                    if is_struct_string(variable.type):
+                        yield base + f"struct {variable.type.name} {variable.name} = {CExpressionGenerator().visit(get_data_of_struct_string(variable))};"
                         continue
                     string = f"struct {variable.type.name} {variable.name}" + "{\n"
                     for m_type, m_value in zip(variable.type.members.values(), variable.initial_value.value.values()):
