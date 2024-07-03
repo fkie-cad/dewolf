@@ -64,9 +64,12 @@ BYTE_SIZE = 8
             ==> trust bninja lift normally
             => If a void*, then we try determine the value via get_unknown_pointer_value
         - NamedTypeReferenceType
+            - (enum/structs
+            => lifts struct members recursively
+            => includes special handling of a BNinja bug when accessing certain PDB enum types
+        - StructType 
             - enum/structs
-            => not supported currently
-            => has a BNinja bug when accessing certain PDB enum types
+            => implementation *very* similar to NamedTypeReferenceType
 
     MISC:
         - ._callers will be empty for each call of lift_global_variable 
