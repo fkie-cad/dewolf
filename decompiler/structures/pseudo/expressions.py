@@ -37,7 +37,6 @@ from ...util.insertion_ordered_set import InsertionOrderedSet
 from .complextypes import Enum, Struct
 from .typing import CustomType, Type, UnknownType
 
-
 T = TypeVar("T")
 DecompiledType = TypeVar("DecompiledType", bound=Type)
 
