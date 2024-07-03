@@ -120,25 +120,9 @@ class RegisterPairHandling(PipelineStage):
         lower_register_definition = Assignment(register_pair.low, self._get_lower_register_definition_value(replacement, register_pair.low.type.size))
         higher_register_definition = Assignment(register_pair.high, self._get_higher_register_definition_value(replacement, register_pair.high.type.size))
 
-        potentially_moving_usages: list[tuple[Variable, InstructionLocation]] = list()
-        for instruction in basic_block.instructions:
-            for req in instruction.requirements:
-                for use_location in self._use_map.get(req):
-                    if id(use_location.block) == id(basic_block):
-                        potentially_moving_usages.append((req, use_location))
-
         basic_block.replace_instruction(definition_of_register_pair, [renamed_definition_of_register_pair, lower_register_definition, higher_register_definition])
-
-        # update def map
-        self._def_map.pop(register_pair)
-        for index, _ in enumerate(basic_block.instructions):
-            self._def_map.add(InstructionLocation(basic_block, index))
-
-        # update use map
-        for (use_variable, use_location) in potentially_moving_usages:
-            self._use_map.remove_use(use_variable, use_location)
-        for index, _ in enumerate(basic_block.instructions):
-            self._use_map.add(InstructionLocation(basic_block, index))
+        self._def_map.update_block_range(basic_block, definition_location.index, 1, 3)
+        self._use_map.update_block_range(basic_block, definition_location.index, 1, 3)
 
     def _replace_usages_of(self, replacee: RegisterPair, replacement: Variable) -> None:
         """Replace all uses of register pair with the new variable"""
