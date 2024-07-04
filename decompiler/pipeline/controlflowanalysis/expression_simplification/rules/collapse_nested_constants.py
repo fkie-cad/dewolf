@@ -32,7 +32,7 @@ class CollapseNestedConstants(SimplificationRule):
         first, *rest = constants
 
         # We don't need to catch UnsupportedOperationType, because check that operation is in _COLLAPSIBLE_OPERATIONS
-        # We don't need to catch UnsupportedMismatchedSizes, because '_collect_constants' only returns constants of the same type
+        # We don't need to catch UnsupportedMismatchedSizes, because '_collect_constants' only returns constants of the same size
         # We don't need to catch UnsupportedValueType, because '_collect_constants' only returns constants with supported value types
         try:
             folded_constant = reduce(lambda c0, c1: constant_fold(operation.operation, [c0, c1], operation.type), rest, first)
