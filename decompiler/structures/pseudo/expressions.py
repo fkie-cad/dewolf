@@ -409,8 +409,8 @@ class Variable(Expression[DecompiledType]):
     ) -> Variable:
         """Provide a copy of the current Variable."""
         return self.__class__(
-            self._name[:] if name is None else name,
-            self._type.copy() if vartype is None else vartype,
+            self._name if name is None else name,
+            self._type if vartype is None else vartype,
             self.ssa_label if ssa_label is None else ssa_label,
             self.is_aliased if is_aliased is None else is_aliased,
             self.ssa_name if ssa_name is None else ssa_name,
@@ -466,8 +466,8 @@ class GlobalVariable(Variable):
         """Provide a copy of the current Variable."""
 
         return self.__class__(
-            self._name[:] if name is None else name,
-            self._type.copy() if vartype is None else vartype,
+            self._name if name is None else name,
+            self._type if vartype is None else vartype,
             self.initial_value.copy() if initial_value is None else initial_value.copy(),
             self.ssa_label if ssa_label is None else ssa_label,
             self.is_aliased if is_aliased is None else is_aliased,
