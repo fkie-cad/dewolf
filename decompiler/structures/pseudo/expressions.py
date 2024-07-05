@@ -596,8 +596,15 @@ class StructConstant(Constant):
             tags,
         )
 
+    def __eq__(self, __value):
+        return isinstance(__value, StructConstant) and super().__eq__(__value)
+
+    def __hash__(self):
+        return hash(tuple(self.value.items()))
+
     def __str__(self) -> str:
         """Return a string representation of the ConstantComposition"""
+        # TODO:
         return f"to_fix_struct_repr."
 
     def __iter__(self) -> Iterator[Expression]:
