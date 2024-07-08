@@ -32,11 +32,10 @@ class CollapseNestedConstants(SimplificationRule):
         first, *rest = constants
 
         # We don't need to catch UnsupportedOperationType, because check that operation is in _COLLAPSIBLE_OPERATIONS
-        # We don't need to catch UnsupportedMismatchedSizes, because '_collect_constants' only returns constants of the same type
+        # We don't need to catch UnsupportedMismatchedSizes, because '_collect_constants' only returns constants of the same size
+        # We don't need to catch UnsupportedValueType, because '_collect_constants' only returns constants with supported value types
         try:
             folded_constant = reduce(lambda c0, c1: constant_fold(operation.operation, [c0, c1], operation.type), rest, first)
-        except UnsupportedValueType:
-            return []
         except IncompatibleOperandCount as e:
             raise MalformedData() from e
 
@@ -61,14 +60,18 @@ def _collect_constants(operation: Operation) -> Iterator[Constant]:
         current_operation = context_stack.pop()
 
         for i, operand in enumerate(current_operation.operands):
-            if operand.type != operand_type:  # This check could potentially be relaxed to only check for equal size
+            if operand.type.size != operand_type.size:
                 continue
 
             if isinstance(operand, Operation):
                 if operand.operation == operation_type:
                     context_stack.append(operand)
                     continue
-            elif isinstance(operand, Constant) and _identity_constant(operation_type, operand_type).value != operand.value:
+            elif (
+                isinstance(operand, Constant)
+                and isinstance(operand.value, int)
+                and _identity_constant(operation_type, operand_type).value != operand.value
+            ):
                 yield operand
 
 
