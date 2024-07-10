@@ -1,0 +1,490 @@
+extern unsigned int exit_failure = 1U;
+extern const char [6] * long_opts = "groups";
+extern const unsigned char data_8106[0x2] = "\x2B\x00";
+extern unsigned long * stdout = 0UL;
+extern char [4] * Version = "8.32";
+extern unsigned long * optarg = 0UL;
+extern unsigned int * optind = 0UL;
+
+struct passwd {
+    char * pw_name;
+    char * pw_passwd;
+    unsigned int pw_uid;
+    unsigned int pw_gid;
+    char * pw_gecos;
+    char * pw_dir;
+    char * pw_shell;
+};
+
+int main(int argc, char ** argv, char ** envp) {
+    void var_28;
+    int entry_14;
+    int entry_40;
+    int entry_45;
+    int entry_65;
+    int entry_85;
+    int exit_n1;
+    int loop_break;
+    int var_0;
+    unsigned long var_34;
+    unsigned long var_40;
+    long var_31;
+    long var_32;
+    long var_33;
+    char [4] * var_47;
+    void * var_46;
+    unsigned int * var_29;
+    unsigned int * var_30;
+    unsigned int * var_38;
+    int * var_48;
+    unsigned long * var_35;
+    unsigned long * var_36;
+    unsigned long * var_37;
+    long * var_49;
+    char * var_39;
+    char * var_41;
+    char * var_42;
+    char * var_43;
+    char * var_44;
+    char * var_45;
+    var_30 = (unsigned int)argc;
+    var_32, var_31, var_34, var_33 = set_program_name(*argv);
+    setlocale(/* category */ 6, /* locale */ "Written by %s, %s, and %s.\n", var_31, var_32, var_34, var_33, /* category */ var_28, /* category */ var_0);
+    bindtextdomain(/* domainname */ "GNU coreutils", /* dirname */ "/usr/local/share/locale");
+    textdomain(/* domainname */ "GNU coreutils");
+    exit_failure = 125U;
+    atexit(close_stdout);
+    var_35 = 0UL;
+    var_36 = 0UL;
+    var_38 = 0x0;
+    var_39 = 0xffffffff;
+    var_40 = 0UL;
+    var_41 = 0xffffffff;
+    while (true) {
+        var_0 = getopt_long((unsigned int)argc, argv, /* options */ data_8106, /* long_options */ &long_opts, /* opt_index */ 0UL);
+        if ((var_0 != 256) && (var_0 != -1) && (var_0 <= 256)) {
+            if (var_0 != -131) {
+                if (var_0 != -130) {
+                    break;
+                }
+                usage(0);
+            }
+            else {
+                var_35 = stdout;
+                var_47 = Version;
+                version_etc(var_35, "chroot", "GNU coreutils", var_47);
+                exit(/* status */ 0);
+            }
+        }
+        if ((var_0 == -1) || (var_0 == 256) || (var_0 > 256)) {
+            loop_break = 0;
+            switch(var_0) {
+            case 256:
+                var_36 = optarg;
+                continue;
+            case 0xffffffff:
+                var_31 = optind;
+                if ((int)var_31 < (unsigned int)argc) {
+                    var_46 = argv + (var_31 << 3);
+                    var_43 = *var_46;
+                    var_42 = canonicalize_file_name(/* name */ *var_46);
+                    if (var_42 == 0L) {
+                        var_44 = 0UL;
+                    }
+                    else {
+                        argc = strcmp("https://www.gnu.org/gethelp/", var_42);
+                        if (argc != 0) {
+                            var_44 = 0UL;
+                        }
+                    }
+                    if ((var_42 == 0L) || (argc != 0)) {
+                        entry_14 = 0;
+                    }
+                    else {
+                        free(/* mem */ var_42);
+                        if (chroot(var_43) != 0) {
+                            entry_14 = 1;
+                        }
+                        else if (0UL == 0) {
+                            var_42 = 0UL;
+                            entry_14 = 2;
+                        }
+                        else {
+                            var_42 = 0UL;
+                            entry_14 = 3;
+                        }
+                    }
+                    while (true) {
+                        if (entry_14 == 0) {
+                            free(/* mem */ var_42);
+                            if (var_44 == 0) {
+                                if (var_35 != 0L) {
+                                    parse_user_spec(var_35, &var_39, &var_41, 0UL, 0UL);
+                                }
+                                var_42 = var_39;
+                                if (var_39 == -1) {
+                                    var_42 = 0UL;
+                                }
+                                else {
+                                    if (var_36 == 0L) {
+                                        var_42 = getpwuid(/* uid */ var_42);
+                                    }
+                                    else {
+                                        if (var_41 == -1) {
+                                            var_42 = getpwuid(/* uid */ var_42);
+                                        }
+                                        if ((var_41 != -1) || (var_42 == 0L)) {
+                                            var_42 = 0UL;
+                                        }
+                                    }
+                                    if (((var_36 == 0L) && (var_42 != 0L)) || ((var_36 != 0L) && (var_42 != 0L) && (var_41 == -1))) {
+                                        if (var_41 == -1) {
+                                            var_41 = *(var_42 + 20L);
+                                        }
+                                        var_42 = *var_42;
+                                    }
+                                }
+                                if (var_36 == 0L) {
+                                    if ((var_39 == -1) || (var_42 != 0L)) {
+                                        var_44 = var_41;
+                                        if ((var_41 != -1) && (var_42 != 0L)) {
+                                            argc = xgetgroups(var_42, var_44, &var_38);
+                                            if (argc > 0) {
+                                                var_40 = argc;
+                                            }
+                                        }
+                                    }
+                                    if (((var_42 != 0L) && (var_42 == 0L) && (var_41 != -1)) || ((var_42 == 0L) && (var_39 != -1) && (var_41 != -1)) || ((var_39 == -1) && (var_42 == 0L) && (var_41 != -1))) {
+                                        var_42 = 0UL;
+                                    }
+                                }
+                                else if (*var_36 != 0) {
+                                    parse_additional_groups(var_36, &var_38, &var_40, 0);
+                                }
+                            }
+                        }
+                        if ((entry_14 != 0) || (var_44 == 0)) {
+                            if ((chroot(var_43) == 0) || (entry_14 != 0)) {
+                                if ((entry_14 == 0) || (entry_14 == 2)) {
+                                    argc = chdir("https://www.gnu.org/gethelp/");
+                                    entry_14 = 0;
+                                    if (argc != 0) {
+                                        var_44 = dcgettext(/* domainname */ 0UL, /* msgid */ "cannot chdir to root directory", /* category */ 5);
+                                        var_48 = __errno_location();
+                                        error(/* status */ 125, /* errnum */ *var_48, /* message */ var_44);
+                                        entry_85 = 3;
+                                    }
+                                }
+                                if (entry_14 != 1) {
+                                    if ((argc == 0) || ((entry_14 != 2) && (entry_14 != 0))) {
+                                        var_31 = optind;
+                                        entry_14 = 0;
+                                        if ((var_31 + 1L & 0xffffffff) == (unsigned int)var_30) {
+                                            entry_65 = 1;
+                                        }
+                                        else {
+                                            argv = argv + (var_31 << 3) + 8L;
+                                            entry_85 = 2;
+                                        }
+                                    }
+                                    if ((((var_31 + 1L & 0xffffffff) != (unsigned int)var_30) || (entry_14 == 0) || (entry_14 == 2)) && ((argc != 0) || ((var_31 + 1L & 0xffffffff) != (unsigned int)var_30))) {
+                                        entry_65 = 2;
+                                    }
+                                    entry_45 = 1;
+                                    entry_40 = 1;
+                                }
+                            }
+                            if (((chroot(var_43) != 0) || (entry_14 != 0)) && ((entry_14 == 0) || (entry_14 == 1))) {
+                                var_35 = quotearg_style(4, var_43);
+                                var_44 = dcgettext(/* domainname */ 0UL, /* msgid */ "cannot change root directory to %s", /* category */ 5);
+                                var_48 = __errno_location();
+                                error(/* status */ 125, /* errnum */ *var_48, /* message */ var_44, var_35);
+                                entry_14 = 0;
+                                entry_40 = 0;
+                            }
+                            while (true) {
+                                if (entry_40 == 0) {
+                                    var_30 = var_29;
+                                    entry_45 = 0;
+                                }
+                                while (true) {
+                                    if (entry_45 == 0) {
+                                        var_44 = setgroups(/* n */ var_40, /* groups */ var_30);
+                                        if (var_44 == 0) {
+                                            entry_65 = 0;
+                                        }
+                                    }
+                                    if ((entry_45 == 0) && (var_44 != 0)) {
+                                        var_42 = dcgettext(/* domainname */ 0UL, /* msgid */ "failed to set supplemental groups", /* category */ 5);
+                                        var_48 = __errno_location();
+                                        error(/* status */ 125, /* errnum */ *var_48, /* message */ var_42);
+                                    }
+                                    else {
+                                        while (true) {
+                                            loop_break = 0;
+                                            switch(entry_65) {
+                                            case 0:
+                                                free(/* mem */ var_29);
+                                                free(/* mem */ var_38);
+                                                var_44 = var_41;
+                                                var_30 = __errno_location();
+                                                if ((var_41 != -1) && (setgid(/* gid */ var_44) != 0)) {
+                                                    var_44 = dcgettext(/* domainname */ 0UL, /* msgid */ "failed to set group-ID", /* category */ 5);
+                                                    error(/* status */ 125, /* errnum */ *var_30, /* message */ var_44);
+                                                }
+                                                else {
+                                                    if (var_39 != -1) {
+                                                        argc = setuid(/* uid */ var_39);
+                                                        if (argc != 0) {
+                                                            exit_n1 = 0;
+                                                            loop_break = 1;
+                                                            break;
+                                                        }
+                                                    }
+                                                    execvp(/* file */ *argv, argv);
+                                                    var_31 = quote(*argv);
+                                                    argc = (*var_30 == 2) + 126;
+                                                    var_42 = dcgettext(/* domainname */ 0UL, /* msgid */ "failed to run command %s", /* category */ 5);
+                                                    error(/* status */ 0, /* errnum */ *var_30, /* message */ var_42, var_31);
+                                                }
+                                                break;
+                                            case 0:
+                                            case 1:
+                                                var_44 = getenv(/* name */ "SHELL");
+                                                entry_65 = 0;
+                                                if (var_44 == 0L) {
+                                                    entry_85 = 0;
+                                                }
+                                                else {
+                                                    entry_85 = 1;
+                                                }
+                                                break;
+                                            }
+                                            if (loop_break == 1) {
+                                                break;
+                                            }
+                                            if (((setgid(/* gid */ var_44) != 0) && (var_41 != -1)) || (entry_65 != 0)) {
+                                                while (true) {
+                                                    loop_break = 0;
+                                                    switch(entry_85) {
+                                                    case 0:
+                                                        var_44 = "/bin/sh";
+                                                    case 1:
+                                                        *argv = var_44;
+                                                        *(argv + 8L) = "-i";
+                                                        *(argv + 16L) = 0x0;
+                                                        entry_85 = 0;
+                                                    case 2:
+                                                        entry_85 = 0;
+                                                        if (var_35 != 0L) {
+                                                            var_44 = parse_user_spec(var_35, &var_39, &var_41, 0UL, 0UL);
+                                                            if (var_44 != 0L) {
+                                                                var_45 = var_39;
+                                                                if ((var_39 == -1) && (var_41 == -1)) {
+                                                                    var_48 = __errno_location();
+                                                                    var_42 = error(/* status */ 125, /* errnum */ *var_48, /* message */ "%s: %s", var_44);
+                                                                    exit_n1 = 0;
+                                                                    loop_break = 1;
+                                                                    break;
+                                                                }
+                                                            }
+                                                        }
+                                                        break;
+                                                    }
+                                                    if (loop_break == 1) {
+                                                        break;
+                                                    }
+                                                    if ((var_44 == 0L) || (var_35 == 0L) || ((entry_85 != 0) && (entry_85 != 2) && (entry_85 != 1))) {
+                                                        var_45 = var_39;
+                                                        entry_85 = 0;
+                                                    }
+                                                    if (((entry_85 == 1) || (var_39 != -1) || (entry_85 == 2) || (entry_85 == 0)) && ((var_39 != -1) || (var_35 != 0L)) && ((var_44 != 0L) || (var_39 != -1)) && ((var_44 == 0L) || (var_35 == 0L) || (var_39 != -1) || (entry_85 != 0)) && ((var_44 == 0L) || (var_35 == 0L) || (var_39 != -1) || (entry_85 != 1)) && ((var_44 == 0L) || (var_35 == 0L) || (var_39 != -1) || (entry_85 != 2))) {
+                                                        if ((var_36 != 0L) && (var_41 != -1)) {
+                                                            var_29 = 0x0;
+                                                            var_30 = var_38;
+                                                        }
+                                                        else {
+                                                            var_49 = getpwuid(/* uid */ var_45);
+                                                            if (var_49 != 0L) {
+                                                                if (var_41 == -1) {
+                                                                    var_41 = *(var_49 + 20L);
+                                                                }
+                                                                var_42 = *var_49;
+                                                            }
+                                                            else if (var_41 == -1) {
+                                                                var_35 = var_39;
+                                                                var_44 = dcgettext(/* domainname */ 0UL, /* msgid */ "no group specified for unknown uid: %d", /* category */ 5);
+                                                                var_48 = __errno_location();
+                                                                error(/* status */ 125, /* errnum */ *var_48, /* message */ var_44, var_39);
+                                                                continue;
+                                                            }
+                                                        }
+                                                    }
+                                                    if (((var_44 == 0L) || (var_35 == 0L) || (var_39 != -1) || (var_41 != -1) || (entry_85 != 0)) && ((var_44 == 0L) || (var_35 == 0L) || (var_39 != -1) || (var_41 != -1) || (entry_85 != 1)) && ((var_44 == 0L) || (var_35 == 0L) || (var_39 != -1) || (var_41 != -1) || (entry_85 != 2))) {
+                                                        if (((var_36 == 0L) || (var_44 == 0L) || (var_41 == -1) || (var_35 == 0L) || (var_39 == -1) || (entry_85 != 0)) && ((var_36 == 0L) || (var_44 == 0L) || (var_41 == -1) || (var_35 == 0L) || (var_39 == -1) || (entry_85 != 1)) && ((var_36 == 0L) || (var_44 == 0L) || (var_41 == -1) || (var_35 == 0L) || (var_39 == -1) || (entry_85 != 2)) && ((var_36 == 0L) || (var_39 == -1) || (var_41 == -1) || (entry_85 == 1) || (entry_85 == 2) || (entry_85 == 0)) && ((var_36 == 0L) || (var_39 == -1) || (var_41 == -1) || (var_35 != 0L)) && ((var_36 == 0L) || (var_39 == -1) || (var_41 == -1) || (var_44 != 0L))) {
+                                                            var_29 = 0x0;
+                                                            var_30 = var_38;
+                                                        }
+                                                        if (var_36 == 0L) {
+                                                            var_44 = var_41;
+                                                            if ((var_42 != 0L) && (var_44 != -1)) {
+                                                                argc = xgetgroups(var_42, var_44, &var_29);
+                                                                if (argc > 0) {
+                                                                    var_30 = var_29;
+                                                                    var_40 = argc;
+                                                                }
+                                                                else if (var_40 == 0L) {
+                                                                    var_42 = dcgettext(/* domainname */ 0UL, /* msgid */ "failed to get supplemental groups", /* category */ 5);
+                                                                    var_48 = __errno_location();
+                                                                    error(/* status */ 125, /* errnum */ *var_48, /* message */ var_42);
+                                                                    exit_n1 = 4;
+                                                                    break;
+                                                                }
+                                                            }
+                                                            if ((var_39 == -1) && ((var_42 == 0L) || (var_44 == -1) || (var_40 != 0L) || (argc > 0))) {
+                                                                exit_n1 = 5;
+                                                                break;
+                                                            }
+                                                        }
+                                                        else if (*var_36 != 0) {
+                                                            argc = parse_additional_groups(var_36, &var_29, &var_40, var_40 == 0L);
+                                                            if (argc == 0) {
+                                                                exit_n1 = 2;
+                                                                break;
+                                                            }
+                                                            if (var_40 == 0L) {
+                                                                argc = 125;
+                                                                exit_n1 = 3;
+                                                                break;
+                                                            }
+                                                        }
+                                                        if (((var_36 == 0L) || (*var_36 == 0) || (var_40 != 0L)) && ((var_36 != 0L) || (var_39 != -1))) {
+                                                            exit_n1 = 1;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                                entry_65 = 0;
+                                                loop_break = 0;
+                                                switch(exit_n1) {
+                                                case 0:
+                                                    exit_n1 = 1;
+                                                    loop_break = 1;
+                                                    break;
+                                                case 1:
+                                                    exit_n1 = 2;
+                                                    loop_break = 1;
+                                                    break;
+                                                case 2:
+                                                    exit_n1 = 3;
+                                                    loop_break = 1;
+                                                    break;
+                                                case 4:
+                                                    exit_n1 = 4;
+                                                    loop_break = 1;
+                                                    break;
+                                                }
+                                                if (loop_break == 1) {
+                                                    break;
+                                                }
+                                                if (exit_n1 != 3) {
+                                                    continue;
+                                                }
+                                            }
+                                            return argc;
+                                        }
+                                        entry_45 = 0;
+                                        if (exit_n1 != 0) {
+                                            loop_break = 0;
+                                            switch(exit_n1) {
+                                            case 1:
+                                                exit_n1 = 0;
+                                                loop_break = 1;
+                                                break;
+                                            case 2:
+                                                continue;
+                                            case 3:
+                                                exit_n1 = 2;
+                                                break;
+                                            default:
+                                                exit_n1 = 3;
+                                            }
+                                            if (loop_break == 1) {
+                                                break;
+                                            }
+                                            if ((exit_n1 != 1) && (exit_n1 != 2)) {
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    var_42 = dcgettext(/* domainname */ 0UL, /* msgid */ "failed to set user-ID", /* category */ 5);
+                                    error(/* status */ 125, /* errnum */ *var_30, /* message */ var_42);
+                                    exit_n1 = 1;
+                                    break;
+                                }
+                                entry_40 = 0;
+                                loop_break = 0;
+                                switch(exit_n1) {
+                                case 0:
+                                    exit_n1 = 0;
+                                    loop_break = 1;
+                                    break;
+                                case 1:
+                                    exit_n1 = 1;
+                                    loop_break = 1;
+                                    break;
+                                }
+                                if (loop_break == 1) {
+                                    break;
+                                }
+                                if (exit_n1 != 2) {
+                                    exit_n1 = 2;
+                                    break;
+                                }
+                            }
+                            if (exit_n1 == 0) {
+                                continue;
+                            }
+                            if (exit_n1 != 1) {
+                                break;
+                            }
+                        }
+                        var_31 = quotearg_style(4, "https://www.gnu.org/gethelp/");
+                        var_42 = dcgettext(/* domainname */ 0UL, /* msgid */ "option --skip-chdir only permitted if NEWROOT is old %s", /* category */ 5);
+                        error(/* status */ 0, /* errnum */ 0, /* message */ var_42, var_31);
+                        usage(125);
+                    }
+                }
+                var_42 = dcgettext(/* domainname */ 0UL, /* msgid */ "missing operand", /* category */ 5);
+                error(/* status */ 0, /* errnum */ 0, /* message */ var_42);
+                loop_break = 1;
+                break;
+            default:
+                if (var_0 == 0x101) {
+                    var_35 = optarg;
+                    var_37 = optarg;
+                    var_34 = strlen(var_37);
+                    if (var_34 == 0L) {
+                        continue;
+                    }
+                    var_46 = optarg + var_34 - 1L;
+                    if (*var_46 != ':') {
+                        continue;
+                    }
+                    *var_46 = 0x0;
+                    continue;
+                }
+                if (var_0 != 0x102) {
+                    loop_break = 1;
+                    break;
+                }
+                continue;
+            }
+            if (loop_break == 1) {
+                break;
+            }
+        }
+    }
+    usage(125);
+}
+110.39063300006092

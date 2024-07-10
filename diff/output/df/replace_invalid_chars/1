@@ -1,0 +1,69 @@
+
+
+struct __mbstate_t {
+    int __count;
+    union __value {
+        unsigned int __wch;
+        char [4] __wchb;
+    };
+};
+union __value {
+    unsigned int __wch;
+    char [4] __wchb;
+};
+
+unsigned long replace_invalid_chars(char * arg1) {
+    unsigned long var_5;
+    unsigned long var_6;
+    long var_8;
+    void * var_7;
+    int * var_3;
+    int * var_4;
+    char * var_0;
+    char * var_1;
+    __mbstate_t var_2;
+    var_6 = strlen(arg1);
+    var_2.__count = 0x0;
+    var_2.__value = 0x0;
+    var_7 = arg1 + var_6;
+    if (arg1 == var_7) {
+        var_0 = arg1;
+    }
+    else {
+        var_0 = arg1;
+        var_4 = var_3;
+        while (true) {
+            var_8 = var_7 - arg1;
+            var_5 = rpl_mbrtowc(&var_3, arg1, var_8, &var_2);
+            if (var_8 < var_5) {
+                var_6 = var_5;
+                var_5 = 1UL;
+            }
+            else {
+                var_6 = iswcntrl(/* wc */ var_4);
+            }
+            if ((var_8 >= var_5) && ((unsigned int)var_6 == 0)) {
+                var_1 = arg1 + var_5;
+                var_6 = memmove(var_0, arg1, var_5);
+                var_0 += var_5;
+                if (var_7 == arg1 + var_5) {
+                    break;
+                }
+                arg1 = var_1;
+                continue;
+            }
+            var_1 = arg1 + var_5;
+            *var_0 = 0x3f;
+            var_0++;
+            var_2.__count = 0x0;
+            var_2.__value = 0x0;
+            if (var_7 == arg1 + var_5) {
+                break;
+            }
+            arg1 = var_1;
+        }
+    }
+    *var_0 = 0x0;
+    return var_6;
+}
+1.989275200292468

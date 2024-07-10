@@ -1,0 +1,19 @@
+
+
+struct timespec {
+    long tv_sec;
+    long tv_nsec;
+};
+
+unsigned long settime(long * arg1) {
+    int * var_2;
+    long * var_0;
+    long * var_1;
+    var_2 = clock_settime(/* clock_id */ 0, /* tp */ arg1);
+    if ((var_2 != 0) && (*__errno_location() != 1)) {
+        var_1 = *arg1;
+        var_2 = settimeofday(/* tv */ &var_0, /* tz */ 0UL);
+    }
+    return (unsigned int)var_2;
+}
+1.1588395000435412

@@ -1,0 +1,102 @@
+extern const char [8] * longopts = "multiple";
+extern unsigned long * optarg = 0UL;
+extern unsigned long * stdout = 0UL;
+extern char [4] * Version = "8.32";
+extern unsigned int * optind = 0UL;
+
+
+
+int main(int argc, char ** argv, char ** envp) {
+    int loop_break;
+    int var_13;
+    int var_14;
+    unsigned long var_18;
+    long var_15;
+    long var_16;
+    long var_17;
+    char var_19;
+    char var_20;
+    char [4] * var_25;
+    void * var_24;
+    unsigned int * var_22;
+    unsigned int * var_23;
+    unsigned long * var_21;
+    var_16, var_15, var_18, var_17 = set_program_name(*argv);
+    setlocale(/* category */ 6, /* locale */ "Written by %s, %s, and %s.\n", var_15, var_16, var_18, var_17, /* category */ var_13, /* category */ var_14);
+    bindtextdomain(/* domainname */ "GNU coreutils", /* dirname */ "/usr/local/share/locale");
+    textdomain(/* domainname */ "GNU coreutils");
+    atexit(close_stdout);
+    var_20 = 0;
+    var_19 = 0;
+    var_21 = 0UL;
+    while (true) {
+        var_13 = getopt_long(argc, argv, /* options */ "+as:z", /* long_options */ &longopts, /* opt_index */ 0UL);
+        loop_break = 0;
+        switch(var_13) {
+        case 115:
+            var_21 = optarg;
+        case 97:
+            var_19 = 1;
+            continue;
+        case 122:
+            var_20 = 1;
+            continue;
+        case 0xffffff7d:
+            var_21 = stdout;
+            var_25 = Version;
+            version_etc(var_21, "basename", "GNU coreutils", var_25);
+            exit(/* status */ 0);
+            break;
+        case 0xffffff7e:
+            usage(0);
+            break;
+        case 0xffffffff:
+            var_22 = optind;
+            if (var_22 >= argc) {
+                argc = dcgettext(/* domainname */ 0UL, /* msgid */ "missing operand", /* category */ 5);
+                error(/* status */ 0, /* errnum */ 0, /* message */ argc);
+            }
+            else if (var_19 != 0) {
+                do {
+                    perform_basename(argv[var_22], var_21, var_20);
+                    var_23 = optind;
+                    var_22 = var_23 + 1;
+                    optind = var_22;
+                }
+                while (var_23 + 1 < argc);
+                if (var_23 + 1 >= argc) {
+                    loop_break = 1;
+                    break;
+                }
+            }
+            else {
+                var_24 = argv + ((long)var_22 << 3);
+                var_13 = var_22 + 2;
+                if (var_13 >= argc) {
+                    if (var_13 != argc) {
+                        argc = 0UL;
+                    }
+                    else {
+                        argc = *(var_24 + 8L);
+                    }
+                    perform_basename(*var_24, argc, var_20);
+                    loop_break = 1;
+                    break;
+                }
+                var_15 = quote(*(var_24 + 16L));
+                argc = dcgettext(/* domainname */ 0UL, /* msgid */ "extra operand %s", /* category */ 5);
+                error(/* status */ 0, /* errnum */ 0, /* message */ argc, var_15);
+                usage(1);
+            }
+            break;
+        }
+        if (loop_break == 1) {
+            break;
+        }
+        if ((var_13 != 115) && (var_13 != 97) && (var_13 != 122) && (var_13 != -130)) {
+            usage(1);
+        }
+    }
+    return 0;
+}
+4.459817199967802

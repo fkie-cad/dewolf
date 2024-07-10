@@ -1,0 +1,162 @@
+extern unsigned long * stdout = 0UL;
+extern const unsigned char data_15206[0xb2] = "\x43\x00\x46\x45\x42\x52\x55\x41\x52\x59\x00\x4D\x41\x52\x43\x48\x00\x41\x50\x52\x49\x4C\x00\x4D\x41\x59\x00\x4A\x55\x4E\x45\x00...";
+
+struct tm {
+    int tm_sec;
+    int tm_min;
+    int tm_hour;
+    int tm_mday;
+    int tm_mon;
+    int tm_year;
+    int tm_wday;
+    int tm_yday;
+    int tm_isdst;
+    long tm_gmtoff;
+    char * tm_zone;
+};
+struct _IO_FILE {
+    int _flags;
+    char * _IO_read_ptr;
+    char * _IO_read_end;
+    char * _IO_read_base;
+    char * _IO_write_base;
+    char * _IO_write_ptr;
+    char * _IO_write_end;
+    char * _IO_buf_base;
+    char * _IO_buf_end;
+    char * _IO_save_base;
+    char * _IO_backup_base;
+    char * _IO_save_end;
+    _IO_marker * _markers;
+    _IO_FILE * _chain;
+    int _fileno;
+    int _flags2;
+    long _old_offset;
+    unsigned short _cur_column;
+    char _vtable_offset;
+    char [1] _shortbuf;
+    _IO_lock_t * _lock;
+    long _offset;
+    _IO_codecvt * _codecvt;
+    _IO_wide_data * _wide_data;
+    _IO_FILE * _freeres_list;
+    void * _freeres_buf;
+    unsigned long __pad5;
+    int _mode;
+    char [20] _unused2;
+};
+struct _IO_marker {
+    void * _next;
+    void * _sbuf;
+    int _pos;
+};
+struct _IO_lock_t {
+    int lock;
+    int cnt;
+    void * owner;
+};
+struct _IO_codecvt {
+    _IO_iconv_t __cd_in;
+    _IO_iconv_t __cd_out;
+};
+struct _IO_iconv_t {
+    __gconv_step * step;
+    __gconv_step_data step_data;
+};
+struct __gconv_step {
+    void * __shlib_handle;
+    char * __modname;
+    int __counter;
+    char * __from_name;
+    char * __to_name;
+    void __fct;
+    unsigned int(void *, unsigned char) * __btowc_fct;
+    int(void *) * __init_fct;
+    void(void *) * __end_fct;
+    int __min_needed_from;
+    int __max_needed_from;
+    int __min_needed_to;
+    int __max_needed_to;
+    int __stateful;
+    void * __data;
+};
+struct __gconv_step_data {
+    unsigned char * __outbuf;
+    unsigned char * __outbufend;
+    int __flags;
+    int __invocation_counter;
+    int __internal_use;
+    __mbstate_t * __statep;
+    __mbstate_t __state;
+};
+struct __mbstate_t {
+    int __count;
+    union __value {
+        unsigned int __wch;
+        char [4] __wchb;
+    };
+};
+union __value {
+    unsigned int __wch;
+    char [4] __wchb;
+};
+struct _IO_wide_data {
+    int * _IO_read_ptr;
+    int * _IO_read_end;
+    int * _IO_read_base;
+    int * _IO_write_base;
+    int * _IO_write_ptr;
+    int * _IO_write_end;
+    int * _IO_buf_base;
+    int * _IO_buf_end;
+    int * _IO_save_base;
+    int * _IO_backup_base;
+    int * _IO_save_end;
+    __mbstate_t _IO_state;
+    __mbstate_t _IO_last_state;
+    _IO_codecvt _codecvt;
+    int [1] _shortbuf;
+    void * _wide_vtable;
+};
+
+long show_date(char * arg1, unsigned long arg2, int arg3, long ** arg4) {
+    void var_5;
+    void var_6;
+    unsigned long var_11;
+    long var_7;
+    long var_8;
+    long var_9;
+    void * var_12;
+    unsigned long * var_13;
+    tm * var_10;
+    var_11 = arg2;
+    var_10, var_8, var_7, arg2, var_9 = localtime_rz(arg4, &var_11, &var_5);
+    if (var_10 == 0L) {
+        var_12 = imaxtostr(var_11, &var_6);
+        arg1 = dcgettext(/* domainname */ 0UL, /* msgid */ "time %s is out of range", /* category */ 5);
+        error(/* status */ 0, /* errnum */ 0, /* message */ arg1, quote(var_12));
+        return 0L;
+    }
+    if (arg1 != "%a, %d %b %Y %H:%M:%S %z") {
+        var_13 = stdout;
+        fprintftime(var_13, arg1, &var_5, arg4, arg3);
+    }
+    else {
+        setlocale(/* category */ 2, /* locale */ data_15206, var_7, var_8, arg2, var_9, /* category */ (unsigned int)var_11, /* category */ arg3);
+        var_13 = stdout;
+        var_8, var_7, arg2, var_9 = fprintftime(var_13, arg1, &var_5, arg4, arg3);
+        setlocale(/* category */ 2, /* locale */ "    user provided time: '%s'\n", var_7, var_8, arg2, var_9);
+    }
+    var_13 = stdout;
+    var_12 = stdout + 40L;
+    arg1 = *var_12;
+    if (arg1 < *(stdout + 48L)) {
+        *var_12 = arg1 + 1L;
+        *arg1 = 0xa;
+    }
+    else {
+        __overflow(/* f */ var_13, /* ch */ 10);
+    }
+    return 1L;
+}
+2.0733229001052678

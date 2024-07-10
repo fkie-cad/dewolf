@@ -1,0 +1,13 @@
+
+
+struct Elf64_Sym {
+    unsigned int st_name;
+    unsigned char st_info;
+    unsigned char st_other;
+    unsigned short st_shndx;
+    unsigned long st_value;
+    unsigned long st_size;
+};
+
+Failed to decompile re_protect due to error during common-subexpression-elimination.
+18.232294000219554

@@ -1,0 +1,241 @@
+extern unsigned long * stdout = 0UL;
+extern const unsigned char data_1000[0x3a0] = "\x07\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xA8\x9E\x00\x00\x00\x00\x00\x00\x07\x00\x00\x00\x07\x00\x00\x00...";
+extern unsigned char have_read_stdin = 0U;
+extern unsigned long * stdin = 0UL;
+extern const unsigned char crctab[0x805] = "\x00\x00\x00\x00\x00\x00\x00\x00\xB7\x1D\xC1\x04\x00\x00\x00\x00\x6E\x3B\x82\x09\x00\x00\x00\x00\xD9\x26\x43\x0D\x00\x00\x00\x00...";
+
+struct _IO_FILE {
+    int _flags;
+    char * _IO_read_ptr;
+    char * _IO_read_end;
+    char * _IO_read_base;
+    char * _IO_write_base;
+    char * _IO_write_ptr;
+    char * _IO_write_end;
+    char * _IO_buf_base;
+    char * _IO_buf_end;
+    char * _IO_save_base;
+    char * _IO_backup_base;
+    char * _IO_save_end;
+    _IO_marker * _markers;
+    _IO_FILE * _chain;
+    int _fileno;
+    int _flags2;
+    long _old_offset;
+    unsigned short _cur_column;
+    char _vtable_offset;
+    char [1] _shortbuf;
+    _IO_lock_t * _lock;
+    long _offset;
+    _IO_codecvt * _codecvt;
+    _IO_wide_data * _wide_data;
+    _IO_FILE * _freeres_list;
+    void * _freeres_buf;
+    unsigned long __pad5;
+    int _mode;
+    char [20] _unused2;
+};
+struct _IO_marker {
+    void * _next;
+    void * _sbuf;
+    int _pos;
+};
+struct _IO_lock_t {
+    int lock;
+    int cnt;
+    void * owner;
+};
+struct _IO_codecvt {
+    _IO_iconv_t __cd_in;
+    _IO_iconv_t __cd_out;
+};
+struct _IO_iconv_t {
+    __gconv_step * step;
+    __gconv_step_data step_data;
+};
+struct __gconv_step {
+    void * __shlib_handle;
+    char * __modname;
+    int __counter;
+    char * __from_name;
+    char * __to_name;
+    void __fct;
+    unsigned int(void *, unsigned char) * __btowc_fct;
+    int(void *) * __init_fct;
+    void(void *) * __end_fct;
+    int __min_needed_from;
+    int __max_needed_from;
+    int __min_needed_to;
+    int __max_needed_to;
+    int __stateful;
+    void * __data;
+};
+struct __gconv_step_data {
+    unsigned char * __outbuf;
+    unsigned char * __outbufend;
+    int __flags;
+    int __invocation_counter;
+    int __internal_use;
+    __mbstate_t * __statep;
+    __mbstate_t __state;
+};
+struct __mbstate_t {
+    int __count;
+    union __value {
+        unsigned int __wch;
+        char [4] __wchb;
+    };
+};
+union __value {
+    unsigned int __wch;
+    char [4] __wchb;
+};
+struct _IO_wide_data {
+    int * _IO_read_ptr;
+    int * _IO_read_end;
+    int * _IO_read_base;
+    int * _IO_write_base;
+    int * _IO_write_ptr;
+    int * _IO_write_end;
+    int * _IO_buf_base;
+    int * _IO_buf_end;
+    int * _IO_save_base;
+    int * _IO_backup_base;
+    int * _IO_save_end;
+    __mbstate_t _IO_state;
+    __mbstate_t _IO_last_state;
+    _IO_codecvt _codecvt;
+    int [1] _shortbuf;
+    void * _wide_vtable;
+};
+
+long cksum(char * arg1, int arg2) {
+    void var_18;
+    int exit_12;
+    unsigned long var_29;
+    unsigned long var_30;
+    unsigned long var_31;
+    long var_0;
+    long var_21;
+    char var_32;
+    void * var_22;
+    void * var_23;
+    void * var_24;
+    void * var_25;
+    void * var_26;
+    int * var_34;
+    unsigned long * var_27;
+    unsigned long * var_28;
+    long * var_20;
+    char * var_19;
+    _IO_FILE * var_33;
+    var_21 = var_0;
+    var_20 = &var_21;
+    var_21 = var_0;
+    do {
+        var_20 -= data_1000;
+    }
+    while (var_20 != &var_18);
+    var_23 = var_20 + 0xffffffffffffffd4;
+    *var_23 = arg2;
+    var_22 = arg1 + 1L;
+    if ((*arg1 == '-') && (*var_22 == 0)) {
+        have_read_stdin = 1U;
+        var_27 = stdin;
+    }
+    else {
+        var_27 = fopen(/* filename */ arg1, /* mode */ "write error");
+    }
+    if ((var_27 != 0L) || ((*var_22 == 0) && (*arg1 == '-'))) {
+        fadvise(var_27, 2);
+        var_28 = 0L;
+        var_29 = 0UL;
+        while (true) {
+            var_24 = var_20 + 0xfffffffffffffff8;
+            var_30 = fread_unlocked(/* buf */ var_24, /* size */ 1UL, /* count */ 0x10000, /* fp */ var_27);
+            var_33 = var_27->_flags & 0xff;
+            var_32 = var_33 & ' ';
+            if (var_30 != 0L) {
+                var_31 = var_29 + var_30;
+                if (var_31 >= var_29) {
+                    var_25 = var_24;
+                    while (true) {
+                        var_26 = var_25 + 1L;
+                        var_28 = var_28 * 256 ^ *(crctab + ((unsigned int)((var_28 >> 24L & 0xff) ^ *var_25) << 3));
+                        if (var_26 == var_24 + var_30) {
+                            break;
+                        }
+                        var_25 = var_26;
+                    }
+                    if ((var_33 & 16) == 0) {
+                        var_29 = var_31;
+                        continue;
+                    }
+                }
+            }
+            else if (var_32 == 0) {
+                var_31 = var_29;
+            }
+            if ((var_30 == 0L) || (var_31 >= var_29)) {
+                if (var_32 != 0) {
+                    var_34 = __errno_location();
+                    error(/* status */ 0, /* errnum */ *var_34, /* message */ "-: %s", quotearg_n_style_colon(0, 3, arg1));
+                    if ((*arg1 == '-') && (*var_22 == 0)) {
+                        var_0 = 0L;
+                    }
+                    else {
+                        rpl_fclose(var_27);
+                        var_0 = 0L;
+                    }
+                }
+                else {
+                    if ((rpl_fclose(var_27) == -1) && ((*arg1 != '-') || (*var_22 != 0))) {
+                        exit_12 = 1;
+                        break;
+                    }
+                    var_22 = umaxtostr(var_31, var_20 + 0xffffffffffffffd8);
+                    if (var_31 != 0L) {
+                        while (true) {
+                            var_27 = var_28 * 256 ^ *(crctab + ((unsigned char)((var_28 >> 24L & 0xff) ^ var_31) << 3));
+                            var_31 >>= 8L;
+                            if (var_31 == 0L) {
+                                break;
+                            }
+                            var_28 = var_27;
+                        }
+                        if (var_31 == 0L) {
+                            var_28 = var_27;
+                        }
+                    }
+                    if (*var_23 == 0) {
+                        __printf_chk(/* flag */ 1, /* format */ "%u %s\n", ~var_28, var_22);
+                    }
+                    else {
+                        __printf_chk(/* flag */ 1, /* format */ "%u %s %s\n", ~var_28, var_22, arg1);
+                    }
+                    if ((stdout & ' ') == 0) {
+                        var_0 = 1L;
+                    }
+                    else {
+                        arg1 = dcgettext(/* domainname */ 0UL, /* msgid */ "write error", /* category */ 5);
+                        var_34 = __errno_location();
+                        error(/* status */ 1, /* errnum */ *var_34, /* message */ "-: %s", arg1);
+                    }
+                }
+            }
+            if (((var_32 != 0) || ((stdout & ' ') == 0)) && ((var_30 == 0L) || (var_31 >= var_29))) {
+                exit_12 = 0;
+                break;
+            }
+            var_19 = dcgettext(/* domainname */ 0UL, /* msgid */ "%s: file too long", /* category */ 5);
+            return usage(error(/* status */ 1, /* errnum */ 0, /* message */ var_19, quotearg_n_style_colon(0, 3, arg1)));
+        }
+    }
+    if (((*var_22 != 0) || (exit_12 != 0) || (*arg1 != '-')) && ((exit_12 != 0) || (var_27 == 0L))) {
+        var_34 = __errno_location();
+        error(/* status */ 0, /* errnum */ *var_34, /* message */ "-: %s", quotearg_n_style_colon(0, 3, arg1));
+        var_0 = 0L;
+    }
+    return var_0;
+}
+19.829032099805772

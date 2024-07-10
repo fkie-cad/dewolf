@@ -1,0 +1,23 @@
+
+
+
+
+long mktime_ok(int * arg1, void * arg2) {
+    int tmp_0;
+    int tmp_1;
+    int tmp_2;
+    int tmp_3;
+    int var_0;
+    if (*(arg2 + 24L) < 0) {
+        var_0 = 0;
+    }
+    else {
+        tmp_3 = *arg1 ^ *arg2 | *(arg1 + 4L) ^ *(arg2 + 4L) | *(arg1 + 8L) ^ *(arg2 + 8L);
+        tmp_2 = tmp_3 | *(arg1 + 12L) ^ *(arg2 + 12L);
+        tmp_1 = tmp_2 | *(arg1 + 16L) ^ *(arg2 + 16L);
+        tmp_0 = tmp_1 | *(arg1 + 20L) ^ *(arg2 + 20L);
+        var_0 = tmp_0 == 0;
+    }
+    return var_0;
+}
+0.9154107002541423

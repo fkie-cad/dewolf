@@ -1,0 +1,500 @@
+extern unsigned char recurse = 0U;
+extern unsigned long specified_context = 0UL;
+extern const unsigned int jump_table_ccf8[0x3c] = {4294925919, 4294926309, 4294926309, 4294926309, 4294925911, 4294926309, 4294926309, 4294926309, 4294926104, 4294926309, 4294926092, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294925832, 4294926309, 4294926079, 4294926309, 4294926309, 4294926309, 4294926054, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294926029, 4294926309, 4294926004, 4294925979, 4294925967, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294926309, 4294925954, 4294925949, 4294925941, 4294925927};
+extern const char [9] * long_options = "recursive";
+extern unsigned long * stdout = 0UL;
+extern char [4] * Version = "8.32";
+extern unsigned long * optarg = 0UL;
+extern unsigned long specified_range = 0UL;
+extern unsigned long specified_role = 0UL;
+extern unsigned long specified_type = 0UL;
+extern unsigned long specified_user = 0UL;
+extern unsigned char verbose = 0U;
+extern unsigned char affect_symlink_referent = 0U;
+extern unsigned int * optind = 0UL;
+extern unsigned char dev_ino_buf_7785[0x10] = "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
+extern unsigned long root_dev_ino = 0UL;
+
+
+
+int main(int argc, char ** argv, char ** envp) {
+    unsigned int* var_54;
+    void var_47;
+    bool var_70;
+    unsigned int var_63;
+    int entry_124;
+    int entry_66;
+    int entry_70;
+    int entry_99;
+    int exit_n1;
+    int loop_break;
+    int var_48;
+    unsigned long var_57;
+    unsigned long var_58;
+    long var_55;
+    long var_56;
+    unsigned char var_71;
+    char var_62;
+    char [4] * var_64;
+    void * var_68;
+    void * var_69;
+    void (* var_65)();
+    int * var_59;
+    int * var_60;
+    unsigned long * var_61;
+    long * var_66;
+    long * var_67;
+    char * var_49;
+    char * var_50;
+    char * var_51;
+    char * var_52;
+    char * var_53;
+    var_54 = jump_table_ccf8;
+    var_50, var_55, var_57, var_56 = set_program_name(*argv);
+    setlocale(/* category */ 6, /* locale */ "Written by %s, %s, and %s.\n", var_55, var_50, var_57, var_56, /* category */ var_47, /* category */ var_48);
+    bindtextdomain(/* domainname */ "GNU coreutils", /* dirname */ "/usr/local/share/locale");
+    textdomain(/* domainname */ "GNU coreutils");
+    atexit(close_stdout);
+    var_59 = -1;
+    var_61 = 0UL;
+    var_62 = 0;
+    var_57 = 16UL;
+    while (true) {
+        var_48 = getopt_long(argc, argv, /* options */ "HLPRhvu:r:t:l:", /* long_options */ &long_options, /* opt_index */ 0UL);
+        if (var_48 == -131) {
+            var_61 = stdout;
+            var_64 = Version;
+            version_etc(var_61, "chcon", "GNU coreutils", var_64);
+            exit(/* status */ 0);
+        }
+        if ((var_48 <= 131) && (var_48 > 71)) {
+            var_63 = (unsigned int)(var_48 - 72);
+        }
+        if (var_48 == -1) {
+            if (recurse == 0) {
+                affect_symlink_referent = var_59 != 0;
+                var_57 = 16UL;
+            }
+            else if ((unsigned int)var_57 != 16) {
+                if (var_59 != 0) {
+                    affect_symlink_referent = 1U;
+                }
+                else {
+                    var_49 = dcgettext(/* domainname */ 0UL, /* msgid */ "-R -h requires -P", /* category */ 5);
+                    error(/* status */ 1, /* errnum */ 0, /* message */ var_49);
+                }
+            }
+            else if (var_59 != 1) {
+                affect_symlink_referent = 0U;
+            }
+            else {
+                var_49 = dcgettext(/* domainname */ 0UL, /* msgid */ "-R --dereference requires either -H or -L", /* category */ 5);
+                error(/* status */ 1, /* errnum */ 0, /* message */ var_49);
+            }
+            if ((recurse == 0) || ((var_59 != 1) && ((unsigned int)var_57 == 16)) || (((unsigned int)var_57 != 16) && (var_59 != 0))) {
+                var_55 = optind;
+                var_48 = argc - (int)var_55;
+                if ((var_48 > 0) && (var_61 != 0L)) {
+                    var_53 = 0x0;
+                    var_48 = rpl_getfilecon(var_61, &var_53);
+                    if (var_48 >= 0) {
+                        specified_context = var_53;
+                    }
+                    else {
+                        var_49 = dcgettext(/* domainname */ 0UL, /* msgid */ "failed to get security context of %s", /* category */ 5);
+                        var_59 = __errno_location();
+                        var_65, var_56, var_55 = error(/* status */ 1, /* errnum */ *var_59, /* message */ var_49, quotearg_style(4, var_61));
+                        return _start(var_55, var_56, var_65);
+                    }
+                }
+                else if ((var_48 <= 1) && ((var_62 == 0) || (var_48 <= 0)) && ((int)var_55 >= argc)) {
+                    var_49 = "missing operand";
+                }
+                if (var_62 != 0) {
+                    if ((var_48 > 0) && (var_61 == 0L)) {
+                        specified_context = 0UL;
+                    }
+                }
+                else if ((var_61 == 0L) && (var_48 > 1)) {
+                    optind = var_55 + 1L & 0xffffffff;
+                    specified_context = argv[var_55];
+                    if (is_selinux_enabled() > 0) {
+                        var_58 = specified_context;
+                        if (security_check_context(var_58) < 0) {
+                            var_58 = specified_context;
+                            var_50 = quote(var_58);
+                            var_51 = dcgettext(/* domainname */ 0UL, /* msgid */ "invalid context: %s", /* category */ 5);
+                            var_60 = __errno_location();
+                            error(/* status */ 1, /* errnum */ *var_60, /* message */ var_51, var_50);
+                            var_66 = 0UL;
+                            entry_66 = 0;
+                        }
+                    }
+                }
+                if (((var_62 != 0) || (var_61 != 0L) || (var_48 > 1)) && ((var_62 == 0) || (var_61 == 0L))) {
+                    if (((var_62 != 0) || (var_61 != 0L) || (security_check_context(var_58) >= 0) || (is_selinux_enabled() <= 0)) && ((var_61 == 0L) || (var_48 > 0)) && ((var_62 == 0) || (var_48 > 0))) {
+                        var_59 = __errno_location();
+                        var_63 = (unsigned int)recurse;
+                        var_54 = 0x0;
+                        if ((char)(var_63 & 0UL) == 0) {
+                            root_dev_ino = 0UL;
+                        }
+                        else {
+                            var_66 = get_root_dev_ino(dev_ino_buf_7785);
+                            root_dev_ino = var_66;
+                            if (var_66 == 0L) {
+                                var_51 = quotearg_style(4, "/proc/self/fd/%d/");
+                                var_50 = dcgettext(/* domainname */ 0UL, /* msgid */ "failed to get attributes of %s", /* category */ 5);
+                                error(/* status */ 1, /* errnum */ *var_59, /* message */ var_50, var_51);
+                                var_48 = strcmp(var_57, "/proc/self/fd/%d/");
+                                if (var_48 == 0) {
+                                    var_50 = dcgettext(/* domainname */ 0UL, /* msgid */ "it is dangerous to operate recursively on %s", /* category */ 5);
+                                    error(/* status */ 0, /* errnum */ 0, /* message */ var_50, quotearg_style(4, var_57));
+                                }
+                                else {
+                                    var_51 = quotearg_n_style(1, 4, "/proc/self/fd/%d/");
+                                    var_50 = dcgettext(/* domainname */ 0UL, /* msgid */ "it is dangerous to operate recursively on %s (same as %s)", /* category */ 5);
+                                    error(/* status */ 0, /* errnum */ 0, /* message */ var_50, quotearg_n_style(0, 4, var_57), var_51);
+                                }
+                                var_50 = dcgettext(/* domainname */ 0UL, /* msgid */ "use --no-preserve-root to override this failsafe", /* category */ 5);
+                                error(/* status */ 0, /* errnum */ 0, /* message */ var_50);
+                                var_48 = 0;
+                                var_66 = 0UL;
+                                entry_99 = 4;
+                            }
+                        }
+                        if ((var_66 != 0L) || ((char)(var_63 & 0UL) == 0)) {
+                            var_55 = optind;
+                            argv = xfts_open(argv + (var_55 << 3), (unsigned int)var_57 | 8, 0L);
+                            var_66 = rpl_fts_read(argv);
+                            if (var_66 == 0L) {
+                                var_54 = 1;
+                            }
+                            else {
+                                var_67 = var_66;
+                                var_54 = 1;
+                                entry_99 = 1;
+                            }
+                        }
+                        if ((var_66 != 0L) || ((var_66 == 0L) && ((char)(var_63 & 0UL) != 0))) {
+                            entry_70 = 1;
+                            entry_66 = 1;
+                        }
+                    }
+                    if (var_48 > 0) {
+                        if (((var_61 == 0L) || ((char)(var_63 & 0UL) != 0) || (var_66 != 0L)) && ((var_61 == 0L) || (var_66 == 0L) || (var_66 != 0L)) && ((var_62 == 0) || ((char)(var_63 & 0UL) != 0) || (var_66 != 0L)) && ((var_62 == 0) || (var_66 == 0L) || (var_66 != 0L)) && (((char)(var_63 & 0UL) != 0) || (is_selinux_enabled() > 0) || (var_66 != 0L)) && ((is_selinux_enabled() > 0) || (var_66 == 0L) || (var_66 != 0L)) && (((char)(var_63 & 0UL) != 0) || (security_check_context(var_58) < 0) || (var_66 != 0L)) && ((security_check_context(var_58) < 0) || (var_66 == 0L) || (var_66 != 0L))) {
+                            do {
+                                if (entry_66 == 0) {
+                                    var_58 = specified_user;
+                                    var_51 = dcgettext(/* domainname */ 0UL, /* msgid */ "failed to set %s security context component to %s", /* category */ 5);
+                                    error(/* status */ 0, /* errnum */ *var_59, /* message */ var_51, "user", quote(var_58));
+                                    var_51 = var_50;
+                                    var_50 = 0;
+                                    entry_70 = 0;
+                                }
+                                while (true) {
+                                    if (entry_70 == 0) {
+                                        var_58 = specified_range;
+                                        if ((var_58 != 0L) && (context_range_set(var_49, var_58) != 0)) {
+                                            var_68 = specified_range;
+                                            var_50 = dcgettext(/* domainname */ 0UL, /* msgid */ "failed to set %s security context component to %s", /* category */ 5);
+                                            error(/* status */ 0, /* errnum */ *var_59, /* message */ var_50, "range", quote(var_68));
+                                            var_50 = 0;
+                                        }
+                                        var_58 = specified_role;
+                                        if ((var_58 != 0L) && (context_role_set(var_49, var_58) != 0)) {
+                                            var_57 = specified_role;
+                                            var_50 = dcgettext(/* domainname */ 0UL, /* msgid */ "failed to set %s security context component to %s", /* category */ 5);
+                                            error(/* status */ 0, /* errnum */ *var_59, /* message */ var_50, "role", quote(var_57));
+                                            var_57 = specified_type;
+                                        }
+                                        else {
+                                            var_58 = specified_type;
+                                            if (((var_58 == 0L) || (context_type_set(var_49, var_58) == 0)) && (var_50 != 0)) {
+                                                var_50 = context_str(var_49);
+                                                var_52 = var_53;
+                                                var_71 = affect_symlink_referent;
+                                                if ((var_53 != 0L) && (strcmp(var_50, var_52) != 0)) {
+                                                    var_71 = affect_symlink_referent;
+                                                }
+                                                if ((var_53 != 0L) && (strcmp(var_50, var_52) == 0)) {
+                                                    entry_99 = 3;
+                                                }
+                                                else {
+                                                    entry_99 = 2;
+                                                }
+                                            }
+                                        }
+                                        if (((context_role_set(var_49, var_58) == 0) || (var_57 != 0L) || (var_58 == 0L)) && ((var_58 == 0L) || (context_role_set(var_49, var_58) == 0) || (context_type_set(var_49, var_57) != 0)) && ((var_58 != 0L) || (var_58 != 0L)) && ((context_role_set(var_49, var_58) != 0) || (var_58 != 0L)) && ((context_type_set(var_49, var_58) != 0) || (var_58 != 0L)) && ((context_role_set(var_49, var_58) != 0) || (context_type_set(var_49, var_58) != 0))) {
+                                            var_57 = specified_type;
+                                            var_50 = dcgettext(/* domainname */ 0UL, /* msgid */ "failed to set %s security context component to %s", /* category */ 5);
+                                            error(/* status */ 0, /* errnum */ *var_59, /* message */ var_50, "type", quote(var_57));
+                                        }
+                                    }
+                                    if (((context_type_set(var_49, var_58) == 0) || (var_58 == 0L) || (entry_70 != 0)) && ((var_50 != 0) || (entry_70 != 0)) && ((context_role_set(var_49, var_58) == 0) || (var_58 == 0L) || (entry_70 != 0))) {
+                                        entry_124 = 1;
+                                        entry_70 = 0;
+                                    }
+                                    else {
+                                        context_free(var_49);
+                                        entry_124 = 0;
+                                    }
+                                    do {
+                                        if (entry_124 == 0) {
+                                            if (recurse == 0) {
+                                                var_48 = 0;
+                                                entry_99 = 5;
+                                            }
+                                            else {
+                                                var_48 = 0;
+                                                entry_99 = 0;
+                                            }
+                                        }
+                                        while (true) {
+                                            loop_break = 0;
+                                            switch(entry_99) {
+                                            case 0:
+                                                var_54 &= var_48;
+                                                var_66 = rpl_fts_read(argv);
+                                                if (var_66 == 0L) {
+                                                    exit_n1 = 0;
+                                                    loop_break = 1;
+                                                    break;
+                                                }
+                                                var_67 = var_66;
+                                            case 1:
+                                                entry_99 = 0;
+                                                if (*(var_67 + 112L) <= 10) {/* jump -> undetermined */} else {
+                                                    var_70 = verbose != 0;
+                                                    var_68 = var_66 + 48L;
+                                                    var_51 = *var_68;
+                                                    if (var_70 != false) {
+                                                        var_52 = quotearg_style(4, *(var_67 + 56L));
+                                                        var_50 = dcgettext(/* domainname */ 0UL, /* msgid */ "changing security context of %s\n", /* category */ 5);
+                                                        __printf_chk(/* flag */ 1, /* format */ var_50, var_52);
+                                                    }
+                                                    var_50 = specified_context;
+                                                    var_69 = argv + 44L;
+                                                    var_57 = *var_69;
+                                                    var_53 = 0x0;
+                                                    var_71 = affect_symlink_referent;
+                                                }
+                                                if (var_50 == 0L) {
+                                                    var_67 = &var_53;
+                                                    if (var_71 != 0) {
+                                                        var_48 = getfileconat((unsigned int)var_57, var_51, var_67);
+                                                    }
+                                                    else {
+                                                        var_48 = lgetfileconat((unsigned int)*var_69, *var_68, var_67);
+                                                    }
+                                                    if ((*var_59 != 61) && (var_48 < 0)) {
+                                                        var_50 = dcgettext(/* domainname */ 0UL, /* msgid */ "failed to get security context of %s", /* category */ 5);
+                                                        error(/* status */ 0, /* errnum */ *var_59, /* message */ var_50, quotearg_style(4, var_51));
+                                                        var_48 = 0;
+                                                    }
+                                                    else {
+                                                        var_50 = var_53;
+                                                        if (var_53 == 0L) {
+                                                            var_50 = dcgettext(/* domainname */ 0UL, /* msgid */ "can't apply partial context to unlabeled file %s", /* category */ 5);
+                                                            error(/* status */ 0, /* errnum */ 0, /* message */ var_50, quotearg_style(4, var_51));
+                                                            var_48 = 0;
+                                                        }
+                                                    }
+                                                }
+                                                var_49 = context_new(var_50);
+                                                if ((var_50 == 0L) && ((*var_59 == 61) || (var_48 >= 0)) && (var_53 != 0L)) {
+                                                    if (var_49 != 0L) {
+                                                        var_58 = specified_user;
+                                                    }
+                                                    else {
+                                                        var_51 = dcgettext(/* domainname */ 0UL, /* msgid */ "failed to create security context: %s", /* category */ 5);
+                                                        error(/* status */ 0, /* errnum */ *var_59, /* message */ var_51, quote(var_50));
+                                                    }
+                                                }
+                                                if ((var_50 == 0L) && ((*var_59 == 61) || (var_48 >= 0)) && (var_53 != 0L)) {
+                                                    if ((var_58 == 0L) || (context_user_set(var_49, var_58) == 0)) {
+                                                        var_50 = 1;
+                                                        exit_n1 = 2;
+                                                    }
+                                                    else {
+                                                        var_50 = var_51;
+                                                        exit_n1 = 3;
+                                                    }
+                                                    loop_break = 1;
+                                                    break;
+                                                }
+                                                break;
+                                            }
+                                            if (loop_break == 1) {
+                                                break;
+                                            }
+                                            if ((var_50 != 0L) || ((entry_99 != 1) && (entry_99 != 0))) {
+                                                switch(entry_99) {
+                                                case 0:
+                                                case 1:
+                                                case 2:
+                                                    entry_99 = 0;
+                                                    if (var_71 != 0) {
+                                                        var_48 = setfileconat((unsigned int)var_57, var_51, var_50);
+                                                    }
+                                                    else {
+                                                        var_48 = lsetfileconat((unsigned int)var_57, var_51, var_50);
+                                                    }
+                                                    if (var_48 != 0) {
+                                                        var_52 = dcgettext(/* domainname */ 0UL, /* msgid */ "failed to change context of %s to %s", /* category */ 5);
+                                                        error(/* status */ 0, /* errnum */ *var_59, /* message */ var_52, quotearg_n_style(0, 4, var_51), quote_n(1, var_50));
+                                                        if (specified_context == 0L) {
+                                                            context_free(var_49);
+                                                            freecon(var_53);
+                                                        }
+                                                    }
+                                                case 3:
+                                                    if ((var_48 == 0) || ((entry_99 != 2) && (entry_99 != 1) && (entry_99 != 0))) {
+                                                        entry_99 = 0;
+                                                        if (specified_context == 0L) {
+                                                            context_free(var_49);
+                                                            freecon(var_53);
+                                                        }
+                                                        var_48 = 1;
+                                                    }
+                                                    break;
+                                                }
+                                            }
+                                            if ((var_48 == 0) || ((entry_99 != 2) && (var_50 == 0L)) || ((entry_99 != 2) && (entry_99 != 1) && (entry_99 != 0))) {
+                                                if ((entry_99 == 1) || (entry_99 == 0) || (entry_99 == 4) || (entry_99 == 3) || (entry_99 == 2)) {
+                                                    entry_99 = 0;
+                                                    if (recurse != 0) {
+                                                        continue;
+                                                    }
+                                                }
+                                                if ((recurse == 0) || ((entry_99 != 4) && (entry_99 != 3) && (entry_99 != 2) && (entry_99 != 1) && (entry_99 != 0))) {
+                                                    rpl_fts_set(argv, var_66, 4);
+                                                    entry_99 = 0;
+                                                    continue;
+                                                }
+                                            }
+                                            if (((entry_99 == 1) || (entry_99 == 0) || (entry_99 == 2)) && ((entry_99 == 1) || (entry_99 == 0) || (var_48 != 0)) && ((var_48 != 0) || (var_50 == 0L)) && ((*var_59 == 61) || (var_50 != 0L) || (entry_99 != 0) || (var_48 >= 0)) && ((*var_59 == 61) || (var_50 != 0L) || (entry_99 != 1) || (var_48 >= 0)) && ((var_50 != 0L) || (entry_99 != 0) || (var_53 != 0L)) && ((var_50 != 0L) || (entry_99 != 1) || (var_53 != 0L))) {
+                                                exit_n1 = 1;
+                                                break;
+                                            }
+                                        }
+                                        entry_124 = 0;
+                                        loop_break = 0;
+                                        switch(exit_n1) {
+                                        case 0:
+                                            exit_n1 = 0;
+                                            loop_break = 1;
+                                            break;
+                                        case 1:
+                                            continue;
+                                        case 2:
+                                            exit_n1 = 1;
+                                            break;
+                                        default:
+                                            exit_n1 = 2;
+                                        }
+                                        if (loop_break == 1) {
+                                            break;
+                                        }
+                                    }
+                                    while ((exit_n1 == 0) || (exit_n1 == 1));
+                                    if (exit_n1 == 0) {
+                                        exit_n1 = 0;
+                                        break;
+                                    }
+                                    if (exit_n1 != 1) {
+                                        exit_n1 = 1;
+                                        break;
+                                    }
+                                }
+                                entry_66 = 0;
+                            }
+                            while (exit_n1 != 0);
+                        }
+                        if (((var_62 != 0) || (var_61 != 0L) || (security_check_context(var_58) >= 0) || (is_selinux_enabled() <= 0) || (exit_n1 == 0)) && (((char)(var_63 & 0UL) == 0) || (var_66 != 0L) || (exit_n1 == 0)) && ((exit_n1 == 0) || (var_66 == 0L))) {
+                            if (*var_59 != 0) {
+                                var_49 = dcgettext(/* domainname */ 0UL, /* msgid */ "fts_read failed", /* category */ 5);
+                                error(/* status */ 0, /* errnum */ *var_59, /* message */ var_49);
+                                var_54 = 0;
+                            }
+                            if (rpl_fts_close(argv) != 0) {
+                                var_49 = dcgettext(/* domainname */ 0UL, /* msgid */ "fts_close failed", /* category */ 5);
+                                error(/* status */ 0, /* errnum */ *var_59, /* message */ var_49);
+                                var_54 = 0;
+                            }
+                            return (unsigned char)((char)var_54 ^ 1);
+                        }
+                    }
+                }
+            }
+            if (((recurse != 0) || (var_48 > 0)) && ((recurse != 0) || (var_61 != 0L)) && (((unsigned int)var_57 == 16) || (recurse == 0) || (var_59 != 0)) && (((unsigned int)var_57 == 16) || (var_48 > 0)) && (((unsigned int)var_57 == 16) || (var_61 != 0L)) && ((var_59 == 1) || (var_48 > 0)) && ((var_61 != 0L) || (var_59 == 1))) {
+                if ((var_62 != 0) || ((var_59 == 1) && ((unsigned int)var_57 == 16) && (recurse != 0))) {
+                    var_49 = "conflicting security context specifiers given";
+                }
+            }
+            else if (((recurse != 0) || (var_48 <= 1)) && ((recurse != 0) || (var_62 == 0) || (var_48 <= 0)) && ((recurse != 0) || ((int)var_55 < argc)) && (((unsigned int)var_57 != 16) || (var_48 <= 1)) && (((unsigned int)var_57 != 16) || (var_62 == 0) || (var_48 <= 0)) && (((unsigned int)var_57 != 16) || ((int)var_55 < argc)) && ((var_59 == 0) || (var_48 <= 1)) && ((var_59 == 0) || (var_62 == 0) || (var_48 <= 0)) && ((var_59 == 0) || ((int)var_55 < argc))) {
+                var_50 = quote(*(argv + ((long)argc << 3) - 8L));
+                var_49 = dcgettext(/* domainname */ 0UL, /* msgid */ "missing operand after %s", /* category */ 5);
+                error(/* status */ 0, /* errnum */ 0, /* message */ var_49, var_50);
+            }
+            if ((((unsigned int)var_57 == 16) || (recurse == 0) || (var_59 != 0)) && ((recurse != 0) || (var_61 != 0L) || (var_48 <= 1)) && (((unsigned int)var_57 == 16) || (var_61 != 0L) || (var_48 <= 1)) && ((var_61 != 0L) || (var_59 == 1) || (var_48 <= 1)) && ((recurse != 0) || (var_62 != 0) || (var_61 == 0L) || (var_48 <= 0)) && (((unsigned int)var_57 == 16) || (var_62 != 0) || (var_61 == 0L) || (var_48 <= 0)) && ((var_62 != 0) || (var_59 == 1) || (var_61 == 0L) || (var_48 <= 0)) && ((recurse != 0) || (var_61 != 0L) || (var_62 == 0) || (var_48 <= 0)) && (((unsigned int)var_57 == 16) || (var_61 != 0L) || (var_62 == 0) || (var_48 <= 0)) && ((var_61 != 0L) || (var_59 == 1) || (var_62 == 0) || (var_48 <= 0)) && ((recurse != 0) || (var_48 > 0) || ((int)var_55 >= argc)) && ((recurse != 0) || (var_62 != 0) || ((int)var_55 >= argc)) && (((unsigned int)var_57 == 16) || (var_48 > 0) || ((int)var_55 >= argc)) && (((unsigned int)var_57 == 16) || (var_62 != 0) || ((int)var_55 >= argc)) && ((var_59 == 1) || (var_48 > 0) || ((int)var_55 >= argc)) && ((var_62 != 0) || (var_59 == 1) || ((int)var_55 >= argc))) {
+                error(/* status */ 0, /* errnum */ 0, /* message */ dcgettext(/* domainname */ 0UL, /* msgid */ var_49, /* category */ 5));
+            }
+        }
+        else if ((var_48 <= 131) && (var_48 > 71) && (var_63 <= 59)) {
+            switch(var_63) {
+            case 0x0:
+                var_57 = 17UL;
+                continue;
+            case 0x4:
+                var_57 = 2UL;
+                continue;
+            case 0x8:
+                var_57 = 16UL;
+                continue;
+            case 0xa:
+                recurse = 1U;
+                continue;
+            case 0x1e:
+            case 0x39:
+            case 0x3a:
+                continue;
+            case 0x20:
+                var_59 = 0;
+                continue;
+            case 0x24:
+                specified_range = optarg;
+                var_62 = 1;
+                continue;
+            case 0x2a:
+                specified_role = optarg;
+                var_62 = 1;
+                continue;
+            case 0x2c:
+                specified_type = optarg;
+                var_62 = 1;
+                continue;
+            case 0x2d:
+                specified_user = optarg;
+                var_62 = 1;
+                continue;
+            case 0x2e:
+                verbose = 1U;
+                continue;
+            case 0x38:
+                var_59 = 1;
+                continue;
+            case 0x3b:
+                var_61 = optarg;
+                continue;
+            }
+        }
+        if (var_48 == -130) {
+            usage(0);
+        }
+        else if (((var_48 != -1) || (recurse != 0) || (var_62 != 0) || (var_48 <= 1)) && ((var_48 != -1) || (recurse != 0) || (var_62 != 0) || (var_61 == 0L) || (var_48 <= 0)) && ((var_48 != -1) || (recurse != 0) || (var_61 != 0L) || (var_62 == 0) || (var_48 <= 0)) && ((var_48 != -1) || (var_62 != 0) || ((unsigned int)var_57 != 16) || (var_61 != 0L) || (var_59 == 1) || (var_48 <= 1)) && ((var_48 != -1) || (var_62 != 0) || ((unsigned int)var_57 != 16) || (var_59 == 1) || (var_61 == 0L) || (var_48 <= 0)) && ((var_48 != -1) || ((unsigned int)var_57 != 16) || (var_61 != 0L) || (var_59 == 1) || (var_62 == 0) || (var_48 <= 0)) && ((var_48 != -1) || ((unsigned int)var_57 == 16) || (var_62 != 0) || (var_61 != 0L) || (var_59 == 0) || (var_48 <= 1)) && ((var_48 != -1) || ((unsigned int)var_57 == 16) || (var_62 != 0) || (var_59 == 0) || (var_61 == 0L) || (var_48 <= 0)) && ((var_48 != -1) || ((unsigned int)var_57 == 16) || (var_61 != 0L) || (var_59 == 0) || (var_62 == 0) || (var_48 <= 0)) && ((var_48 == -1) || (var_48 <= 71) || (var_63 == 0x5) || (var_63 == 0x17) || (var_63 == 0x11) || (var_63 == 0xb) || (var_48 > 131) || (var_63 == 0x23) || (var_63 == 0x1a) || (var_63 == 0x34) || (var_63 == 0x1d) || (var_63 == 0x19) || (var_63 == 0x21) || (var_63 > 59) || (var_63 == 0xd) || (var_63 == 0x30) || (var_63 == 0x9) || (var_63 == 0x29) || (var_63 == 0x35) || (var_63 == 0xe) || (var_63 == 0x31) || (var_63 == 0x15) || (var_63 == 0x14) || (var_63 == 0x16) || (var_63 == 0x7) || (var_63 == 0x26) || (var_63 == 0x2f) || (var_63 == 0x36) || (var_63 == 0x6) || (var_63 == 0x1f) || (var_63 == 0x10) || (var_63 == 0x3) || (var_63 == 0x13) || (var_63 == 0x22) || (var_63 == 0x2) || (var_63 == 0x2b) || (var_63 == 0x27) || (var_63 == 0x37) || (var_63 == 0x1c) || (var_63 == 0x1b) || (var_63 == 0x33) || (var_63 == 0x12) || (var_63 == 0x32) || (var_63 == 0x25) || (var_63 == 0xf) || (var_63 == 0xc) || (var_63 == 0x1) || (var_63 == 0x28) || (var_63 == 0x18))) {
+            usage(1);
+        }
+    }
+}
+253.56016130000353

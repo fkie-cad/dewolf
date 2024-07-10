@@ -1,0 +1,43 @@
+extern char line_buf[0x14] = "                 0\t";
+extern char line_num_start[0x14] = line_buf;
+extern char line_num_print[0x14] = line_buf;
+
+
+
+void * next_line_num() {
+    char* var_3;
+    char* var_4;
+    char* var_5;
+    char var_6;
+    var_4 = line_num_start;
+    var_3 = line_buf;
+    while (true) {
+        var_6 = *var_3;
+        if (*var_3 <= '8') {
+            *var_3 = var_6 + 1;
+            return var_3;
+        }
+        var_5 = var_3 - 1L;
+        *var_3 = 0x30;
+        if (var_4 > var_5) {
+            break;
+        }
+        var_3 = var_5;
+    }
+    if (var_4 <= line_buf) {
+        line_buf = 0x3e;
+        var_3 = var_4;
+    }
+    else {
+        var_3 = var_4 - 1L;
+        *var_3 = 49L;
+        line_num_start = var_3;
+    }
+    var_4 = line_num_print;
+    if (var_4 > var_3) {
+        var_4--;
+        line_num_print = var_4;
+    }
+    return var_4;
+}
+1.0483009996823967

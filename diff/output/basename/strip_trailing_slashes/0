@@ -1,0 +1,20 @@
+
+
+
+
+unsigned long strip_trailing_slashes(char * arg1) {
+    bool var_1;
+    unsigned long var_3;
+    void * var_2;
+    char * var_0;
+    var_0 = last_component(arg1);
+    if (*var_0 != 0) {
+        arg1 = var_0;
+    }
+    var_3 = base_len(arg1);
+    var_2 = arg1 + var_3;
+    var_1 = *var_2 != 0;
+    *var_2 = 0x0;
+    return var_1;
+}
+0.7573560997843742

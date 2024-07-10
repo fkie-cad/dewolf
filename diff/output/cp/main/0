@@ -1,0 +1,26 @@
+
+
+struct stat {
+    unsigned long st_dev;
+    unsigned long st_ino;
+    unsigned long st_nlink;
+    unsigned int st_mode;
+    unsigned int st_uid;
+    unsigned int st_gid;
+    int __pad0;
+    unsigned long st_rdev;
+    long st_size;
+    long st_blksize;
+    long st_blocks;
+    timespec st_atim;
+    timespec st_mtim;
+    timespec st_ctim;
+    long [3] __glibc_reserved;
+};
+struct timespec {
+    long tv_sec;
+    long tv_nsec;
+};
+
+Failed to decompile main due to error during insert-missing-definitions.
+3.4736815998330712

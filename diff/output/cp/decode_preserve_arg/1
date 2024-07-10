@@ -1,0 +1,108 @@
+extern const unsigned int preserve_vals.8011[0x8] = {0U, 1U, 2U, 3U, 4U, 5U, 6U, 0U};
+extern void * argmatch_die = "\xf3\x0f\x1e\xfa\xbf\x01\x00\x00\x00\xe9\x12\x92\xff\xff\x66\x90";
+extern const char [4] * preserve_args_8012 = "mode";
+extern unsigned char selinux_enabled = 0U;
+
+
+
+long decode_preserve_arg(char * arg1, void * arg2, char arg3) {
+    bool var_20;
+    int loop_break;
+    unsigned long var_19;
+    long var_18;
+    void * var_10;
+    void * var_11;
+    void * var_12;
+    void * var_13;
+    void * var_14;
+    void * var_15;
+    void * var_16;
+    void * var_17;
+    char * var_0;
+    char * var_1;
+    char * var_2;
+    var_0 = xstrdup(arg1);
+    arg1 = "--no-preserve";
+    if (arg3 != 0) {
+        arg1 = "--preserve";
+    }
+    var_1 = var_0;
+    while (true) {
+        var_2 = strchr(var_1, 44);
+        if (var_2 == 0L) {
+            var_2 = 0UL;
+        }
+        else {
+            *var_2 = 0x0;
+            var_2++;
+        }
+        var_19 = argmatch_die;
+        var_18 = __xargmatch_internal(arg1, var_1, &preserve_args_8012, preserve_vals.8011, 4UL, var_19);
+        if (*(preserve_vals.8011 + (var_18 << 2)) > 6) {
+            return decode_preserve_arg_cold();
+        }
+        else {
+            var_10 = arg2 + 39L;
+            var_11 = arg2 + 37L;
+            var_12 = arg2 + 34L;
+            var_13 = arg2 + 29L;
+            var_14 = arg2 + 31L;
+            var_15 = arg2 + 30L;
+            var_17 = arg3 ^ 1;
+            var_16 = arg2 + 32L;
+            loop_break = 0;
+            switch(var_1) {
+            case 0x0:
+                *var_15 = arg3;
+                *var_16 = var_17;
+            case 0x1:
+                if (var_1 != 0x0) {
+                    *var_14 = arg3;
+                }
+            case 0x2:
+                if ((var_1 != 0x0) && (var_1 != 0x1)) {
+                    *var_13 = arg3;
+                }
+            case 0x3:
+                if ((var_1 != 0x0) && (var_1 != 0x1) && (var_1 != 0x2)) {
+                    *var_12 = arg3;
+                }
+            case 0x4:
+                if ((var_1 != 0x0) && (var_1 != 0x1) && (var_1 != 0x2) && (var_1 != 0x3)) {
+                    *(arg2 + 38L) = arg3;
+                    *var_11 = arg3;
+                }
+            case 0x5:
+                if ((var_1 != 0x0) && (var_1 != 0x1) && (var_1 != 0x2) && (var_1 != 0x3) && (var_1 != 0x4)) {
+                    *var_10 = arg3;
+                    *(arg2 + 40L) = arg3;
+                }
+            case 0x6:
+                if ((var_1 != 0x0) && (var_1 != 0x1) && (var_1 != 0x2) && (var_1 != 0x3) && (var_1 != 0x4) && (var_1 != 0x5)) {
+                    *var_15 = arg3;
+                    var_20 = selinux_enabled == 0;
+                    *var_14 = arg3;
+                    *var_13 = arg3;
+                    *var_12 = arg3;
+                    *var_16 = var_17;
+                    if (var_20 == false) {
+                        *var_11 = arg3;
+                    }
+                    *var_10 = arg3;
+                }
+                if (var_2 == 0L) {
+                    loop_break = 1;
+                    break;
+                }
+                var_1 = var_2;
+                continue;
+                break;
+            }
+            if (loop_break == 1) {
+                break;
+            }
+        }
+    }
+    return free(/* ptr */ var_0);
+}
+4.919383400119841

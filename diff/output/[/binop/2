@@ -1,0 +1,218 @@
+
+
+
+
+unsigned long binop(char * arg1) {
+    char* var_16;
+    char* var_17;
+    bool var_14;
+    bool var_15;
+    int var_13;
+    long counter;
+    long counter1;
+    long counter2;
+    long counter3;
+    long counter4;
+    long counter5;
+    long counter6;
+    char var_19;
+    void * var_11;
+    void * var_12;
+    char * var_0;
+    char * var_1;
+    var_11 = arg1 + 1L;
+    if ((*arg1 == '=') && (*var_11 == 0)) {
+        var_13 = 1;
+    }
+    else {
+        var_12 = arg1 + 2L;
+    }
+    if (((unsigned int)*arg1 == 33) && (*var_11 == '=') && (*var_12 == 0)) {
+        return 1L;
+    }
+    var_14 = (unsigned int)*arg1 < 61;
+    var_15 = (unsigned int)*arg1 == 61;
+    if ((unsigned int)*arg1 == 61) {
+        var_14 = *var_11 < '=';
+        var_15 = *var_11 == '=';
+        if (~(*var_11 == '=') == false) {
+            var_14 = *var_12 < 0;
+            var_15 = *var_12 == 0;
+        }
+    }
+    if ((*var_11 != '=') || (*var_12 != 0) || ((unsigned int)*arg1 != 33)) {
+        if (((unsigned int)*arg1 == 61) && (~(*var_11 == '=') == false) && (*var_12 == 0)) {
+            var_13 = 1;
+        }
+        else {
+            var_16 = "-nt";
+            var_0 = arg1;
+            counter = 4L;
+            while (counter != 0L) {
+                var_14 = *var_0 < *var_16;
+                var_15 = *var_0 == *var_16;
+                var_1 = var_0 + 1;
+                var_17 = var_16 + 1;
+                counter--;
+                if (*var_0 != *var_16) {
+                    break;
+                }
+                var_0 = var_1;
+                var_16 = var_17;
+            }
+            var_19 = (~var_15 & ~var_14) - var_14;
+            var_15 = var_19 == 0;
+            if (var_19 == 0) {
+                var_13 = 1;
+            }
+            else {
+                var_16 = "-ot";
+                var_0 = arg1;
+                counter1 = 4L;
+                var_14 = false;
+                while (counter1 != 0L) {
+                    var_14 = *var_0 < *var_16;
+                    var_15 = *var_0 == *var_16;
+                    var_1 = var_0 + 1;
+                    var_17 = var_16 + 1;
+                    counter1--;
+                    if (*var_0 != *var_16) {
+                        break;
+                    }
+                    var_0 = var_1;
+                    var_16 = var_17;
+                }
+                var_19 = (~var_15 & ~var_14) - var_14;
+                var_15 = var_19 == 0;
+                if (var_19 == 0) {
+                    var_13 = 1;
+                }
+                else {
+                    var_16 = "-ef";
+                    var_0 = arg1;
+                    counter2 = 4L;
+                    var_14 = false;
+                    while (counter2 != 0L) {
+                        var_14 = *var_0 < *var_16;
+                        var_15 = *var_0 == *var_16;
+                        var_1 = var_0 + 1;
+                        var_17 = var_16 + 1;
+                        counter2--;
+                        if (*var_0 != *var_16) {
+                            break;
+                        }
+                        var_0 = var_1;
+                        var_16 = var_17;
+                    }
+                    var_19 = (~var_15 & ~var_14) - var_14;
+                    var_15 = var_19 == 0;
+                    if (var_19 == 0) {
+                        var_13 = 1;
+                    }
+                    else {
+                        var_16 = "-eq";
+                        var_0 = arg1;
+                        counter3 = 4L;
+                        var_14 = false;
+                        while (counter3 != 0L) {
+                            var_14 = *var_0 < *var_16;
+                            var_15 = *var_0 == *var_16;
+                            var_1 = var_0 + 1;
+                            var_17 = var_16 + 1;
+                            counter3--;
+                            if (*var_0 != *var_16) {
+                                break;
+                            }
+                            var_0 = var_1;
+                            var_16 = var_17;
+                        }
+                        var_19 = (~var_15 & ~var_14) - var_14;
+                        var_15 = var_19 == 0;
+                        if (var_19 == 0) {
+                            var_13 = 1;
+                        }
+                        else {
+                            var_16 = "-ne";
+                            var_0 = arg1;
+                            counter4 = 4L;
+                            var_14 = false;
+                            while (counter4 != 0L) {
+                                var_14 = *var_0 < *var_16;
+                                var_15 = *var_0 == *var_16;
+                                var_1 = var_0 + 1;
+                                var_17 = var_16 + 1;
+                                counter4--;
+                                if (*var_0 != *var_16) {
+                                    break;
+                                }
+                                var_0 = var_1;
+                                var_16 = var_17;
+                            }
+                            var_19 = (~var_15 & ~var_14) - var_14;
+                            var_15 = var_19 == 0;
+                            if (var_19 == 0) {
+                                var_13 = 1;
+                            }
+                            else {
+                                var_16 = "-lt";
+                                var_0 = arg1;
+                                counter5 = 4L;
+                                var_14 = false;
+                                while (counter5 != 0L) {
+                                    var_14 = *var_0 < *var_16;
+                                    var_15 = *var_0 == *var_16;
+                                    var_1 = var_0 + 1;
+                                    var_17 = var_16 + 1;
+                                    counter5--;
+                                    if (*var_0 != *var_16) {
+                                        break;
+                                    }
+                                    var_0 = var_1;
+                                    var_16 = var_17;
+                                }
+                                var_19 = (~var_15 & ~var_14) - var_14;
+                                var_15 = var_19 == 0;
+                                if (var_19 == 0) {
+                                    var_13 = 1;
+                                }
+                                else {
+                                    var_16 = "-le";
+                                    var_0 = arg1;
+                                    counter6 = 4L;
+                                    var_14 = false;
+                                    while (counter6 != 0L) {
+                                        var_14 = *var_0 < *var_16;
+                                        var_15 = *var_0 == *var_16;
+                                        var_1 = var_0 + 1;
+                                        var_17 = var_16 + 1;
+                                        counter6--;
+                                        if (*var_0 != *var_16) {
+                                            break;
+                                        }
+                                        var_0 = var_1;
+                                        var_16 = var_17;
+                                    }
+                                    if ((~var_15 & ~var_14) - var_14 == 0) {
+                                        var_13 = 1;
+                                    }
+                                    else {
+                                        var_13 = strcmp(arg1, "-gt");
+                                        if (var_13 == 0) {
+                                            var_13 = 1;
+                                        }
+                                        else {
+                                            var_13 = strcmp(arg1, "-ge");
+                                            var_13 = var_13 == 0;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return (unsigned int)var_13;
+}
+10.899305599741638

@@ -1,0 +1,289 @@
+extern unsigned int pos = 0U;
+extern unsigned long argv = 0UL;
+extern unsigned char __data_start[0x8] = "\x00\x00\x00\x00\x00\x00\x00\x00";
+extern const unsigned int _IO_stdin_used = 131073U;
+extern const unsigned char data_c000[0x114c] = "\x34\xA5\xFF\xFF\xFC\x0C\x00\x00\xA4\xA9\xFF\xFF\x10\x0E\x00\x00\xC4\xA9\xFF\xFF\x24\x0E\x00\x00\x34\xAA\xFF\xFF\x3C\x0E\x00\x00...";
+extern unsigned char data_6000[0x230] = "\x76\xDE\x29\xD0\x83\xEA\x30\x45\x31\xC0\x83\xFA\x09\x0F\x86\xEB\x00\x00\x00\x31\xC0\xC3\x66\x2E\x0F\x1F\x84\x00\x00\x00\x00\x00...";
+extern unsigned char data_4000[0x220] = "\x4C\x8B\x25\x81\xB0\x00\x00\xBA\x05\x00\x00\x00\x31\xFF\x48\x8D\x35\x33\x6A\x00\x00\xE8\xE6\xE3\xFF\xFF\x4C\x89\xE6\x48\x89\xC7...";
+extern unsigned char data_8000[0x2c0] = "\xFF\xE8\x4A\xA3\xFF\xFF\x48\x8B\x85\xF0\xFB\xFF\xFF\x48\x85\xC0\x74\x08\x48\x89\xC7\xE8\x36\xA3\xFF\xFF\x48\x8B\xBD\x48\xFD\xFF...";
+extern const unsigned char data_1000[0x3d8] = "\x78\xEE\x00\x00\x00\x00\x00\x00\x07\x00\x00\x00\x09\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\xEE\x00\x00\x00\x00\x00\x00...";
+
+
+
+char * unary_operator() {
+    void var_11;
+    int var_12;
+    int var_13;
+    int var_14;
+    int var_15;
+    int var_16;
+    unsigned long var_21;
+    long var_17;
+    long var_18;
+    long var_19;
+    long var_20;
+    int * var_23;
+    char * var_22;
+    var_20 = pos;
+    var_21 = argv;
+    var_20 = var_21 + (var_20 << 3);
+    switch((*((*(var_20)) + 0x1)) - 0x47) {
+    case 0x0:
+        unary_advance();
+        var_17 = pos;
+        var_12 = __xstat(/* vers */ 1, /* name */ *(var_21 + (var_17 << 3) - 8L), /* buf */ &var_11);
+        if (var_12 == 0) {
+            var_23 = __errno_location();
+            *var_23 = 0x0;
+            var_22 = getegid();
+            if ((var_22 == -1) && (*var_23 != 0)) {
+                var_22 = 0UL;
+            }
+            else {
+                var_22 = var_15 == var_22;
+            }
+        }
+        break;
+    case 0x5:
+    case 0x21:
+        unary_advance();
+        var_17 = pos;
+        var_13 = __lxstat(/* vers */ 1, /* name */ *(var_21 + (var_17 << 3) - 8L), /* buf */ &var_11);
+        if (var_13 != 0) {
+            var_22 = 0UL;
+        }
+        else {
+            var_22 = (unsigned int)(var_12 & __data_start);
+            var_22 = var_22 == &_IO_stdin_used;
+        }
+        break;
+    case 0x7:
+        unary_advance();
+        var_19 = pos;
+        var_12 = __xstat(/* vers */ 1, /* name */ *(var_21 + (var_19 << 3) - 8L), /* buf */ &var_11);
+        if ((var_12 == 0) && (var_17 <= var_18)) {
+            if (var_17 > var_18) {
+                var_22 = 0UL;
+            }
+            else {
+                var_22 = var_13 - var_14 > 0;
+            }
+        }
+        break;
+    case 0x8:
+        unary_advance();
+        var_17 = pos;
+        var_12 = __xstat(/* vers */ 1, /* name */ *(var_21 + (var_17 << 3) - 8L), /* buf */ &var_11);
+        if (var_12 == 0) {
+            var_23 = __errno_location();
+            *var_23 = 0x0;
+            var_22 = geteuid();
+            if ((var_22 == -1) && (*var_23 != 0)) {
+                var_22 = 0UL;
+            }
+            else {
+                var_22 = var_16 == var_22;
+            }
+        }
+        break;
+    case 0xc:
+        unary_advance();
+        var_17 = pos;
+        var_13 = __xstat(/* vers */ 1, /* name */ *(var_21 + (var_17 << 3) - 8L), /* buf */ &var_11);
+        if (var_13 != 0) {
+            var_22 = 0UL;
+        }
+        else {
+            var_22 = (unsigned int)(var_12 & __data_start);
+            var_22 = var_22 == data_c000;
+        }
+        break;
+    case 0x1b:
+        unary_advance();
+        var_17 = pos;
+        var_13 = __xstat(/* vers */ 1, /* name */ *(var_21 + (var_17 << 3) - 8L), /* buf */ &var_11);
+        if (var_13 != 0) {
+            var_22 = 0UL;
+        }
+        else {
+            var_22 = (unsigned int)(var_12 & __data_start);
+            var_22 = var_22 == data_6000;
+        }
+        break;
+    case 0x1c:
+        unary_advance();
+        var_17 = pos;
+        var_13 = __xstat(/* vers */ 1, /* name */ *(var_21 + (var_17 << 3) - 8L), /* buf */ &var_11);
+        if (var_13 != 0) {
+            var_22 = 0UL;
+        }
+        else {
+            var_22 = (unsigned int)(var_12 & __data_start);
+            var_22 = var_22 == _init;
+        }
+        break;
+    case 0x1d:
+        unary_advance();
+        var_17 = pos;
+        var_13 = __xstat(/* vers */ 1, /* name */ *(var_21 + (var_17 << 3) - 8L), /* buf */ &var_11);
+        if (var_13 != 0) {
+            var_22 = 0UL;
+        }
+        else {
+            var_22 = (unsigned int)(var_12 & __data_start);
+            var_22 = var_22 == data_4000;
+        }
+        break;
+    case 0x1e:
+        unary_advance();
+        var_17 = pos;
+        var_22 = __xstat(/* vers */ 1, /* name */ *(var_21 + (var_17 << 3) - 8L), /* buf */ &var_11);
+        var_22 = var_22 == 0;
+        break;
+    case 0x1f:
+        unary_advance();
+        var_17 = pos;
+        var_13 = __xstat(/* vers */ 1, /* name */ *(var_21 + (var_17 << 3) - 8L), /* buf */ &var_11);
+        if (var_13 != 0) {
+            var_22 = 0UL;
+        }
+        else {
+            var_22 = (unsigned int)(var_12 & __data_start);
+            var_22 = var_22 == data_8000;
+        }
+        break;
+    case 0x20:
+        unary_advance();
+        var_17 = pos;
+        var_13 = __xstat(/* vers */ 1, /* name */ *(var_21 + (var_17 << 3) - 8L), /* buf */ &var_11);
+        if (var_13 != 0) {
+            var_22 = 0UL;
+        }
+        else {
+            var_22 = (unsigned int)(var_12 >> 10 & 1);
+        }
+        break;
+    case 0x24:
+        unary_advance();
+        var_17 = pos;
+        var_13 = __xstat(/* vers */ 1, /* name */ *(var_21 + (var_17 << 3) - 8L), /* buf */ &var_11);
+        if (var_13 != 0) {
+            var_22 = 0UL;
+        }
+        else {
+            var_22 = (unsigned int)(var_12 >> 9 & 1);
+        }
+        break;
+    case 0x27:
+        unary_advance();
+        var_17 = pos;
+        var_22 = **(var_21 + (var_17 << 3) - 8L) != 0;
+        break;
+    case 0x29:
+        unary_advance();
+        var_17 = pos;
+        var_13 = __xstat(/* vers */ 1, /* name */ *(var_21 + (var_17 << 3) - 8L), /* buf */ &var_11);
+        if (var_13 != 0) {
+            var_22 = 0UL;
+        }
+        else {
+            var_22 = (unsigned int)(var_12 & __data_start);
+            var_22 = var_22 == data_1000;
+        }
+        break;
+    case 0x2b:
+        unary_advance();
+        var_17 = pos;
+        var_22 = euidaccess(/* path */ *(var_21 + (var_17 << 3) - 8L), /* mode */ 4);
+        var_22 = var_22 == 0;
+        break;
+    case 0x2c:
+        unary_advance();
+        var_17 = pos;
+        var_12 = __xstat(/* vers */ 1, /* name */ *(var_21 + (var_17 << 3) - 8L), /* buf */ &var_11);
+        if (var_12 != 0) {
+            var_22 = 0UL;
+        }
+        else {
+            var_22 = var_19 > 0L;
+        }
+        break;
+    case 0x2d:
+        unary_advance();
+        var_17 = pos;
+        var_22 = find_int(*(var_21 + (var_17 << 3) - 8L));
+        var_23 = __errno_location();
+        *var_23 = 0x0;
+        var_17 = strtol(/* nptr */ var_22, /* endptr */ 0UL, /* base */ 10);
+        if (*var_23 == 34) {
+            var_22 = 0UL;
+        }
+        else if (var_17 > 0x7fffffff) {
+            var_22 = 0UL;
+        }
+        else {
+            var_22 = isatty(/* fd */ (int)var_17) != 0;
+        }
+        break;
+    case 0x2e:
+        unary_advance();
+        var_17 = pos;
+        var_13 = __xstat(/* vers */ 1, /* name */ *(var_21 + (var_17 << 3) - 8L), /* buf */ &var_11);
+        if (var_13 != 0) {
+            var_22 = 0UL;
+        }
+        else {
+            var_22 = (unsigned int)(var_12 >> 11 & 1);
+        }
+        break;
+    case 0x30:
+        unary_advance();
+        var_17 = pos;
+        var_22 = euidaccess(/* path */ *(var_21 + (var_17 << 3) - 8L), /* mode */ 2);
+        var_22 = var_22 == 0;
+        break;
+    case 0x31:
+        unary_advance();
+        var_17 = pos;
+        var_22 = euidaccess(/* path */ *(var_21 + (var_17 << 3) - 8L), /* mode */ 1);
+        var_22 = var_22 == 0;
+        break;
+    case 0x33:
+        unary_advance();
+        var_17 = pos;
+        var_22 = **(var_21 + (var_17 << 3) - 8L) == 0;
+        break;
+    }
+    switch((*((*(var_20)) + 0x1)) - 0x47) {
+    case 0x0:
+    case 0x7:
+    case 0x8:
+        if (((*(*var_20 + 1L) - 'G' == 0x8) || (*(*var_20 + 1L) - 'G' == 0x7) || (var_12 != 0)) && ((var_12 != 0) || (*(*var_20 + 1L) - 'G' == 0x8) || (*(*var_20 + 1L) - 'G' == 0x0) || (var_17 > var_18)) && ((*(*var_20 + 1L) - 'G' == 0x7) || (*(*var_20 + 1L) - 'G' == 0x0) || (var_12 != 0))) {
+            var_22 = 0UL;
+        }
+    case 0x5:
+    case 0xc:
+    case 0x1b:
+    case 0x1c:
+    case 0x1d:
+    case 0x1e:
+    case 0x1f:
+    case 0x20:
+    case 0x21:
+    case 0x24:
+    case 0x27:
+    case 0x29:
+    case 0x2b:
+    case 0x2c:
+    case 0x2d:
+    case 0x2e:
+    case 0x30:
+    case 0x31:
+    case 0x33:
+        return var_22;
+    }
+    quote(*var_20);
+    var_22 = dcgettext(/* domainname */ 0UL, /* msgid */ "%s: unary operator expected", /* category */ 5);
+    test_syntax_error(var_22, 0);
+}
+70.63063179980963

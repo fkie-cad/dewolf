@@ -1,0 +1,13 @@
+
+
+
+
+long setenv_TZ(char * arg1) {
+    if (arg1 == 0L) {
+        return unsetenv(/* name */ "TZ");
+    }
+    else {
+        return setenv(/* name */ "TZ", /* value */ arg1, /* replace */ 1);
+    }
+}
+0.9854979999363422

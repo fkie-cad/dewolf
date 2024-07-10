@@ -1,0 +1,27 @@
+
+
+
+
+char * user_group_str(char * arg1, char * arg2) {
+    char * var_0;
+    if (arg1 == 0L) {
+        if (arg2 == 0L) {
+            arg1 = 0UL;
+        }
+        else {
+            arg1 = arg2;
+        }
+    }
+    else if (arg2 != 0L) {
+        var_0 = xmalloc(strlen(arg1) + strlen(arg2) + 2L);
+        arg1 = stpcpy(var_0, arg1);
+        *arg1 = 0x3a;
+        strcpy(arg1 + 1L, arg2);
+        arg1 = var_0;
+    }
+    if (((arg1 != 0L) || (arg2 == 0L)) && ((arg1 == 0L) || (arg2 != 0L))) {
+        return arg1;
+    }
+    return xstrdup(arg1);
+}
+1.6484517003409564

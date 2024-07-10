@@ -1,0 +1,32 @@
+extern unsigned long nrows = 0UL;
+extern unsigned long table = 0UL;
+extern unsigned long ncolumns = 0UL;
+
+
+
+long alloc_table_row() {
+    unsigned long var_4;
+    unsigned long var_5;
+    unsigned long var_6;
+    long var_2;
+    long var_3;
+    long * var_8;
+    var_5 = nrows;
+    var_4 = table;
+    nrows = var_5 + 1L;
+    var_2 = var_5 + 1L;
+    var_3 = var_2 * 8;
+    if ((var_3 >= 0L) && ((unsigned int)(var_2 >> 61L != 0L) == 0L)) {
+        var_5 = xrealloc(var_4, var_3);
+        var_4 = ncolumns;
+        var_6 = nrows;
+        table = var_5;
+    }
+    if ((var_3 >= 0L) && ((unsigned int)(var_2 >> 61L != 0L) == 0L) && (var_4 * 8 == false) && ((unsigned int)(var_4 >> 61L != 0L) == 0L)) {
+        var_8 = xmalloc(var_4 << 3L);
+        *(var_5 + (var_6 << 3) - 8L) = var_8;
+        return var_8;
+    }
+    xalloc_die();
+}
+1.6026968001388013

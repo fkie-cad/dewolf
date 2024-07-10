@@ -1,0 +1,53 @@
+
+
+
+
+char * find_int(void * arg1) {
+    char var_6;
+    void * var_4;
+    void * var_5;
+    char * var_0;
+    char * var_1;
+    unsigned short ** var_3;
+    var_3 = __ctype_b_loc();
+    var_0 = arg1;
+    while (true) {
+        var_1 = var_0 + 1L;
+        if ((*(*var_3 + ((unsigned int)*var_0 << 1)) & 1) == 0) {
+            break;
+        }
+        var_0 = var_1;
+    }
+    if ((unsigned char)(unsigned int)*var_0 == '+') {
+        var_4 = var_0 + 1L;
+        var_0 = var_1;
+    }
+    else {
+        var_4 = ((unsigned char)(unsigned int)*var_0 == '-') + var_0;
+    }
+    var_5 = var_4 + 1L;
+    if ((int)*var_4 - 48 <= 9) {
+        var_6 = (char)(int)*var_5;
+        if ((int)*var_5 - 48 <= 9) {
+            do {
+                var_5++;
+                var_6 = (char)(int)*var_5;
+            }
+            while ((int)*var_5 - 48 <= 9);
+        }
+        if ((*(*var_3 + ((unsigned char)var_6 << 1)) & 1) != 0) {
+            do {
+                var_5++;
+                var_6 = (char)(unsigned int)*var_5;
+            }
+            while ((*(*var_3 + ((unsigned int)*var_5 << 1)) & 1) != 0);
+        }
+        if (var_6 == 0) {
+            return var_0;
+        }
+    }
+    quote(arg1);
+    arg1 = dcgettext(/* domainname */ 0UL, /* msgid */ "invalid integer %s", /* category */ 5);
+    test_syntax_error(arg1, 0);
+}
+2.407053300179541

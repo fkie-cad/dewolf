@@ -1,0 +1,106 @@
+extern unsigned long * stdout = 0UL;
+extern const char [4] * longopts = "zero";
+extern const unsigned char data_60e3[0x2] = "\x7A\x00";
+extern char [4] * Version = "8.32";
+extern unsigned int * optind = 0UL;
+
+
+
+int main(int argc, char ** argv, char ** envp) {
+    int loop_break;
+    int var_12;
+    int var_13;
+    unsigned long var_19;
+    long var_15;
+    long var_16;
+    long var_17;
+    long var_18;
+    char var_20;
+    char [4] * var_25;
+    void * var_23;
+    unsigned int * var_21;
+    unsigned int * var_22;
+    unsigned long * var_24;
+    char * var_14;
+    var_17, var_16, var_19, var_18 = set_program_name(*argv);
+    setlocale(/* category */ 6, /* locale */ "Usage: %s [OPTION] NAME...\n", var_16, var_17, var_19, var_18, /* category */ var_12, /* category */ var_13);
+    bindtextdomain(/* domainname */ "GNU coreutils", /* dirname */ "/usr/local/share/locale");
+    textdomain(/* domainname */ "GNU coreutils");
+    atexit(close_stdout);
+    var_20 = 0;
+    while (true) {
+        var_12 = getopt_long(argc, argv, /* options */ data_60e3, /* long_options */ &longopts, /* opt_index */ 0UL);
+        loop_break = 0;
+        switch(var_12) {
+        case 122:
+            var_20 = 1;
+            continue;
+        case 0xffffff7d:
+            var_24 = stdout;
+            var_25 = Version;
+            version_etc(var_24, "dirname", "GNU coreutils", var_25);
+            exit(/* status */ 0);
+            break;
+        case 0xffffff7e:
+            usage(0);
+            break;
+        case 0xffffffff:
+            var_21 = optind;
+            if (var_21 >= argc) {
+                argc = dcgettext(/* domainname */ 0UL, /* msgid */ "missing operand", /* category */ 5);
+                error(/* status */ 0, /* errnum */ 0, /* message */ argc);
+            }
+            else {
+                do {
+                    var_23 = argv + ((long)var_21 << 3);
+                    var_14 = *var_23;
+                    var_23 = dir_len(*var_23);
+                    var_24 = stdout;
+                    if (var_23 != 0L) {
+                        fwrite_unlocked(/* buf */ var_14, /* size */ 1UL, /* count */ var_23, /* fp */ var_24);
+                    }
+                    else {
+                        var_23 = stdout + 40L;
+                        var_14 = *var_23;
+                        if (*(stdout + 48L) > var_14) {
+                            *var_23 = var_14 + 1L;
+                            *var_14 = 0x2e;
+                        }
+                        else {
+                            var_24 = stdout;
+                            __overflow(/* f */ var_24, /* ch */ 46);
+                        }
+                    }
+                    var_24 = stdout;
+                    var_23 = stdout + 40L;
+                    var_14 = *var_23;
+                    var_12 = (int)var_15 - (int)var_15 + (var_20 < 1) & 10;
+                    if (var_14 < *(stdout + 48L)) {
+                        *var_23 = var_14 + 1L;
+                        *var_14 = var_12;
+                    }
+                    else {
+                        __overflow(/* f */ var_24, /* ch */ var_12);
+                    }
+                    var_22 = optind;
+                    var_21 = var_22 + 1;
+                    optind = var_21;
+                }
+                while (var_22 + 1 < argc);
+                if (var_22 + 1 >= argc) {
+                    loop_break = 1;
+                    break;
+                }
+            }
+            break;
+        }
+        if (loop_break == 1) {
+            break;
+        }
+        if (var_12 != -131) {
+            usage(1);
+        }
+    }
+    return 0;
+}
+3.465796499978751

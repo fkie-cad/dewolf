@@ -1,0 +1,17 @@
+
+
+
+
+long base_name(char * arg1) {
+    char * var_0;
+    var_0 = last_component(arg1);
+    if (*var_0 == 0) {
+        base_len(arg1);
+        return xstrndup(arg1);
+    }
+    else {
+        base_len(var_0);
+        return xstrndup(var_0);
+    }
+}
+0.6711941999383271

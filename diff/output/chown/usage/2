@@ -1,0 +1,251 @@
+extern unsigned long program_name = 0UL;
+extern unsigned long * stderr = 0UL;
+extern unsigned long * stdout = 0UL;
+extern const unsigned char data_c00a[0x2] = "\x5B\x00";
+
+struct _IO_FILE {
+    int _flags;
+    char * _IO_read_ptr;
+    char * _IO_read_end;
+    char * _IO_read_base;
+    char * _IO_write_base;
+    char * _IO_write_ptr;
+    char * _IO_write_end;
+    char * _IO_buf_base;
+    char * _IO_buf_end;
+    char * _IO_save_base;
+    char * _IO_backup_base;
+    char * _IO_save_end;
+    _IO_marker * _markers;
+    _IO_FILE * _chain;
+    int _fileno;
+    int _flags2;
+    long _old_offset;
+    unsigned short _cur_column;
+    char _vtable_offset;
+    char [1] _shortbuf;
+    _IO_lock_t * _lock;
+    long _offset;
+    _IO_codecvt * _codecvt;
+    _IO_wide_data * _wide_data;
+    _IO_FILE * _freeres_list;
+    void * _freeres_buf;
+    unsigned long __pad5;
+    int _mode;
+    char [20] _unused2;
+};
+struct _IO_marker {
+    void * _next;
+    void * _sbuf;
+    int _pos;
+};
+struct _IO_lock_t {
+    int lock;
+    int cnt;
+    void * owner;
+};
+struct _IO_codecvt {
+    _IO_iconv_t __cd_in;
+    _IO_iconv_t __cd_out;
+};
+struct _IO_iconv_t {
+    __gconv_step * step;
+    __gconv_step_data step_data;
+};
+struct __gconv_step {
+    void * __shlib_handle;
+    char * __modname;
+    int __counter;
+    char * __from_name;
+    char * __to_name;
+    void __fct;
+    unsigned int(void *, unsigned char) * __btowc_fct;
+    int(void *) * __init_fct;
+    void(void *) * __end_fct;
+    int __min_needed_from;
+    int __max_needed_from;
+    int __min_needed_to;
+    int __max_needed_to;
+    int __stateful;
+    void * __data;
+};
+struct __gconv_step_data {
+    unsigned char * __outbuf;
+    unsigned char * __outbufend;
+    int __flags;
+    int __invocation_counter;
+    int __internal_use;
+    __mbstate_t * __statep;
+    __mbstate_t __state;
+};
+struct __mbstate_t {
+    int __count;
+    union __value {
+        unsigned int __wch;
+        char [4] __wchb;
+    };
+};
+union __value {
+    unsigned int __wch;
+    char [4] __wchb;
+};
+struct _IO_wide_data {
+    int * _IO_read_ptr;
+    int * _IO_read_end;
+    int * _IO_read_base;
+    int * _IO_write_base;
+    int * _IO_write_ptr;
+    int * _IO_write_end;
+    int * _IO_buf_base;
+    int * _IO_buf_end;
+    int * _IO_save_base;
+    int * _IO_backup_base;
+    int * _IO_save_end;
+    __mbstate_t _IO_state;
+    __mbstate_t _IO_last_state;
+    _IO_codecvt _codecvt;
+    int [1] _shortbuf;
+    void * _wide_vtable;
+};
+
+void usage(int arg1) {
+    char* var_74;
+    unsigned char* var_73;
+    bool var_77;
+    bool var_78;
+    unsigned long var_75;
+    long counter;
+    long var_80;
+    long var_81;
+    long var_82;
+    void * var_79;
+    unsigned long * var_76;
+    char * var_67;
+    char * var_68;
+    char * var_69;
+    char * var_70;
+    void ** var_71;
+    void ** var_72;
+    var_67 = program_name;
+    if (arg1 != 0) {
+        var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "Try '%s --help' for more information.\n", /* category */ 5);
+        var_76 = stderr;
+        __fprintf_chk(/* fp */ var_76, /* flag */ 1, /* format */ var_68, var_67);
+    }
+    else {
+        var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "Usage: %s [OPTION]... [OWNER][:[GROUP]] FILE...\n  or:  %s [OPTION]... --reference=RFILE FILE...\n", /* category */ 5);
+        __printf_chk(/* flag */ 1, /* format */ var_68, var_67, var_67);
+        var_67 = dcgettext(/* domainname */ 0UL, /* msgid */ "Change the owner and/or group of each FILE to OWNER and/or GROUP.\nWith --reference, change the owner and group of each FILE to ", /* category */ 5);
+        var_76 = stdout;
+        fputs_unlocked(/* str */ var_67, /* fp */ var_76);
+        var_67 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -c, --changes          like verbose but report only when a change is made\n  -f, --silent, --quiet  suppress most error messag", /* category */ 5);
+        var_76 = stdout;
+        fputs_unlocked(/* str */ var_67, /* fp */ var_76);
+        var_67 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --dereference      affect the referent of each symbolic link (this is\n                         the default), rather than ", /* category */ 5);
+        var_76 = stdout;
+        fputs_unlocked(/* str */ var_67, /* fp */ var_76);
+        var_67 = dcgettext(/* domainname */ 0UL, /* msgid */ "                         (useful only on systems that can change the\n                         ownership of a symlink)\n", /* category */ 5);
+        var_76 = stdout;
+        fputs_unlocked(/* str */ var_67, /* fp */ var_76);
+        var_67 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --from=CURRENT_OWNER:CURRENT_GROUP\n                         change the owner and/or group of each file only if\n         ", /* category */ 5);
+        var_76 = stdout;
+        fputs_unlocked(/* str */ var_67, /* fp */ var_76);
+        var_67 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --no-preserve-root  do not treat '/' specially (the default)\n      --preserve-root    fail to operate recursively on '/'\", /* category */ 5);
+                                            var_76 = stdout;
+                                            fputs_unlocked(/* str */ var_67, /* fp */ var_76);
+                                            var_67 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --reference=RFILE  use RFILE's owner and group rather than\n                         specifying OWNER:GROUP values\n", /* category */ 5);
+                                            var_76 = stdout;
+                                            fputs_unlocked(/* str */ var_67, /* fp */ var_76);
+                                            var_67 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -R, --recursive        operate on files and directories recursively\n", /* category */ 5);
+                                            var_76 = stdout;
+                                            fputs_unlocked(/* str */ var_67, /* fp */ var_76);
+                                            var_67 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nThe following options modify how a hierarchy is traversed when the -R\noption is also specified.  If more than one is specifie", /* category */ 5);
+                                            var_76 = stdout;
+                                            fputs_unlocked(/* str */ var_67, /* fp */ var_76);
+                                            var_67 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --help     display this help and exit\n", /* category */ 5);
+                                            var_76 = stdout;
+                                            fputs_unlocked(/* str */ var_67, /* fp */ var_76);
+                                            var_67 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --version  output version information and exit\n", /* category */ 5);
+                                            var_76 = stdout;
+                                            fputs_unlocked(/* str */ var_67, /* fp */ var_76);
+                                            var_67 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nOwner is unchanged if missing.  Group is unchanged if missing, but changed\nto login group if implied by a ':' following a sym", /* category */ 5);
+                                            var_76 = stdout;
+                                            fputs_unlocked(/* str */ var_67, /* fp */ var_76);
+                                            var_75 = program_name;
+                                            var_67 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nExamples:\n  %s root /u        Change the owner of /u to "root".\n  %s root:staff /u  Likewise, but also change its group to "", /* category */ 5);
+                                                    __printf_chk(/* flag */ 1, /* format */ var_67, var_75, var_75, var_75);
+                                                    var_73 = data_c00a;
+                                                    var_74 = "test invocation";
+        var_71 = &var_73; while (true) {
+        var_79 = var_71 + 16L;
+        var_67 = *var_79;
+        var_72 = var_71 + 16L;
+        var_78 = *var_79 == 0L;
+        if (*var_79 == 0L) {
+                break;
+            }
+            var_68 = "chown";
+            counter = 6L;
+            var_77 = false;
+            while (counter != 0L) {
+                var_77 = *var_68 < *var_67;
+                var_78 = *var_68 == *var_67;
+                var_69 = var_68 + 1;
+                var_70 = var_67 + 1;
+                counter--;
+                if (*var_68 != *var_67) {
+                    break;
+                }
+                var_68 = var_69;
+                var_67 = var_70;
+            }
+            if ((~var_78 & ~var_77) - var_77 == 0) {
+                break;
+            }
+            var_71 = var_72;
+        }
+        var_79 = var_71 + 0x18;
+        var_67 = *var_79; if (*var_79 != 0L) {
+        var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "\n%s online help: <%s>\n", /* category */ 5);
+            var_81, var_80, var_75, var_82 = __printf_chk(/* flag */ 1, /* format */ var_68, "GNU coreutils", "https://www.gnu.org/software/coreutils/");
+            var_68 = setlocale(/* category */ 5, /* locale */ 0UL, var_80, var_81, var_75, var_82, /* category */ var_73, /* category */ var_74);
+            if (var_68 != 0L) {
+                var_68 = strncmp(var_68, "en_", 3UL);
+            }
+        }
+        else {
+            var_67 = dcgettext(/* domainname */ 0UL, /* msgid */ "\n%s online help: <%s>\n", /* category */ 5);
+            var_81, var_80, var_75, var_82 = __printf_chk(/* flag */ 1, /* format */ var_67, "GNU coreutils", "https://www.gnu.org/software/coreutils/");
+            var_67 = setlocale(/* category */ 5, /* locale */ 0UL, var_80, var_81, var_75, var_82, /* category */ var_73, /* category */ var_74);
+            if (var_67 != 0L) {
+                var_67 = strncmp(var_67, "en_", 3UL);
+                if (var_67 != 0) {
+                    var_67 = "chown";
+                }
+            }
+        }
+        if ((*var_79 == 0L) && ((var_67 == 0L) || (var_67 == 0))) {
+        var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "Full documentation <%s%s>\n", /* category */ 5);
+            var_67 = "chown";
+            __printf_chk(/* flag */ 1, /* format */ var_68, "https://www.gnu.org/software/coreutils/", "chown");
+            var_68 = "Multi-call invocation";
+        }
+        else {
+            if ((*var_79 == 0L) || ((var_68 != 0) && (var_68 != 0L))) {
+                var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "Report any translation bugs to <https://translationproject.org/team/>\n", /* category */ 5);
+                var_76 = stdout;
+                fputs_unlocked(/* str */ var_68, /* fp */ var_76);
+            }
+            var_69 = dcgettext(/* domainname */ 0UL, /* msgid */ "Full documentation <%s%s>\n", /* category */ 5);
+            var_68 = "Multi-call invocation";
+            __printf_chk(/* flag */ 1, /* format */ var_69, "https://www.gnu.org/software/coreutils/", "chown");
+            if (var_67 != "chown") {
+                var_68 = "Written by %s, %s, and %s.\n";
+            }
+        }
+        var_69 = dcgettext(/* domainname */ 0UL, /* msgid */ "or available locally via: info '(coreutils) %s%s'\n", /* category */ 5);
+                 __printf_chk(/* flag */ 1, /* format */ var_69, var_67, var_68);
+    }
+    exit(/* status */ arg1);
+}
+34.57969499984756

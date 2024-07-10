@@ -1,0 +1,178 @@
+extern unsigned long col_sep_len = 0UL;
+extern unsigned short issued_disorder_warning = 0U;
+extern const unsigned char data_7779[0x3] = "\x00\x00\x00";
+extern unsigned char hard_LC_COLLATE = 0U;
+extern unsigned char only_file_1 = 0U;
+extern unsigned char only_file_2 = 0U;
+extern unsigned char both = 0U;
+extern unsigned char seen_unpairable = 0U;
+extern unsigned int check_input_order = 0U;
+extern unsigned char total_option = 0U;
+extern const char [11] * long_options = "check-order";
+extern unsigned long * stdout = 0UL;
+extern char [4] * Version = "8.32";
+extern unsigned char delim = 10U;
+extern char [2] * col_sep = "\t";
+extern unsigned long * optarg = 0UL;
+extern unsigned int * optind = 0UL;
+
+
+
+int main(int argc, char ** argv, char ** envp) {
+    bool var_38;
+    unsigned int var_35;
+    int loop_break;
+    int var_33;
+    unsigned long var_34;
+    long counter;
+    long var_29;
+    long var_30;
+    long var_31;
+    long var_32;
+    char [2] * var_42;
+    char [4] * var_41;
+    void * var_36;
+    unsigned long * var_39;
+    unsigned long * var_40;
+    char * var_37;
+    var_31, var_30, var_34, var_32 = set_program_name(*argv);
+    setlocale(/* category */ 6, /* locale */ data_7779, var_30, var_31, var_34, var_32, /* category */ (int)var_29, /* category */ var_33);
+    bindtextdomain(/* domainname */ "GNU coreutils", /* dirname */ "/usr/local/share/locale");
+    textdomain(/* domainname */ "GNU coreutils");
+    hard_LC_COLLATE = hard_locale(3);
+    atexit(close_stdout);
+    only_file_1 = 1U;
+    only_file_2 = 1U;
+    both = 1U;
+    seen_unpairable = 0U;
+    issued_disorder_warning = 0U;
+    check_input_order = 0U;
+    total_option = 0U;
+    while (true) {
+        var_33 = getopt_long(argc, argv, /* options */ "123z", /* long_options */ &long_options, /* opt_index */ 0UL);
+        if (var_33 > 131) {
+            break;
+        }
+        if (var_33 == -1) {
+            if (col_sep_len == 0L) {
+                col_sep_len = 1UL;
+            }
+            var_29 = optind;
+            var_33 = argc - (int)var_29;
+            if (var_33 > 1) {
+                var_36 = argv + (var_29 << 3);
+                if (var_33 != 2) {
+                    var_29 = quote(*(var_36 + 16L));
+                    var_37 = "extra operand %s";
+                }
+            }
+            if (var_33 == 2) {
+                compare_files(var_36);
+            }
+        }
+        else if (var_33 <= 121) {
+            if (var_33 == 49) {
+                only_file_1 = 0U;
+                continue;
+            }
+            if (var_33 > 49) {
+                if (var_33 == 50) {
+                    only_file_2 = 0U;
+                    continue;
+                }
+                if (var_33 != 51) {
+                    break;
+                }
+                both = 0U;
+                continue;
+            }
+            if (var_33 != -131) {
+                if (var_33 != -130) {
+                    break;
+                }
+                usage(0);
+            }
+            else {
+                var_39 = stdout;
+                var_41 = Version;
+                version_etc(var_39, "comm", "GNU coreutils", var_41);
+                exit(/* status */ 0);
+            }
+        }
+        else {
+            var_35 = (unsigned int)(var_33 - 122);
+            loop_break = 0;
+            switch(var_35) {
+            case 0x0:
+                delim = 0U;
+                continue;
+            case 0x6:
+                check_input_order = 1U;
+                continue;
+            case 0x7:
+                check_input_order = 2U;
+                continue;
+            case 0x8:
+                var_38 = col_sep_len == 0L;
+                if (var_38 == false) {
+                    var_42 = col_sep;
+                    var_39 = optarg;
+                }
+                if ((var_38 != false) || (strcmp(var_42, var_39) == 0)) {
+                    var_38 = optarg == 0;
+                    col_sep = optarg;
+                    if (var_38 != false) {
+                        var_34 = 1UL;
+                    }
+                    else {
+                        var_39 = optarg;
+                        counter = -1L;
+                        while (counter != 0L) {
+                            var_40 = var_39 + 1L;
+                            counter--;
+                            if (!(*var_39 != 0)) {
+                                break;
+                            }
+                            var_39 = var_40;
+                        }
+                        var_29 = counter;
+                        var_34 = ~var_29 - 1L;
+                    }
+                    col_sep_len = var_34;
+                    continue;
+                }
+                var_37 = dcgettext(/* domainname */ 0UL, /* msgid */ "multiple output delimiters specified", /* category */ 5);
+                error(/* status */ 1, /* errnum */ 0, /* message */ var_37);
+                break;
+            case 0x9:
+                total_option = 1U;
+                continue;
+            default:
+                loop_break = 1;
+            }
+            if (loop_break == 1) {
+                break;
+            }
+        }
+        if ((var_33 != -1) || ((issued_disorder_warning != 0) && (var_33 == 2))) {
+            var_37 = dcgettext(/* domainname */ 0UL, /* msgid */ "input is not in sorted order", /* category */ 5);
+            var_29 = error(/* status */ 1, /* errnum */ 0, /* message */ var_37);
+        }
+        if ((var_33 != -1) || (var_33 <= 1) || ((issued_disorder_warning != 0) && (var_33 == 2))) {
+            if ((int)var_29 >= argc) {
+                var_37 = dcgettext(/* domainname */ 0UL, /* msgid */ "missing operand", /* category */ 5);
+                error(/* status */ 0, /* errnum */ 0, /* message */ var_37);
+                break;
+            }
+            var_29 = quote(*(argv + ((long)argc << 3) - 8L));
+            var_37 = "missing operand after %s";
+        }
+        if ((var_33 != -1) || (issued_disorder_warning != 0) || (var_33 != 2)) {
+            error(/* status */ 0, /* errnum */ 0, /* message */ dcgettext(/* domainname */ 0UL, /* msgid */ var_37, /* category */ 5), var_29);
+            break;
+        }
+        return 0;
+    }
+    usage(1);
+}
+16.30486819986254

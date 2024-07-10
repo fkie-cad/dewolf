@@ -1,0 +1,40 @@
+
+
+
+
+long full_write(int arg1, long arg2, unsigned long arg3) {
+    int loop_break;
+    unsigned long var_0;
+    long var_1;
+    long var_2;
+    if (arg3 == 0L) {
+        var_1 = 0L;
+    }
+    else {
+        var_1 = 0L;
+        while (true) {
+            var_2 = safe_write(arg1, arg2, arg3);
+            loop_break = 0;
+            switch(var_2) {
+            case -1L:
+                loop_break = 1;
+                break;
+            case 0L:
+                *__errno_location() = 0x1c;
+                return var_1;
+            }
+            if (loop_break == 1) {
+                break;
+            }
+            var_1 += var_2;
+            arg2 += var_2;
+            var_0 = arg3 - var_2;
+            if (arg3 == var_2) {
+                break;
+            }
+            arg3 = var_0;
+        }
+    }
+    return var_1;
+}
+1.1758207003585994

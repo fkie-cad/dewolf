@@ -1,0 +1,128 @@
+
+
+struct _IO_FILE {
+    int _flags;
+    char * _IO_read_ptr;
+    char * _IO_read_end;
+    char * _IO_read_base;
+    char * _IO_write_base;
+    char * _IO_write_ptr;
+    char * _IO_write_end;
+    char * _IO_buf_base;
+    char * _IO_buf_end;
+    char * _IO_save_base;
+    char * _IO_backup_base;
+    char * _IO_save_end;
+    _IO_marker * _markers;
+    _IO_FILE * _chain;
+    int _fileno;
+    int _flags2;
+    long _old_offset;
+    unsigned short _cur_column;
+    char _vtable_offset;
+    char [1] _shortbuf;
+    _IO_lock_t * _lock;
+    long _offset;
+    _IO_codecvt * _codecvt;
+    _IO_wide_data * _wide_data;
+    _IO_FILE * _freeres_list;
+    void * _freeres_buf;
+    unsigned long __pad5;
+    int _mode;
+    char [20] _unused2;
+};
+struct _IO_marker {
+    void * _next;
+    void * _sbuf;
+    int _pos;
+};
+struct _IO_lock_t {
+    int lock;
+    int cnt;
+    void * owner;
+};
+struct _IO_codecvt {
+    _IO_iconv_t __cd_in;
+    _IO_iconv_t __cd_out;
+};
+struct _IO_iconv_t {
+    __gconv_step * step;
+    __gconv_step_data step_data;
+};
+struct __gconv_step {
+    void * __shlib_handle;
+    char * __modname;
+    int __counter;
+    char * __from_name;
+    char * __to_name;
+    void __fct;
+    unsigned int(void *, unsigned char) * __btowc_fct;
+    int(void *) * __init_fct;
+    void(void *) * __end_fct;
+    int __min_needed_from;
+    int __max_needed_from;
+    int __min_needed_to;
+    int __max_needed_to;
+    int __stateful;
+    void * __data;
+};
+struct __gconv_step_data {
+    unsigned char * __outbuf;
+    unsigned char * __outbufend;
+    int __flags;
+    int __invocation_counter;
+    int __internal_use;
+    __mbstate_t * __statep;
+    __mbstate_t __state;
+};
+struct __mbstate_t {
+    int __count;
+    union __value {
+        unsigned int __wch;
+        char [4] __wchb;
+    };
+};
+union __value {
+    unsigned int __wch;
+    char [4] __wchb;
+};
+struct _IO_wide_data {
+    int * _IO_read_ptr;
+    int * _IO_read_end;
+    int * _IO_read_base;
+    int * _IO_write_base;
+    int * _IO_write_ptr;
+    int * _IO_write_end;
+    int * _IO_buf_base;
+    int * _IO_buf_end;
+    int * _IO_save_base;
+    int * _IO_backup_base;
+    int * _IO_save_end;
+    __mbstate_t _IO_state;
+    __mbstate_t _IO_last_state;
+    _IO_codecvt _codecvt;
+    int [1] _shortbuf;
+    void * _wide_vtable;
+};
+struct tm {
+    int tm_sec;
+    int tm_min;
+    int tm_hour;
+    int tm_mday;
+    int tm_mon;
+    int tm_year;
+    int tm_wday;
+    int tm_yday;
+    int tm_isdst;
+    long tm_gmtoff;
+    char * tm_zone;
+};
+
+long fprintftime(_IO_FILE * arg1, char * arg2, tm * arg3, long ** arg4, int arg5) {
+    long var_0;
+    char var_1;
+    var_1 = 0;
+    var_0 = __strftime_internal(arg1, arg2, arg3, 0, 0, -1, &var_1, arg4, arg5);
+    return var_0;
+}
+1.6790670999325812

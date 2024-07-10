@@ -1,0 +1,24 @@
+
+
+struct passwd {
+    char * pw_name;
+    char * pw_passwd;
+    unsigned int pw_uid;
+    unsigned int pw_gid;
+    char * pw_gecos;
+    char * pw_dir;
+    char * pw_shell;
+};
+
+long uid_to_name(unsigned int arg1) {
+    void var_0;
+    void * var_2;
+    passwd * var_1;
+    var_1 = getpwuid(/* uid */ arg1);
+    if (var_1 != 0L) {
+        return xstrdup(var_1->pw_name);
+    }
+    var_2 = umaxtostr(arg1, &var_0);
+    return xstrdup(var_2);
+}
+0.978065799921751

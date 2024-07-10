@@ -1,0 +1,28 @@
+
+
+
+
+unsigned long revert_tz.part.0(long * arg1) {
+    int var_3;
+    int * var_1;
+    int * var_2;
+    char * var_0;
+    var_2 = __errno_location();
+    var_0 = arg1 + 9L;
+    var_1 = *var_2;
+    if (*(arg1 + 8L) == 0) {
+        var_0 = 0UL;
+    }
+    if (setenv_TZ(var_0) == 0) {
+        tzset();
+        var_3 = 1;
+    }
+    else {
+        var_1 = *var_2;
+        var_3 = 0;
+    }
+    tzfree_part_0(arg1);
+    *var_2 = var_1;
+    return (unsigned int)var_3;
+}
+1.3073648000136018

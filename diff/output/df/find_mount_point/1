@@ -1,0 +1,112 @@
+extern unsigned char data_4000[0x1080] = "\x74\x1E\x48\x8B\x7C\xDD\x00\x31\xC0\xBE\x00\x01\x00\x00\xE8\xFD\xF9\xFF\xFF\x85\xC0\x78\x09\x89\xC7\xE8\xF2\xF7\xFF\xFF\x66\x90...";
+extern unsigned char data_f000[0x2c0] = "\xFF\xE8\xBA\x45\xFF\xFF\x48\x8B\x85\xF0\xFB\xFF\xFF\x48\x85\xC0\x74\x08\x48\x89\xC7\xE8\xA6\x45\xFF\xFF\x48\x8B\xBD\x48\xFD\xFF...";
+extern const unsigned char data_11ffc[0x2] = "\x2E\x00";
+
+
+
+char * find_mount_point(void * arg1, int128_t * arg2) {
+    void var_0;
+    int var_20;
+    unsigned long var_21;
+    long var_12;
+    long var_13;
+    void * var_16;
+    void * var_17;
+    void * var_18;
+    void * var_19;
+    int128_t * var_14;
+    int * var_15;
+    char * var_11;
+    var_16 = &var_0;
+    var_11 = save_cwd(&var_0);
+    var_15 = __errno_location();
+    if (var_11 != 0) {
+        arg1 = dcgettext(/* domainname */ 0UL, /* msgid */ "cannot get current directory", /* category */ 5);
+        error(/* status */ 0, /* errnum */ *var_15, /* message */ arg1);
+        arg1 = 0UL;
+    }
+    else {
+        var_20 = *(arg2 + 24L) & data_f000;
+        if (var_20 == data_4000) {
+            var_14 = *arg2;
+        }
+        else {
+            arg1 = dir_name(arg1);
+            var_21 = strlen(arg1);
+            var_17 = &var_0 - (var_21 + 24L & 0xfffffffffffff000);
+            if (&var_0 == var_17) {
+                var_18 = var_16;
+            }
+            else {
+                var_18 = var_16;
+                do {
+                    var_18 -= "canonicalize_file_name";
+                    var_19 = var_18 + "canonicalize_file_name";
+                }
+                while (var_18 != var_17);
+            }
+            var_16 %= 0x1000;
+            var_17 = var_18 - var_16;
+            if (var_16 != 0L) {
+                var_16 = var_17 + var_16 - 8L;
+            }
+            var_11 = memcpy(var_17 + 15L & -16L, arg1, var_21 + 1L);
+            free(/* ptr */ arg1);
+            if (chdir(var_11) < 0) {
+                arg1 = var_11;
+            }
+            else {
+                var_20 = __xstat(/* vers */ 1, /* name */ data_11ffc, /* buf */ &var_14);
+                if (var_20 < 0) {
+                    arg1 = dcgettext(/* domainname */ 0UL, /* msgid */ "cannot stat current directory (now %s)", /* category */ 5);
+                    error(/* status */ 0, /* errnum */ *var_15, /* message */ arg1, quotearg_style(4, var_11));
+                    arg1 = 0UL;
+                }
+            }
+        }
+        if (((var_20 == data_4000) || (chdir(var_11) < 0)) && ((chdir(arg1) < 0) || (var_20 != data_4000))) {
+            var_11 = dcgettext(/* domainname */ 0UL, /* msgid */ "cannot change to directory %s", /* category */ 5);
+            error(/* status */ 0, /* errnum */ *var_15, /* message */ var_11, quotearg_style(4, arg1));
+            arg1 = 0UL;
+        }
+        else {
+            if ((var_20 == data_4000) || (var_20 >= 0)) {
+                while (true) {
+                    var_20 = __xstat(/* vers */ 1, /* name */ "..", /* buf */ &var_12);
+                    if (var_20 < 0) {
+                        var_13 = quotearg_style(4, "..");
+                        arg1 = "cannot stat %s";
+                    }
+                    else {
+                        if ((var_12 != var_14) || (var_13 == var_14 >> 8)) {
+                            arg1 = xgetcwd();
+                            break;
+                        }
+                        var_20 = chdir("..");
+                        if (var_20 >= 0) {
+                            arg2 = var_12;
+                            var_14 = arg2;
+                            continue;
+                        }
+                        var_13 = quotearg_style(4, "..");
+                        arg1 = "cannot change to directory %s";
+                    }
+                    error(/* status */ 0, /* errnum */ *var_15, /* message */ dcgettext(/* domainname */ 0UL, /* msgid */ arg1, /* category */ 5), var_13);
+                    arg1 = 0UL;
+                    break;
+                }
+            }
+            var_20 = restore_cwd(&var_0);
+            if (var_20 == 0) {
+                free_cwd(&var_0);
+            }
+            else {
+                arg1 = dcgettext(/* domainname */ 0UL, /* msgid */ "failed to return to initial working directory", /* category */ 5);
+                var_20, arg1 = error(/* status */ 1, /* errnum */ *var_15, /* message */ arg1);
+                return canonicalize_filename_mode(arg1, var_20);
+            }
+        }
+    }
+    return arg1;
+}
+86.9054004997015

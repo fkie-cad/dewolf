@@ -1,0 +1,16 @@
+extern unsigned char data_a000[0x10d0] = "\x83\x7B\x38\x00\x0F\x85\x54\x0B\x00\x00\xE8\xE1\x9F\xFF\xFF\x4C\x8B\xA5\x78\xFF\xFF\xFF\x48\x98\x48\x89\x85\x20\xFD\xFF\xFF\x49...";
+extern unsigned char data_f000[0x10] = "\x75\xEC\x48\x8B\x36\x48\x8B\x3F\xE9\x53\x22\x00\x00\x0F\x1F\x00";
+
+
+
+int writable_destination(char * arg1, int arg2) {
+    arg2 &= data_f000;
+    if (arg2 == data_a000) {
+        return 1L;
+    }
+    if (can_write_any_file() == 0) {
+        return euidaccess(/* path */ arg1, /* mode */ 2) == 0;
+    }
+    return 1L;
+}
+9.649028100073338

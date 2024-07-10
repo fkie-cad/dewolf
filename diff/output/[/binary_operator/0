@@ -1,0 +1,202 @@
+extern unsigned int pos = 0U;
+extern unsigned int argc = 0U;
+extern unsigned long argv = 0UL;
+
+
+
+unsigned long binary_operator(char arg1) {
+    unsigned int var_19;
+    unsigned int var_20;
+    int var_10;
+    int var_9;
+    unsigned long var_21;
+    long var_11;
+    long var_12;
+    long var_13;
+    long var_14;
+    long var_15;
+    long var_16;
+    long var_17;
+    long var_18;
+    unsigned char var_22;
+    char var_1;
+    char var_2;
+    void * var_23;
+    char * var_24;
+    var_20 = pos;
+    var_19 = var_20 + 1;
+    if (arg1 != 0) {
+        pos = var_19;
+        var_19 = var_20 + 2;
+    }
+    var_20 = argc;
+    var_21 = argv;
+    var_17 = (long)var_19 << 3;
+    var_16 = var_21 + var_17;
+    var_15 = var_16 + 8L;
+    if (var_20 - 2 <= var_19) {
+        var_19 = 0U;
+    }
+    else if ((*(*var_15 + 1L) != 'l') || (**var_15 != '-') || (*(*var_15 + 2L) != 0)) {
+        var_19 = 0U;
+    }
+    else {
+        pos = var_19;
+        var_19 = 1U;
+    }
+    if (**var_16 == '-') {
+        var_18 = var_16 - 8L;
+        var_20 = pos + 3;
+        var_22 = (unsigned char)var_19 | arg1;
+        var_1 = (unsigned char)var_19 | arg1;
+        var_9 -= var_9;
+        switch(*((*(var_16)) + 0x1)) {
+        case 'e':
+            var_2 = *(*var_16 + 2L);
+            if ((*(*var_16 + 2L) != 'q') && (var_2 == 'f') && (*(*var_16 + 3L) == 0)) {
+                pos = var_20;
+                var_19 = var_22;
+                if (var_1 != 0) {
+                    var_24 = "-ef does not accept -l";
+                }
+                else {
+                    var_9 = __xstat(/* vers */ 1, /* name */ *var_18, /* buf */ &var_11);
+                    if (var_9 == 0) {
+                        var_9 = __xstat(/* vers */ 1, /* name */ *var_15, /* buf */ &var_12);
+                        if ((var_9 == 0) && (var_11 == var_12)) {
+                            var_19 = var_13 == var_14;
+                        }
+                    }
+                }
+            }
+            break;
+        case 'n':
+            var_2 = *(*var_16 + 2L);
+            if ((*(*var_16 + 2L) != 'e') && (var_2 == 't') && (*(*var_16 + 3L) == 0)) {
+                pos = var_20;
+                var_19 = var_22;
+                if (var_1 != 0) {
+                    var_24 = "-nt does not accept -l";
+                }
+                else {
+                    var_10 = __xstat(/* vers */ 1, /* name */ *var_18, /* buf */ &var_12);
+                    if (var_10 != 0) {
+                        __xstat(/* vers */ 1, /* name */ *var_15, /* buf */ &var_12);
+                    }
+                    else {
+                        var_10 = __xstat(/* vers */ 1, /* name */ *var_15, /* buf */ &var_12);
+                        if (var_10 != 0) {
+                            var_19 = 1U;
+                        }
+                        else {
+                            var_19 = var_9 > 0;
+                        }
+                    }
+                }
+            }
+            break;
+        case 'o':
+            if ((*(*var_16 + 2L) == 't') && (*(*var_16 + 3L) == 0)) {
+                pos = var_20;
+                var_19 = var_22;
+                if (var_1 != 0) {
+                    var_24 = "-ot does not accept -l";
+                }
+                else {
+                    var_10 = __xstat(/* vers */ 1, /* name */ *var_18, /* buf */ &var_12);
+                    if (var_10 != 0) {
+                        var_9 = __xstat(/* vers */ 1, /* name */ *var_15, /* buf */ &var_12);
+                        var_19 = var_9 == 0;
+                    }
+                    else {
+                        var_10 = __xstat(/* vers */ 1, /* name */ *var_15, /* buf */ &var_12);
+                        if (var_10 == 0) {
+                            var_19 = var_9 >> 31;
+                        }
+                    }
+                }
+            }
+            break;
+        }
+        if (((*(*var_16 + 2L) != 't') || (*(*var_16 + 3L) != 0) || (*(*var_16 + 1L) != 'o')) && ((*(*var_16 + 2L) != 'q') || (*(*var_16 + 3L) != 0) || (*(*var_16 + 1L) != 'e')) && ((var_2 != 'f') || (*(*var_16 + 3L) != 0) || (*(*var_16 + 2L) == 'q') || (*(*var_16 + 1L) != 'e')) && ((*(*var_16 + 1L) != 'l') || (*(*var_16 + 3L) != 0) || (*(*var_16 + 2L) != 't')) && ((*(*var_16 + 2L) != 't') || (*(*var_16 + 3L) != 0) || (*(*var_16 + 1L) != 'g')) && ((*(*var_16 + 3L) != 0) || (*(*var_16 + 2L) != 'e') || (*(*var_16 + 1L) != 'n')) && ((*(*var_16 + 1L) != 'l') || (*(*var_16 + 3L) != 0) || (*(*var_16 + 2L) != 'e')) && ((*(*var_16 + 3L) != 0) || (*(*var_16 + 2L) != 'e') || (*(*var_16 + 1L) != 'g')) && ((*(*var_16 + 3L) != 0) || (var_2 != 't') || (*(*var_16 + 2L) == 'e') || (*(*var_16 + 1L) != 'n'))) {
+            quote(*var_16);
+            var_24 = dcgettext(/* domainname */ 0UL, /* msgid */ "%s: unknown binary operator", /* category */ 5);
+            test_syntax_error(var_24, 0);
+        }
+        if (*(*var_16 + 3L) == 0) {
+            switch(*((*(var_16)) + 0x1)) {
+            case 'e':
+            case 'g':
+            case 'l':
+            case 'n':
+                if (((*(*var_16 + 2L) == 'q') || (*(*var_16 + 1L) != 'e')) && ((*(*var_16 + 1L) == 'l') || (*(*var_16 + 1L) == 'e') || (*(*var_16 + 2L) == 'e') || (*(*var_16 + 1L) == 'g')) && ((*(*var_16 + 1L) == 'e') || (*(*var_16 + 2L) == 'e') || (*(*var_16 + 2L) == 't'))) {
+                    if (arg1 == 0) {
+                        var_23 = find_int(*var_18);
+                    }
+                    else {
+                        var_24 = strlen(*var_18);
+                        var_23 = umaxtostr(var_24, &var_11);
+                    }
+                    var_21 = argv;
+                    var_13 = var_21 + var_17;
+                    if ((unsigned char)var_19 == 0) {
+                        var_24 = find_int(*(var_13 + 8L));
+                    }
+                    else {
+                        var_21 = strlen(*(var_13 + 16L));
+                        var_24 = umaxtostr(var_21, &var_12);
+                    }
+                    var_9 = strintcmp(var_23, var_24);
+                    var_21 = argv;
+                    pos += 3;
+                    var_13 = var_21 + var_17;
+                    switch(*((*(var_13)) + 0x1)) {
+                    case 'g':
+                        var_19 = -(unsigned int)(*(*var_13 + 2L) == 'e') < var_9;
+                        break;
+                    case 'l':
+                        var_19 = (unsigned int)(*(*var_13 + 2L) == 'e') > var_9;
+                        break;
+                    default:
+                        var_19 = var_9 != 0 == *(*var_13 + 2L) == 'e';
+                    }
+                }
+                break;
+            case 'e':
+            case 'n':
+            case 'o':
+                if (((*(*var_16 + 1L) != 'e') || (*(*var_16 + 2L) != 'q')) && ((*(*var_16 + 1L) != 'e') || (var_2 == 'f')) && ((*(*var_16 + 2L) != 'e') || (*(*var_16 + 1L) != 'n')) && ((*(*var_16 + 1L) != 'n') || (var_2 == 't')) && ((*(*var_16 + 1L) == 'e') || (*(*var_16 + 2L) == 't') || (*(*var_16 + 1L) == 'n')) && (var_1 != 0)) {
+                    test_syntax_error(dcgettext(/* domainname */ 0UL, /* msgid */ var_24, /* category */ 5), 0);
+                }
+                break;
+            }
+        }
+    }
+    else if ((**var_16 == '=') && ((*(*var_16 + 1L) == 0) || (*(*var_16 + 1L) == '=')) && ((*(*var_16 + 1L) == 0) || (*(*var_16 + 2L) == 0))) {
+        var_13 = pos;
+        var_14 = var_21 + (var_13 + 2L << 3);
+        var_9 = strcmp(*(var_14 - 16L), *var_14);
+        var_19 = var_9 == 0;
+        pos = (int)var_13 + 3;
+    }
+    else if (**var_16 != '!') {
+        return binary_operator_cold();
+    }
+    else if (*(*var_16 + 1L) != '=') {
+        return binary_operator_cold();
+    }
+    else if (*(*var_16 + 2L) != 0) {
+        return binary_operator_cold();
+    }
+    else {
+        var_13 = pos;
+        var_14 = var_21 + (var_13 + 2L << 3);
+        var_9 = strcmp(*(var_14 - 16L), *var_14);
+        var_19 = var_9 != 0;
+        pos = (int)var_13 + 3;
+    }
+    if (((var_2 == 'f') || (**var_16 != '-') || (*(*var_16 + 2L) == 'q') || (*(*var_16 + 1L) != 'e')) && ((**var_16 != '-') || (*(*var_16 + 2L) == 'q') || (var_1 == 0) || (*(*var_16 + 1L) != 'e')) && ((**var_16 != '-') || (*(*var_16 + 2L) == 'e') || (*(*var_16 + 1L) != 'n') || (var_2 == 't')) && ((*(*var_16 + 1L) == 'l') || (**var_16 != '-') || (*(*var_16 + 1L) == 'e') || (*(*var_16 + 1L) == 'o') || (*(*var_16 + 1L) == 'n') || (*(*var_16 + 1L) == 'g')) && ((*(*var_16 + 1L) == 'l') || (**var_16 != '-') || (*(*var_16 + 1L) == 'e') || (*(*var_16 + 2L) == 't') || (*(*var_16 + 1L) == 'n') || (*(*var_16 + 1L) == 'g')) && ((**var_16 != '-') || (*(*var_16 + 1L) == 'e') || (*(*var_16 + 2L) == 'e') || (*(*var_16 + 2L) == 't') || (*(*var_16 + 1L) == 'n')) && ((**var_16 != '-') || (*(*var_16 + 3L) == 0)) && ((*(*var_16 + 1L) == 'l') || (**var_16 != '-') || (*(*var_16 + 1L) == 'e') || (*(*var_16 + 2L) == 'e') || (var_1 == 0) || (*(*var_16 + 1L) == 'g'))) {
+        return var_19;
+    }
+}
+30.28505489975214

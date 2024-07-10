@@ -1,0 +1,42 @@
+
+
+
+
+char * time_zone_str(int arg1, char * arg2) {
+    unsigned int var_6;
+    int var_0;
+    int var_1;
+    int var_2;
+    unsigned long var_8;
+    long var_7;
+    void * var_4;
+    void * var_5;
+    var_0 = arg1 >> 31;
+    var_1 = (arg1 * 0xffffffff91a2b3c5 / 0 + arg1 >> 11) - var_0;
+    var_2 = var_1 >> 31;
+    var_0 = __sprintf_chk(/* s */ arg2, /* flag */ 1, /* slen */ 0xffffffffffffffff, /* format */ "%c%02d", (unsigned int)((var_0 & 2) + 43), (unsigned int)((var_2 ^ var_1) - var_2));
+    var_1 *= 0xe10;
+    if (arg1 != var_1) {
+        var_5 = arg2 + var_0;
+        *var_5 = 0x3a;
+        arg1 -= var_1;
+        var_0 = arg1 >> 31;
+        arg1 = (arg1 ^ var_0) - var_0;
+        var_6 = (unsigned int)arg1 * 0x88888889 >> 37L & 0xffffffff;
+        var_7 = var_6 * 0xcccccccd / 0;
+        *(var_5 + 1L) = var_7 + 48L & 0xff;
+        var_4 = var_5 + 3L;
+        *(var_5 + 2L) = (unsigned char)var_6 - var_7 * 10 + '0';
+        var_6 *= 60;
+        if (arg1 != var_6) {
+            *var_4 = 0x3a;
+            var_8 = (unsigned int)(arg1 - (arg1 * 0x88888889 >> 37L & 0xffffffff) * 60) * 0xcccccccd >> 35L;
+            *(var_5 + 4L) = var_8 + 48L & 0xff;
+            var_4 = var_5 + 6L;
+            *(var_5 + 5L) = (char)(arg1 - var_6) - var_8 * 10 + '0';
+        }
+        *var_4 = 0x0;
+    }
+    return arg2;
+}
+1.9531135000288486

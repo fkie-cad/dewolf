@@ -1,0 +1,29 @@
+
+
+struct tm {
+    int tm_sec;
+    int tm_min;
+    int tm_hour;
+    int tm_mday;
+    int tm_mon;
+    int tm_year;
+    int tm_wday;
+    int tm_yday;
+    int tm_isdst;
+    long tm_gmtoff;
+    char * tm_zone;
+};
+
+void * debug_strfdatetime.constprop.0(tm * arg1, void * arg2, void * arg3) {
+    void var_2;
+    int var_3;
+    char * var_4;
+    var_3 = nstrftime(arg3, 100L, "(Y-M-D) %Y-%m-%d %H:%M:%S", arg1, 0UL, 0);
+    if ((arg2 == 0L) || (var_3 > 99) || (*(arg2 + 208L) == 0L)) {
+        return arg3;
+    }
+    var_4 = time_zone_str(*(arg2 + 24L), &var_2);
+    __snprintf_chk(/* s */ var_3 + arg3, /* maxlen */ 100 - var_3, /* flag */ 1, /* slen */ 0xffffffffffffffff, /* format */ " TZ=%s", var_4);
+    return arg3;
+}
+1.3334436998702586

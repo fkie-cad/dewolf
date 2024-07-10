@@ -1,0 +1,96 @@
+extern unsigned long * stderr = 0UL;
+
+
+
+long debug_print_relative_time.part.0(long arg1, void * arg2) {
+    long var_17;
+    char var_18;
+    void * var_10;
+    void * var_11;
+    void * var_12;
+    void * var_13;
+    void * var_14;
+    void * var_15;
+    unsigned long * var_19;
+    char * var_16;
+    var_16 = dcgettext(/* domainname */ 0UL, /* msgid */ "parsed %s part: ", /* category */ 5);
+    dbg_printf(var_16, 0);
+    var_10 = arg2 + 104L;
+    var_11 = arg2 + 112L;
+    var_12 = arg2 + 120L;
+    var_13 = arg2 + 128L;
+    var_14 = arg2 + 136L;
+    var_15 = arg2 + 144L;
+    arg2 += 152L;
+    if (*var_10 != 0L) {
+        print_rel_part_part_0(0, *var_10, "year(s)");
+        var_17 = *var_11;
+        if (*var_11 != 0L) {
+            var_18 = 1;
+        }
+        else {
+            var_17 = *var_12;
+        }
+    }
+    else {
+        var_17 = *var_11;
+        if (*var_11 != 0L) {
+            var_18 = 0;
+        }
+        else {
+            var_17 = *var_12;
+            if (*var_12 != 0L) {
+                var_18 = 0;
+            }
+            else if (*var_13 != 0L) {
+                var_18 = 0;
+            }
+            else if (*var_14 != 0L) {
+                var_18 = 0;
+            }
+            else if (*var_15 != 0L) {
+                var_18 = 0;
+            }
+            else if (*arg2 != 0) {
+                var_18 = 0;
+            }
+            else {
+                var_16 = dcgettext(/* domainname */ 0UL, /* msgid */ "today/this/now\n", /* category */ 5);
+                var_19 = stderr;
+                return fputs(/* str */ var_16, /* fp */ var_19);
+            }
+        }
+    }
+    if (*var_11 != 0L) {
+        print_rel_part_part_0(var_18, var_17, "month(s)");
+        var_17 = *var_12;
+    }
+    if (((*var_10 != 0L) || (*var_11 != 0L)) && (var_17 != 0L)) {
+        var_18 = 1;
+    }
+    if (((*var_10 != 0L) || (*var_11 != 0L)) && (var_17 == 0L)) {
+        var_18 = 1;
+    }
+    else if ((*var_12 != 0L) || (*var_10 != 0L) || (*var_11 != 0L)) {
+        print_rel_part_part_0(var_18, var_17, "day(s)");
+        var_18 = 1;
+    }
+    if (*var_13 != 0L) {
+        print_rel_part_part_0(var_18, *var_13, "hour(s)");
+        var_18 = 1;
+    }
+    if (*var_14 != 0L) {
+        print_rel_part_part_0(var_18, *var_14, "minutes");
+        var_18 = 1;
+    }
+    if (*var_15 != 0L) {
+        print_rel_part_part_0(var_18, *var_15, "number of seconds");
+        var_18 = 1;
+    }
+    if (*arg2 != 0) {
+        print_rel_part_part_0(var_18, *arg2, "nanoseconds");
+    }
+    var_19 = stderr;
+    return fputc(/* c */ 10, /* fp */ var_19);
+}
+3.926361700054258

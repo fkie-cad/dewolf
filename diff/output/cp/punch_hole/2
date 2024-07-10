@@ -1,0 +1,16 @@
+
+
+
+
+unsigned long punch_hole(int arg1, long arg2, long arg3) {
+    int * var_0;
+    arg1 = fallocate(/* fd */ arg1, /* mode */ 3, /* offset */ arg2, /* len */ arg3);
+    if (arg1 < 0) {
+        var_0 = __errno_location();
+        if ((*var_0 == 38) || (*var_0 == 95)) {
+            return 0L;
+        }
+    }
+    return (unsigned int)arg1;
+}
+1.4475881000980735

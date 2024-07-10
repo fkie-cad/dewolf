@@ -1,0 +1,20 @@
+extern unsigned int pos = 0U;
+extern unsigned int argc = 0U;
+
+
+
+unsigned int unary_advance() {
+    bool var_2;
+    unsigned long var_1;
+    long var_4;
+    var_1 = pos;
+    var_4 = var_1 + 1L;
+    var_2 = (var_4 & 0xffffffff) >= argc;
+    pos = var_4 & 0xffffffff;
+    if (var_2 == false) {
+        pos = (unsigned int)var_1 + 2;
+        return (unsigned int)var_1 + 2;
+    }
+    beyond();
+}
+0.8731363001279533

@@ -1,0 +1,66 @@
+extern unsigned char field_data[0x8] = "\x00\x00\x00\x00\x00\x00\x00\x00";
+extern char [6] * data_18028 = "source";
+
+
+
+long decode_output_arg() {
+    int var_12;
+    long var_13;
+    char * var_0;
+    char * var_1;
+    char * var_2;
+    char * var_3;
+    void ** var_10;
+    void ** var_11;
+    var_0 = xstrdup(var_0);
+    var_1 = var_0;
+    while (true) {
+        var_2 = strchr(var_1, 44);
+        if (var_2 == 0L) {
+            var_2 = 0UL;
+        }
+        else {
+            *var_2 = 0x0;
+            var_2++;
+        }
+        var_10 = &data_18028;
+        var_12 = 0;
+        while (true) {
+            var_11 = *var_10;
+            var_3 = strcmp(*var_10, var_1);
+            if (var_3 != 0) {
+                var_12++;
+                var_10 += 48L;
+                if (var_12 != 12) {
+                    continue;
+                }
+                var_13 = quote(var_1);
+                var_0 = "option --output: field %s unknown";
+            }
+            else if (*(field_data + (unsigned int)var_12 * 48 + 44L) != 0) {
+                var_13 = quote(var_11);
+                var_0 = "option --output: field %s used more than once";
+            }
+            else {
+                switch(var_12) {
+                case 2:
+                    alloc_field(2, "Size");
+                    break;
+                case 4:
+                    alloc_field(4, "Avail");
+                    break;
+                default:
+                    alloc_field(var_12, 0L);
+                }
+                if (var_2 != 0L) {
+                    var_1 = var_2;
+                    break;
+                }
+                return free(/* ptr */ var_0);
+            }
+            error(/* status */ 0, /* errnum */ 0, /* message */ dcgettext(/* domainname */ 0UL, /* msgid */ var_0, /* category */ 5), var_13);
+            usage(1);
+        }
+    }
+}
+3.0881091998890042

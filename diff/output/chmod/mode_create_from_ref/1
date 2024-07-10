@@ -1,0 +1,24 @@
+extern const unsigned char data_fff[0x849] = "\x00\xD9\xB1\x00\x00\x00\x00\x00\x00\x20\xFB\x00\x00\x00\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\xE1\xB1\x00\x00\x00\x00\x00...";
+
+
+
+short * mode_create_from_ref(char * arg1) {
+    void var_0;
+    int var_2;
+    int var_3;
+    short * var_4;
+    var_3 = __xstat(/* vers */ 1, /* name */ arg1, /* buf */ &var_0);
+    if (var_3 != 0) {
+        var_4 = 0UL;
+    }
+    else {
+        var_4 = xmalloc(32UL);
+        *var_4 = 0x13d;
+        *(var_4 + 4L) = data_fff;
+        *(var_4 + 8L) = var_2;
+        *(var_4 + 12L) = data_fff;
+        *(var_4 + 17L) = 0x0;
+    }
+    return var_4;
+}
+2.597902599722147

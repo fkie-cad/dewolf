@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from itertools import chain, combinations
 from typing import Dict, Iterator, List, Literal, Optional, Set, Tuple
 
+from decompiler.pipeline.controlflowanalysis.restructuring_options import CbfNodeOrder, RestructuringOptions
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, ConditionNode, SeqNode
 from decompiler.structures.ast.reachability_graph import SiblingReachability
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
@@ -92,7 +93,7 @@ class Symbol:
 class ConditionCandidates:
     """A graph implementation handling conditions for the condition-based refinement algorithm."""
 
-    def __init__(self, sequence_node: SeqNode, sibling_reachability: SiblingReachability) -> None:
+    def __init__(self, sequence_node: SeqNode, sibling_reachability: SiblingReachability, options: RestructuringOptions) -> None:
         """
         Init for the condition-candidates.
 
@@ -105,12 +106,13 @@ class ConditionCandidates:
         """
         self.sequence_node: SeqNode = sequence_node
         self.sibling_reachability: SiblingReachability = sibling_reachability
+        self._options = options
         self._candidates: Dict[AbstractSyntaxTreeNode, Formula] = {
             child: Formula(child)
             for child in sequence_node.children
             if not child.reaching_condition.is_true or isinstance(child, ConditionNode)
         }
-        self._unconsidered_nodes: InsertionOrderedSet[AbstractSyntaxTreeNode] = InsertionOrderedSet()
+        self._unconsidered_nodes: list[AbstractSyntaxTreeNode] = []
         self._logic_graph: DiGraph = DiGraph()
         self._initialize_logic_graph()
 
@@ -161,7 +163,14 @@ class ConditionCandidates:
 
     def get_next_subexpression(self) -> Iterator[Tuple[AbstractSyntaxTreeNode, LogicCondition]]:
         """Consider Candidates in sequence-node order and start with the largest possible subexpression."""
-        self._unconsidered_nodes = InsertionOrderedSet(self._candidates)
+        match self._options.cbf_node_order:
+            case CbfNodeOrder.NONE:
+                self._unconsidered_nodes = list(self._candidates)
+            case CbfNodeOrder.SMALLEST_FIRST:
+                self._unconsidered_nodes = [k for k, v in sorted(self._candidates.items(), key=lambda e: len(e[1].clauses()))]
+            case CbfNodeOrder.BIGGEST_FIRST:
+                self._unconsidered_nodes = [k for k, v in sorted(self._candidates.items(), key=lambda e: len(e[1].clauses()), reverse=True)]
+
         while self._unconsidered_nodes and len(self._candidates) > 1 and ((max_expr_size := self.maximum_subexpression_size()) != 0):
             ast_node = self._unconsidered_nodes.pop(0)
             clauses = self._get_clauses(ast_node)
@@ -196,7 +205,7 @@ class ConditionCandidates:
         """Add new node to the logic-graph"""
         formula = Formula(condition_node)
         self._candidates[condition_node] = formula
-        self._unconsidered_nodes.add(condition_node)
+        self._unconsidered_nodes.append(condition_node)
         self._logic_graph.add_node(formula)
         for clause in formula.clauses():
             self._logic_graph.add_edge(formula, clause)
@@ -271,7 +280,10 @@ class ConditionCandidates:
         """
         self._logic_graph.remove_node(formula)
         del self._candidates[formula.ast_node]
-        self._unconsidered_nodes.discard(formula.ast_node)
+        try:
+            self._unconsidered_nodes.remove(formula.ast_node)
+        except ValueError:
+            pass
 
     def _remove_symbols(self, removing_symbols: Set[Symbol]):
         """
@@ -317,20 +329,21 @@ class ConditionBasedRefinement:
     Because ¬b1 ∨ ¬b2 is equivalent to ¬(b1∧b2) according to De Morgan's law.
     """
 
-    def __init__(self, asforest: AbstractSyntaxForest, root: Optional[AbstractSyntaxTreeNode] = None):
+    def __init__(self, asforest: AbstractSyntaxForest, options: RestructuringOptions, root: Optional[AbstractSyntaxTreeNode] = None):
         """Init an instance of the condition-based refinement."""
         self.asforest: AbstractSyntaxForest = asforest
         self.root: AbstractSyntaxTreeNode = asforest.current_root if root is None else root
+        self.options = options
         self._condition_candidates: Optional[ConditionCandidates] = None
 
     @classmethod
-    def refine(cls, asforest: AbstractSyntaxForest, root: Optional[AbstractSyntaxTreeNode] = None) -> None:
+    def refine(cls, asforest: AbstractSyntaxForest, options: RestructuringOptions, root: Optional[AbstractSyntaxTreeNode] = None) -> None:
         """Apply the condition-based-refinement to the given abstract-syntax-forest starting at the given root."""
         if root is None:
             root = asforest.current_root
         if not isinstance(root, SeqNode):
             return
-        if_refinement = cls(asforest, root)
+        if_refinement = cls(asforest, options, root)
         if_refinement._condition_based_refinement()
 
     def _condition_based_refinement(self) -> None:
@@ -390,7 +403,7 @@ class ConditionBasedRefinement:
         """
         newly_created_sequence_nodes: Set[SeqNode] = set()
         sibling_reachability: SiblingReachability = self.asforest.get_sibling_reachability_of_children_of(sequence_node)
-        self._condition_candidates = ConditionCandidates(sequence_node, sibling_reachability)
+        self._condition_candidates = ConditionCandidates(sequence_node, sibling_reachability, self.options)
         for child, subexpression in self._condition_candidates.get_next_subexpression():
             newly_created_sequence_nodes.update(self._cluster_by_condition(subexpression, child))
 

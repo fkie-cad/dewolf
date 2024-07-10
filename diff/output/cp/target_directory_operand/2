@@ -1,0 +1,63 @@
+extern unsigned char data_f000[0x10] = "\x75\xEC\x48\x8B\x36\x48\x8B\x3F\xE9\x53\x22\x00\x00\x0F\x1F\x00";
+
+struct stat {
+    unsigned long st_dev;
+    unsigned long st_ino;
+    unsigned long st_nlink;
+    unsigned int st_mode;
+    unsigned int st_uid;
+    unsigned int st_gid;
+    int __pad0;
+    unsigned long st_rdev;
+    long st_size;
+    long st_blksize;
+    long st_blocks;
+    timespec st_atim;
+    timespec st_mtim;
+    timespec st_ctim;
+    long [3] __glibc_reserved;
+};
+struct timespec {
+    long tv_sec;
+    long tv_nsec;
+};
+
+unsigned long target_directory_operand(char * arg1, stat * arg2, char * arg3, char arg4) {
+    int var_3;
+    unsigned long var_5;
+    void * var_6;
+    void * var_7;
+    int * var_4;
+    long * var_8;
+    char * var_0;
+    var_3 = __xstat(/* vers */ 1, /* name */ arg1, /* buf */ arg2);
+    if (var_3 != 0) {
+        var_4 = __errno_location();
+    }
+    else {
+        arg2 = arg2->st_mode & data_f000;
+        if (arg2 == getppid) {
+            var_5 = 1UL;
+        }
+    }
+    if ((var_3 == 0) || (*var_4 == 0)) {
+        if ((var_3 != 0) || (arg2 != getppid)) {
+            var_5 = var_3 % 2;
+        }
+    }
+    else if (*var_4 == 2) {
+        *arg3 = 0x1;
+        var_5 = 0UL;
+    }
+    else if (arg4 != 0) {
+        arg2->st_mode = 0x0;
+        var_5 = 0UL;
+    }
+    else {
+        arg3 = dcgettext(/* domainname */ 0UL, /* msgid */ "failed to access %s", /* category */ 5);
+        var_8, arg3, var_6, arg1, var_0, var_7 = error(/* status */ 1, /* errnum */ (unsigned int)*var_4, /* message */ arg3, quotearg_style(4, arg1));
+        return make_dir_parents_private(arg1, var_6, arg3, var_8, var_0, var_7);
+    }
+    return var_5;
+}
+2.590301299933344

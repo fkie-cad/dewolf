@@ -1,0 +1,77 @@
+extern unsigned int argc = 0U;
+extern unsigned int pos = 0U;
+extern unsigned long argv = 0UL;
+
+
+
+char * posixtest(int arg1) {
+    bool var_9;
+    unsigned int var_5;
+    unsigned int var_6;
+    unsigned long var_7;
+    long var_3;
+    long var_4;
+    char * var_8;
+    switch(arg1) {
+    case 1:
+        var_3 = pos;
+        pos = var_3 + 1L & 0xffffffff;
+        var_8 = argv;
+        var_8 = **(var_8 + (var_3 << 3)) != 0;
+        break;
+    case 2:
+        return two_arguments();
+        break;
+    case 3:
+        return three_arguments();
+        break;
+    case 4:
+        var_4 = pos;
+        var_7 = argv;
+        var_6 = (unsigned int)var_4;
+        var_3 = var_7 + (var_4 << 3);
+        var_5 = (int)var_4 + 1;
+        if (*(*var_3 + 1L) == 0) {
+            switch((unsigned int) *(*(var_3))) {
+            case 33:
+                var_9 = (int)var_4 + 1 >= argc;
+                pos = var_5;
+                if (var_9 == false) {
+                    var_8 = (unsigned int)(three_arguments() ^ 1);
+                }
+                break;
+            case 40:
+                var_3 = var_7 + var_4 * 8 + 24L;
+                if ((**var_3 == ')') && (*(*var_3 + 1L) == 0)) {
+                    pos = var_5;
+                    var_8 = two_arguments();
+                    pos++;
+                }
+                break;
+            }
+        }
+        break;
+    }
+    if (arg1 != 3) {
+        if (arg1 > 3) {
+            if (arg1 != 4) {
+                var_6 = pos;
+            }
+            if ((((unsigned int)**var_3 != 33) || (*(*var_3 + 1L) != 0) || (var_9 != false) || (arg1 != 4)) && ((*(*var_3 + 1L) != 0) || ((unsigned int)**var_3 != 40) || (*(*var_3 + 1L) != 0) || (**var_3 != ')') || (arg1 != 4)) && ((argc <= var_6) || (arg1 == 4)) && (((unsigned int)**var_3 == 33) || (argc <= var_6)) && ((argc <= var_6) || (*(*var_3 + 1L) == 0))) {
+                beyond();
+            }
+        }
+        else if (arg1 != 1) {
+            return posixtest_cold();
+        }
+        if ((arg1 > 3) && (((unsigned int)**var_3 != 33) || (*(*var_3 + 1L) != 0) || (arg1 != 4)) && ((*(*var_3 + 1L) != 0) || ((unsigned int)**var_3 != 40) || (*(*var_3 + 1L) != 0) || (**var_3 != ')') || (arg1 != 4))) {
+            if (argc > var_6) {
+                return or();
+            }
+        }
+        else if ((((unsigned int)**var_3 != 33) || (arg1 <= 3) || (var_9 == false)) && ((arg1 > 3) || (arg1 == 1))) {
+            return var_8;
+        }
+    }
+}
+6.5562526998110116

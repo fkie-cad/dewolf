@@ -1,0 +1,37 @@
+
+
+
+
+long * tzalloc(char * arg1) {
+    unsigned long var_1;
+    unsigned long var_2;
+    long var_3;
+    long * var_0;
+    if (arg1 == 0L) {
+        var_0 = malloc(/* n */ 128UL);
+    }
+    else {
+        var_1 = strlen(arg1);
+        var_3 = var_1 + 1L;
+        if (var_3 < 118L) {
+            var_2 = 118UL;
+        }
+        else {
+            var_2 = var_1 + 1L;
+        }
+        var_0 = malloc(/* n */ var_2 + 17L & -8L);
+        if (var_0 != 0L) {
+            *var_0 = 0x0;
+            *(var_0 + 8L) = 0x1;
+            memcpy(var_0 + 9L, arg1, var_3);
+            *(var_0 + var_1 + 0xa) = 0x0;
+        }
+    }
+    if ((arg1 != 0L) || (var_0 == 0L)) {
+        return var_0;
+    }
+    *var_0 = 0x0;
+    *(var_0 + 8L) = 0x0;
+    return var_0;
+}
+1.4550235997885466

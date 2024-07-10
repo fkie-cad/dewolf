@@ -1,0 +1,17 @@
+extern unsigned char completed_8060 = 0U;
+extern void * __dso_handle = &__dso_handle;
+
+
+
+void __do_global_dtors_aux() {
+    void * var_2;
+    if (completed_8060 != 0) {
+        return;
+    }
+    var_2 = __dso_handle;
+    __cxa_finalize(/* d */ var_2);
+    deregister_tm_clones();
+    completed_8060 = 1U;
+    return;
+}
+0.9023464000783861

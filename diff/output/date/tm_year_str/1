@@ -1,0 +1,20 @@
+
+
+
+
+char * tm_year_str(int arg1, char * arg2) {
+    int var_0;
+    int var_1;
+    int var_2;
+    int var_3;
+    char * tmp_0;
+    var_0 = (arg1 * 0x51eb851f >> 37L & 0xffffffff) - (arg1 >> 31);
+    var_2 = arg1 - var_0 * 100;
+    var_3 = var_2 >> 31;
+    var_0 += 19;
+    var_1 = var_0 >> 31;
+    tmp_0 = (arg1 >= 0xfffff894) + "-%02d%02d";
+    __sprintf_chk(/* s */ arg2, /* flag */ 1, /* slen */ 0xffffffffffffffff, /* format */ tmp_0, (unsigned int)((var_0 ^ var_1) - var_1), (unsigned int)((var_2 ^ var_3) - var_3));
+    return arg2;
+}
+0.9943963000550866

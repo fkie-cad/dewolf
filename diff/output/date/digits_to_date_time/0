@@ -1,0 +1,59 @@
+
+
+
+
+long digits_to_date_time(void * arg1, int128_t arg2, long arg3, long arg4) {
+    long var_5;
+    long var_6;
+    long var_7;
+    long var_8;
+    long var_9;
+    void * var_0;
+    void * var_1;
+    void * var_2;
+    void * var_3;
+    void * var_4;
+    var_2 = arg1 + 168L;
+    var_5 = *var_2;
+    var_0 = arg1 + 48L;
+    var_1 = arg1 + 200L;
+    var_3 = arg1 + 72L;
+    var_4 = arg1 + 80L;
+    if ((*var_2 != 0L) && (*var_0 == 0L) && (*(arg1 + 161L) == 0)) {
+        if ((*var_1 != 0L) || (arg4 > 2L)) {
+            *(arg1 + 216L) = 0x1;
+            *var_0 = arg4;
+            *(arg1 + 32L) = arg2;
+            return arg4;
+        }
+        *var_1 = 0x1;
+    }
+    else {
+        var_9 = (arg3 * 0xa3d70a3d70a3d70b >> 64UL) + arg3 >> 6L;
+        var_8 = arg3 >> 63L;
+        var_7 = var_9 - var_8;
+        var_6 = var_7 * 5 * 20;
+        if (arg4 > 4L) {
+            *var_2 = *var_2 + 1L;
+            *var_0 = arg4 - 4L;
+            *(arg1 + 64L) = arg3 - var_6;
+            *(arg1 + 56L) = var_7 - (((var_7 * 0xa3d70a3d70a3d70b >> 64UL) + var_7 >> 6L) - (var_7 >> 63L)) * 5 * 20;
+            arg2 = arg3 * 0x346dc5d63886594b;
+            *(arg1 + 40L) = (arg2 >> 64UL >> 11L) - var_8;
+            return arg2 & -1L;
+        }
+        *var_1++;
+    }
+    if ((arg4 > 2L) && ((*var_0 != 0L) || (*var_2 == 0L) || (*(arg1 + 161L) != 0))) {
+        *var_3 = var_9 - var_8;
+        *var_4 = arg3 - var_6;
+        var_5 = var_6;
+    }
+    else {
+        *var_3 = arg3;
+        __builtin_memset(/* s */ var_4, /* c */ 0L, /* n */ 24L);
+    }
+    *(arg1 + 28L) = 0x2;
+    return var_5;
+}
+2.420627700164914

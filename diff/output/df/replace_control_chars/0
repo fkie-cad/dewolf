@@ -1,0 +1,19 @@
+
+
+
+
+long replace_control_chars(char * arg1) {
+    char * var_0;
+    while (true) {
+        var_0 = *arg1;
+        if (*arg1 == 0) {
+            break;
+        }
+        if (((var_0 <= 31) || (var_0 == 127)) && (var_0 > 0)) {
+            *arg1 = 0x3f;
+        }
+        arg1++;
+    }
+    return var_0;
+}
+1.4877208000980318

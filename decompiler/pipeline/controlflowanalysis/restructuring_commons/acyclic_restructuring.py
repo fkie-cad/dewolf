@@ -91,13 +91,13 @@ class AcyclicRegionRestructurer:
         acyclic_processor = AcyclicProcessor(self.asforest)
         self.asforest.set_current_root(seq_node_root)
         acyclic_processor.preprocess_condition_refinement()
-        ConditionBasedRefinement.refine(self.asforest)
+        ConditionBasedRefinement.refine(self.asforest, self.options)
         acyclic_processor.preprocess_condition_aware_refinement()
         if self.options.reconstruct_switch:
             updated_switch_nodes = ConditionAwareRefinement.refine(self.asforest, self.options)
             for switch_node in updated_switch_nodes:
                 for sequence_case in (c for c in switch_node.cases if isinstance(c.child, SeqNode)):
-                    ConditionBasedRefinement.refine(self.asforest, sequence_case.child)
+                    ConditionBasedRefinement.refine(self.asforest, self.options, sequence_case.child)
         acyclic_processor.postprocess_condition_refinement()
         root = self.asforest.current_root
         self.asforest.remove_current_root()

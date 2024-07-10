@@ -1,0 +1,35 @@
+
+
+struct tm {
+    int tm_sec;
+    int tm_min;
+    int tm_hour;
+    int tm_mday;
+    int tm_mon;
+    int tm_year;
+    int tm_wday;
+    int tm_yday;
+    int tm_isdst;
+    long tm_gmtoff;
+    char * tm_zone;
+};
+
+tm * localtime_rz(long ** arg1, long * arg2, tm * arg3) {
+    long * var_0;
+    if (arg1 != 0L) {
+        var_0 = set_tz(arg1);
+        if (var_0 != 0L) {
+            if ((localtime_r(/* t */ arg2, /* tp */ arg3) == 0L) || (save_abbr(arg1, arg3) == 0)) {
+                if (var_0 != 1L) {
+                    revert_tz_part_0(var_0);
+                }
+            }
+            else if ((var_0 == 1L) || (revert_tz_part_0(var_0) != 0)) {
+                return arg3;
+            }
+        }
+        return 0L;
+    }
+    return gmtime_r(/* t */ arg2, /* tp */ arg3);
+}
+2.202105399686843

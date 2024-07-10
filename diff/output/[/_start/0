@@ -1,0 +1,13 @@
+
+
+
+
+void _start(long arg1, long arg2, void (* arg3)()) {
+    void var_2;
+    long var_0;
+    long var_3;
+    void * var_1;
+    var_3 = var_0;
+    __libc_start_main(/* main */ main, var_1, /* ubp_av */ &var_2, /* init */ __libc_csu_init, /* fini */ __libc_csu_fini, /* rtld_fini */ arg3, /* stack_end */ &var_3);
+}
+0.8733598003163934

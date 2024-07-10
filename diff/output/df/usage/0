@@ -1,0 +1,237 @@
+extern unsigned long program_name = 0UL;
+extern unsigned long * stderr = 0UL;
+extern unsigned long * stdout = 0UL;
+extern const unsigned char data_11080[0x2] = "\x5B\x00";
+
+struct _IO_FILE {
+    int _flags;
+    char * _IO_read_ptr;
+    char * _IO_read_end;
+    char * _IO_read_base;
+    char * _IO_write_base;
+    char * _IO_write_ptr;
+    char * _IO_write_end;
+    char * _IO_buf_base;
+    char * _IO_buf_end;
+    char * _IO_save_base;
+    char * _IO_backup_base;
+    char * _IO_save_end;
+    _IO_marker * _markers;
+    _IO_FILE * _chain;
+    int _fileno;
+    int _flags2;
+    long _old_offset;
+    unsigned short _cur_column;
+    char _vtable_offset;
+    char [1] _shortbuf;
+    _IO_lock_t * _lock;
+    long _offset;
+    _IO_codecvt * _codecvt;
+    _IO_wide_data * _wide_data;
+    _IO_FILE * _freeres_list;
+    void * _freeres_buf;
+    unsigned long __pad5;
+    int _mode;
+    char [20] _unused2;
+};
+struct _IO_marker {
+    void * _next;
+    void * _sbuf;
+    int _pos;
+};
+struct _IO_lock_t {
+    int lock;
+    int cnt;
+    void * owner;
+};
+struct _IO_codecvt {
+    _IO_iconv_t __cd_in;
+    _IO_iconv_t __cd_out;
+};
+struct _IO_iconv_t {
+    __gconv_step * step;
+    __gconv_step_data step_data;
+};
+struct __gconv_step {
+    void * __shlib_handle;
+    char * __modname;
+    int __counter;
+    char * __from_name;
+    char * __to_name;
+    void __fct;
+    unsigned int(void *, unsigned char) * __btowc_fct;
+    int(void *) * __init_fct;
+    void(void *) * __end_fct;
+    int __min_needed_from;
+    int __max_needed_from;
+    int __min_needed_to;
+    int __max_needed_to;
+    int __stateful;
+    void * __data;
+};
+struct __gconv_step_data {
+    unsigned char * __outbuf;
+    unsigned char * __outbufend;
+    int __flags;
+    int __invocation_counter;
+    int __internal_use;
+    __mbstate_t * __statep;
+    __mbstate_t __state;
+};
+struct __mbstate_t {
+    int __count;
+    union __value {
+        unsigned int __wch;
+        char [4] __wchb;
+    };
+};
+union __value {
+    unsigned int __wch;
+    char [4] __wchb;
+};
+struct _IO_wide_data {
+    int * _IO_read_ptr;
+    int * _IO_read_end;
+    int * _IO_read_base;
+    int * _IO_write_base;
+    int * _IO_write_ptr;
+    int * _IO_write_end;
+    int * _IO_buf_base;
+    int * _IO_buf_end;
+    int * _IO_save_base;
+    int * _IO_backup_base;
+    int * _IO_save_end;
+    __mbstate_t _IO_state;
+    __mbstate_t _IO_last_state;
+    _IO_codecvt _codecvt;
+    int [1] _shortbuf;
+    void * _wide_vtable;
+};
+
+void usage(int arg1) {
+    char* var_72;
+    unsigned char* var_67;
+    char* var_75;
+    unsigned long var_79;
+    long var_76;
+    long var_77;
+    long var_78;
+    void * var_74;
+    unsigned long * var_73;
+    long * var_70;
+    long * var_71;
+    char * var_68;
+    char * var_69;
+    var_68 = program_name;
+    if (arg1 != 0) {
+        var_69 = dcgettext(/* domainname */ 0UL, /* msgid */ "Try '%s --help' for more information.\n", /* category */ 5);
+        var_73 = stderr;
+        __fprintf_chk(/* fp */ var_73, /* flag */ 1, /* format */ var_69, var_68);
+    }
+    else {
+        var_69 = dcgettext(/* domainname */ 0UL, /* msgid */ "Usage: %s [OPTION]... [FILE]...\n", /* category */ 5);
+        __printf_chk(/* flag */ 1, /* format */ var_69, var_68);
+        var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "Show information about the file system on which each FILE resides,\nor all file systems by default.\n", /* category */ 5);
+        var_73 = stdout;
+        fputs_unlocked(/* str */ var_68, /* fp */ var_73);
+        var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nMandatory arguments to long options are mandatory for short options too.\n", /* category */ 5);
+        var_73 = stdout;
+        fputs_unlocked(/* str */ var_68, /* fp */ var_73);
+        var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -a, --all             include pseudo, duplicate, inaccessible file systems\n  -B, --block-size=SIZE  scale sizes by SIZE befor", /* category */ 5);
+        var_73 = stdout;
+        fputs_unlocked(/* str */ var_68, /* fp */ var_73);
+        var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -i, --inodes          list inode information instead of block usage\n  -k                    like --block-size=1K\n  -l, --loc", /* category */ 5);
+        var_73 = stdout;
+        fputs_unlocked(/* str */ var_68, /* fp */ var_73);
+        var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --output[=FIELD_LIST]  use the output format defined by FIELD_LIST,\n                               or print all fields if", /* category */ 5);
+        var_73 = stdout;
+        fputs_unlocked(/* str */ var_68, /* fp */ var_73);
+        var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --total           elide all entries insignificant to available space,\n                          and produce a grand total", /* category */ 5);
+        var_73 = stdout;
+        fputs_unlocked(/* str */ var_68, /* fp */ var_73);
+        var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -t, --type=TYPE       limit listing to file systems of type TYPE\n  -T, --print-type      print file system type\n  -x, --excl", /* category */ 5);
+        var_73 = stdout;
+        fputs_unlocked(/* str */ var_68, /* fp */ var_73);
+        var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --help     display this help and exit\n", /* category */ 5);
+        var_73 = stdout;
+        fputs_unlocked(/* str */ var_68, /* fp */ var_73);
+        var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --version  output version information and exit\n", /* category */ 5);
+        var_73 = stdout;
+        fputs_unlocked(/* str */ var_68, /* fp */ var_73);
+        var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nDisplay values are in units of the first available SIZE from --block-size,\nand the %s_BLOCK_SIZE, BLOCK_SIZE and BLOCKSIZE en", /* category */ 5);
+        __printf_chk(/* flag */ 1, /* format */ var_68, "DF");
+        var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nThe SIZE argument is an integer and optional unit (example: 10K is 10*1024).\nUnits are K,M,G,T,P,E,Z,Y (powers of 1024) or KB", /* category */ 5);
+        var_73 = stdout;
+        fputs_unlocked(/* str */ var_68, /* fp */ var_73);
+        var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nFIELD_LIST is a comma-separated list of columns to be included.  Valid\nfield names are: 'source', 'fstype', 'itotal', 'iused'", /* category */ 5);
+        var_73 = stdout;
+        fputs_unlocked(/* str */ var_68, /* fp */ var_73);
+        var_71 = &var_67;
+        var_67 = data_11080;
+        var_72 = "test invocation";
+        var_70 = var_71;
+        while (true) {
+            var_71 = var_70 + 16L;
+            var_74 = var_70 + 16L;
+            if (*var_74 == 0L) {
+                break;
+            }
+            if ((unsigned int)**var_74 != 100) {
+                var_70 = var_71;
+                continue;
+            }
+            if ((unsigned int)*(*var_74 + 1L) != 102) {
+                var_70 = var_71;
+                continue;
+            }
+            if (*(*var_74 + 2L) == 0) {
+                break;
+            }
+            var_70 = var_71;
+        }
+        var_74 = var_70 + 0x18;
+        var_75 = *var_74;
+        if (*var_74 != 0L) {
+            var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "\n%s online help: <%s>\n", /* category */ 5);
+            var_77, var_76, var_79, var_78 = __printf_chk(/* flag */ 1, /* format */ var_68, "GNU coreutils", "https://www.gnu.org/software/coreutils/");
+            var_68 = setlocale(/* category */ 5, /* locale */ 0UL, var_76, var_77, var_79, var_78, /* category */ var_67, /* category */ var_72);
+            if (var_68 != 0L) {
+                var_68 = strncmp(var_68, "en_", 3UL);
+            }
+        }
+        else {
+            var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "\n%s online help: <%s>\n", /* category */ 5);
+            var_77, var_76, var_79, var_78 = __printf_chk(/* flag */ 1, /* format */ var_68, "GNU coreutils", "https://www.gnu.org/software/coreutils/");
+            var_68 = setlocale(/* category */ 5, /* locale */ 0UL, var_76, var_77, var_79, var_78, /* category */ var_67, /* category */ var_72);
+            if (var_68 != 0L) {
+                var_68 = strncmp(var_68, "en_", 3UL);
+                if (var_68 != 0) {
+                    var_75 = "df";
+                }
+            }
+        }
+        if ((*var_74 == 0L) && ((var_68 == 0L) || (var_68 == 0))) {
+            var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "Full documentation <%s%s>\n", /* category */ 5);
+            var_75 = "df";
+            __printf_chk(/* flag */ 1, /* format */ var_68, "https://www.gnu.org/software/coreutils/", "df");
+            var_68 = "Multi-call invocation";
+        }
+        else {
+            if ((*var_74 == 0L) || ((var_68 != 0) && (var_68 != 0L))) {
+                var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "Report any translation bugs to <https://translationproject.org/team/>\n", /* category */ 5);
+                var_73 = stdout;
+                fputs_unlocked(/* str */ var_68, /* fp */ var_73);
+            }
+            var_68 = dcgettext(/* domainname */ 0UL, /* msgid */ "Full documentation <%s%s>\n", /* category */ 5);
+            __printf_chk(/* flag */ 1, /* format */ var_68, "https://www.gnu.org/software/coreutils/", "df");
+            var_68 = "Multi-call invocation";
+            if (var_75 != "df") {
+                var_68 = "Written by %s, %s, and %s.\n";
+            }
+        }
+        var_69 = dcgettext(/* domainname */ 0UL, /* msgid */ "or available locally via: info '(coreutils) %s%s'\n", /* category */ 5);
+        __printf_chk(/* flag */ 1, /* format */ var_69, var_75, var_68);
+    }
+    exit(/* status */ arg1);
+}
+31.0423996001482

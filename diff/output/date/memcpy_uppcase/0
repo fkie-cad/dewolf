@@ -1,0 +1,18 @@
+
+
+
+
+char * memcpy_uppcase(char * arg1, void * arg2, long arg3) {
+    int ** var_0;
+    if (arg3 != 0L) {
+        arg3--;
+        var_0 = __ctype_toupper_loc();
+        do {
+            arg1[arg3] = *(*var_0 + ((unsigned int)arg2[arg3] << 2)) & 0xff;
+            arg3--;
+        }
+        while (arg3 != -1L);
+    }
+    return arg1;
+}
+1.4429269996471703

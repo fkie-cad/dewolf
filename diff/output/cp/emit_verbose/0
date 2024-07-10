@@ -1,0 +1,23 @@
+extern unsigned long * stdout = 0UL;
+
+
+
+char * emit_verbose(void * arg1, void * arg2, void * arg3) {
+    unsigned long * var_6;
+    char * var_5;
+    __printf_chk(/* flag */ 1, /* format */ "%s -> %s", quotearg_n_style(0, 4, arg1), quotearg_n_style(1, 4, arg2));
+    if (arg3 != 0L) {
+        var_5 = dcgettext(/* domainname */ 0UL, /* msgid */ " (backup: %s)", /* category */ 5);
+        __printf_chk(/* flag */ 1, /* format */ var_5, quotearg_style(4, arg3));
+    }
+    var_6 = stdout;
+    arg1 = stdout + 40L;
+    var_5 = *arg1;
+    if (var_5 < *(stdout + 48L)) {
+        *arg1 = var_5 + 1L;
+        *var_5 = 0xa;
+        return var_5;
+    }
+    return __overflow(/* f */ var_6, /* ch */ 10);
+}
+1.5947150001302361

@@ -1,0 +1,12 @@
+
+
+
+
+void test_syntax_error(char * arg1, char arg2) {
+    int var_0;
+    int var_1;
+    var_1 = 8;
+    verror(0, 0, arg1, &var_0);
+    exit(/* status */ 2);
+}
+0.8660274003632367

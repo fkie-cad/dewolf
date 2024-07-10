@@ -1,0 +1,17 @@
+
+
+
+
+unsigned long base_len(char * arg1) {
+    unsigned long i;
+    unsigned long var_0;
+    unsigned long var_1;
+    for (i = strlen(arg1); i > 1L; i = var_1) {
+        var_1 = i - 1L;
+        if (*(arg1 + i - 1L) != '/') {
+            break;
+        }
+    }
+    return var_0;
+}
+0.8730896003544331

@@ -1,0 +1,46 @@
+
+
+
+
+void * imaxtostr(unsigned long arg1, void * arg2) {
+    unsigned long var_1;
+    long var_2;
+    long var_3;
+    void * var_0;
+    arg2 += 20L;
+    *arg2 = 0x0;
+    if (arg1 >= 0L) {
+        while (true) {
+            arg2--;
+            var_1 = arg1 * 0xcccccccccccccccd >> 64UL >> 3L;
+            *arg2 = (unsigned char)arg1 - var_1 * 10 + '0';
+            if (var_1 == 0L) {
+                break;
+            }
+            arg1 = var_1;
+        }
+        if (var_1 == 0L) {
+            return arg2;
+        }
+    }
+    else {
+        while (true) {
+            var_0 = arg2 - 1L;
+            var_2 = arg1 * 0x6666666666666667 >> 64UL >> 2L;
+            var_3 = arg1 >> 63L;
+            var_1 = var_2 - var_3;
+            var_2 -= var_3;
+            *var_0 = ((var_2 * 5 << 1) + 48L & 0xff) - (unsigned char)arg1;
+            if (var_2 == 0L) {
+                break;
+            }
+            arg1 = var_1;
+            arg2 = var_0;
+        }
+        if (var_2 == 0L) {
+            *(arg2 + 0xfffffffffffffffe) = 0x2d;
+            return arg2 - 2L;
+        }
+    }
+}
+1.8546767998486757

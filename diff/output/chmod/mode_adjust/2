@@ -1,0 +1,116 @@
+extern const unsigned char data_fff[0x849] = "\x00\xD9\xB1\x00\x00\x00\x00\x00\x00\x20\xFB\x00\x00\x00\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\xE1\xB1\x00\x00\x00\x00\x00...";
+
+
+
+long mode_adjust(int arg1, char arg2, int arg3, void * arg4, int * arg5) {
+    int tmp_0;
+    int tmp_2;
+    int var_5;
+    int var_6;
+    int var_7;
+    int var_8;
+    char tmp_1;
+    char var_11;
+    void * var_0;
+    void * var_1;
+    void * var_2;
+    void * var_3;
+    void * var_4;
+    int * var_10;
+    var_0 = arg4 + 1L;
+    var_11 = *var_0;
+    arg1 &= data_fff;
+    if (*var_0 == 0) {
+        var_10 = 0;
+    }
+    else {
+        var_10 = 0;
+        while (true) {
+            var_0 = arg4 + 8L;
+            var_5 = *var_0;
+            var_1 = arg4 + 4L;
+            var_2 = arg4 + 17L;
+            var_3 = arg4 + 16L;
+            if (arg2 != 0) {
+                var_4 = arg4 + 12L;
+                var_7 = *var_4 | 0xfffff3ff;
+                var_6 = ~*var_4 & "__errno_location";
+            }
+            else if (var_11 != 2) {
+                var_6 = 0;
+                var_7 = -1;
+            }
+            else {
+                var_6 = arg1 & 73;
+                if (var_6 == 0) {
+                    var_7 = -1;
+                }
+                else {
+                    var_6 = 0;
+                    var_7 = -1;
+                }
+            }
+            if (var_11 == 3) {
+                tmp_0 = ~((*var_0 & arg1 & 0x124) - (*var_0 & arg1 & 0x124) + ((*var_0 & arg1 & 0x124) < 1));
+                var_5 = tmp_0 & 0x124;
+                if (((char)(*var_0 & arg1) & -110) != 0) {
+                    tmp_2 = ~((*var_0 & arg1 & 0x124) - (*var_0 & arg1 & 0x124) + ((*var_0 & arg1 & 0x124) < 1));
+                    tmp_1 = (char)(tmp_2 & 0x124);
+                    var_5 = tmp_1 | -110;
+                }
+                if (((char)(*var_0 & arg1) & 'I') != 0) {
+                    var_5 |= 73;
+                }
+                var_5 |= *var_0 & arg1;
+            }
+            if ((var_11 != 2) || ((var_6 == 0) && (arg2 == 0))) {
+                var_11 = *arg4;
+                var_5 &= var_7;
+            }
+            else {
+                var_11 = *arg4;
+                var_5 = (*var_0 | 73) & var_7;
+            }
+            if (*var_1 == 0) {
+                var_5 &= ~arg3;
+            }
+            else {
+                var_5 &= *var_1;
+                if (var_11 == '=') {
+                    var_7 = var_6 | ~*var_1;
+                    var_8 = ~(var_6 | ~*var_1);
+                    var_6 = var_7;
+                    var_7 = var_8;
+                }
+            }
+            if (((*var_1 == 0) || (var_11 == '-')) && ((var_11 == '-') || (*var_1 != 0))) {
+                var_10 |= var_5;
+                arg1 &= ~var_5;
+            }
+            else if (((var_11 != '=') || (*var_1 != 0)) && ((var_11 != '=') || (*var_1 == 0)) && (var_11 == '+')) {
+                var_10 |= var_5;
+                arg1 |= var_5;
+            }
+            if (((*var_1 == 0) || (var_11 == '=')) && ((var_11 == '=') || (*var_1 != 0))) {
+                var_11 = *var_2;
+                var_10 |= var_7 & data_fff;
+                arg1 = arg1 & var_6 | var_5;
+                if (*var_2 == 0) {
+                    break;
+                }
+                arg4 = var_3;
+                continue;
+            }
+            var_11 = *var_2;
+            if (*var_2 == 0) {
+                break;
+            }
+            arg4 = var_3;
+        }
+    }
+    if (arg5 != 0L) {
+        *arg5 = var_10;
+    }
+    return arg1;
+}
+5.879522500094026

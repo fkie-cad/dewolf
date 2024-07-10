@@ -1,0 +1,28 @@
+extern unsigned long fs_exclude_list = 0UL;
+
+
+
+unsigned long excluded_fstype(char * arg1) {
+    int var_3;
+    unsigned long var_1;
+    long var_4;
+    char var_2;
+    var_1 = fs_exclude_list;
+    var_2 = arg1 == 0L | var_1 == 0L;
+    if (var_2 != 0) {
+        return 0L;
+    }
+    do {
+        var_3 = strcmp(arg1, *var_1);
+        if (var_3 == 0) {
+            return 1L;
+        }
+        var_4 = var_1 + 8L;
+        var_1 = *var_4;
+    }
+    while (*var_4 != 0L);
+    if (*var_4 == 0L) {
+        return (unsigned int)(int)var_2;
+    }
+}
+1.2461858000606298

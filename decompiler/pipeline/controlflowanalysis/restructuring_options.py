@@ -12,12 +12,19 @@ class LoopBreakOptions(Enum):
     # loop_break
 
 
+class CbfNodeOrder(Enum):
+    NONE = "none"
+    SMALLEST_FIRST = "smallest"
+    BIGGEST_FIRST = "biggest"
+
+
 @dataclass
 class RestructuringOptions:
     reconstruct_switch: bool
     allow_nested_switch: bool
     min_switch_cases: int
     loop_break_strategy: LoopBreakOptions
+    cbf_node_order: CbfNodeOrder
 
     @classmethod
     def generate(cls, options: Options):
@@ -29,4 +36,9 @@ class RestructuringOptions:
             loop_break_option = LoopBreakOptions(loop_break_strategy)
         except:
             raise NameError(f"The option {loop_break_strategy} does not exist.")
-        return cls(reconstruct_switch, allow_nested_switch, min_switch_cases, loop_break_option)
+        cbf_node_order_value = options.getstring("pattern-independent-restructuring.cbf_node_order", fallback="biggest")
+        try:
+            cbf_node_order = CbfNodeOrder(cbf_node_order_value)
+        except:
+            raise NameError(f"The option {cbf_node_order_value} does not exist.")
+        return cls(reconstruct_switch, allow_nested_switch, min_switch_cases, loop_break_option, cbf_node_order)

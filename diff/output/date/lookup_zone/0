@@ -1,0 +1,45 @@
+extern const char [3] * universal_time_zone_table = "GMT";
+extern const char [3] * time_zone_table = "WET";
+
+
+
+void ** lookup_zone(void * arg1, char * arg2) {
+    char* counter;
+    void * var_5;
+    char * var_4;
+    void ** var_7;
+    var_7 = &universal_time_zone_table;
+    counter = "GMT";
+    while (strcmp(arg2, counter) != 0) {
+        var_5 = var_7 + 16L;
+        counter = *var_5;
+        var_7 += 16L;
+        if (*var_5 == 0L) {
+            arg1 += 232L;
+            var_4 = *arg1;
+            if (*arg1 != 0L) {
+                do {
+                    if (strcmp(arg2, var_4) == 0) {
+                        return arg1;
+                    }
+                    arg1 += 16L;
+                    var_4 = *arg1;
+                }
+                while (*arg1 != 0L);
+            }
+            var_7 = &time_zone_table;
+            var_4 = "WET";
+            while (strcmp(arg2, var_4) != 0) {
+                arg1 = var_7 + 16L;
+                var_4 = *arg1;
+                var_7 += 16L;
+                if (*arg1 == 0L) {
+                    return 0L;
+                }
+            }
+            break;
+        }
+    }
+    return var_7;
+}
+1.9806088004261255

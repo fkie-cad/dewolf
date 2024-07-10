@@ -1,0 +1,236 @@
+extern unsigned long program_name = 0UL;
+extern unsigned long * stderr = 0UL;
+extern unsigned long * stdout = 0UL;
+extern const unsigned char data_7014[0x2] = "\x5B\x00";
+
+struct _IO_FILE {
+    int _flags;
+    char * _IO_read_ptr;
+    char * _IO_read_end;
+    char * _IO_read_base;
+    char * _IO_write_base;
+    char * _IO_write_ptr;
+    char * _IO_write_end;
+    char * _IO_buf_base;
+    char * _IO_buf_end;
+    char * _IO_save_base;
+    char * _IO_backup_base;
+    char * _IO_save_end;
+    _IO_marker * _markers;
+    _IO_FILE * _chain;
+    int _fileno;
+    int _flags2;
+    long _old_offset;
+    unsigned short _cur_column;
+    char _vtable_offset;
+    char [1] _shortbuf;
+    _IO_lock_t * _lock;
+    long _offset;
+    _IO_codecvt * _codecvt;
+    _IO_wide_data * _wide_data;
+    _IO_FILE * _freeres_list;
+    void * _freeres_buf;
+    unsigned long __pad5;
+    int _mode;
+    char [20] _unused2;
+};
+struct _IO_marker {
+    void * _next;
+    void * _sbuf;
+    int _pos;
+};
+struct _IO_lock_t {
+    int lock;
+    int cnt;
+    void * owner;
+};
+struct _IO_codecvt {
+    _IO_iconv_t __cd_in;
+    _IO_iconv_t __cd_out;
+};
+struct _IO_iconv_t {
+    __gconv_step * step;
+    __gconv_step_data step_data;
+};
+struct __gconv_step {
+    void * __shlib_handle;
+    char * __modname;
+    int __counter;
+    char * __from_name;
+    char * __to_name;
+    void __fct;
+    unsigned int(void *, unsigned char) * __btowc_fct;
+    int(void *) * __init_fct;
+    void(void *) * __end_fct;
+    int __min_needed_from;
+    int __max_needed_from;
+    int __min_needed_to;
+    int __max_needed_to;
+    int __stateful;
+    void * __data;
+};
+struct __gconv_step_data {
+    unsigned char * __outbuf;
+    unsigned char * __outbufend;
+    int __flags;
+    int __invocation_counter;
+    int __internal_use;
+    __mbstate_t * __statep;
+    __mbstate_t __state;
+};
+struct __mbstate_t {
+    int __count;
+    union __value {
+        unsigned int __wch;
+        char [4] __wchb;
+    };
+};
+union __value {
+    unsigned int __wch;
+    char [4] __wchb;
+};
+struct _IO_wide_data {
+    int * _IO_read_ptr;
+    int * _IO_read_end;
+    int * _IO_read_base;
+    int * _IO_write_base;
+    int * _IO_write_ptr;
+    int * _IO_write_end;
+    int * _IO_buf_base;
+    int * _IO_buf_end;
+    int * _IO_save_base;
+    int * _IO_backup_base;
+    int * _IO_save_end;
+    __mbstate_t _IO_state;
+    __mbstate_t _IO_last_state;
+    _IO_codecvt _codecvt;
+    int [1] _shortbuf;
+    void * _wide_vtable;
+};
+
+void usage(int arg1) {
+    char* var_59;
+    unsigned char* var_58;
+    char* var_71;
+    char* var_66;
+    char* var_67;
+    bool var_63;
+    bool var_64;
+    unsigned long var_55;
+    long counter;
+    long var_68;
+    long var_69;
+    long var_70;
+    void * var_65;
+    unsigned long * var_62;
+    char * var_60;
+    char * var_61;
+    void ** var_56;
+    void ** var_57;
+    var_55 = program_name;
+    if (arg1 != 0) {
+        var_60 = dcgettext(/* domainname */ 0UL, /* msgid */ "Try '%s --help' for more information.\n", /* category */ 5);
+        var_62 = stderr;
+        __fprintf_chk(/* fp */ var_62, /* flag */ 1, /* format */ var_60, var_55);
+    }
+    else {
+        var_60 = dcgettext(/* domainname */ 0UL, /* msgid */ "Usage: %s [OPTION]... [FILE]...\n", /* category */ 5);
+        __printf_chk(/* flag */ 1, /* format */ var_60, var_55);
+        var_60 = dcgettext(/* domainname */ 0UL, /* msgid */ "Concatenate FILE(s) to standard output.\n", /* category */ 5);
+        var_62 = stdout;
+        fputs_unlocked(/* str */ var_60, /* fp */ var_62);
+        var_60 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nWith no FILE, or when FILE is -, read standard input.\n", /* category */ 5);
+        var_62 = stdout;
+        fputs_unlocked(/* str */ var_60, /* fp */ var_62);
+        var_60 = dcgettext(/* domainname */ 0UL, /* msgid */ "\n  -A, --show-all           equivalent to -vET\n  -b, --number-nonblank    number nonempty output lines, overrides -n\n  -e    ", /* category */ 5);
+        var_62 = stdout;
+        fputs_unlocked(/* str */ var_60, /* fp */ var_62);
+        var_60 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -t                       equivalent to -vT\n  -T, --show-tabs          display TAB characters as ^I\n  -u                     ", /* category */ 5);
+        var_62 = stdout;
+        fputs_unlocked(/* str */ var_60, /* fp */ var_62);
+        var_60 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --help     display this help and exit\n", /* category */ 5);
+        var_62 = stdout;
+        fputs_unlocked(/* str */ var_60, /* fp */ var_62);
+        var_60 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --version  output version information and exit\n", /* category */ 5);
+        var_62 = stdout;
+        fputs_unlocked(/* str */ var_60, /* fp */ var_62);
+        var_55 = program_name;
+        var_60 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nExamples:\n  %s f - g  Output f's contents, then standard input, then g's contents.\n  %s        Copy standard input to standa", /* category */ 5);
+        __printf_chk(/* flag */ 1, /* format */ var_60, var_55, var_55);
+        var_58 = data_7014;
+        var_59 = "test invocation";
+        var_56 = &var_58;
+        while (true) {
+            var_65 = var_56 + 16L;
+            var_60 = *var_65;
+            var_57 = var_56 + 16L;
+            var_64 = *var_65 == 0L;
+            if (*var_65 == 0L) {
+                break;
+            }
+            var_66 = "cat";
+            counter = 4L;
+            var_63 = false;
+            while (counter != 0L) {
+                var_63 = *var_66 < *var_60;
+                var_64 = *var_66 == *var_60;
+                var_67 = var_66 + 1;
+                var_61 = var_60 + 1;
+                counter--;
+                if (*var_66 != *var_60) {
+                    break;
+                }
+                var_66 = var_67;
+                var_60 = var_61;
+            }
+            if ((~var_64 & ~var_63) - var_63 == 0) {
+                break;
+            }
+            var_56 = var_57;
+        }
+        var_65 = var_56 + 0x18;
+        var_66 = *var_65;
+        if (*var_65 != 0L) {
+            var_60 = dcgettext(/* domainname */ 0UL, /* msgid */ "\n%s online help: <%s>\n", /* category */ 5);
+            var_69, var_68, var_55, var_70 = __printf_chk(/* flag */ 1, /* format */ var_60, "GNU coreutils", "https://www.gnu.org/software/coreutils/");
+            var_60 = setlocale(/* category */ 5, /* locale */ 0UL, var_68, var_69, var_55, var_70, /* category */ var_58, /* category */ var_59);
+            if (var_60 != 0L) {
+                var_60 = strncmp(var_60, "en_", 3UL);
+            }
+        }
+        else {
+            var_60 = dcgettext(/* domainname */ 0UL, /* msgid */ "\n%s online help: <%s>\n", /* category */ 5);
+            var_69, var_68, var_55, var_70 = __printf_chk(/* flag */ 1, /* format */ var_60, "GNU coreutils", "https://www.gnu.org/software/coreutils/");
+            var_60 = setlocale(/* category */ 5, /* locale */ 0UL, var_68, var_69, var_55, var_70, /* category */ var_58, /* category */ var_59);
+            if (var_60 != 0L) {
+                var_60 = strncmp(var_60, "en_", 3UL);
+                if (var_60 != 0) {
+                    var_66 = "cat";
+                }
+            }
+        }
+        if ((*var_65 == 0L) && ((var_60 == 0L) || (var_60 == 0))) {
+            var_60 = dcgettext(/* domainname */ 0UL, /* msgid */ "Full documentation <%s%s>\n", /* category */ 5);
+            var_66 = "cat";
+            __printf_chk(/* flag */ 1, /* format */ var_60, "https://www.gnu.org/software/coreutils/", "cat");
+            var_71 = "Multi-call invocation";
+        }
+        else {
+            if ((*var_65 == 0L) || ((var_60 != 0) && (var_60 != 0L))) {
+                var_60 = dcgettext(/* domainname */ 0UL, /* msgid */ "Report any translation bugs to <https://translationproject.org/team/>\n", /* category */ 5);
+                var_62 = stdout;
+                fputs_unlocked(/* str */ var_60, /* fp */ var_62);
+            }
+            var_60 = dcgettext(/* domainname */ 0UL, /* msgid */ "Full documentation <%s%s>\n", /* category */ 5);
+            var_71 = "Multi-call invocation";
+            __printf_chk(/* flag */ 1, /* format */ var_60, "https://www.gnu.org/software/coreutils/", "cat");
+            if (var_66 != "cat") {
+                var_71 = "Written by %s, %s, and %s.\n";
+            }
+        }
+        var_60 = dcgettext(/* domainname */ 0UL, /* msgid */ "or available locally via: info '(coreutils) %s%s'\n", /* category */ 5);
+        __printf_chk(/* flag */ 1, /* format */ var_60, var_66, var_71);
+    }
+    exit(/* status */ arg1);
+}
+14.717307900078595

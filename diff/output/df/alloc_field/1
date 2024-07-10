@@ -1,0 +1,40 @@
+extern unsigned long ncolumns = 0UL;
+extern unsigned long columns = 0UL;
+extern unsigned char field_data[0x8] = "\x00\x00\x00\x00\x00\x00\x00\x00";
+
+
+
+void * alloc_field(int arg1, long arg2) {
+    unsigned long var_7;
+    unsigned long var_8;
+    long var_5;
+    long var_6;
+    void * var_10;
+    void * var_11;
+    var_8 = ncolumns;
+    var_7 = columns;
+    ncolumns = var_8 + 1L;
+    var_5 = var_8 + 1L;
+    var_6 = var_5 * 8;
+    if ((var_6 < 0L) || ((unsigned int)(var_5 >> 61L != 0L) != 0L)) {
+        xalloc_die();
+    }
+    else {
+        var_7 = xrealloc(var_7, var_6);
+        var_8 = ncolumns;
+        columns = var_7;
+        var_10 = arg1 * 48 + field_data;
+        *(var_7 + (var_8 << 3) - 8L) = var_10;
+        if (arg2 != 0L) {
+            *(var_10 + 24L) = arg2;
+        }
+        var_11 = (arg1 + (arg1 << 1) << 4L) + field_data;
+        var_10 = var_11 + 44L;
+        if (*var_10 == 0) {
+            *var_10 = 0x1;
+            return var_11;
+        }
+        __assert_fail(/* assertion */ "!"field used"", /* file */ "src/df.c", /* line */ 0x197, /* function */ "alloc_field");
+    }
+}
+1.811910199932754

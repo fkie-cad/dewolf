@@ -1,0 +1,44 @@
+
+
+
+
+char * str_days.constprop.0(void * arg1, char * arg2) {
+    int var_7;
+    unsigned long var_8;
+    unsigned long var_9;
+    long var_6;
+    void * var_0;
+    char * var_1;
+    var_0 = arg1 + 16L;
+    if (*(arg1 + 224L) == 0) {
+        *arg2 = 0x0;
+        var_6 = *var_0;
+        if ((int)*var_0 <= 6) {
+            var_1 = arg2;
+            var_9 = 1UL;
+            var_8 = 100UL;
+        }
+    }
+    else {
+        arg1 += 8L;
+        if (*arg1 + 1L <= 13L) {
+            var_7 = snprintf(/* s */ arg2, /* maxlen */ 100UL, /* format */ ", %s", *arg1 + 1L + ((*arg1 + 1L) * 5 << 1) + "last");
+            var_6 = *var_0;
+        }
+        else {
+            var_7 = __snprintf_chk(/* s */ arg2, /* maxlen */ 100UL, /* flag */ 1, /* slen */ 0xffffffffffffffff, /* format */ "number of seconds: %ld");
+            var_6 = *var_0;
+        }
+        if (((*arg1 + 1L > 13L) || (var_7 <= 99)) && ((int)*var_0 <= 6)) {
+            var_1 = var_7 + arg2;
+            var_8 = 100 - var_7;
+            var_9 = (unsigned char)(var_7 == 0);
+        }
+    }
+    if (((int)*var_0 > 6) || ((var_7 > 99) && (*arg1 + 1L <= 13L) && (*(arg1 + 224L) != 0))) {
+        return arg2;
+    }
+    __snprintf_chk(/* s */ var_1, /* maxlen */ var_8, /* flag */ 1, /* slen */ 0xffffffffffffffff, /* format */ ", %s" + var_9, "Sun" + (var_6 << 2));
+    return arg2;
+}
+2.3296916000545025

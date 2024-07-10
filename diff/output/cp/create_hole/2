@@ -1,0 +1,25 @@
+
+
+
+
+long create_hole(int arg1, void * arg2, char arg3, long arg4) {
+    long var_0;
+    int * var_4;
+    char * var_3;
+    var_0 = lseek(/* fd */ arg1, /* __arg2 */ arg4, /* whence */ 1);
+    if (var_0 < 0L) {
+        arg4 = quotearg_style(4, arg2);
+        var_3 = "cannot lseek %s";
+    }
+    else {
+        if ((arg3 == 0) || (punch_hole(arg1, var_0 - arg4, arg4) >= 0)) {
+            return 1L;
+        }
+        arg4 = quotearg_style(4, arg2);
+        var_3 = "error deallocating %s";
+    }
+    var_4 = __errno_location();
+    error(/* status */ 0, /* errnum */ *var_4, /* message */ dcgettext(/* domainname */ 0UL, /* msgid */ var_3, /* category */ 5), arg4);
+    return 0L;
+}
+1.9584201001562178

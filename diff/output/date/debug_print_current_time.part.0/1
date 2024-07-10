@@ -1,0 +1,245 @@
+extern unsigned long * stderr = 0UL;
+
+struct _IO_FILE {
+    int _flags;
+    char * _IO_read_ptr;
+    char * _IO_read_end;
+    char * _IO_read_base;
+    char * _IO_write_base;
+    char * _IO_write_ptr;
+    char * _IO_write_end;
+    char * _IO_buf_base;
+    char * _IO_buf_end;
+    char * _IO_save_base;
+    char * _IO_backup_base;
+    char * _IO_save_end;
+    _IO_marker * _markers;
+    _IO_FILE * _chain;
+    int _fileno;
+    int _flags2;
+    long _old_offset;
+    unsigned short _cur_column;
+    char _vtable_offset;
+    char [1] _shortbuf;
+    _IO_lock_t * _lock;
+    long _offset;
+    _IO_codecvt * _codecvt;
+    _IO_wide_data * _wide_data;
+    _IO_FILE * _freeres_list;
+    void * _freeres_buf;
+    unsigned long __pad5;
+    int _mode;
+    char [20] _unused2;
+};
+struct _IO_marker {
+    void * _next;
+    void * _sbuf;
+    int _pos;
+};
+struct _IO_lock_t {
+    int lock;
+    int cnt;
+    void * owner;
+};
+struct _IO_codecvt {
+    _IO_iconv_t __cd_in;
+    _IO_iconv_t __cd_out;
+};
+struct _IO_iconv_t {
+    __gconv_step * step;
+    __gconv_step_data step_data;
+};
+struct __gconv_step {
+    void * __shlib_handle;
+    char * __modname;
+    int __counter;
+    char * __from_name;
+    char * __to_name;
+    void __fct;
+    unsigned int(void *, unsigned char) * __btowc_fct;
+    int(void *) * __init_fct;
+    void(void *) * __end_fct;
+    int __min_needed_from;
+    int __max_needed_from;
+    int __min_needed_to;
+    int __max_needed_to;
+    int __stateful;
+    void * __data;
+};
+struct __gconv_step_data {
+    unsigned char * __outbuf;
+    unsigned char * __outbufend;
+    int __flags;
+    int __invocation_counter;
+    int __internal_use;
+    __mbstate_t * __statep;
+    __mbstate_t __state;
+};
+struct __mbstate_t {
+    int __count;
+    union __value {
+        unsigned int __wch;
+        char [4] __wchb;
+    };
+};
+union __value {
+    unsigned int __wch;
+    char [4] __wchb;
+};
+struct _IO_wide_data {
+    int * _IO_read_ptr;
+    int * _IO_read_end;
+    int * _IO_read_base;
+    int * _IO_write_base;
+    int * _IO_write_ptr;
+    int * _IO_write_end;
+    int * _IO_buf_base;
+    int * _IO_buf_end;
+    int * _IO_save_base;
+    int * _IO_backup_base;
+    int * _IO_save_end;
+    __mbstate_t _IO_state;
+    __mbstate_t _IO_last_state;
+    _IO_codecvt _codecvt;
+    int [1] _shortbuf;
+    void * _wide_vtable;
+};
+
+long debug_print_current_time.part.0(long arg1, void * arg2) {
+    void var_18;
+    bool var_25;
+    int var_24;
+    long var_23;
+    unsigned char var_22;
+    void * var_13;
+    void * var_14;
+    void * var_15;
+    void * var_16;
+    void * var_17;
+    unsigned long * var_21;
+    char * var_19;
+    char * var_20;
+    var_19 = dcgettext(/* domainname */ 0UL, /* msgid */ "parsed %s part: ", /* category */ 5);
+    dbg_printf(var_19, 0);
+    var_14 = arg2 + 223L;
+    var_13 = arg2 + 216L;
+    var_15 = arg2 + 40L;
+    if (*(arg2 + 168L) != 0L) {
+        var_16 = arg2 + 218L;
+        if (*var_16 == 0) {
+            var_21 = stderr;
+            __fprintf_chk(/* fp */ var_21, /* flag */ 1, /* format */ "(Y-M-D) %04ld-%02ld-%02ld", *var_15, *(arg2 + 56L), *(arg2 + 64L));
+            *var_16 = 0x1;
+            if (*var_13 == *var_14) {
+                var_19 = 1;
+            }
+            else {
+                var_21 = stderr;
+                fputc(/* c */ 32, /* fp */ var_21);
+            }
+        }
+    }
+    if (*var_13 != *var_14) {
+        var_19 = dcgettext(/* domainname */ 0UL, /* msgid */ "year: %04ld", /* category */ 5);
+        var_21 = stderr;
+        __fprintf_chk(/* fp */ var_21, /* flag */ 1, /* format */ var_19, *var_15);
+        *var_14 = *var_13;
+        var_19 = 1;
+    }
+    else if ((*(arg2 + 168L) == 0L) || (*var_16 != 0)) {
+        var_19 = 0;
+    }
+    var_13 = arg2 + 176L;
+    var_14 = arg2 + 88L;
+    var_15 = arg2 + 219L;
+    if (*(arg2 + 200L) != 0L) {
+        var_16 = arg2 + 221L;
+        if (*var_16 == 0) {
+            var_21 = stderr;
+            __fprintf_chk(/* fp */ var_21, /* flag */ 1, /* format */ (unsigned char)(var_19 ^ 1) + " %02ld:%02ld:%02ld", *(arg2 + 72L), *(arg2 + 80L), *var_14);
+            var_17 = arg2 + 96L;
+            if (*var_17 != 0L) {
+                var_21 = stderr;
+                __fprintf_chk(/* fp */ var_21, /* flag */ 1, /* format */ ".%09d", *var_17);
+            }
+            if (*(arg2 + 28L) == 1) {
+                var_21 = stderr;
+                fwrite(/* buf */ "pm", /* size */ 1UL, /* count */ 2UL, /* fp */ var_21);
+            }
+            var_25 = *var_13 == 0L;
+            *var_16 = 0x1;
+            if (var_25 != false) {
+                var_19 = 1;
+            }
+            else {
+                var_19 = *var_15;
+            }
+        }
+    }
+    if (((*(arg2 + 200L) == 0L) || (var_25 == false) || (*var_16 != 0)) && ((*(arg2 + 200L) != 0L) || (*var_13 != 0L)) && ((*var_13 != 0L) || (*var_16 == 0)) && (*var_15 == 0)) {
+        if ((var_19 != 0) || ((*var_16 == 0) && (*(arg2 + 200L) != 0L))) {
+            var_21 = stderr;
+            fputc(/* c */ 32, /* fp */ var_21);
+        }
+        var_24 = *(arg2 + 16L);
+        var_23 = *(arg2 + 8L);
+        var_20 = str_days_constprop_0(arg2, &var_18);
+        var_19 = dcgettext(/* domainname */ 0UL, /* msgid */ "%s (day ordinal=%ld number=%d)", /* category */ 5);
+        var_21 = stderr;
+        __fprintf_chk(/* fp */ var_21, /* flag */ 1, /* format */ var_19, var_20, var_23, (unsigned int)var_24);
+        *var_15 = 0x1;
+        var_19 = 1;
+    }
+    var_13 = arg2 + 208L;
+    var_15 = arg2 + 222L;
+    var_16 = arg2 + 160L;
+    var_22 = (unsigned char)(var_19 ^ 1);
+    if (*(arg2 + 184L) != 0L) {
+        var_17 = arg2 + 220L;
+        if (*var_17 == 0) {
+            var_19 = " DST";
+            if (*(arg2 + 192L) == 0L) {
+                var_19 = "    user provided time: '%s'\n";
+            }
+            var_21 = stderr;
+            __fprintf_chk(/* fp */ var_21, /* flag */ 1, /* format */ var_22 + " isdst=%d%s", *(arg2 + 20L), var_19);
+            var_25 = *var_13 == 0L;
+            *var_17 = 0x1;
+            if ((var_25 == false) && (*var_15 == 0)) {
+                var_19 = " UTC%s";
+            }
+        }
+    }
+    if ((*var_13 != 0L) && (*var_15 == 0)) {
+        if ((*(arg2 + 184L) == 0L) || (*var_17 != 0)) {
+            var_19 = var_22 + " UTC%s";
+        }
+    }
+    else if (((*(arg2 + 184L) == 0L) || (*var_17 != 0)) && (*var_16 != 0)) {
+        var_20 = *var_14;
+    }
+    if ((*var_13 != 0L) || ((*var_17 == 0) && (*(arg2 + 184L) != 0L))) {
+        if (((var_25 == false) || (*(arg2 + 184L) == 0L) || (*var_17 != 0)) && (*var_15 == 0)) {
+            var_20 = time_zone_str(*(arg2 + 24L), &var_18);
+            var_21 = stderr;
+            __fprintf_chk(/* fp */ var_21, /* flag */ 1, /* format */ var_19, var_20);
+            var_25 = *var_16 == 0;
+            *var_15 = 0x1;
+        }
+        if (((*(arg2 + 184L) != 0L) || (*var_15 == 0)) && ((*(arg2 + 184L) != 0L) || (var_25 == false)) && ((*var_15 == 0) || (*var_17 == 0)) && ((*var_17 == 0) || (var_25 == false)) && ((*var_15 != 0) || (var_25 != false) || (var_25 == false)) && ((var_25 == false) || (*(arg2 + 184L) == 0L) || (*var_17 != 0) || (*var_16 != 0)) && ((*var_15 == 0) || (*var_16 != 0))) {
+            var_20 = *var_14;
+        }
+    }
+    if (((*var_15 != 0) || (*(arg2 + 184L) == 0L) || (*var_17 != 0) || (var_25 != false) || (var_25 == false)) && ((var_25 == false) || (*(arg2 + 184L) == 0L) || (*var_17 != 0) || (*var_16 != 0)) && ((*var_15 != 0) || (*(arg2 + 184L) != 0L) || (*var_13 == 0L) || (var_25 == false)) && ((*var_15 != 0) || (*var_17 == 0) || (*var_13 == 0L) || (var_25 == false)) && ((*var_13 != 0L) || (*(arg2 + 184L) != 0L) || (*var_16 != 0)) && ((*var_13 != 0L) || (*var_17 == 0) || (*var_16 != 0)) && ((*var_15 == 0) || (*var_16 != 0))) {
+        if ((var_19 != 0) || ((*var_17 == 0) && (*(arg2 + 184L) != 0L)) || ((*var_15 == 0) && (*var_13 != 0L))) {
+            var_21 = stderr;
+            fputc(/* c */ 32, /* fp */ var_21);
+        }
+        var_19 = dcgettext(/* domainname */ 0UL, /* msgid */ "number of seconds: %ld", /* category */ 5);
+        var_21 = stderr;
+        __fprintf_chk(/* fp */ var_21, /* flag */ 1, /* format */ var_19, var_20);
+    }
+    var_21 = stderr;
+    return fputc(/* c */ 10, /* fp */ var_21);
+}
+13.81312539987266

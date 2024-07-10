@@ -1,0 +1,24 @@
+
+
+
+
+long safe_write(int arg1, long arg2, unsigned long arg3) {
+    long var_0;
+    int * var_1;
+    while (true) {
+        var_0 = write(/* fd */ arg1, /* buf */ arg2, /* nbytes */ arg3);
+        if (var_0 >= 0L) {
+            break;
+        }
+        var_1 = __errno_location();
+        if (*var_1 == 4) {
+            continue;
+        }
+        if ((*var_1 != 22) || (arg3 <= 0x7ff00000)) {
+            break;
+        }
+        arg3 = 0x7ff00000;
+    }
+    return var_0;
+}
+1.2964070998132229

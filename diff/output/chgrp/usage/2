@@ -1,0 +1,245 @@
+extern unsigned long program_name = 0UL;
+extern unsigned long * stderr = 0UL;
+extern unsigned long * stdout = 0UL;
+extern const unsigned char data_b00a[0x2] = "\x5B\x00";
+
+struct _IO_FILE {
+    int _flags;
+    char * _IO_read_ptr;
+    char * _IO_read_end;
+    char * _IO_read_base;
+    char * _IO_write_base;
+    char * _IO_write_ptr;
+    char * _IO_write_end;
+    char * _IO_buf_base;
+    char * _IO_buf_end;
+    char * _IO_save_base;
+    char * _IO_backup_base;
+    char * _IO_save_end;
+    _IO_marker * _markers;
+    _IO_FILE * _chain;
+    int _fileno;
+    int _flags2;
+    long _old_offset;
+    unsigned short _cur_column;
+    char _vtable_offset;
+    char [1] _shortbuf;
+    _IO_lock_t * _lock;
+    long _offset;
+    _IO_codecvt * _codecvt;
+    _IO_wide_data * _wide_data;
+    _IO_FILE * _freeres_list;
+    void * _freeres_buf;
+    unsigned long __pad5;
+    int _mode;
+    char [20] _unused2;
+};
+struct _IO_marker {
+    void * _next;
+    void * _sbuf;
+    int _pos;
+};
+struct _IO_lock_t {
+    int lock;
+    int cnt;
+    void * owner;
+};
+struct _IO_codecvt {
+    _IO_iconv_t __cd_in;
+    _IO_iconv_t __cd_out;
+};
+struct _IO_iconv_t {
+    __gconv_step * step;
+    __gconv_step_data step_data;
+};
+struct __gconv_step {
+    void * __shlib_handle;
+    char * __modname;
+    int __counter;
+    char * __from_name;
+    char * __to_name;
+    void __fct;
+    unsigned int(void *, unsigned char) * __btowc_fct;
+    int(void *) * __init_fct;
+    void(void *) * __end_fct;
+    int __min_needed_from;
+    int __max_needed_from;
+    int __min_needed_to;
+    int __max_needed_to;
+    int __stateful;
+    void * __data;
+};
+struct __gconv_step_data {
+    unsigned char * __outbuf;
+    unsigned char * __outbufend;
+    int __flags;
+    int __invocation_counter;
+    int __internal_use;
+    __mbstate_t * __statep;
+    __mbstate_t __state;
+};
+struct __mbstate_t {
+    int __count;
+    union __value {
+        unsigned int __wch;
+        char [4] __wchb;
+    };
+};
+union __value {
+    unsigned int __wch;
+    char [4] __wchb;
+};
+struct _IO_wide_data {
+    int * _IO_read_ptr;
+    int * _IO_read_end;
+    int * _IO_read_base;
+    int * _IO_write_base;
+    int * _IO_write_ptr;
+    int * _IO_write_end;
+    int * _IO_buf_base;
+    int * _IO_buf_end;
+    int * _IO_save_base;
+    int * _IO_backup_base;
+    int * _IO_save_end;
+    __mbstate_t _IO_state;
+    __mbstate_t _IO_last_state;
+    _IO_codecvt _codecvt;
+    int [1] _shortbuf;
+    void * _wide_vtable;
+};
+
+void usage(int arg1) {
+    char* var_70;
+    unsigned char* var_69;
+    bool var_73;
+    bool var_74;
+    unsigned long var_71;
+    long counter;
+    long var_76;
+    long var_77;
+    long var_78;
+    void * var_75;
+    unsigned long * var_72;
+    char * var_63;
+    char * var_64;
+    char * var_65;
+    char * var_66;
+    void ** var_67;
+    void ** var_68;
+    var_63 = program_name;
+    if (arg1 != 0) {
+        var_64 = dcgettext(/* domainname */ 0UL, /* msgid */ "Try '%s --help' for more information.\n", /* category */ 5);
+        var_72 = stderr;
+        __fprintf_chk(/* fp */ var_72, /* flag */ 1, /* format */ var_64, var_63);
+    }
+    else {
+        var_64 = dcgettext(/* domainname */ 0UL, /* msgid */ "Usage: %s [OPTION]... GROUP FILE...\n  or:  %s [OPTION]... --reference=RFILE FILE...\n", /* category */ 5);
+        __printf_chk(/* flag */ 1, /* format */ var_64, var_63, var_63);
+        var_63 = dcgettext(/* domainname */ 0UL, /* msgid */ "Change the group of each FILE to GROUP.\nWith --reference, change the group of each FILE to that of RFILE.\n\n", /* category */ 5);
+        var_72 = stdout;
+        fputs_unlocked(/* str */ var_63, /* fp */ var_72);
+        var_63 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -c, --changes          like verbose but report only when a change is made\n  -f, --silent, --quiet  suppress most error messag", /* category */ 5);
+        var_72 = stdout;
+        fputs_unlocked(/* str */ var_63, /* fp */ var_72);
+        var_63 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --dereference      affect the referent of each symbolic link (this is\n                         the default), rather than ", /* category */ 5);
+        var_72 = stdout;
+        fputs_unlocked(/* str */ var_63, /* fp */ var_72);
+        var_63 = dcgettext(/* domainname */ 0UL, /* msgid */ "                         (useful only on systems that can change the\n                         ownership of a symlink)\n", /* category */ 5);
+        var_72 = stdout;
+        fputs_unlocked(/* str */ var_63, /* fp */ var_72);
+        var_63 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --no-preserve-root  do not treat '/' specially (the default)\n      --preserve-root    fail to operate recursively on '/'\", /* category */ 5);
+                                            var_72 = stdout;
+                                            fputs_unlocked(/* str */ var_63, /* fp */ var_72);
+                                            var_63 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --reference=RFILE  use RFILE's group rather than specifying a\n                         GROUP value\n", /* category */ 5);
+                                            var_72 = stdout;
+                                            fputs_unlocked(/* str */ var_63, /* fp */ var_72);
+                                            var_63 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -R, --recursive        operate on files and directories recursively\n", /* category */ 5);
+                                            var_72 = stdout;
+                                            fputs_unlocked(/* str */ var_63, /* fp */ var_72);
+                                            var_63 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nThe following options modify how a hierarchy is traversed when the -R\noption is also specified.  If more than one is specifie", /* category */ 5);
+                                            var_72 = stdout;
+                                            fputs_unlocked(/* str */ var_63, /* fp */ var_72);
+                                            var_63 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --help     display this help and exit\n", /* category */ 5);
+                                            var_72 = stdout;
+                                            fputs_unlocked(/* str */ var_63, /* fp */ var_72);
+                                            var_63 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --version  output version information and exit\n", /* category */ 5);
+                                            var_72 = stdout;
+                                            fputs_unlocked(/* str */ var_63, /* fp */ var_72);
+                                            var_71 = program_name;
+                                            var_63 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nExamples:\n  %s staff /u      Change the group of /u to "staff".\n  %s -hR staff /u  Change the group of /u and subfiles to "s", /* category */ 5);
+                                                    __printf_chk(/* flag */ 1, /* format */ var_63, var_71, var_71);
+                                                    var_69 = data_b00a;
+                                                    var_70 = "test invocation";
+        var_67 = &var_69; while (true) {
+        var_75 = var_67 + 16L;
+        var_63 = *var_75;
+        var_68 = var_67 + 16L;
+        var_74 = *var_75 == 0L;
+        if (*var_75 == 0L) {
+                break;
+            }
+            var_64 = "chgrp";
+            counter = 6L;
+            var_73 = false;
+            while (counter != 0L) {
+                var_73 = *var_64 < *var_63;
+                var_74 = *var_64 == *var_63;
+                var_65 = var_64 + 1;
+                var_66 = var_63 + 1;
+                counter--;
+                if (*var_64 != *var_63) {
+                    break;
+                }
+                var_64 = var_65;
+                var_63 = var_66;
+            }
+            if ((~var_74 & ~var_73) - var_73 == 0) {
+                break;
+            }
+            var_67 = var_68;
+        }
+        var_75 = var_67 + 0x18;
+        var_63 = *var_75; if (*var_75 != 0L) {
+        var_64 = dcgettext(/* domainname */ 0UL, /* msgid */ "\n%s online help: <%s>\n", /* category */ 5);
+            var_77, var_76, var_71, var_78 = __printf_chk(/* flag */ 1, /* format */ var_64, "GNU coreutils", "https://www.gnu.org/software/coreutils/");
+            var_64 = setlocale(/* category */ 5, /* locale */ 0UL, var_76, var_77, var_71, var_78, /* category */ var_69, /* category */ var_70);
+            if (var_64 != 0L) {
+                var_64 = strncmp(var_64, "en_", 3UL);
+            }
+        }
+        else {
+            var_63 = dcgettext(/* domainname */ 0UL, /* msgid */ "\n%s online help: <%s>\n", /* category */ 5);
+            var_77, var_76, var_71, var_78 = __printf_chk(/* flag */ 1, /* format */ var_63, "GNU coreutils", "https://www.gnu.org/software/coreutils/");
+            var_63 = setlocale(/* category */ 5, /* locale */ 0UL, var_76, var_77, var_71, var_78, /* category */ var_69, /* category */ var_70);
+            if (var_63 != 0L) {
+                var_63 = strncmp(var_63, "en_", 3UL);
+                if (var_63 != 0) {
+                    var_63 = "chgrp";
+                }
+            }
+        }
+        if ((*var_75 == 0L) && ((var_63 == 0L) || (var_63 == 0))) {
+        var_64 = dcgettext(/* domainname */ 0UL, /* msgid */ "Full documentation <%s%s>\n", /* category */ 5);
+            var_63 = "chgrp";
+            __printf_chk(/* flag */ 1, /* format */ var_64, "https://www.gnu.org/software/coreutils/", "chgrp");
+            var_64 = "Multi-call invocation";
+        }
+        else {
+            if ((*var_75 == 0L) || ((var_64 != 0) && (var_64 != 0L))) {
+                var_64 = dcgettext(/* domainname */ 0UL, /* msgid */ "Report any translation bugs to <https://translationproject.org/team/>\n", /* category */ 5);
+                var_72 = stdout;
+                fputs_unlocked(/* str */ var_64, /* fp */ var_72);
+            }
+            var_65 = dcgettext(/* domainname */ 0UL, /* msgid */ "Full documentation <%s%s>\n", /* category */ 5);
+            var_64 = "Multi-call invocation";
+            __printf_chk(/* flag */ 1, /* format */ var_65, "https://www.gnu.org/software/coreutils/", "chgrp");
+            if (var_63 != "chgrp") {
+                var_64 = "Written by %s, %s, and %s.\n";
+            }
+        }
+        var_65 = dcgettext(/* domainname */ 0UL, /* msgid */ "or available locally via: info '(coreutils) %s%s'\n", /* category */ 5);
+                 __printf_chk(/* flag */ 1, /* format */ var_65, var_63, var_64);
+    }
+    exit(/* status */ arg1);
+}
+27.32656199997291

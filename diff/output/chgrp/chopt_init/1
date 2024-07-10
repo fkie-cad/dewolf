@@ -1,0 +1,14 @@
+
+
+
+
+void chopt_init(int * arg1) {
+    *arg1 = 0x2;
+    *(arg1 + 4L) = 0x0;
+    *(arg1 + 8L) = 0x0;
+    *(arg1 + 16L) = 0x1;
+    *(arg1 + 24L) = 0x0;
+    *(arg1 + 32L) = 0x0;
+    return;
+}
+0.8888110001571476

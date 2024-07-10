@@ -1,0 +1,292 @@
+extern unsigned long program_name = 0UL;
+extern unsigned long * stderr = 0UL;
+extern unsigned long * stdout = 0UL;
+extern const unsigned char data_1301c[0x2] = "\x5B\x00";
+
+struct _IO_FILE {
+    int _flags;
+    char * _IO_read_ptr;
+    char * _IO_read_end;
+    char * _IO_read_base;
+    char * _IO_write_base;
+    char * _IO_write_ptr;
+    char * _IO_write_end;
+    char * _IO_buf_base;
+    char * _IO_buf_end;
+    char * _IO_save_base;
+    char * _IO_backup_base;
+    char * _IO_save_end;
+    _IO_marker * _markers;
+    _IO_FILE * _chain;
+    int _fileno;
+    int _flags2;
+    long _old_offset;
+    unsigned short _cur_column;
+    char _vtable_offset;
+    char [1] _shortbuf;
+    _IO_lock_t * _lock;
+    long _offset;
+    _IO_codecvt * _codecvt;
+    _IO_wide_data * _wide_data;
+    _IO_FILE * _freeres_list;
+    void * _freeres_buf;
+    unsigned long __pad5;
+    int _mode;
+    char [20] _unused2;
+};
+struct _IO_marker {
+    void * _next;
+    void * _sbuf;
+    int _pos;
+};
+struct _IO_lock_t {
+    int lock;
+    int cnt;
+    void * owner;
+};
+struct _IO_codecvt {
+    _IO_iconv_t __cd_in;
+    _IO_iconv_t __cd_out;
+};
+struct _IO_iconv_t {
+    __gconv_step * step;
+    __gconv_step_data step_data;
+};
+struct __gconv_step {
+    void * __shlib_handle;
+    char * __modname;
+    int __counter;
+    char * __from_name;
+    char * __to_name;
+    void __fct;
+    unsigned int(void *, unsigned char) * __btowc_fct;
+    int(void *) * __init_fct;
+    void(void *) * __end_fct;
+    int __min_needed_from;
+    int __max_needed_from;
+    int __min_needed_to;
+    int __max_needed_to;
+    int __stateful;
+    void * __data;
+};
+struct __gconv_step_data {
+    unsigned char * __outbuf;
+    unsigned char * __outbufend;
+    int __flags;
+    int __invocation_counter;
+    int __internal_use;
+    __mbstate_t * __statep;
+    __mbstate_t __state;
+};
+struct __mbstate_t {
+    int __count;
+    union __value {
+        unsigned int __wch;
+        char [4] __wchb;
+    };
+};
+union __value {
+    unsigned int __wch;
+    char [4] __wchb;
+};
+struct _IO_wide_data {
+    int * _IO_read_ptr;
+    int * _IO_read_end;
+    int * _IO_read_base;
+    int * _IO_write_base;
+    int * _IO_write_ptr;
+    int * _IO_write_end;
+    int * _IO_buf_base;
+    int * _IO_buf_end;
+    int * _IO_save_base;
+    int * _IO_backup_base;
+    int * _IO_save_end;
+    __mbstate_t _IO_state;
+    __mbstate_t _IO_last_state;
+    _IO_codecvt _codecvt;
+    int [1] _shortbuf;
+    void * _wide_vtable;
+};
+
+void usage(int arg1) {
+    char* var_100;
+    unsigned char* var_99;
+    bool var_102;
+    bool var_103;
+    unsigned long var_108;
+    long counter;
+    long var_105;
+    long var_106;
+    long var_107;
+    void * var_104;
+    unsigned long * var_101;
+    char * var_93;
+    char * var_94;
+    char * var_95;
+    char * var_96;
+    void ** var_97;
+    void ** var_98;
+    var_93 = program_name;
+    if (arg1 != 0) {
+        var_94 = dcgettext(/* domainname */ 0UL, /* msgid */ "Try '%s --help' for more information.\n", /* category */ 5);
+        var_101 = stderr;
+        __fprintf_chk(/* fp */ var_101, /* flag */ 1, /* format */ var_94, var_93);
+    }
+    else {
+        var_94 = dcgettext(/* domainname */ 0UL, /* msgid */ "Usage: %s [OPTION]... [+FORMAT]\n  or:  %s [-u|--utc|--universal] [MMDDhhmm[[CC]YY][.ss]]\n", /* category */ 5);
+        __printf_chk(/* flag */ 1, /* format */ var_94, var_93, var_93);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "Display the current time in the given FORMAT, or set the system date.\n", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nMandatory arguments to long options are mandatory for short options too.\n", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -d, --date=STRING          display time described by STRING, not 'now'\n", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --debug                annotate the parsed date,\n                              and warn about questionable usage to stder", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -f, --file=DATEFILE        like --date; once for each line of DATEFILE\n", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -I[FMT], --iso-8601[=FMT]  output date/time in ISO 8601 format.\n                               FMT='date' for date only (the ", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -R, --rfc-email            output date and time in RFC 5322 format.\n                               Example: Mon, 14 Aug 2006 ", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --rfc-3339=FMT         output date/time in RFC 3339 format.\n                               FMT='date', 'seconds', or 'ns'", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -r, --reference=FILE       display the last modification time of FILE\n", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -s, --set=STRING           set time described by STRING\n  -u, --utc, --universal     print or set Coordinated Universal Time ", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --help     display this help and exit\n", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --version  output version information and exit\n", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nFORMAT controls the output.  Interpreted sequences are:\n\n  %%   a literal %\n  %a   locale's abbreviated weekday name (e.g.,", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "  %A   locale's full weekday name (e.g., Sunday)\n  %b   locale's abbreviated month name (e.g., Jan)\n  %B   locale's full month", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "  %C   century; like %Y, except omit last two digits (e.g., 20)\n  %d   day of month (e.g., 01)\n  %D   date; same as %m/%d/%y\n", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "  %F   full date; like %+4Y-%m-%d\n  %g   last two digits of year of ISO week number (see %G)\n  %G   year of ISO week number (s", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "  %h   same as %b\n  %H   hour (00..23)\n  %I   hour (01..12)\n  %j   day of year (001..366)\n", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "  %k   hour, space padded ( 0..23); same as %_H\n  %l   hour, space padded ( 1..12); same as %_I\n  %m   month (01..12)\n  %M   ", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "  %n   a newline\n  %N   nanoseconds (000000000..999999999)\n  %p   locale's equivalent of either AM or PM; blank if not known\n", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "  %S   second (00..60)\n  %t   a tab\n  %T   time; same as %H:%M:%S\n  %u   day of week (1..7); 1 is Monday\n", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "  %U   week number of year, with Sunday as first day of week (00..53)\n  %V   ISO week number, with Monday as first day of week ", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "  %x   locale's date representation (e.g., 12/31/99)\n  %X   locale's time representation (e.g., 23:13:48)\n  %y   last two digi", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "  %z   +hhmm numeric time zone (e.g., -0400)\n  %:z  +hh:mm numeric time zone (e.g., -04:00)\n  %::z  +hh:mm:ss numeric time zon", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "The following optional flags may follow '%':\n\n  -  (hyphen) do not pad the field\n  _  (underscore) pad with spaces\n  0  (zer", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nAfter any flags comes an optional field width, as a decimal number;\nthen an optional modifier, which is either\nE to use the ", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nExamples:\nConvert seconds since the epoch (1970-01-01 UTC) to a date\n  $ date --date='@2147483647'\n\nShow the time on the w", /* category */ 5);
+        var_101 = stdout;
+        fputs_unlocked(/* str */ var_93, /* fp */ var_101);
+        var_99 = data_1301c;
+        var_100 = "test invocation";
+        var_97 = &var_99;
+        while (true) {
+            var_104 = var_97 + 16L;
+            var_93 = *var_104;
+            var_98 = var_97 + 16L;
+            var_103 = *var_104 == 0L;
+            if (*var_104 == 0L) {
+                break;
+            }
+            var_94 = "cannot set date";
+            counter = 5L;
+            var_102 = false;
+            while (counter != 0L) {
+                var_102 = *var_94 < *var_93;
+                var_103 = *var_94 == *var_93;
+                var_95 = var_94 + 1;
+                var_96 = var_93 + 1;
+                counter--;
+                if (*var_94 != *var_93) {
+                    break;
+                }
+                var_94 = var_95;
+                var_93 = var_96;
+            }
+            if ((~var_103 & ~var_102) - var_102 == 0) {
+                break;
+            }
+            var_97 = var_98;
+        }
+        var_104 = var_97 + 0x18;
+        var_93 = *var_104;
+        if (*var_104 != 0L) {
+            var_94 = dcgettext(/* domainname */ 0UL, /* msgid */ "\n%s online help: <%s>\n", /* category */ 5);
+            var_106, var_105, var_108, var_107 = __printf_chk(/* flag */ 1, /* format */ var_94, "GNU coreutils", "https://www.gnu.org/software/coreutils/");
+            var_94 = setlocale(/* category */ 5, /* locale */ 0UL, var_105, var_106, var_108, var_107, /* category */ var_99, /* category */ var_100);
+            if (var_94 != 0L) {
+                var_94 = strncmp(var_94, "en_", 3UL);
+            }
+        }
+        else {
+            var_93 = dcgettext(/* domainname */ 0UL, /* msgid */ "\n%s online help: <%s>\n", /* category */ 5);
+            var_106, var_105, var_108, var_107 = __printf_chk(/* flag */ 1, /* format */ var_93, "GNU coreutils", "https://www.gnu.org/software/coreutils/");
+            var_93 = setlocale(/* category */ 5, /* locale */ 0UL, var_105, var_106, var_108, var_107, /* category */ var_99, /* category */ var_100);
+            if (var_93 != 0L) {
+                var_93 = strncmp(var_93, "en_", 3UL);
+                if (var_93 != 0) {
+                    var_93 = "cannot set date";
+                }
+            }
+        }
+        if ((*var_104 == 0L) && ((var_93 == 0L) || (var_93 == 0))) {
+            var_94 = dcgettext(/* domainname */ 0UL, /* msgid */ "Full documentation <%s%s>\n", /* category */ 5);
+            var_93 = "cannot set date";
+            __printf_chk(/* flag */ 1, /* format */ var_94, "https://www.gnu.org/software/coreutils/", "cannot set date");
+            var_94 = "Multi-call invocation";
+        }
+        else {
+            if ((*var_104 == 0L) || ((var_94 != 0) && (var_94 != 0L))) {
+                var_94 = dcgettext(/* domainname */ 0UL, /* msgid */ "Report any translation bugs to <https://translationproject.org/team/>\n", /* category */ 5);
+                var_101 = stdout;
+                fputs_unlocked(/* str */ var_94, /* fp */ var_101);
+            }
+            var_95 = dcgettext(/* domainname */ 0UL, /* msgid */ "Full documentation <%s%s>\n", /* category */ 5);
+            var_94 = "Multi-call invocation";
+            __printf_chk(/* flag */ 1, /* format */ var_95, "https://www.gnu.org/software/coreutils/", "cannot set date");
+            if (var_93 != "cannot set date") {
+                var_94 = "    user provided time: '%s'\n";
+            }
+        }
+        var_95 = dcgettext(/* domainname */ 0UL, /* msgid */ "or available locally via: info '(coreutils) %s%s'\n", /* category */ 5);
+        __printf_chk(/* flag */ 1, /* format */ var_95, var_93, var_94);
+    }
+    exit(/* status */ arg1);
+}
+125.05860190000385

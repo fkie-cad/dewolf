@@ -1,0 +1,205 @@
+extern unsigned char suppress_non_delimited = 0U;
+extern unsigned long * optarg = 0UL;
+extern unsigned long output_delimiter_string = 0UL;
+extern unsigned char have_read_stdin = 0U;
+extern unsigned int operating_mode = 0U;
+extern unsigned char delim = 0U;
+extern const char [5] * longopts = "bytes";
+extern unsigned long * stdout = 0UL;
+extern char [4] * Version = "8.32";
+extern unsigned char complement = 0U;
+extern unsigned short dummy_7309 = 0U;
+extern unsigned long output_delimiter_length = 0UL;
+extern unsigned int * optind = 0UL;
+extern const unsigned char data_8112[0x31] = "\x2D\x00\x62\x79\x74\x65\x73\x00\x63\x68\x61\x72\x61\x63\x74\x65\x72\x73\x00\x6F\x6E\x6C\x79\x2D\x64\x65\x6C\x69\x6D\x69\x74\x65...";
+extern unsigned long * stdin = 0UL;
+extern unsigned char line_delim = 10U;
+extern unsigned char output_delimiter_specified = 0U;
+
+
+
+int main(int argc, char ** argv, char ** envp) {
+    char* var_41;
+    bool var_43;
+    unsigned int var_42;
+    int loop_break;
+    int var_34;
+    int var_35;
+    unsigned long var_39;
+    long var_36;
+    long var_37;
+    long var_38;
+    unsigned char var_45;
+    char var_40;
+    char [4] * var_44;
+    unsigned int * var_46;
+    unsigned int * var_47;
+    int * var_48;
+    unsigned long * var_0;
+    unsigned long * var_1;
+    unsigned long * var_2;
+    char * counter;
+    counter = set_program_name(*argv);
+    setlocale(/* category */ 6, /* locale */ "Written by %s, %s, and %s.\n", var_36, var_37, var_39, var_38, /* category */ var_34, /* category */ var_35);
+    bindtextdomain(/* domainname */ "GNU coreutils", /* dirname */ "/usr/local/share/locale");
+    textdomain(/* domainname */ "GNU coreutils");
+    atexit(close_stdout);
+    suppress_non_delimited = 0U;
+    operating_mode = 0U;
+    delim = 0U;
+    have_read_stdin = 0U;
+    var_40 = 0;
+    while (true) {
+        var_34 = getopt_long(argc, argv, /* options */ "b:c:d:f:nsz", /* long_options */ &longopts, /* opt_index */ 0UL);
+        loop_break = 0;
+        switch(var_34) {
+        case 0xffffff7d:
+            var_0 = stdout;
+            var_44 = Version;
+            version_etc(var_0, "cut", "GNU coreutils", var_44);
+            exit(/* status */ 0);
+            break;
+        case 0xffffffff:
+            var_42 = operating_mode;
+            var_41 = "you must specify a list of bytes, characters, or fields";
+            if (var_42 != 0) {
+                if ((var_42 == 2) || (var_40 == 0)) {
+                    var_43 = var_42 != 2;
+                    if ((suppress_non_delimited & var_43) != 0) {
+                        var_41 = "suppressing non-delimited lines makes sense\n\tonly when operating on fields";
+                    }
+                    else {
+                        var_45 = complement;
+                        set_fields(var_0, var_43 * 4 | ~(var_42 - var_42 + (var_45 < 1)) & 2);
+                        if (var_40 == 0) {
+                            delim = 9U;
+                        }
+                        if (output_delimiter_string == 0L) {
+                            var_45 = delim;
+                            dummy_7309 = 0U;
+                            output_delimiter_length = 1UL;
+                            dummy_7309 = var_45;
+                            output_delimiter_string = &dummy_7309;
+                        }
+                        var_46 = optind;
+                        if (var_46 == argc) {
+                            var_34 = cut_file(data_8112);
+                        }
+                        else if (var_46 >= argc) {
+                            var_34 = 1;
+                        }
+                        else {
+                            var_34 = 1;
+                            do {
+                                var_35 = cut_file(argv[var_46]);
+                                var_34 &= var_35;
+                                var_47 = optind;
+                                var_46 = var_47 + 1;
+                                optind = var_46;
+                            }
+                            while (var_47 + 1 < argc);
+                        }
+                        if (have_read_stdin == 0) {
+                            loop_break = 1;
+                            break;
+                        }
+                        var_0 = stdin;
+                    }
+                    if (rpl_fclose(var_0) == -1) {
+                        var_48 = __errno_location();
+                        error(/* status */ 0, /* errnum */ *var_48, /* message */ data_8112);
+                        var_34 = 0;
+                    }
+                    loop_break = 1;
+                    break;
+                }
+                var_41 = "an input delimiter may be specified only when operating on fields";
+            }
+            break;
+        }
+        if (loop_break == 1) {
+            break;
+        }
+        if (var_34 <= 129) {
+            if (var_34 > 97) {
+                var_42 = (unsigned int)(var_34 - 98);
+                switch(var_42) {
+                case 0x0:
+                case 0x1:
+                    var_42 = operating_mode;
+                    if (var_42 == 0) {
+                        operating_mode = 1U;
+                        var_0 = optarg;
+                        continue;
+                    }
+                case 0x4:
+                    if ((var_42 != 0x0) && (var_42 != 0x1)) {
+                        var_42 = operating_mode;
+                        if (var_42 == 0) {
+                            operating_mode = 2U;
+                            var_0 = optarg;
+                            continue;
+                        }
+                    }
+                    if (((var_42 == 0x4) || (var_42 != 0)) && ((var_42 == 0x0) || (var_42 == 0x1) || (var_42 != 0))) {
+                        var_41 = "only one type of list may be specified";
+                    }
+                    break;
+                case 0x2:
+                    var_1 = optarg;
+                    if ((var_1 == 0) || (*(optarg + 1L) == 0)) {
+                        delim = var_1;
+                        var_40 = 1;
+                        continue;
+                    }
+                    var_41 = "the delimiter must be a single character";
+                    break;
+                case 0xc:
+                    continue;
+                case 0x11:
+                    suppress_non_delimited = 1U;
+                    continue;
+                case 0x18:
+                    line_delim = 0U;
+                    continue;
+                case 0x1e:
+                    output_delimiter_specified = 1U;
+                    if (optarg == 0) {
+                        var_39 = 1UL;
+                    }
+                    else {
+                        var_1 = optarg;
+                        var_36 = -1L;
+                        while (var_36 != 0L) {
+                            var_2 = var_1 + 1L;
+                            var_36--;
+                            if (!(*var_1 != 0)) {
+                                break;
+                            }
+                            var_1 = var_2;
+                        }
+                        var_39 = ~var_36 - 1L;
+                    }
+                    var_1 = optarg;
+                    output_delimiter_length = var_39;
+                    output_delimiter_string = xstrdup(var_1);
+                    continue;
+                case 0x1f:
+                    complement = 1U;
+                    continue;
+                }
+            }
+            if (((var_34 == -1) || (var_34 > 97)) && ((var_34 == -1) || (var_42 == 0x0) || (var_42 == 0x4) || (var_42 == 0x2) || (var_42 == 0x1)) && ((var_34 == -1) || (var_42 == 0x4) || (var_42 == 0x2) || (var_42 != 0)) && ((var_34 == -1) || (var_42 == 0x0) || (var_42 == 0x2) || (var_42 == 0x1) || (var_42 != 0))) {
+                error(/* status */ 0, /* errnum */ 0, /* message */ dcgettext(/* domainname */ 0UL, /* msgid */ var_41, /* category */ 5));
+            }
+        }
+        if (var_34 == -130) {
+            usage(0);
+        }
+        else if (((var_42 == 0x1d) || (var_42 == 0x14) || (var_42 == 0x3) || (var_42 == 0x1a) || (var_34 <= 97) || (var_42 == 0x17) || (var_42 == 0x6) || (var_42 == 0x7) || (var_42 == 0x0) || (var_34 > 129) || (var_42 == 0x16) || (var_42 == 0x13) || (var_42 == 0x15) || (var_42 > 31) || (var_42 == 0xe) || (var_42 == 0xa) || (var_42 == 0x8) || (var_42 == 0x9) || (var_42 == 0x5) || (var_42 == 0x19) || (var_42 == 0xd) || (var_42 == 0xb) || (var_42 == 0x10) || (var_42 == 0x12) || (var_42 == 0x4) || (var_42 == 0x2) || (var_42 == 0xf) || (var_42 == 0x1) || (var_42 == 0x1b) || (var_42 == 0x1c)) && ((var_42 == 0x1d) || (var_42 == 0x14) || (var_42 == 0x3) || (var_42 == 0x1a) || (var_34 <= 97) || (var_42 == 0x17) || (var_42 == 0x6) || (var_42 == 0x7) || (var_34 > 129) || (var_42 == 0x16) || (var_42 == 0x13) || (var_42 == 0x15) || (var_42 > 31) || (var_42 == 0xe) || (var_42 == 0xa) || (var_42 == 0x8) || (var_42 == 0x9) || (var_42 == 0x5) || (var_42 == 0x19) || (var_42 == 0xd) || (var_42 == 0xb) || (var_42 == 0x10) || (var_42 == 0x12) || (var_42 == 0x4) || (var_42 == 0x2) || (var_42 == 0xf) || (var_42 == 0x1b) || (var_42 == 0x1c) || (var_42 != 0)) && ((var_42 == 0x1d) || (var_42 == 0x14) || (var_42 == 0x3) || (var_42 == 0x1a) || (var_34 <= 97) || (var_42 == 0x17) || (var_42 == 0x6) || (var_42 == 0x7) || (var_42 == 0x0) || (var_34 > 129) || (var_42 == 0x16) || (var_42 == 0x13) || (var_42 == 0x15) || (var_42 > 31) || (var_42 == 0xe) || (var_42 == 0xa) || (var_42 == 0x8) || (var_42 == 0x9) || (var_42 == 0x5) || (var_42 == 0x19) || (var_42 == 0xd) || (var_42 == 0xb) || (var_42 == 0x10) || (var_42 == 0x12) || (var_42 == 0x2) || (var_42 == 0xf) || (var_42 == 0x1) || (var_42 == 0x1b) || (var_42 == 0x1c) || (var_42 != 0))) {
+            usage(1);
+        }
+    }
+    return (unsigned char)((char)var_34 ^ 1);
+}
+26.491434100084007

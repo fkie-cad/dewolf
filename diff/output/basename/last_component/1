@@ -1,0 +1,52 @@
+
+
+
+
+char * last_component(char * arg1) {
+    char var_4;
+    void * var_3;
+    char * var_0;
+    char * var_1;
+    char * var_2;
+    var_0 = *arg1;
+    if (*arg1 == '/') {
+        do {
+            var_3 = arg1 + 1L;
+            var_0 = *var_3;
+            arg1++;
+        }
+        while (*var_3 == '/');
+    }
+    if (var_0 != 0) {
+        var_1 = arg1;
+        var_4 = 0;
+        while (true) {
+            var_3 = arg1 + 1L;
+            var_2 = arg1 + 1L;
+            if (var_0 == '/') {
+                var_0 = *var_3;
+                if (*var_3 == 0) {
+                    arg1 = var_1;
+                    break;
+                }
+                arg1 = var_2;
+                var_4 = 1;
+                continue;
+            }
+            if (var_4 != 0) {
+                var_4 = 0;
+            }
+            else {
+                arg1 = var_1;
+            }
+            var_0 = *var_3;
+            if (*var_3 == 0) {
+                break;
+            }
+            var_1 = arg1;
+            arg1 = var_2;
+        }
+    }
+    return arg1;
+}
+1.9169546999037266

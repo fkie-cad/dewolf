@@ -1,0 +1,14 @@
+
+
+
+
+void write_pending.part.0() {
+    int var_1;
+    int * var_2;
+    char * var_3;
+    var_3 = dcgettext(/* domainname */ 0UL, /* msgid */ "write error", /* category */ 5);
+    var_2 = __errno_location();
+    var_1 = error(/* status */ 1, /* errnum */ *var_2, /* message */ var_3);
+    return usage(var_1);
+}
+0.46089749969542027

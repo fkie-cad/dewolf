@@ -1,0 +1,16 @@
+extern unsigned int argc = 0U;
+extern unsigned long argv = 0UL;
+
+
+
+void beyond() {
+    unsigned long var_4;
+    long var_5;
+    char * var_3;
+    var_5 = argc;
+    var_4 = argv;
+    quote(*(var_4 + (var_5 << 3) - 8L));
+    var_3 = dcgettext(/* domainname */ 0UL, /* msgid */ "missing argument after %s", /* category */ 5);
+    test_syntax_error(var_3, 0);
+}
+0.9466347000561655

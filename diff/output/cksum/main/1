@@ -1,0 +1,74 @@
+extern unsigned char have_read_stdin = 0U;
+extern unsigned long * stdout = 0UL;
+extern char [4] * Version = "8.32";
+extern unsigned int * optind = 0UL;
+extern unsigned long * stdin = 0UL;
+extern const unsigned char data_6107[0x9] = "\x2D\x00\x00\x00\x00\x00\x00\x00\x00";
+
+
+
+int main(int argc, char ** argv, char ** envp) {
+    int entry_6;
+    int var_11;
+    int var_12;
+    unsigned long var_19;
+    long var_16;
+    long var_17;
+    long var_18;
+    char [4] * var_14;
+    void * var_20;
+    void * var_21;
+    unsigned int * var_13;
+    int * var_22;
+    unsigned long * var_15;
+    var_17, var_16, var_19, var_18 = set_program_name(*argv);
+    setlocale(/* category */ 6, /* locale */ "Written by %s, %s, and %s.\n", var_16, var_17, var_19, var_18, /* category */ var_11, /* category */ var_12);
+    bindtextdomain(/* domainname */ "GNU coreutils", /* dirname */ "/usr/local/share/locale");
+    textdomain(/* domainname */ "GNU coreutils");
+    atexit(close_stdout);
+    var_15 = stdout;
+    setvbuf(/* fp */ var_15, /* buf */ 0UL, /* mode */ 1, /* size */ 0UL);
+    var_14 = Version;
+    parse_gnu_standard_options_only(argc, argv, "cksum", "GNU coreutils", var_14, 1, 0, usage);
+    var_13 = optind;
+    have_read_stdin = 0U;
+    if (var_13 == argc) {
+        entry_6 = 1;
+    }
+    if (var_13 < argc) {
+        var_20 = argv + ((long)var_13 << 3);
+        var_11 = 1;
+        while (true) {
+            var_21 = var_20 + 8L;
+            var_12 = cksum(*var_20, 1);
+            var_11 &= var_12;
+            if (var_21 == argv + ((unsigned int)(~var_13 + argc) + var_13 << 3) + 8L) {
+                break;
+            }
+            var_20 = var_21;
+        }
+        entry_6 = 0;
+    }
+    if ((var_13 != argc) && (var_13 >= argc)) {
+        var_11 = 1;
+    }
+    else {
+        while (true) {
+            if (entry_6 == 0) {
+                if (have_read_stdin == 0) {
+                    break;
+                }
+                var_15 = stdin;
+                if (rpl_fclose(var_15) != -1) {
+                    break;
+                }
+                var_22 = __errno_location();
+                error(/* status */ 1, /* errnum */ *var_22, /* message */ data_6107);
+            }
+            var_11 = cksum(data_6107, 0);
+            entry_6 = 0;
+        }
+    }
+    return (unsigned char)((char)var_11 ^ 1);
+}
+2.6913719000294805

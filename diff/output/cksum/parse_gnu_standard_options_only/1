@@ -1,0 +1,42 @@
+extern unsigned int * opterr = 0UL;
+extern const unsigned char data_6acc[0x14] = "\x2B\x00\x68\x65\x6C\x70\x00\x76\x65\x72\x73\x69\x6F\x6E\x00\x00\x00\x00\x00\x00";
+extern const char [4] * long_options = "help";
+extern unsigned long * stdout = 0UL;
+extern unsigned int exit_failure = 1U;
+
+
+
+int parse_gnu_standard_options_only(int arg1, char ** arg2, long arg3, long arg4, long arg5, char arg6, char arg7, long arg8) {
+    int var_6;
+    int var_7;
+    unsigned long var_11;
+    unsigned int * var_9;
+    unsigned long * var_10;
+    char * var_8;
+    var_8 = "Written by %s, %s, and %s.\n";
+    var_9 = opterr;
+    if (arg6 == 0) {
+        var_8 = data_6acc;
+    }
+    opterr = 0x0;
+    arg1 = getopt_long(arg1, arg2, /* options */ var_8, /* long_options */ &long_options, /* opt_index */ 0UL);
+    if (arg1 != -1) {
+        switch(arg1) {
+        case 104:
+            arg1 = arg8(0L);
+            break;
+        case 118:
+            var_10 = stdout;
+            var_7 = 48;
+            version_etc_va(var_10, arg3, arg4, arg5, &var_6);
+            exit(/* status */ 0);
+            break;
+        default:
+            var_11 = exit_failure;
+            arg1 = arg8(var_11);
+        }
+    }
+    opterr = var_9;
+    return arg1;
+}
+1.3399708000943065

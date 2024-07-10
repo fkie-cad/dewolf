@@ -1,0 +1,38 @@
+
+
+
+
+long * set_tz(void * arg1) {
+    void * var_1;
+    int * var_4;
+    long * var_3;
+    char * var_2;
+    var_2 = getenv(/* name */ "TZ");
+    var_1 = arg1 + 8L;
+    arg1 += 9L;
+    if ((var_2 == 0L) && (*var_1 == 0)) {
+        return 1L;
+    }
+    if ((var_2 == 0L) || (strcmp(arg1, var_2) != 0) || (*var_1 == 0)) {
+        var_3 = tzalloc(var_2);
+        if (var_3 != 0L) {
+            if (*var_1 == 0) {
+                arg1 = 0UL;
+            }
+            if (setenv_TZ(arg1) == 0) {
+                tzset();
+                return var_3;
+            }
+            var_4 = __errno_location();
+            if (var_3 != 1L) {
+                tzfree_part_0(var_3);
+            }
+            var_3 = 0UL;
+        }
+        return var_3;
+    }
+    if ((var_2 != 0L) && (*var_1 != 0) && (strcmp(arg1, var_2) == 0)) {
+        return 1L;
+    }
+}
+2.703438900411129

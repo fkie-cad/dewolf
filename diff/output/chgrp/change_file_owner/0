@@ -1,0 +1,34 @@
+
+
+struct stat {
+    unsigned long st_dev;
+    unsigned long st_ino;
+    unsigned long st_nlink;
+    unsigned int st_mode;
+    unsigned int st_uid;
+    unsigned int st_gid;
+    int __pad0;
+    unsigned long st_rdev;
+    long st_size;
+    long st_blksize;
+    long st_blocks;
+    timespec st_atim;
+    timespec st_mtim;
+    timespec st_ctim;
+    long [3] __glibc_reserved;
+};
+struct timespec {
+    long tv_sec;
+    long tv_nsec;
+};
+struct Elf64_Sym {
+    unsigned int st_name;
+    unsigned char st_info;
+    unsigned char st_other;
+    unsigned short st_shndx;
+    unsigned long st_value;
+    unsigned long st_size;
+};
+
+Failed to decompile change_file_owner due to error during common-subexpression-elimination.
+174.596576299984

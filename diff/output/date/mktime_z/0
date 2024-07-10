@@ -1,0 +1,51 @@
+
+
+struct tm {
+    int tm_sec;
+    int tm_min;
+    int tm_hour;
+    int tm_mday;
+    int tm_mon;
+    int tm_year;
+    int tm_wday;
+    int tm_yday;
+    int tm_isdst;
+    long tm_gmtoff;
+    char * tm_zone;
+};
+
+long mktime_z(long ** arg1, tm * arg2) {
+    int var_1;
+    int var_2;
+    int var_3;
+    int var_4;
+    int var_5;
+    int var_6;
+    int var_7;
+    long var_10;
+    long var_9;
+    long * var_8;
+    tm * var_0;
+    if (arg1 == 0L) {
+        return timegm(/* tmp */ arg2);
+    }
+    var_8 = set_tz(arg1);
+    if (var_8 != 0L) {
+        var_10 = mktime(/* tp */ arg2);
+        var_9 = var_10;
+        if (var_10 == -1L) {
+            var_0 = localtime_r(/* t */ &var_9, /* tp */ &var_1);
+        }
+        if (((var_10 != -1L) || (var_0 != 0L)) && ((arg2->tm_isdst == 0 == var_2 == 0) || (var_10 != -1L) || (arg2->tm_isdst < 0) || (var_2 < 0)) && ((var_10 != -1L) || ((arg2->tm_mon ^ var_3 | arg2->tm_year ^ var_4 | arg2->tm_mday ^ var_5 | arg2->tm_hour ^ var_6 | arg2->tm_min ^ var_7 | arg2->tm_sec ^ var_1) == 0)) && (save_abbr(arg1, arg2) == 0)) {
+            var_9 = -1L;
+        }
+        if ((var_8 == 1L) || (revert_tz_part_0(var_8) != 0)) {
+            var_10 = var_9;
+        }
+    }
+    if ((var_8 != 1L) && ((var_8 == 0L) || (revert_tz_part_0(var_8) == 0))) {
+        var_10 = -1L;
+    }
+    return var_10;
+}
+3.197397300042212

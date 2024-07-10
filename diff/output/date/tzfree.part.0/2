@@ -1,0 +1,22 @@
+
+
+
+
+void tzfree.part.0(long * arg1) {
+    long * var_0;
+    if (arg1 == 0L) {
+        return;
+    }
+    while (true) {
+        var_0 = *arg1;
+        free(/* ptr */ arg1);
+        if (var_0 == 0L) {
+            break;
+        }
+        arg1 = var_0;
+    }
+    if (var_0 == 0L) {
+        return;
+    }
+}
+1.1321131000295281

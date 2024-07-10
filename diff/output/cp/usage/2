@@ -1,0 +1,259 @@
+extern unsigned long program_name = 0UL;
+extern unsigned long * stderr = 0UL;
+extern unsigned long * stdout = 0UL;
+extern const unsigned char data_18068[0x2] = "\x5B\x00";
+
+struct _IO_FILE {
+    int _flags;
+    char * _IO_read_ptr;
+    char * _IO_read_end;
+    char * _IO_read_base;
+    char * _IO_write_base;
+    char * _IO_write_ptr;
+    char * _IO_write_end;
+    char * _IO_buf_base;
+    char * _IO_buf_end;
+    char * _IO_save_base;
+    char * _IO_backup_base;
+    char * _IO_save_end;
+    _IO_marker * _markers;
+    _IO_FILE * _chain;
+    int _fileno;
+    int _flags2;
+    long _old_offset;
+    unsigned short _cur_column;
+    char _vtable_offset;
+    char [1] _shortbuf;
+    _IO_lock_t * _lock;
+    long _offset;
+    _IO_codecvt * _codecvt;
+    _IO_wide_data * _wide_data;
+    _IO_FILE * _freeres_list;
+    void * _freeres_buf;
+    unsigned long __pad5;
+    int _mode;
+    char [20] _unused2;
+};
+struct _IO_marker {
+    void * _next;
+    void * _sbuf;
+    int _pos;
+};
+struct _IO_lock_t {
+    int lock;
+    int cnt;
+    void * owner;
+};
+struct _IO_codecvt {
+    _IO_iconv_t __cd_in;
+    _IO_iconv_t __cd_out;
+};
+struct _IO_iconv_t {
+    __gconv_step * step;
+    __gconv_step_data step_data;
+};
+struct __gconv_step {
+    void * __shlib_handle;
+    char * __modname;
+    int __counter;
+    char * __from_name;
+    char * __to_name;
+    void __fct;
+    unsigned int(void *, unsigned char) * __btowc_fct;
+    int(void *) * __init_fct;
+    void(void *) * __end_fct;
+    int __min_needed_from;
+    int __max_needed_from;
+    int __min_needed_to;
+    int __max_needed_to;
+    int __stateful;
+    void * __data;
+};
+struct __gconv_step_data {
+    unsigned char * __outbuf;
+    unsigned char * __outbufend;
+    int __flags;
+    int __invocation_counter;
+    int __internal_use;
+    __mbstate_t * __statep;
+    __mbstate_t __state;
+};
+struct __mbstate_t {
+    int __count;
+    union __value {
+        unsigned int __wch;
+        char [4] __wchb;
+    };
+};
+union __value {
+    unsigned int __wch;
+    char [4] __wchb;
+};
+struct _IO_wide_data {
+    int * _IO_read_ptr;
+    int * _IO_read_end;
+    int * _IO_read_base;
+    int * _IO_write_base;
+    int * _IO_write_ptr;
+    int * _IO_write_end;
+    int * _IO_buf_base;
+    int * _IO_buf_end;
+    int * _IO_save_base;
+    int * _IO_backup_base;
+    int * _IO_save_end;
+    __mbstate_t _IO_state;
+    __mbstate_t _IO_last_state;
+    _IO_codecvt _codecvt;
+    int [1] _shortbuf;
+    void * _wide_vtable;
+};
+
+void usage(int arg1) {
+    char* var_86;
+    unsigned char* var_81;
+    char* var_89;
+    unsigned long var_93;
+    long var_90;
+    long var_91;
+    long var_92;
+    void * var_88;
+    unsigned long * var_87;
+    long * var_84;
+    long * var_85;
+    char * var_82;
+    char * var_83;
+    var_82 = program_name;
+    if (arg1 != 0) {
+        var_83 = dcgettext(/* domainname */ 0UL, /* msgid */ "Try '%s --help' for more information.\n", /* category */ 5);
+        var_87 = stderr;
+        __fprintf_chk(/* fp */ var_87, /* flag */ 1, /* format */ var_83, var_82);
+    }
+    else {
+        var_83 = dcgettext(/* domainname */ 0UL, /* msgid */ "Usage: %s [OPTION]... [-T] SOURCE DEST\n  or:  %s [OPTION]... SOURCE... DIRECTORY\n  or:  %s [OPTION]... -t DIRECTORY SOURCE...\", /* category */ 5);
+                                            __printf_chk(/* flag */ 1, /* format */ var_83, var_82, var_82, var_82);
+                                            var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "Copy SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.\n", /* category */ 5);
+                                            var_87 = stdout;
+                                            fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                            var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nMandatory arguments to long options are mandatory for short options too.\n", /* category */ 5);
+                                            var_87 = stdout;
+                                            fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                            var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -a, --archive                same as -dR --preserve=all\n      --attributes-only        don't copy the file data, just the att", /* category */ 5);
+                                            var_87 = stdout;
+                                            fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                            var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -f, --force                  if an existing destination file cannot be\n                                 opened, remove it and", /* category */ 5);
+                                            var_87 = stdout;
+                                            fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                            var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -l, --link                   hard link files instead of copying\n  -L, --dereference            always follow symbolic links i", /* category */ 5);
+                                            var_87 = stdout;
+                                            fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                            var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -n, --no-clobber             do not overwrite an existing file (overrides\n                                 a previous -i opti", /* category */ 5);
+                                            var_87 = stdout;
+                                            fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                            var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -p                           same as --preserve=mode,ownership,timestamps\n      --preserve[=ATTR_LIST]   preserve the specifi", /* category */ 5);
+                                            var_87 = stdout;
+                                            fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                            var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --no-preserve=ATTR_LIST  don't preserve the specified attributes\n      --parents                use full source file name", /* category */ 5);
+                                            var_87 = stdout;
+                                            fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                            var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -R, -r, --recursive          copy directories recursively\n      --reflink[=WHEN]         control clone/CoW copies. See below\", /* category */ 5);
+                                                    var_87 = stdout;
+                                                    fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                                    var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --sparse=WHEN            control creation of sparse files. See below\n      --strip-trailing-slashes  remove any trailing ", /* category */ 5);
+                                                    var_87 = stdout;
+                                                    fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                                    var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -s, --symbolic-link          make symbolic links instead of copying\n  -S, --suffix=SUFFIX          override the usual backup ", /* category */ 5);
+                                                    var_87 = stdout;
+                                                    fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                                    var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -u, --update                 copy only when the SOURCE file is newer\n                                 than the destination fi", /* category */ 5);
+                                                    var_87 = stdout;
+                                                    fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                                    var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "  -Z                           set SELinux security context of destination\n                                 file to default typ", /* category */ 5);
+                                                    var_87 = stdout;
+                                                    fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                                    var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --help     display this help and exit\n", /* category */ 5);
+                                                    var_87 = stdout;
+                                                    fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                                    var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "      --version  output version information and exit\n", /* category */ 5);
+                                                    var_87 = stdout;
+                                                    fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                                    var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nBy default, sparse SOURCE files are detected by a crude heuristic and the\ncorresponding DEST file is made sparse as well.  Th", /* category */ 5);
+                                                    var_87 = stdout;
+                                                    fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                                    var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nWhen --reflink[=always] is specified, perform a lightweight copy, where the\ndata blocks are copied only when modified.  If th", /* category */ 5);
+                                                    var_87 = stdout;
+                                                    fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                                    var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nThe backup suffix is '~', unless set with --suffix or SIMPLE_BACKUP_SUFFIX.\nThe version control method may be selected via th", /* category */ 5);
+                                                    var_87 = stdout;
+                                                    fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                                    var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "  none, off       never make backups (even if --backup is given)\n  numbered, t     make numbered backups\n  existing, nil   num", /* category */ 5);
+                                                    var_87 = stdout;
+                                                    fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                                    var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "\nAs a special case, cp makes a backup of SOURCE when the force and backup\noptions are given and SOURCE and DEST are the same n", /* category */ 5);
+                                                    var_87 = stdout;
+                                                    fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+                                                    var_84 = &var_81;
+                                                    var_81 = data_18068;
+        var_86 = "test invocation"; while (true) {
+        var_85 = var_84 + 16L;
+        var_88 = var_84 + 16L;
+        if (*var_88 == 0L) {
+                break;
+            }
+            if ((unsigned int)**var_88 != 99) {
+                var_84 = var_85;
+                continue;
+            }
+            if (*(*var_88 + 1L) != 112) {
+                var_84 = var_85;
+                continue;
+            }
+            if (*(*var_88 + 2L) == 0) {
+                break;
+            }
+            var_84 = var_85;
+        }
+        var_88 = var_84 + 0x18;
+        var_89 = *var_88; if (*var_88 != 0L) {
+        var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "\n%s online help: <%s>\n", /* category */ 5);
+            var_91, var_90, var_93, var_92 = __printf_chk(/* flag */ 1, /* format */ var_82, "GNU coreutils", "https://www.gnu.org/software/coreutils/");
+            var_82 = setlocale(/* category */ 5, /* locale */ 0UL, var_90, var_91, var_93, var_92, /* category */ var_81, /* category */ var_86);
+            if (var_82 != 0L) {
+                var_82 = strncmp(var_82, "en_", 3UL);
+            }
+        }
+        else {
+            var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "\n%s online help: <%s>\n", /* category */ 5);
+            var_91, var_90, var_93, var_92 = __printf_chk(/* flag */ 1, /* format */ var_82, "GNU coreutils", "https://www.gnu.org/software/coreutils/");
+            var_82 = setlocale(/* category */ 5, /* locale */ 0UL, var_90, var_91, var_93, var_92, /* category */ var_81, /* category */ var_86);
+            if (var_82 != 0L) {
+                var_82 = strncmp(var_82, "en_", 3UL);
+                if (var_82 != 0) {
+                    var_89 = "cp";
+                }
+            }
+        }
+        if ((*var_88 == 0L) && ((var_82 == 0L) || (var_82 == 0))) {
+        var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "Full documentation <%s%s>\n", /* category */ 5);
+            var_89 = "cp";
+            __printf_chk(/* flag */ 1, /* format */ var_82, "https://www.gnu.org/software/coreutils/", "cp");
+            var_82 = "Multi-call invocation";
+        }
+        else {
+            if ((*var_88 == 0L) || ((var_82 != 0) && (var_82 != 0L))) {
+                var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "Report any translation bugs to <https://translationproject.org/team/>\n", /* category */ 5);
+                var_87 = stdout;
+                fputs_unlocked(/* str */ var_82, /* fp */ var_87);
+            }
+            var_82 = dcgettext(/* domainname */ 0UL, /* msgid */ "Full documentation <%s%s>\n", /* category */ 5);
+            __printf_chk(/* flag */ 1, /* format */ var_82, "https://www.gnu.org/software/coreutils/", "cp");
+            var_82 = "Multi-call invocation";
+            if (var_89 != "cp") {
+                var_82 = "%s -> %s (unbackup)\n";
+            }
+        }
+        var_83 = dcgettext(/* domainname */ 0UL, /* msgid */ "or available locally via: info '(coreutils) %s%s'\n", /* category */ 5);
+                 __printf_chk(/* flag */ 1, /* format */ var_83, var_89, var_82);
+    }
+    exit(/* status */ arg1);
+}
+72.16544310003519

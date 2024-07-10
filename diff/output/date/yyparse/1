@@ -1,0 +1,13 @@
+
+
+struct Elf64_Sym {
+    unsigned int st_name;
+    unsigned char st_info;
+    unsigned char st_other;
+    unsigned short st_shndx;
+    unsigned long st_value;
+    unsigned long st_size;
+};
+
+Failed to decompile yyparse due to error during insert-missing-definitions.
+9.605570799671113

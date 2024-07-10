@@ -1,0 +1,21 @@
+extern unsigned int human_output_opts = 0U;
+
+
+
+void * df_readable.part.0(char arg1, long arg2, long arg3) {
+    unsigned int var_3;
+    long var_1;
+    long var_2;
+    int80_t var_5;
+    void * var_4;
+    var_3 = human_output_opts;
+    arg3 += (unsigned char)arg1;
+    if (arg1 != 0) {
+        var_5, var_4 = human_readable(-arg2, arg3, var_3, var_1, var_2);
+        var_4--;
+        *var_4 = 0x2d;
+        return var_4;
+    }
+    return human_readable(arg2, arg3, var_3, var_1, var_2);
+}
+1.2217778000049293

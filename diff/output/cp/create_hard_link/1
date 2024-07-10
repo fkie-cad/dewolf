@@ -1,0 +1,22 @@
+
+
+
+
+unsigned long create_hard_link(void * arg1, char * arg2, char arg3, int arg4, bool arg5) {
+    int var_3;
+    char * var_0;
+    var_3 = force_linkat(-100, arg1, -100, arg2, (unsigned int)(arg5 != 0) << 10, arg3, -1);
+    if (var_3 > 0) {
+        var_0 = dcgettext(/* domainname */ 0UL, /* msgid */ "cannot create hard link %s to %s", /* category */ 5);
+        error(/* status */ 0, /* errnum */ (unsigned int)var_3, /* message */ var_0, quotearg_n_style(0, 4, arg2), quotearg_n_style(1, 4, arg1));
+        return 0L;
+    }
+    arg3 = (char)arg4 & var_3 >> 31 & 0xff;
+    if (arg3 == 0) {
+        return 1L;
+    }
+    var_0 = dcgettext(/* domainname */ 0UL, /* msgid */ "removed %s\n", /* category */ 5);
+    __printf_chk(/* flag */ 1, /* format */ var_0, quotearg_style(4, arg2));
+    return (unsigned int)arg3;
+}
+1.724810500163585

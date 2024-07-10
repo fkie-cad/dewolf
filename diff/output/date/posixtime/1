@@ -1,0 +1,96 @@
+
+
+
+
+long posixtime(long * arg1, char * arg2, int arg3) {
+    int exit_14;
+    int var_4;
+    int var_5;
+    unsigned long var_10;
+    unsigned long var_7;
+    unsigned long var_8;
+    unsigned long var_9;
+    long var_6;
+    char var_13;
+    void * var_11;
+    void * var_12;
+    char * var_0;
+    char * var_1;
+    char * var_2;
+    var_7 = strlen(arg2);
+    if (((char)arg3 & 4) == 0) {
+        var_0 = 0UL;
+    }
+    else {
+        var_0 = strchr(arg2, 46);
+        if (var_0 != 0L) {
+            var_11 = var_0 - arg2;
+            if (var_7 - var_0 - arg2 == 3L) {
+                var_7 = var_11;
+            }
+        }
+    }
+    if (((var_0 == 0L) || (((char)arg3 & 4) == 0) || (var_7 - var_0 - arg2 == 3L)) && (var_7 - 8L <= 4L)) {
+        var_8 = (unsigned int)(var_7 & 1);
+        if (var_8 == 0) {
+            var_1 = arg2;
+            while (true) {
+                if ((int)*var_1 - 48 <= 9) {
+                    var_2 = var_1 + 1L;
+                    if (var_7 + arg2 != var_1 + 1L) {
+                        var_1 = var_2;
+                        continue;
+                    }
+                    while (true) {
+                        var_11 = arg2 + (var_8 << 1);
+                        *(&var_4 + (var_8 << 2)) = (int)*(var_11 + 1L) + ((unsigned int)((int)*var_11 + ((int)*var_11 << 2) - 240L & 0xffffffff) << 1 & 0xffffffff) - 48;
+                        var_9 = var_8 + 1L;
+                        var_10 = var_7 >> 1L;
+                        if (var_10 == var_8 + 1L) {
+                            break;
+                        }
+                        var_8 = var_9;
+                    }
+                    if (var_10 == var_8 + 1L) {
+                        var_7 = var_10 - 4L;
+                    }
+                    if (((char)arg3 & 1) == 0) {
+                        var_13 = year_isra_0(&var_5, &var_4, var_7, arg3);
+                    }
+                    else {
+                        var_13 = year_isra_0(&var_5, &var_6, var_7, arg3);
+                    }
+                    if (((((char)arg3 & 1) == 0) || (var_13 != 0)) && ((var_13 != 0) || (((char)arg3 & 1) != 0))) {
+                        if (var_0 == 0L) {
+                            arg3 = 0;
+                        }
+                        else {
+                            var_11 = var_0 + 1L;
+                            if ((unsigned int)((int)*var_11 - 48) <= 9) {
+                                var_12 = var_0 + 2L;
+                                if ((int)*var_12 - 48 <= 9) {
+                                    arg3 = (int)*var_12 + ((unsigned int)((int)*var_11 - 48) * 5 << 1 & 0xffffffff) - 48;
+                                }
+                            }
+                        }
+                    }
+                }
+                if ((((int)*var_1 - 48 > 9) || (((char)arg3 & 1) == 0) || (var_0 != 0L) || (var_13 == 0)) && (((int)*var_1 - 48 > 9) || (((char)arg3 & 1) == 0) || ((unsigned int)((int)*var_11 - 48) > 9) || (var_13 == 0) || ((int)*var_12 - 48 > 9)) && ((var_13 == 0) || ((int)*var_1 - 48 > 9) || (((char)arg3 & 1) != 0) || (var_0 != 0L)) && ((var_13 == 0) || ((int)*var_1 - 48 > 9) || (((char)arg3 & 1) != 0) || ((unsigned int)((int)*var_11 - 48) > 9) || ((int)*var_12 - 48 > 9))) {
+                    exit_14 = 0;
+                }
+                else {
+                    var_4 = arg3;
+                    mktime(/* tp */ &var_4);
+                    var_13 = 0;
+                    exit_14 = 1;
+                }
+                break;
+            }
+        }
+    }
+    if ((exit_14 == 0) || (var_8 != 0) || (var_7 - 8L > 4L) || ((var_7 - var_0 - arg2 != 3L) && (var_0 != 0L) && (((char)arg3 & 4) != 0))) {
+        var_13 = 0;
+    }
+    return var_13;
+}
+12.088792600203305

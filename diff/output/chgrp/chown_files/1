@@ -1,0 +1,41 @@
+
+
+
+
+unsigned long chown_files(long * arg1, int arg2, int arg3, int arg4, int arg5, unsigned int arg6, int * arg7) {
+    unsigned int var_0;
+    void * var_4;
+    char * var_5;
+    void ** var_3;
+    if ((*(arg7 + 16L) == 0) && (*arg7 == 2) && ((arg5 & arg6) == -1)) {
+        arg2 |= 8;
+    }
+    var_3 = xfts_open(arg1, arg2, 0L);
+    var_0 = 1U;
+    while (true) {
+        arg1 = rpl_fts_read(var_3);
+        if (arg1 == 0L) {
+            break;
+        }
+        var_0 &= change_file_owner(var_3, arg1, arg3, arg4, arg5, arg6, arg7);
+    }
+    arg4 = __errno_location();
+    if (*arg4 != 0) {
+        var_4 = arg7 + 17L;
+        var_0 = (unsigned int)*var_4;
+        if ((unsigned char)(unsigned int)*var_4 != 0) {
+            var_0 = 0U;
+        }
+        else {
+            var_5 = dcgettext(/* domainname */ 0UL, /* msgid */ "fts_read failed", /* category */ 5);
+            error(/* status */ 0, /* errnum */ *arg4, /* message */ var_5);
+        }
+    }
+    if (rpl_fts_close(var_3) != 0) {
+        var_5 = dcgettext(/* domainname */ 0UL, /* msgid */ "fts_close failed", /* category */ 5);
+        error(/* status */ 0, /* errnum */ *arg4, /* message */ var_5);
+        var_0 = 0U;
+    }
+    return var_0;
+}
+1.738434299826622

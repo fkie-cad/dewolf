@@ -1,0 +1,114 @@
+
+
+
+
+long save_abbr(long ** arg1, void * arg2) {
+    int exit_12;
+    int exit_15;
+    int loop_break;
+    int var_7;
+    unsigned long var_8;
+    long var_5;
+    long var_6;
+    void * var_0;
+    long * var_9;
+    char * var_4;
+    long ** var_1;
+    long ** var_2;
+    var_0 = arg2 + 48L;
+    var_4 = *var_0;
+    if (*var_0 == 0L) {
+        return 1L;
+    }
+    if ((arg2 <= *var_0) && (*var_0 < arg2 + 56L)) {
+        var_5 = 1L;
+    }
+    else {
+        var_1 = arg1 + 9L;
+        if (**var_0 == 0) {
+            var_1 = "    user provided time: '%s'\n";
+        }
+        else {
+            while (true) {
+                var_7 = strcmp(var_1, *var_0);
+                if (var_7 != 0) {
+                    while (true) {
+                        if (*var_1 == 0) {
+                            arg2 = arg1 + 9L;
+                        }
+                        if ((*var_1 != 0) || ((*(arg1 + 8L) != 0) && (arg2 == var_1))) {
+                            var_8 = strlen(var_1);
+                            arg2 = var_1 + var_8;
+                            var_1 = arg2 + 1L;
+                            if (*(arg2 + 1L) == 0) {
+                                var_2 = *arg1;
+                            }
+                            if ((*(arg2 + 1L) != 0) || (*arg1 == 0L)) {
+                                exit_15 = 0;
+                                break;
+                            }
+                            var_1 = *arg1 + 9L;
+                            var_7 = strcmp(*arg1 + 9L, var_4);
+                            if (var_7 != 0) {
+                                arg1 = var_2;
+                                continue;
+                            }
+                        }
+                        else {
+                            var_8 = strlen(var_4);
+                            var_5 = var_1 - arg2;
+                            var_6 = var_8 + 1L;
+                            if (~var_5 < var_6) {
+                                *__errno_location() = 0xc;
+                                var_5 = 0L;
+                            }
+                            else if (var_5 + var_6 <= 118L) {
+                                memcpy(var_1, var_4, var_6);
+                                *(var_1 + var_8 + 1L) = 0x0;
+                            }
+                            else {
+                                var_9 = tzalloc(var_4);
+                                *arg1 = var_9;
+                                if (var_9 == 0L) {
+                                    var_5 = 0L;
+                                }
+                                else {
+                                    *(var_9 + 8L) = 0x0;
+                                    var_1 = var_9 + 9L;
+                                }
+                            }
+                        }
+                        if ((*var_1 == 0) && ((~var_5 < var_6) || (var_5 + var_6 > 118L)) && ((arg2 != var_1) || (*(arg1 + 8L) == 0)) && ((~var_5 < var_6) || (var_9 == 0L))) {
+                            exit_15 = 1;
+                            break;
+                        }
+                        if (((*var_1 == 0) || (var_7 == 0)) && ((arg2 != var_1) || (*(arg1 + 8L) == 0) || (var_7 == 0))) {
+                            exit_15 = 2;
+                            break;
+                        }
+                    }
+                    loop_break = 0;
+                    switch(exit_15) {
+                    case 0:
+                        continue;
+                    case 1:
+                        exit_12 = 1;
+                        loop_break = 1;
+                        break;
+                    }
+                    if (loop_break == 1) {
+                        break;
+                    }
+                }
+                exit_12 = 0;
+                break;
+            }
+        }
+        if ((**var_0 == 0) || (exit_12 == 0)) {
+            *var_0 = var_1;
+            var_5 = 1L;
+        }
+    }
+    return var_5;
+}
+9.096733400132507

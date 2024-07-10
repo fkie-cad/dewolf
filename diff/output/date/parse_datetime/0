@@ -1,0 +1,31 @@
+
+
+struct tm {
+    int tm_sec;
+    int tm_min;
+    int tm_hour;
+    int tm_mday;
+    int tm_mon;
+    int tm_year;
+    int tm_wday;
+    int tm_yday;
+    int tm_isdst;
+    long tm_gmtoff;
+    char * tm_zone;
+};
+
+unsigned long parse_datetime(tm * arg1, char * arg2, long * arg3) {
+    long * var_2;
+    char * var_1;
+    var_1 = getenv(/* name */ "TZ");
+    var_2 = tzalloc(var_1);
+    if (var_2 == 0L) {
+        arg3 = 0;
+    }
+    else {
+        arg3 = parse_datetime2(arg1, arg2, arg3, 0, var_2, var_1);
+        tzfree(var_2);
+    }
+    return (unsigned int)arg3;
+}
+0.8290633000433445

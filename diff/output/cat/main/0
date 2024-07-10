@@ -1,0 +1,644 @@
+extern const char [15] * long_options_7200 = "number-nonblank";
+extern unsigned long * stdout = 0UL;
+extern char [4] * Version = "8.32";
+extern unsigned int * optind = 0UL;
+extern const unsigned char data_7110[0x2] = "\x2D\x00";
+extern unsigned long infile = 0UL;
+extern unsigned int input_desc = 0U;
+extern unsigned int newlines2 = 0U;
+extern char line_num_print[0x14] = line_buf;
+extern char line_buf[0x14] = "                 0\t";
+extern unsigned char data_495e[0x2e2] = "\x00\x00\x00\x0F\x1F\x80\x00\x00\x00\x00\x4D\x39\xE6\x76\x04\x43\x88\x04\x27\x49\x83\xC4\x01\x42\x0F\xB6\x04\x22\x84\xC0\x75\xEA...";
+extern unsigned char data_3f5e[0xce2] = "\xED\x45\x31\xE4\x41\xBA\x05\x00\x00\x00\x48\x8D\x05\xF1\x37\x00\x00\xC6\x44\x24\x64\x00\x48\xC7\x44\x24\x48\x00\x00\x00\x00\xC6...";
+extern unsigned char data_2d4d[0x463] = "\x00\x00\x00\x0F\xB6\x5D\x00\x48\x89\xD5\xE9\x41\xFD\xFF\xFF\x0F\x1F\x40\x00\x48\x89\xDA\x4C\x89\xE6\xBF\x01\x00\x00\x00\xE8\xD0...";
+extern unsigned char data_541b[0x115] = "\x48\x89\x44\x24\x30\xC7\x04\x24\x0A\x00\x00\x00\x0F\x29\x4C\x24\x10\x0F\x29\x54\x24\x20\x48\x85\xF6\x0F\x84\x44\xD2\xFF\xFF\x48...";
+
+
+
+int main(int argc, char ** argv, char ** envp) {
+    unsigned char* var_69;
+    char* var_75;
+    unsigned int var_68;
+    int entry_137;
+    int entry_32;
+    int entry_84;
+    int entry_94;
+    int exit_78;
+    int exit_86;
+    int exit_87;
+    int exit_n3;
+    int exit_n4;
+    int exit_n5;
+    int loop_break;
+    int var_39;
+    int var_40;
+    int var_41;
+    unsigned long var_63;
+    unsigned long var_64;
+    unsigned long var_65;
+    long var_38;
+    long var_42;
+    long var_43;
+    long var_44;
+    long var_45;
+    long var_46;
+    long var_47;
+    long var_48;
+    long var_49;
+    long var_50;
+    long var_51;
+    long var_52;
+    char var_53;
+    char var_54;
+    char var_55;
+    char var_56;
+    char var_57;
+    char var_58;
+    char var_59;
+    char var_60;
+    char var_61;
+    char [4] * var_71;
+    void * var_72;
+    void * var_73;
+    void (* var_66)();
+    int * var_67;
+    int * var_74;
+    unsigned long * var_70;
+    long * var_62;
+    char * var_28;
+    char * var_29;
+    char * var_30;
+    char * var_31;
+    char * var_32;
+    char * var_33;
+    char * var_34;
+    char * var_35;
+    char * var_36;
+    char * var_37;
+    set_program_name(*argv);
+    setlocale(/* category */ 6, /* locale */ "Written by %s, %s, and %s.\n");
+    bindtextdomain(/* domainname */ "GNU coreutils", /* dirname */ "/usr/local/share/locale");
+    textdomain(/* domainname */ "GNU coreutils");
+    atexit(close_stdout);
+    var_53 = 0;
+    var_54 = 0;
+    var_55 = 0;
+    var_56 = 0;
+    var_57 = 0;
+    var_58 = 0;
+    while (true) {
+        var_40 = getopt_long(argc, argv, /* options */ "benstuvAET", /* long_options */ &long_options_7200, /* opt_index */ 0UL);
+        if ((var_40 <= 118) && (var_40 > 64)) {
+            var_68 = (unsigned int)(var_40 - 65);
+            if ((var_40 != -1) && (var_68 <= 53)) {
+                switch(var_68) {
+                case 0x0:
+                    var_54 = 1;
+                    var_55 = 1;
+                    var_56 = 1;
+                    continue;
+                case 0x13:
+                    var_55 = 1;
+                    continue;
+                case 0x21:
+                    var_53 = 1;
+                    var_57 = 1;
+                    continue;
+                case 0x24:
+                    var_54 = 1;
+                case 0x4:
+                    var_56 = 1;
+                    continue;
+                case 0x2d:
+                    var_53 = 1;
+                    continue;
+                case 0x32:
+                    var_58 = 1;
+                    continue;
+                case 0x33:
+                    var_54 = 1;
+                    var_55 = 1;
+                    continue;
+                case 0x34:
+                    continue;
+                case 0x35:
+                    var_54 = 1;
+                    continue;
+                }
+            }
+        }
+        loop_break = 0;
+        switch(var_40) {
+        case 0xffffff7d:
+            var_70 = stdout;
+            var_71 = Version;
+            version_etc(var_70, "cat", "GNU coreutils", var_71);
+            exit(/* status */ 0);
+            break;
+        case 0xffffff7e:
+            usage(0);
+            break;
+        case 0xffffffff:
+            var_62 = &var_38;
+            var_40 = __fxstat(/* vers */ 1, /* fd */ 1, /* buf */ &var_38);
+            if (var_40 < 0) {
+                loop_break = 1;
+                break;
+            }
+            var_63 = 0UL;
+            var_40 = getpagesize();
+            var_43 = optind;
+            var_69 = data_7110;
+            infile = data_7110;
+            var_44 = var_38;
+            if (argc <= (int)var_43) {
+                var_60 = 1;
+                var_59 = 0;
+                entry_32 = 0;
+            }
+            else {
+                var_60 = 1;
+                var_59 = 0;
+                entry_32 = 1;
+            }
+            while (true) {
+                if (entry_32 == 0) {
+                    if (*var_69 == '-') {
+                        var_72 = var_69 + 1L;
+                        var_28 = *var_72;
+                    }
+                    if ((*var_69 == '-') && (*var_72 == 0)) {
+                        input_desc = 0U;
+                        var_59 = 1;
+                    }
+                    else {
+                        var_28 = open(/* file */ var_69, /* oflag */ 0);
+                        input_desc = var_28;
+                    }
+                    if ((var_28 >= 0) || ((*var_72 == 0) && (*var_69 == '-'))) {
+                        if (__fxstat(/* vers */ 1, /* fd */ var_28, /* buf */ var_62) < 0) {
+                            var_64 = infile;
+                            var_67 = __errno_location();
+                            error(/* status */ 0, /* errnum */ *var_67, /* message */ "%s: %s", quotearg_n_style_colon(0, 3, var_64));
+                            var_60 = 0;
+                        }
+                        else {
+                            fdadvise(/* fd */ var_28, /* __arg2 */ 0L, /* len */ 0L, /* advise */ 2);
+                            if (((var_39 & 0xf000) == "License GPLv3+: GNU GPL version 3 or later <%s>.\nThis is free software: you are free to change and redistribute it.\nThere is N") && (var_38 == var_44)) {
+                                var_28 = input_desc;
+                            }
+                            if (((var_39 & 0xf000) == "License GPLv3+: GNU GPL version 3 or later <%s>.\nThis is free software: you are free to change and redistribute it.\nThere is N") && (var_38 == var_44) && (lseek(/* fd */ var_28, /* __arg2 */ 0L, /* whence */ 1) < var_42)) {
+                                var_64 = infile;
+                                var_28 = dcgettext(/* domainname */ 0UL, /* msgid */ "%s: input file is output file", /* category */ 5);
+                                error(/* status */ 0, /* errnum */ 0, /* message */ var_28, quotearg_n_style_colon(0, 3, var_64));
+                                var_60 = 0;
+                            }
+                            else {
+                                var_45 = var_40 - 1L;
+                                if ((var_53 | var_56) == 0) {
+                                    var_61 = var_54 | var_55 | var_58;
+                                }
+                                if (((var_53 | var_56) == 0) && (var_61 == 0)) {
+                                    var_46 = xmalloc(var_45 + 0x20000);
+                                    while (true) {
+                                        var_28 = input_desc;
+                                        var_47 = var_46 + var_45;
+                                        var_47 -= var_47 % var_40;
+                                        var_28 = safe_read(var_28, var_47, 0x20000);
+                                        loop_break = 0;
+                                        switch(var_28) {
+                                        case -1L:
+                                            var_28 = infile;
+                                            var_67 = __errno_location();
+                                            error(/* status */ 0, /* errnum */ *var_67, /* message */ "%s: %s", quotearg_n_style_colon(0, 3, var_28));
+                                            var_45 = var_46;
+                                            exit_86 = 0;
+                                            loop_break = 1;
+                                            break;
+                                        case 0L:
+                                            var_45 = var_46;
+                                            exit_86 = 1;
+                                            loop_break = 1;
+                                            break;
+                                        }
+                                        if (loop_break == 1) {
+                                            break;
+                                        }
+                                        if (var_28 != full_write(1, var_47, var_28)) {
+                                            argc = dcgettext(/* domainname */ 0UL, /* msgid */ "write error", /* category */ 5);
+                                            var_67 = __errno_location();
+                                            error(/* status */ 1, /* errnum */ *var_67, /* message */ argc);
+                                            exit_86 = 2;
+                                            break;
+                                        }
+                                    }
+                                    if ((exit_86 != 1) && (exit_86 != 0)) {
+                                        exit_n4 = 0;
+                                        break;
+                                    }
+                                }
+                                else {
+                                    var_46 = var_40 + 0x20000;
+                                    var_47 = xmalloc(var_46);
+                                    var_48 = xmalloc(var_46 + 0x80012);
+                                    var_30 = newlines2;
+                                    var_46 = var_48 + var_45;
+                                    var_64 = var_46 % var_40;
+                                    var_31 = var_46 - var_64;
+                                    var_45 += var_47;
+                                    var_65 = var_45 % var_40;
+                                    var_28 = var_45 - var_65;
+                                    var_29 = var_40 + var_47 - var_65;
+                                    var_32 = var_28;
+                                    var_33 = var_29;
+                                    var_34 = var_30;
+                                    var_30 = var_31;
+                                    var_61 = 1;
+                                    while (true) {
+                                        var_49 = var_46 - var_64;
+                                        var_72 = var_49 + 0x20000;
+                                        if (var_72 <= var_30) {
+                                            entry_84 = 0;
+                                        }
+                                        else {
+                                            entry_137 = 2;
+                                            entry_84 = 1;
+                                        }
+                                        while (true) {
+                                            if (entry_84 == 0) {
+                                                var_35 = var_31;
+                                                while (true) {
+                                                    if (0x20000 != full_write(1, var_35, 0x20000)) {
+                                                        var_28 = dcgettext(/* domainname */ 0UL, /* msgid */ "write error", /* category */ 5);
+                                                        var_67 = __errno_location();
+                                                        error(/* status */ 1, /* errnum */ *var_67, /* message */ var_28);
+                                                        var_45 = var_47;
+                                                        exit_87 = 0;
+                                                        break;
+                                                    }
+                                                    var_36 = var_35 + 0x20000;
+                                                    var_73 = var_35 + 0x20000;
+                                                    var_50 = var_30 - var_73;
+                                                    if (0x20000 <= var_50) {
+                                                        var_35 = var_36;
+                                                        continue;
+                                                    }
+                                                    memmove(var_49, var_73, var_50);
+                                                    var_30 = var_49 + var_50;
+                                                    if (var_33 > var_32) {
+                                                        entry_137 = 3;
+                                                        exit_87 = 1;
+                                                    }
+                                                    else {
+                                                        var_35 = var_34;
+                                                        entry_94 = 0;
+                                                        exit_87 = 2;
+                                                    }
+                                                    break;
+                                                }
+                                                if (exit_87 == 0) {
+                                                    exit_n4 = 0;
+                                                    break;
+                                                }
+                                            }
+                                            if ((entry_84 != 0) || (exit_87 == 1)) {
+                                                entry_94 = 1;
+                                                entry_84 = 0;
+                                            }
+                                            while (true) {
+                                                if (entry_94 == 0) {
+                                                    var_36 = var_35 + 1;
+                                                    var_34 = var_33 + 1L;
+                                                    var_41 = var_35 + 1;
+                                                    if (var_41 == 1) {
+                                                        var_35 = var_36;
+                                                    }
+                                                    if (var_41 <= 0) {
+                                                        var_37 = var_34;
+                                                        var_34 = var_36;
+                                                        var_35 = var_30;
+                                                    }
+                                                    else {
+                                                        if ((var_41 != 1) && (var_58 == 0)) {
+                                                            var_35 = 2U;
+                                                        }
+                                                        if ((var_41 == 1) || (var_58 == 0)) {
+                                                            if (var_57 != 0) {
+                                                                var_37 = var_34;
+                                                                var_34 = var_35;
+                                                                var_35 = var_30;
+                                                            }
+                                                            else if (var_53 == 0) {
+                                                                var_37 = var_34;
+                                                                var_34 = var_35;
+                                                                var_35 = var_30;
+                                                            }
+                                                            else {
+                                                                var_73 = var_33 + 1L;
+                                                                next_line_num();
+                                                                var_34 = line_num_print;
+                                                                var_30 = stpcpy(var_30, var_34);
+                                                                var_37 = var_73;
+                                                                var_34 = var_35;
+                                                                var_35 = var_30;
+                                                            }
+                                                        }
+                                                    }
+                                                    if ((var_41 > 0) && (var_41 != 1) && (var_58 != 0)) {
+                                                        var_33 = *var_33;
+                                                        var_35 = var_32;
+                                                        var_32 = var_33;
+                                                        var_33 = var_34;
+                                                        var_34 = 2U;
+                                                        entry_137 = 1;
+                                                    }
+                                                    else {
+                                                        var_36 = var_35 + 1L;
+                                                        if (var_56 == 0) {
+                                                            var_30 = var_36;
+                                                        }
+                                                        else {
+                                                            *var_35 = 0x24;
+                                                            var_30 = var_35 + 2L;
+                                                            var_35 = var_36;
+                                                        }
+                                                        *var_35 = 0xa;
+                                                        var_35 = var_32;
+                                                        var_32 = var_33;
+                                                        var_33 = var_37;
+                                                        entry_137 = 0;
+                                                    }
+                                                }
+                                                while (true) {
+                                                    loop_break = 0;
+                                                    switch(entry_137) {
+                                                    case 0:
+                                                        var_32 = *var_32;
+                                                    case 1:
+                                                        entry_137 = 0;
+                                                        if (var_32 == 10) {
+                                                            var_32 = var_35;
+                                                            exit_n5 = 0;
+                                                            loop_break = 1;
+                                                            break;
+                                                        }
+                                                        if ((var_34 >= 0) && (var_53 != 0)) {
+                                                            next_line_num();
+                                                            var_75 = line_num_print;
+                                                            var_30 = stpcpy(var_30, var_75);
+                                                        }
+                                                        if (var_54 == 0) {
+                                                            for (var_32; var_32 != 10; var_32 = *var_33) {
+                                                                if ((var_32 != 9) || (var_55 == 0)) {
+                                                                    *var_30 = var_32;
+                                                                    var_30++;
+                                                                }
+                                                                else {
+                                                                    var_32 = var_30 + 2L;
+                                                                    *var_30 = data_495e;
+                                                                    var_30 = var_32;
+                                                                }
+                                                                var_33++;
+                                                            }
+                                                        }
+                                                        else {
+                                                            while (true) {
+                                                                var_34 = var_30 + 1L;
+                                                                var_36 = var_30 + 2L;
+                                                                if (var_32 == 10) {
+                                                                    break;
+                                                                }
+                                                                if (var_32 <= 31) {
+                                                                    if ((var_32 == 9) && ((var_55 ^ 1) != 0)) {
+                                                                        *var_30 = 0x9;
+                                                                        var_30 = var_34;
+                                                                    }
+                                                                    else {
+                                                                        *var_30 = 0x5e;
+                                                                        *(var_30 + 1L) = var_32 + '@';
+                                                                        var_30 = var_36;
+                                                                    }
+                                                                }
+                                                                else if (var_32 <= 126) {
+                                                                    *var_30 = var_32;
+                                                                    var_30 = var_34;
+                                                                }
+                                                                else if (var_32 == 127) {
+                                                                    *var_30 = data_3f5e;
+                                                                    var_30 = var_36;
+                                                                }
+                                                                else {
+                                                                    *var_30 = data_2d4d;
+                                                                    var_73 = var_30 + 2L;
+                                                                    var_34 = var_30 + 4L;
+                                                                    if (var_32 <= -97) {
+                                                                        *var_73 = 0x5e;
+                                                                        *(var_30 + 3L) = var_32 - '@';
+                                                                        var_30 = var_34;
+                                                                    }
+                                                                    else if (var_32 == -1) {
+                                                                        *var_73 = data_3f5e;
+                                                                        var_30 = var_34;
+                                                                    }
+                                                                    else {
+                                                                        var_30 += 3L;
+                                                                        *var_73 = var_32 + -128;
+                                                                    }
+                                                                }
+                                                                var_32 = *var_33;
+                                                                var_33++;
+                                                            }
+                                                        }
+                                                        if (var_72 <= var_30) {
+                                                            var_32 = var_35;
+                                                            var_34 = 0xffffffff;
+                                                            exit_n5 = 1;
+                                                            loop_break = 1;
+                                                            break;
+                                                        }
+                                                        var_32 = var_35;
+                                                        var_34 = 0xffffffff;
+                                                    case 2:
+                                                        entry_137 = 0;
+                                                        if (var_33 <= var_32) {
+                                                            var_35 = var_34;
+                                                            exit_n5 = 2;
+                                                            loop_break = 1;
+                                                            break;
+                                                        }
+                                                        break;
+                                                    }
+                                                    if (loop_break == 1) {
+                                                        break;
+                                                    }
+                                                    if ((var_33 > var_32) || ((entry_137 != 0) && (entry_137 != 2) && (entry_137 != 1))) {
+                                                        var_74 = 0x0;
+                                                        entry_137 = 0;
+                                                        if (var_61 != 0) {
+                                                            var_32 = input_desc;
+                                                            var_41 = ioctl(var_32, data_541b, &var_74);
+                                                            if (var_41 < 0) {
+                                                                var_67, var_41 = __errno_location();
+                                                                var_41 = *var_67 == 95;
+                                                                if (*var_67 <= 38) {
+                                                                    var_41 = *var_67 == 95 | 0x4002480000 >> (char)*var_67 & 0xffffffff & 1;
+                                                                }
+                                                                if ((char)var_41 != 0) {
+                                                                    var_61 = 0;
+                                                                }
+                                                                else {
+                                                                    var_64 = infile;
+                                                                    var_28 = dcgettext(/* domainname */ 0UL, /* msgid */ "cannot do ioctl on %s", /* category */ 5);
+                                                                    error(/* status */ 0, /* errnum */ *var_67, /* message */ var_28, quotearg_style(4, var_64));
+                                                                    newlines2 = var_34;
+                                                                    var_61 = (char)var_41;
+                                                                }
+                                                            }
+                                                        }
+                                                        if ((var_61 == 0) || (var_41 >= 0) || ((char)var_41 != 0)) {
+                                                            if ((var_61 == 0) || (var_74 == 0)) {
+                                                                var_32 = input_desc;
+                                                                if (var_30 != var_49) {
+                                                                    var_50 = var_30 - var_49;
+                                                                    if (var_50 == full_write(1, var_49, var_50)) {
+                                                                        var_32 = input_desc;
+                                                                        var_30 = var_31;
+                                                                    }
+                                                                }
+                                                            }
+                                                            if ((var_30 == var_49) || (var_50 == full_write(1, var_49, var_50)) || ((var_74 != 0) && (var_61 != 0))) {
+                                                                var_52 = var_45 - var_65;
+                                                                var_50 = safe_read(var_32, var_52, 0x20000);
+                                                                var_51 = var_30 - var_49;
+                                                                if (var_50 != -1L) {
+                                                                    if (var_50 != 0L) {
+                                                                        var_32 = var_50 + var_52;
+                                                                        *(var_50 + var_52) = 0xa;
+                                                                        var_35 = var_32;
+                                                                        var_32 = var_28;
+                                                                        var_33 = var_29;
+                                                                        continue;
+                                                                    }
+                                                                    if ((var_30 == var_49) || (var_51 == full_write(1, var_49, var_51))) {
+                                                                        newlines2 = var_34;
+                                                                        var_61 = 1;
+                                                                    }
+                                                                }
+                                                                else {
+                                                                    var_64 = infile;
+                                                                    var_67 = __errno_location();
+                                                                    error(/* status */ 0, /* errnum */ *var_67, /* message */ "%s: %s", quotearg_n_style_colon(0, 3, var_64));
+                                                                    if ((var_30 == var_49) || (var_51 == full_write(1, var_49, var_51))) {
+                                                                        newlines2 = var_34;
+                                                                        var_61 = 0;
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                        if (((var_30 == var_49) || (var_61 != 0) || (var_51 == full_write(1, var_49, var_51))) && ((var_30 == var_49) || (var_50 == full_write(1, var_49, var_50)) || (var_61 != 0)) && ((var_30 == var_49) || (var_41 < 0) || (var_51 == full_write(1, var_49, var_51))) && ((var_30 == var_49) || (var_50 == full_write(1, var_49, var_50)) || (var_41 < 0) || (var_74 != 0)) && ((var_30 == var_49) || ((char)var_41 == 0) || (var_51 == full_write(1, var_49, var_51))) && ((var_30 == var_49) || ((char)var_41 == 0) || (var_50 == full_write(1, var_49, var_50)) || (var_74 != 0))) {
+                                                            var_60 &= var_61;
+                                                            free(/* ptr */ var_48);
+                                                            var_45 = var_47;
+                                                            exit_n5 = 3;
+                                                            break;
+                                                        }
+                                                        write_pending_part_0();
+                                                    }
+                                                }
+                                                entry_94 = 0;
+                                                loop_break = 0;
+                                                switch(exit_n5) {
+                                                case 0:
+                                                    exit_n3 = 0;
+                                                    loop_break = 1;
+                                                    break;
+                                                case 1:
+                                                    exit_n3 = 1;
+                                                    loop_break = 1;
+                                                    break;
+                                                }
+                                                if (loop_break == 1) {
+                                                    break;
+                                                }
+                                                if (exit_n5 != 2) {
+                                                    exit_n3 = 2;
+                                                    break;
+                                                }
+                                            }
+                                            if (exit_n3 == 0) {
+                                                exit_n4 = 1;
+                                                break;
+                                            }
+                                            if (exit_n3 != 1) {
+                                                exit_n4 = 2;
+                                                break;
+                                            }
+                                        }
+                                        if (exit_n4 == 0) {
+                                            exit_78 = 0;
+                                            break;
+                                        }
+                                        if (exit_n4 != 1) {
+                                            exit_78 = 1;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if ((exit_78 == 0) || ((var_61 == 0) && ((var_53 | var_56) == 0))) {
+                                    if (((var_53 | var_56) != 0) || (var_61 != 0) || (exit_86 == 1)) {
+                                        var_61 = 1;
+                                    }
+                                    if ((exit_86 == 0) || ((var_53 | var_56) != 0) || (var_61 != 0) || (exit_86 == 1)) {
+                                        var_60 &= var_61;
+                                    }
+                                }
+                                free(/* ptr */ var_45);
+                            }
+                        }
+                        var_64 = infile;
+                        if ((*var_64 != '-') || (*(var_64 + 1L) != 0)) {
+                            var_68 = input_desc;
+                        }
+                    }
+                    if (((var_28 < 0) && (*var_69 != '-')) || ((var_28 < 0) && (*var_72 != 0)) || ((close(/* fd */ var_68) < 0) && (*var_64 != '-')) || ((close(/* fd */ var_68) < 0) && (*(var_64 + 1L) != 0))) {
+                        var_28 = infile;
+                        var_67 = __errno_location();
+                        error(/* status */ 0, /* errnum */ *var_67, /* message */ "%s: %s", quotearg_n_style_colon(0, 3, var_28));
+                        var_60 = 0;
+                    }
+                    var_43++;
+                }
+                if ((argc <= (int)var_43) && (entry_32 == 0)) {
+                    if ((var_59 != 0) && (close(/* fd */ 0) < 0)) {
+                        argc = dcgettext(/* domainname */ 0UL, /* msgid */ "closing standard input", /* category */ 5);
+                        var_67 = __errno_location();
+                        error(/* status */ 1, /* errnum */ *var_67, /* message */ argc);
+                        exit_n4 = 1;
+                        break;
+                    }
+                    return (unsigned char)(var_60 ^ 1);
+                }
+                var_72 = argv + (var_43 << 3);
+                var_69 = *var_72;
+                infile = *var_72;
+                entry_32 = 0;
+            }
+            if (exit_n4 == 0) {
+                loop_break = 1;
+                break;
+            }
+            break;
+        }
+        if (loop_break == 1) {
+            break;
+        }
+        if ((var_40 != -130) && ((var_68 == 0x15) || (var_68 == 0xe) || (var_68 == 0xa) || (var_68 == 0x31) || (var_68 == 0x2e) || (var_68 == 0x30) || (var_40 <= 64) || (var_40 > 118) || (var_68 == 0x1d) || (var_68 == 0x26) || (var_68 == 0x8) || (var_68 > 53) || (var_68 == 0x2a) || (var_68 == 0x20) || (var_68 == 0x17) || (var_68 == 0x14) || (var_68 == 0x11) || (var_68 == 0x7) || (var_68 == 0x1a) || (var_68 == 0x16) || (var_68 == 0x6) || (var_68 == 0x9) || (var_68 == 0x22) || (var_68 == 0x1f) || (var_68 == 0x23) || (var_68 == 0x2c) || (var_68 == 0x2f) || (var_68 == 0x1e) || (var_68 == 0x1b) || (var_68 == 0x10) || (var_68 == 0xd) || (var_68 == 0x3) || (var_68 == 0xc) || (var_68 == 0x29) || (var_68 == 0x5) || (var_68 == 0x1c) || (var_68 == 0x2b) || (var_68 == 0x27) || (var_68 == 0x25) || (var_68 == 0x28) || (var_68 == 0xf) || (var_68 == 0x18) || (var_68 == 0x19) || (var_68 == 0x12) || (var_68 == 0x1) || (var_68 == 0x2) || (var_68 == 0xb)) && ((var_40 != -1) || (exit_n4 != 0))) {
+            usage(1);
+        }
+    }
+    argc = dcgettext(/* domainname */ 0UL, /* msgid */ "standard output", /* category */ 5);
+    var_67 = __errno_location();
+    var_66, var_43, var_42 = error(/* status */ 1, /* errnum */ *var_67, /* message */ argc);
+    return _start(var_42, var_43, var_66);
+}
+384.64867290016264

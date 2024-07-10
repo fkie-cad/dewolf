@@ -1,0 +1,24 @@
+extern unsigned int pos = 0U;
+extern unsigned long argv = 0UL;
+
+
+
+char * two_arguments() {
+    unsigned long var_4;
+    long var_2;
+    long var_3;
+    var_3 = pos;
+    var_4 = argv;
+    var_2 = var_4 + (var_3 << 3);
+    if ((**var_2 == '!') && (*(*var_2 + 1L) == 0)) {
+        pos = (int)var_3 + 2;
+        return **(var_4 + var_3 * 8 + 8L) == 0;
+    }
+    if ((*(*var_2 + 1L) == 0) || (**var_2 != '-') || (*(*var_2 + 2L) != 0)) {
+        beyond();
+    }
+    else {
+        return unary_operator();
+    }
+}
+1.0669261999428272

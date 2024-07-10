@@ -1,0 +1,631 @@
+extern unsigned char data_77ff[0x21] = "\x83\xFB\x03\x75\x9A\xC7\x00\x00\x00\x00\x00\xEB\x92\x0F\x1F\x40\x00\xC7\x00\x4B\x00\x00\x00\xEB\x86\x0F\x1F\x84\x00\x00\x00\x00...";
+extern unsigned char data_7800[0x20] = "\xFB\x03\x75\x9A\xC7\x00\x00\x00\x00\x00\xEB\x92\x0F\x1F\x40\x00\xC7\x00\x4B\x00\x00\x00\xEB\x86\x0F\x1F\x84\x00\x00\x00\x00\x00";
+extern const char [6] * long_options = "decode";
+extern unsigned long * optarg = 0UL;
+extern unsigned long base_length = 0UL;
+extern unsigned long isbase = 0UL;
+extern unsigned long base_encode = 0UL;
+extern unsigned long base_decode_ctx_init = 0UL;
+extern unsigned long base_decode_ctx = 0UL;
+extern unsigned int * optind = 0UL;
+extern const unsigned char data_910a[0x2] = "\x2D\x00";
+extern unsigned long * stdin = 0UL;
+extern unsigned long * stdout = 0UL;
+extern const unsigned char data_1400[0x258] = "\x08\xDF\x00\x00\x00\x00\x00\x00\x07\x00\x00\x00\x1C\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x10\xDF\x00\x00\x00\x00\x00\x00...";
+extern char Version[0x2e] = "QRSTUV89:;<=>?@0123456789ABCDEFGHIJKLMNOP8.32";
+
+struct _IO_FILE {
+    int _flags;
+    char * _IO_read_ptr;
+    char * _IO_read_end;
+    char * _IO_read_base;
+    char * _IO_write_base;
+    char * _IO_write_ptr;
+    char * _IO_write_end;
+    char * _IO_buf_base;
+    char * _IO_buf_end;
+    char * _IO_save_base;
+    char * _IO_backup_base;
+    char * _IO_save_end;
+    _IO_marker * _markers;
+    _IO_FILE * _chain;
+    int _fileno;
+    int _flags2;
+    long _old_offset;
+    unsigned short _cur_column;
+    char _vtable_offset;
+    char [1] _shortbuf;
+    _IO_lock_t * _lock;
+    long _offset;
+    _IO_codecvt * _codecvt;
+    _IO_wide_data * _wide_data;
+    _IO_FILE * _freeres_list;
+    void * _freeres_buf;
+    unsigned long __pad5;
+    int _mode;
+    char [20] _unused2;
+};
+struct _IO_marker {
+    void * _next;
+    void * _sbuf;
+    int _pos;
+};
+struct _IO_lock_t {
+    int lock;
+    int cnt;
+    void * owner;
+};
+struct _IO_codecvt {
+    _IO_iconv_t __cd_in;
+    _IO_iconv_t __cd_out;
+};
+struct _IO_iconv_t {
+    __gconv_step * step;
+    __gconv_step_data step_data;
+};
+struct __gconv_step {
+    void * __shlib_handle;
+    char * __modname;
+    int __counter;
+    char * __from_name;
+    char * __to_name;
+    void __fct;
+    unsigned int(void *, unsigned char) * __btowc_fct;
+    int(void *) * __init_fct;
+    void(void *) * __end_fct;
+    int __min_needed_from;
+    int __max_needed_from;
+    int __min_needed_to;
+    int __max_needed_to;
+    int __stateful;
+    void * __data;
+};
+struct __gconv_step_data {
+    unsigned char * __outbuf;
+    unsigned char * __outbufend;
+    int __flags;
+    int __invocation_counter;
+    int __internal_use;
+    __mbstate_t * __statep;
+    __mbstate_t __state;
+};
+struct __mbstate_t {
+    int __count;
+    union __value {
+        unsigned int __wch;
+        char [4] __wchb;
+    };
+};
+union __value {
+    unsigned int __wch;
+    char [4] __wchb;
+};
+struct _IO_wide_data {
+    int * _IO_read_ptr;
+    int * _IO_read_end;
+    int * _IO_read_base;
+    int * _IO_write_base;
+    int * _IO_write_ptr;
+    int * _IO_write_end;
+    int * _IO_buf_base;
+    int * _IO_buf_end;
+    int * _IO_save_base;
+    int * _IO_backup_base;
+    int * _IO_save_end;
+    __mbstate_t _IO_state;
+    __mbstate_t _IO_last_state;
+    _IO_codecvt _codecvt;
+    int [1] _shortbuf;
+    void * _wide_vtable;
+};
+
+int main(int argc, char ** argv, char ** envp) {
+    char* var_54;
+    unsigned char* var_56;
+    unsigned char* var_57;
+    unsigned char* var_58;
+    unsigned int var_53;
+    int entry_45;
+    int entry_60;
+    int entry_92;
+    int exit_48;
+    int exit_80;
+    int exit_89;
+    int exit_n1;
+    int exit_n3;
+    int loop_break;
+    int var_42;
+    int var_47;
+    int var_48;
+    unsigned long var_43;
+    unsigned long var_44;
+    long var_45;
+    long var_46;
+    void * var_37;
+    void * var_38;
+    void * var_39;
+    void * var_40;
+    int * var_55;
+    unsigned long * var_49;
+    unsigned long * var_50;
+    unsigned long * var_51;
+    unsigned long * var_52;
+    char * var_34;
+    char * var_35;
+    char * var_36;
+    char ** var_0;
+    char ** var_1;
+    _IO_FILE * var_41;
+    var_46, var_45, var_44, var_35 = set_program_name(*argv);
+    setlocale(/* category */ 6, /* locale */ "Written by %s, %s, and %s.\n", var_45, var_46, var_44, var_35, /* category */ var_34, /* category */ var_37);
+    bindtextdomain(/* domainname */ "GNU coreutils", /* dirname */ "/usr/local/share/locale");
+    textdomain(/* domainname */ "GNU coreutils");
+    atexit(close_stdout);
+    var_49 = 0;
+    var_38 = 64UL;
+    var_41 = 0;
+    var_47 = 0;
+    while (true) {
+        var_48 = getopt_long(argc, argv, /* options */ "diw:", /* long_options */ &long_options, /* opt_index */ 0UL);
+        if (var_48 > 105) {
+            if (var_48 == 119) {
+                var_35 = dcgettext(/* domainname */ 0UL, /* msgid */ "invalid wrap size", /* category */ 5);
+                var_50 = optarg;
+                var_38 = xdectoumax(var_50, 0L, -1L, "Written by %s, %s, and %s.\n", var_35, 0);
+                continue;
+            }
+            if (var_48 - 128 > 7) {
+                break;
+            }
+            var_47 = var_48;
+            continue;
+        }
+        loop_break = 0;
+        switch(var_48) {
+        case 100:
+            if (var_48 != -130) {
+                var_41 = 1;
+                continue;
+            }
+        case 105:
+            var_49 = 1;
+            continue;
+        case 0xffffffff:
+            var_53 = (unsigned int)(var_47 - 128);
+            switch(var_53) {
+            case 0x0:
+                base_length = base64_length_wrapper;
+                isbase = isbase64;
+                base_encode = base64_encode;
+                base_decode_ctx_init = base64_decode_ctx_init_wrapper;
+                base_decode_ctx = base64_decode_ctx_wrapper;
+                break;
+            case 0x1:
+                base_length = base64_length_wrapper;
+                isbase = isbase64url;
+                base_encode = base64url_encode;
+                base_decode_ctx_init = base64url_decode_ctx_init_wrapper;
+                base_decode_ctx = base64url_decode_ctx_wrapper;
+                break;
+            case 0x2:
+                base_length = base32_length_wrapper;
+                isbase = isbase32;
+                base_encode = base32_encode;
+                base_decode_ctx_init = base32_decode_ctx_init_wrapper;
+                base_decode_ctx = base32_decode_ctx_wrapper;
+                break;
+            case 0x3:
+                base_length = base32_length_wrapper;
+                isbase = isbase32hex;
+                base_encode = base32hex_encode;
+                base_decode_ctx_init = base32hex_decode_ctx_init_wrapper;
+                base_decode_ctx = base32hex_decode_ctx_wrapper;
+                break;
+            case 0x4:
+                base_length = base16_length;
+                isbase = isbase16;
+                base_encode = base16_encode;
+                base_decode_ctx_init = base16_decode_ctx_init;
+                base_decode_ctx = base16_decode_ctx;
+                break;
+            case 0x5:
+                base_length = base2_length;
+                isbase = isbase2;
+                base_encode = base2msbf_encode;
+                base_decode_ctx_init = base2_decode_ctx_init;
+                base_decode_ctx = base2msbf_decode_ctx;
+                break;
+            case 0x6:
+                base_length = base2_length;
+                isbase = isbase2;
+                base_encode = base2lsbf_encode;
+                base_decode_ctx_init = base2_decode_ctx_init;
+                base_decode_ctx = base2lsbf_decode_ctx;
+                break;
+            case 0x7:
+                base_length = z85_length;
+                isbase = isz85;
+                base_encode = z85_encode;
+                base_decode_ctx_init = z85_decode_ctx_init;
+                base_decode_ctx = z85_decode_ctx;
+                break;
+            }
+            if (var_53 <= 7) {
+                var_45 = optind;
+                var_39 = argv + (var_45 << 3);
+                if (argc - (int)var_45 > 1) {
+                    var_45 = quote(*(var_39 + 8L));
+                    var_34 = dcgettext(/* domainname */ 0UL, /* msgid */ "extra operand %s", /* category */ 5);
+                    error(/* status */ 0, /* errnum */ 0, /* message */ var_34, var_45);
+                    usage(1);
+                }
+                if ((int)var_45 >= argc) {
+                    var_35 = data_910a;
+                }
+                else {
+                    var_35 = *var_39;
+                    var_50 = strcmp(*var_39, data_910a);
+                    if (var_50 != 0) {
+                        var_50 = fopen(/* filename */ var_35, /* mode */ "rb");
+                    }
+                }
+                if (((int)var_45 >= argc) || (var_50 == 0)) {
+                    var_50 = stdin;
+                }
+                if ((var_50 != 0L) || ((int)var_45 >= argc) || (var_50 == 0)) {
+                    fadvise(var_50, 2);
+                    if (var_41 == 0) {
+                        var_49 = stdout;
+                        var_37 = xmalloc(data_7800);
+                        var_47 = base_length(data_7800);
+                        var_34 = xmalloc(var_47);
+                        var_39 = 0UL;
+                        entry_45 = 0;
+                    }
+                    else {
+                        var_47 = base_length(data_1400);
+                        argv = xmalloc(var_47);
+                        var_51 = xmalloc(data_1400);
+                        var_55 = &var_42;
+                        base_decode_ctx_init(&var_42);
+                        do {
+                            var_0 = 0L;
+                            while (true) {
+                                var_47 = base_length(data_1400);
+                                var_56 = fread_unlocked(/* buf */ argv + var_0, /* size */ 1UL, /* count */ var_47 - var_0, /* fp */ var_50);
+                                var_58 = var_56;
+                                if ((var_56 != 0L) && (var_49 != 0)) {
+                                    var_43 = 0UL;
+                                    do {
+                                        var_37 = var_0 + var_43;
+                                        var_45 = var_0 + var_43;
+                                        var_34 = argv + var_45;
+                                        var_38 = argv + var_45;
+                                        var_57 = isbase((unsigned int)(int)*var_38);
+                                        var_56 = var_58;
+                                        if ((*var_38 == '=') || (var_57 != 0)) {
+                                            var_43++;
+                                        }
+                                        else {
+                                            var_56--;
+                                            memmove(var_38, var_38 + 1L, var_56 - var_43);
+                                            var_58 = var_56;
+                                        }
+                                    }
+                                    while ((var_56 != 0L) && (var_56 > var_43));
+                                }
+                                var_1 = var_0 + var_56;
+                                if ((var_50->_flags & ' ') == 0) {
+                                    var_47 = base_length(data_1400);
+                                    var_45 = var_0 + var_56;
+                                    argc = var_50->_flags & 0xff;
+                                    if (var_45 >= var_47) {
+                                        var_38 = 0UL;
+                                    }
+                                    else {
+                                        if ((argc & 16) == 0) {
+                                            var_0 = var_1;
+                                            continue;
+                                        }
+                                        var_38 = 0UL;
+                                    }
+                                    while (true) {
+                                        if (var_38 == 0) {
+                                            var_58 = data_1400;
+                                            var_43 = base_decode_ctx;
+                                            var_46 = var_45;
+                                        }
+                                        else if ((argc & 16) == 0) {
+                                            exit_80 = 0;
+                                            break;
+                                        }
+                                        if (((argc & 16) != 0) && (var_38 == 1)) {
+                                            if (var_42 == 0) {
+                                                var_49 = var_51;
+                                            }
+                                            else {
+                                                var_58 = data_1400;
+                                                var_43 = base_decode_ctx;
+                                                var_46 = 0L;
+                                            }
+                                        }
+                                        if (((argc & 16) != 0) && (var_38 > 1)) {
+                                            var_49 = var_51;
+                                        }
+                                        else if ((((argc & 16) != 0) || (var_38 == 0)) && (((argc & 16) == 0) || (var_38 != 1) || (var_42 != 0))) {
+                                            var_47 = var_43(var_55, argv, var_46, var_51, &var_58);
+                                            var_52 = stdout;
+                                            var_43 = (unsigned int)var_47;
+                                            var_44 = fwrite_unlocked(/* buf */ var_51, /* size */ 1UL, /* count */ var_58, /* fp */ var_52);
+                                            if (var_44 >= var_58) {
+                                                if ((unsigned char)(unsigned int)var_47 != 0) {
+                                                    var_38 = (unsigned int)(var_38 + 1);
+                                                    continue;
+                                                }
+                                                var_34 = dcgettext(/* domainname */ 0UL, /* msgid */ "invalid input", /* category */ 5);
+                                                error(/* status */ 1, /* errnum */ 0, /* message */ var_34);
+                                            }
+                                            var_34 = dcgettext(/* domainname */ 0UL, /* msgid */ "write error", /* category */ 5);
+                                            var_55 = __errno_location();
+                                            error(/* status */ 1, /* errnum */ *var_55, /* message */ var_34);
+                                            exit_80 = 2;
+                                            break;
+                                        }
+                                        if (((argc & 16) != 0) && ((var_38 > 1) || (var_38 == 1)) && ((var_38 > 1) || (var_42 == 0))) {
+                                            entry_92 = 2;
+                                            entry_60 = 2;
+                                            entry_45 = 1;
+                                            exit_80 = 1;
+                                            break;
+                                        }
+                                    }
+                                    loop_break = 0;
+                                    switch(exit_80) {
+                                    case 0:
+                                        exit_48 = 0;
+                                        loop_break = 1;
+                                        break;
+                                    case 1:
+                                        exit_48 = 1;
+                                        loop_break = 1;
+                                        break;
+                                    }
+                                    if (loop_break == 1) {
+                                        break;
+                                    }
+                                }
+                                var_34 = dcgettext(/* domainname */ 0UL, /* msgid */ "read error", /* category */ 5);
+                                var_55 = __errno_location();
+                                error(/* status */ 1, /* errnum */ *var_55, /* message */ var_34);
+                                exit_48 = 2;
+                                break;
+                            }
+                        }
+                        while (exit_48 == 0);
+                    }
+                    if ((var_41 == 0) || (exit_48 == 1)) {
+                        do {
+                            if (entry_45 == 0) {
+                                var_43 = 0UL;
+                                while (true) {
+                                    var_56 = data_7800 - var_43;
+                                    var_44 = fread_unlocked(/* buf */ var_37 + var_43, /* size */ 1UL, /* count */ var_56, /* fp */ var_50);
+                                    var_43 += var_44;
+                                    argc = var_50->_flags & 0xff;
+                                    if ((argc & '0') == 0) {
+                                        if (var_43 <= data_77ff) {
+                                            continue;
+                                        }
+                                        var_40 = var_38;
+                                        var_38 = var_37;
+                                    }
+                                    else {
+                                        if (var_43 == 0L) {
+                                            var_40 = var_38;
+                                            var_38 = var_37;
+                                            entry_60 = 1;
+                                            break;
+                                        }
+                                        var_40 = var_38;
+                                        var_38 = var_37;
+                                    }
+                                    entry_60 = 0;
+                                    break;
+                                }
+                            }
+                            while (true) {
+                                if (entry_60 == 0) {
+                                    var_44 = base_encode;
+                                    var_47 = base_length((unsigned int)var_43);
+                                    var_44(var_38, var_43, var_34, var_47);
+                                    var_47 = base_length((unsigned int)var_43);
+                                    if (var_40 == 0L) {
+                                        var_36 = var_47;
+                                    }
+                                    else if (var_47 == 0L) {
+                                        var_37 = var_38;
+                                    }
+                                    else {
+                                        var_37 = var_39;
+                                        var_51 = 0UL;
+                                        while (true) {
+                                            var_36 = var_40 - var_37;
+                                            if (var_40 - var_37 > var_47 - var_51) {
+                                                var_36 = var_47 - var_51;
+                                            }
+                                            if (var_36 != 0L) {
+                                                var_52 = stdout;
+                                            }
+                                            else {
+                                                if (var_49->_IO_write_ptr < var_49->_IO_write_end) {
+                                                    var_49->_IO_write_ptr++;
+                                                    *var_49->_IO_write_ptr = 0xa;
+                                                }
+                                                else if (__overflow(/* f */ var_49, /* ch */ 10) == -1) {
+                                                    var_36 = dcgettext(/* domainname */ 0UL, /* msgid */ "write error", /* category */ 5);
+                                                    var_55 = __errno_location();
+                                                    error(/* status */ 1, /* errnum */ *var_55, /* message */ var_36);
+                                                    var_39 = var_40;
+                                                    var_50 = var_51;
+                                                    var_38 = var_37;
+                                                    var_43 = var_47;
+                                                    exit_89 = 1;
+                                                    break;
+                                                }
+                                                if (var_47 > var_51) {
+                                                    var_37 = 0UL;
+                                                    continue;
+                                                }
+                                                var_37 = 0UL;
+                                            }
+                                            if (var_36 > fwrite_unlocked(/* buf */ var_34 + var_51, /* size */ 1UL, /* count */ var_36, /* fp */ var_52)) {
+                                                exit_89 = 0;
+                                                break;
+                                            }
+                                            var_52 = var_51 + var_36;
+                                            var_37 += var_36;
+                                            if (var_47 > var_51 + var_36) {
+                                                var_51 = var_52;
+                                                continue;
+                                            }
+                                            var_39 = var_37;
+                                            var_37 = var_38;
+                                            exit_89 = 2;
+                                            break;
+                                        }
+                                    }
+                                    if ((var_40 == 0L) || ((exit_89 == 1) && (var_47 != 0L))) {
+                                        var_51 = stdout;
+                                        if (var_36 <= fwrite_unlocked(/* buf */ var_34, /* size */ 1UL, /* count */ var_36, /* fp */ var_51)) {
+                                            var_37 = var_38;
+                                        }
+                                        else {
+                                            var_36 = dcgettext(/* domainname */ 0UL, /* msgid */ "write error", /* category */ 5);
+                                            var_55 = __errno_location();
+                                            error(/* status */ 1, /* errnum */ *var_55, /* message */ var_36);
+                                            entry_92 = 3;
+                                        }
+                                    }
+                                    if (((var_40 == 0L) || (var_47 == 0L) || (exit_89 != 0)) && ((var_36 <= fwrite_unlocked(/* buf */ var_34, /* size */ 1UL, /* count */ var_36, /* fp */ var_51)) || (var_40 != 0L)) && ((var_47 == 0L) || (var_36 <= fwrite_unlocked(/* buf */ var_34, /* size */ 1UL, /* count */ var_36, /* fp */ var_51)) || (exit_89 != 1))) {
+                                        argc = var_50->_flags & 0xff;
+                                        if ((argc & '0') != 0) {
+                                            var_38 = var_37;
+                                        }
+                                        else {
+                                            if (var_43 == data_7800) {
+                                                var_38 = var_40;
+                                                exit_n3 = 0;
+                                                break;
+                                            }
+                                            var_38 = var_37;
+                                        }
+                                    }
+                                }
+                                if ((var_40 == 0L) || (var_47 == 0L) || (exit_89 != 0) || (entry_60 != 0)) {
+                                    if (((var_36 <= fwrite_unlocked(/* buf */ var_34, /* size */ 1UL, /* count */ var_36, /* fp */ var_51)) || (var_40 != 0L) || (entry_60 != 0)) && ((var_36 <= fwrite_unlocked(/* buf */ var_34, /* size */ 1UL, /* count */ var_36, /* fp */ var_51)) || (var_47 == 0L) || (exit_89 != 1) || (entry_60 != 0)) && ((entry_60 == 1) || (entry_60 == 0))) {
+                                        entry_60 = 0;
+                                        if ((var_39 != 0L) && (var_40 != 0L)) {
+                                            entry_92 = 0;
+                                        }
+                                        else {
+                                            entry_92 = 1;
+                                        }
+                                    }
+                                    while (true) {
+                                        loop_break = 0;
+                                        switch(entry_92) {
+                                        case 0:
+                                            if (var_49->_IO_write_ptr < var_49->_IO_write_end) {
+                                                var_49->_IO_write_ptr++;
+                                                *var_49->_IO_write_ptr = 0xa;
+                                            }
+                                            else if (__overflow(/* f */ var_49, /* ch */ 10) == -1) {
+                                                var_34 = dcgettext(/* domainname */ 0UL, /* msgid */ "write error", /* category */ 5);
+                                                var_55 = __errno_location();
+                                                error(/* status */ 1, /* errnum */ *var_55, /* message */ var_34);
+                                                exit_n1 = 0;
+                                                loop_break = 1;
+                                                break;
+                                            }
+                                            argc = var_50->_flags & 0xff;
+                                        case 1:
+                                            entry_92 = 0;
+                                            if ((argc & ' ') != 0) {
+                                                var_36 = dcgettext(/* domainname */ 0UL, /* msgid */ "read error", /* category */ 5);
+                                                var_55 = __errno_location();
+                                                error(/* status */ 1, /* errnum */ *var_55, /* message */ var_36);
+                                                exit_n1 = 1;
+                                                loop_break = 1;
+                                                break;
+                                            }
+                                            var_37 = var_40;
+                                        case 2:
+                                            entry_92 = 0;
+                                            if (rpl_fclose(var_50) != -1) {
+                                                return 0;
+                                            }
+                                            var_40 = var_37;
+                                            break;
+                                        }
+                                        if (loop_break == 1) {
+                                            break;
+                                        }
+                                        var_47 = strcmp(var_35, data_910a);
+                                        var_39 = (unsigned int)var_47;
+                                        var_50 = __errno_location();
+                                        entry_92 = 0;
+                                        if ((unsigned int)var_47 == 0) {
+                                            var_36 = dcgettext(/* domainname */ 0UL, /* msgid */ "closing standard input", /* category */ 5);
+                                            error(/* status */ 1, /* errnum */ var_50->_flags, /* message */ var_36);
+                                        }
+                                        error(/* status */ 1, /* errnum */ var_50->_flags, /* message */ "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/%s: %s", quotearg_n_style_colon(0, 3, var_35));
+                                    }
+                                    entry_60 = 0;
+                                    if (exit_n1 != 0) {
+                                        continue;
+                                    }
+                                }
+                                var_34 = dcgettext(/* domainname */ 0UL, /* msgid */ "write error", /* category */ 5);
+                                var_55 = __errno_location();
+                                error(/* status */ 1, /* errnum */ *var_55, /* message */ var_34);
+                                exit_n3 = 1;
+                                break;
+                            }
+                            entry_45 = 0;
+                        }
+                        while (exit_n3 == 0);
+                    }
+                }
+                if (((var_41 == 0) || (exit_48 == 1) || ((int)var_45 < argc)) && (((int)var_45 < argc) || (exit_n3 != 0)) && ((var_41 == 0) || (exit_48 == 1) || (var_50 != 0)) && ((var_50 != 0) || (exit_n3 != 0)) && ((var_50 == 0L) || (var_41 == 0) || (exit_48 == 1)) && ((var_50 == 0L) || (exit_n3 != 0))) {
+                    var_55 = __errno_location();
+                    error(/* status */ 1, /* errnum */ *var_55, /* message */ "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/%s: %s", quotearg_n_style_colon(0, 3, var_35));
+                }
+            }
+            if (((var_53 > 7) || (var_41 == 0) || (exit_48 == 1) || ((int)var_45 < argc)) && ((var_53 > 7) || ((int)var_45 < argc) || (exit_n3 != 0)) && ((var_53 > 7) || (var_41 == 0) || (var_50 != 0) || (exit_48 == 1)) && ((var_53 > 7) || (var_50 != 0) || (exit_n3 != 0)) && ((var_53 > 7) || (var_50 == 0L) || (var_41 == 0) || (exit_48 == 1)) && ((var_53 > 7) || (var_50 == 0L) || (exit_n3 != 0))) {
+                var_34 = dcgettext(/* domainname */ 0UL, /* msgid */ "missing encoding type", /* category */ 5);
+                error(/* status */ 0, /* errnum */ 0, /* message */ var_34);
+                loop_break = 1;
+                break;
+            }
+        case 0xffffff7e:
+            if ((var_48 != -1) || (exit_48 != 1)) {
+                usage(0);
+            }
+            break;
+        default:
+            if (var_48 != -131) {
+                loop_break = 1;
+                break;
+            }
+            var_49 = stdout;
+            var_54 = Version;
+            version_etc(var_49, "basenc", "GNU coreutils", var_54);
+            exit(/* status */ 0);
+        }
+        if (loop_break == 1) {
+            break;
+        }
+    }
+    usage(1);
+}
+205.6420100000687
