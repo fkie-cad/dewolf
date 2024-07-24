@@ -21,6 +21,8 @@ from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInter
 from decompiler.util.integer_util import normalize_int
 
 MAX_GLOBAL_INIT_LENGTH = 128
+INLINE_STRUCT_STRINGS = True
+DETECT_STRUCT_STRINGS = True
 
 
 def get_struct_string_address_offset(vartype) -> int | None:
@@ -41,10 +43,6 @@ def get_struct_string_address_offset(vartype) -> int | None:
     if address_offset is None or length_offset is None:
         return None
     return address_offset
-
-
-INLINE_STRUCT_STRINGS = True
-DETECT_STRUCT_STRINGS = True
 
 
 def is_struct_string(vartype) -> bool:
