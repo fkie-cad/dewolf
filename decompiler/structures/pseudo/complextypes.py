@@ -22,9 +22,6 @@ class ComplexType(Type):
     def __str__(self):
         return self.name
 
-    def copy(self, **kwargs) -> Type:
-        return copy.deepcopy(self)
-
     def declaration(self) -> str:
         raise NotImplementedError
 
