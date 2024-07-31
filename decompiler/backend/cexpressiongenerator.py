@@ -163,18 +163,9 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         # OperationType.adc: "adc",
     }
 
-    ESCAPE_TABLE = str.maketrans({
-        '\\': r'\\',
-        '"': r'\"',
-        "'": r"\'",
-        '\n': r'\n',
-        '\r': r'\r',
-        '\t': r'\t',
-        '\v': r'\v',
-        '\b': r'\b',
-        '\f': r'\f',
-        '\0': r'\0'
-    })
+    ESCAPE_TABLE = str.maketrans(
+        {"\\": r"\\", '"': r"\"", "'": r"\'", "\n": r"\n", "\r": r"\r", "\t": r"\t", "\v": r"\v", "\b": r"\b", "\f": r"\f", "\0": r"\0"}
+    )
 
     def visit_unknown_expression(self, expr: expressions.UnknownExpression) -> str:
         """Return the error message for this UnknownExpression."""
