@@ -408,7 +408,10 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         string_representation = str(constant)
         if string_representation.startswith('"') and string_representation.endswith('"'):
             string_representation = str(constant)[1:-1]
-        return f"{string_representation.translate(CExpressionGenerator.ESCAPE_TABLE)}"
+        if '"' in string_representation:
+            escaped = string_representation.replace('"', '\\"').translate(CExpressionGenerator.ESCAPE_TABLE)
+            return f'"{escaped}"'
+        return f"{constant}"
 
     @staticmethod
     def format_variables_declaration(var_type: Type, var_names: list[str]) -> str:
