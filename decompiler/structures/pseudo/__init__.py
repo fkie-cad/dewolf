@@ -2,7 +2,6 @@ from .complextypes import ComplexType, ComplexTypeMember, ComplexTypeName, Enum,
 from .delogic_logic import DelogicConverter
 from .expressions import (
     Constant,
-    ConstantComposition,
     DataflowObject,
     Expression,
     FunctionSymbol,
