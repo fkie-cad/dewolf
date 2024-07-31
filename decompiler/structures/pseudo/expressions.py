@@ -166,7 +166,7 @@ class Constant(Expression[DecompiledType]):
     """Represents a constant expression type."""
 
     # python 3.12 allows writing: type ValueType = int | float | str | bytes | dict[str, ValueType]
-    ValueType = int | float | str | bytes | list['ValueType'] | dict[str, 'ValueType']
+    ValueType = int | float | str | bytes | list["ValueType"] | dict[str, "ValueType"]
 
     def __init__(
         self,
