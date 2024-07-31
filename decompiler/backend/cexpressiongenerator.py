@@ -409,7 +409,7 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         if string_representation.startswith('"') and string_representation.endswith('"'):
             string_representation = str(constant)[1:-1]
         if '"' in string_representation:
-            escaped = string_representation.replace('"', '\\"').translate(CExpressionGenerator.ESCAPE_TABLE)
+            escaped = string_representation.replace('"', '\\"')
             return f'"{escaped}"'
         return f"{constant}"
 
