@@ -44,6 +44,7 @@ class BasicBlock(GraphNodeInterface):
 
     def __str__(self) -> str:
         """Return a string representation of all instructions in the basic block."""
+        return repr(self)
         return "\n".join((f"{instruction}" for instruction in self))
 
     def __repr__(self) -> str:
