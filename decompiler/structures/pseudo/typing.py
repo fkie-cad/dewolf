@@ -20,7 +20,7 @@ class Type(ABC):
 
     def copy(self, **kwargs) -> Type:
         """Generate a copy of the current type."""
-        return self
+        return replace(self, **kwargs)
 
     def resize(self, new_size: int) -> Type:
         """Create an object of the type with a different size."""
@@ -173,6 +173,10 @@ class Pointer(Type):
             return f"{self.type}*"
         return f"{self.type} *"
 
+    def copy(self, **kwargs) -> Pointer:
+        """Generate a copy of the current pointer."""
+        return Pointer(self.type.copy(), self.size)
+
 
 @dataclass(frozen=True, order=True)
 class ArrayType(Type):
@@ -190,6 +194,10 @@ class ArrayType(Type):
     def __str__(self) -> str:
         """Return a nice string representation."""
         return f"{self.type} [{self.elements}]"
+
+    def copy(self, **kwargs) -> Pointer:
+        """Generate a copy of the current pointer."""
+        return ArrayType(self.type.copy(), self.elements)
 
 
 @dataclass(frozen=True, order=True)
@@ -226,6 +234,10 @@ class CustomType(Type):
     def __str__(self) -> str:
         """Return the given string representation."""
         return self.text
+
+    def copy(self, **kwargs) -> CustomType:
+        """Generate a copy of the current custom type."""
+        return CustomType(self.text, self.size)
 
 
 @dataclass(frozen=True, order=True)
