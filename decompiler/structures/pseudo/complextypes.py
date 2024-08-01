@@ -1,8 +1,7 @@
-import copy
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from decompiler.structures.pseudo.typing import Type
 
@@ -21,9 +20,6 @@ class ComplexType(Type):
 
     def __str__(self):
         return self.name
-
-    def copy(self, **kwargs) -> Type:
-        return copy.deepcopy(self)
 
     def declaration(self) -> str:
         raise NotImplementedError
