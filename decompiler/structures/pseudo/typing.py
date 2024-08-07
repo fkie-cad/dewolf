@@ -20,14 +20,9 @@ class Type(ABC):
         """Check whether the given value is a boolean."""
         return str(self) == "bool"
 
-    @final
-    def copy(self: _T, **kwargs) -> _T:
-        """Generate a copy of the current type."""
-        return replace(self, **kwargs)
-
-    def resize(self: _T, new_size: int) -> _T:
+    def resize(self, new_size: int) -> Type:
         """Create an object of the type with a different size."""
-        return self.copy(size=new_size)
+        raise NotImplementedError()
 
     @abstractmethod
     def __str__(self) -> str:
@@ -35,7 +30,7 @@ class Type(ABC):
 
     def __add__(self, other) -> Type:
         """Add two types to generate one type of bigger size."""
-        return self.copy(size=self.size + other.size)
+        return self.resize(self.size + other.size)
 
     def __hash__(self) -> int:
         """Return a hash value for the given type."""
@@ -62,6 +57,9 @@ class Integer(Type):
     signed: bool = False
 
     SIZE_TYPES = {8: "char", 16: "short", 32: "int", 64: "long"}
+
+    def resize(self, new_size: int) -> Integer:
+        return Integer(new_size, self.signed)
 
     @classmethod
     def char(cls) -> Integer:
@@ -144,6 +142,9 @@ class Float(Type):
         """Create a new float type with the given size."""
         super().__init__(size)
 
+    def resize(self, new_size: int) -> Float:
+        return Float(new_size)
+
     @classmethod
     def float(cls) -> Float:
         """Return a float type (IEEE 754)."""
@@ -169,6 +170,9 @@ class Pointer(Type):
         """Custom constructor to change the order of the parameters."""
         object.__setattr__(self, "type", basetype)
         object.__setattr__(self, "size", size)
+
+    def resize(self, new_size: int) -> Pointer:
+        return Pointer(self.type, new_size)
 
     def __str__(self) -> str:
         """Return a nice string representation."""
@@ -235,6 +239,9 @@ class CustomType(Type):
 class FunctionTypeDef(Type):
     return_type: Type
     parameters: Tuple[Type, ...]
+
+    def resize(self, new_size: int) -> FunctionTypeDef:
+        return FunctionTypeDef(new_size, self.return_type, self.parameters)
 
     def __str__(self) -> str:
         """Return an anonymous string representation such as void*(int, int, char*)."""
