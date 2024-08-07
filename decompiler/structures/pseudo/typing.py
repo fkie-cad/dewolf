@@ -28,10 +28,6 @@ class Type(ABC):
     def __str__(self) -> str:
         """Every type should provide a c-like string representation."""
 
-    def __add__(self, other) -> Type:
-        """Add two types to generate one type of bigger size."""
-        return self.resize(self.size + other.size)
-
     def __hash__(self) -> int:
         """Return a hash value for the given type."""
         return hash(repr(self))
