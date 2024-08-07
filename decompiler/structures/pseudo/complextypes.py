@@ -14,7 +14,7 @@ class ComplexTypeSpecifier(Enum):
     CLASS = "class"
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True, order=True, slots=True)
 class ComplexType(Type):
     size = 0
     name: str

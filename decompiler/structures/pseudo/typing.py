@@ -9,7 +9,7 @@ from typing import Tuple, TypeVar, final
 _T = TypeVar("_T", bound="Type")
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True, order=True, slots=False)
 class Type(ABC):
     """Base interface for all type classes."""
 
@@ -20,38 +20,35 @@ class Type(ABC):
         """Check whether the given value is a boolean."""
         return str(self) == "bool"
 
-    def resize(self, new_size: int) -> Type:
+    def resize(self: _T, new_size: int) -> _T:
         """Create an object of the type with a different size."""
-        raise NotImplementedError()
+        return replace(self, size=new_size)
 
     @abstractmethod
     def __str__(self) -> str:
         """Every type should provide a c-like string representation."""
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True, order=True, slots=False)
 class UnknownType(Type):
     """Represent an unknown type, mostly utilized for testing purposes."""
 
     def __init__(self, size: int = 0):
         """Create a type with size 0."""
-        super().__init__(size)
+        Type.__init__(self, size=size)
 
     def __str__(self):
         """Return the representation of the unknown type."""
         return "unknown type"
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True, order=True, slots=False)
 class Integer(Type):
     """Type for values representing numbers."""
 
     signed: bool = False
 
     SIZE_TYPES = {8: "char", 16: "short", 32: "int", 64: "long"}
-
-    def resize(self, new_size: int) -> Integer:
-        return Integer(new_size, self.signed)
 
     @classmethod
     def char(cls) -> Integer:
@@ -124,18 +121,11 @@ class Integer(Type):
         return f"{'u' if not self.is_signed else ''}int{self.size}_t"
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True, order=True, slots=False)
 class Float(Type):
     """Class representing the type of a floating point number as defined in IEEE 754."""
 
     SIZE_TYPES = {8: "quarter", 16: "half", 32: "float", 64: "double", 80: "long double", 128: "quadruple", 256: "octuple"}
-
-    def __init__(self, size: int):
-        """Create a new float type with the given size."""
-        super().__init__(size)
-
-    def resize(self, new_size: int) -> Float:
-        return Float(new_size)
 
     @classmethod
     def float(cls) -> Float:
@@ -152,7 +142,7 @@ class Float(Type):
         return self.SIZE_TYPES[self.size]
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True, order=True, slots=False)
 class Pointer(Type):
     """Class representing types based on being pointers on other types."""
 
@@ -163,9 +153,6 @@ class Pointer(Type):
         object.__setattr__(self, "type", basetype)
         object.__setattr__(self, "size", size)
 
-    def resize(self, new_size: int) -> Pointer:
-        return Pointer(self.type, new_size)
-
     def __str__(self) -> str:
         """Return a nice string representation."""
         if isinstance(self.type, Pointer):
@@ -173,7 +160,7 @@ class Pointer(Type):
         return f"{self.type} *"
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True, order=True, slots=False)
 class ArrayType(Type):
     """Class representing arrays."""
 
@@ -191,7 +178,7 @@ class ArrayType(Type):
         return f"{self.type} [{self.elements}]"
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True, order=True, slots=False)
 class CustomType(Type):
     """Class representing a non-basic type."""
 
@@ -227,13 +214,10 @@ class CustomType(Type):
         return self.text
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True, order=True, slots=False)
 class FunctionTypeDef(Type):
     return_type: Type
     parameters: Tuple[Type, ...]
-
-    def resize(self, new_size: int) -> FunctionTypeDef:
-        return FunctionTypeDef(new_size, self.return_type, self.parameters)
 
     def __str__(self) -> str:
         """Return an anonymous string representation such as void*(int, int, char*)."""
