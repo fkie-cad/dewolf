@@ -25,6 +25,7 @@ from decompiler.structures.pseudo import ArrayType as PseudoArrayType
 from decompiler.structures.pseudo import CustomType, Float, FunctionTypeDef, Integer, Pointer, UnknownType
 from decompiler.structures.pseudo.complextypes import Class, ComplexTypeMember, ComplexTypeName, Enum, Struct
 from decompiler.structures.pseudo.complextypes import Union as Union_
+from decompiler.util.frozen_dict import FrozenDict
 
 
 class TypeHandler(Handler):
@@ -97,7 +98,7 @@ class TypeHandler(Handler):
         """Lift struct or union type."""
         match struct.type:
             case StructureVariant.StructStructureType:
-                keyword, type, to_members = "struct", Struct, lambda members: {m.offset: m for m in members}
+                keyword, type, to_members = "struct", Struct, lambda members: FrozenDict({m.offset: m for m in members})
             case StructureVariant.UnionStructureType:
                 keyword, type, to_members = "union", Union_, lambda members: members
             case StructureVariant.ClassStructureType:
