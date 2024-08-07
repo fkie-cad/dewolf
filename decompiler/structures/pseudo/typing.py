@@ -28,10 +28,6 @@ class Type(ABC):
     def __str__(self) -> str:
         """Every type should provide a c-like string representation."""
 
-    def __hash__(self) -> int:
-        """Return a hash value for the given type."""
-        return hash(repr(self))
-
 
 @dataclass(frozen=True, order=True)
 class UnknownType(Type):
