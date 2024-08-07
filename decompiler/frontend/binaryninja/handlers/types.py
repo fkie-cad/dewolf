@@ -1,6 +1,6 @@
 import logging
 from abc import abstractmethod
-from typing import Optional, Union
+from typing import Union
 
 from binaryninja import BinaryView, StructureVariant
 from binaryninja.types import (
@@ -22,7 +22,7 @@ from binaryninja.types import (
 )
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import ArrayType as PseudoArrayType
-from decompiler.structures.pseudo import CustomType, Float, FunctionTypeDef, Integer, Pointer, UnknownType, Variable
+from decompiler.structures.pseudo import CustomType, Float, FunctionTypeDef, Integer, Pointer, UnknownType
 from decompiler.structures.pseudo.complextypes import Class, ComplexTypeMember, ComplexTypeName, Enum, Struct
 from decompiler.structures.pseudo.complextypes import Union as Union_
 
@@ -95,21 +95,25 @@ class TypeHandler(Handler):
             return cached_type
 
         """Lift struct or union type."""
-        if struct.type == StructureVariant.StructStructureType:
-            keyword, type, members = "struct", Struct, {}
-        elif struct.type == StructureVariant.UnionStructureType:
-            keyword, type, members = "union", Union_, []
-        elif struct.type == StructureVariant.ClassStructureType:
-            keyword, type, members = "class", Class, {}
-        else:
-            raise RuntimeError(f"Unknown struct type {struct.type.name}")
+        match struct.type:
+            case StructureVariant.StructStructureType:
+                keyword, type, to_members = "struct", Struct, lambda members: {m.offset: m for m in members}
+            case StructureVariant.UnionStructureType:
+                keyword, type, to_members = "union", Union_, lambda members: members
+            case StructureVariant.ClassStructureType:
+                keyword, type, to_members = "class", Class, lambda members: members
+            case _:
+                raise RuntimeError(f"Unknown struct type {struct.type.name}")
 
         type_name = self._get_data_type_name(struct, keyword=keyword, provided_name=name)
-        lifted_struct = type(struct.width * self.BYTE_SIZE, type_name, members)
+
+        members: list[ComplexTypeMember] = []
+        for member in struct.members:
+            members.append(self.lift_struct_member(member, type_name))
+
+        lifted_struct = type(struct.width * self.BYTE_SIZE, type_name, to_members(members))
 
         self._lifter.complex_types.add(lifted_struct, type_id)
-        for member in struct.members:
-            lifted_struct.add_member(self.lift_struct_member(member, type_name))
         return lifted_struct
 
     @abstractmethod

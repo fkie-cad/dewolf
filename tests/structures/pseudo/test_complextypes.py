@@ -11,6 +11,7 @@ from decompiler.structures.pseudo.complextypes import (
     Union,
     UniqueNameProvider,
 )
+from pydot import frozendict
 
 
 class TestStruct:
@@ -60,11 +61,17 @@ class TestStruct:
 
 
 class TestClass:
-    def test_declaration(self, class_book: Struct, record_id: Union):
-        assert class_book.declaration() == "class ClassBook {\n\tchar * title;\n\tint num_pages;\n\tchar * author;\n}"
-        # nest complex type
-        class_book.add_member(
-            m := ComplexTypeMember(size=64, name="id", offset=12, type=record_id),
+    def test_declaration(self, record_id: Union):
+        m = ComplexTypeMember(size=64, name="id", offset=12, type=record_id)
+        class_book = Struct(
+            name="Book",
+            members=frozendict({
+                0: ComplexTypeMember(size=32, name="title", offset=0, type=Pointer(Integer.char())),
+                4: ComplexTypeMember(size=32, name="num_pages", offset=4, type=Integer.int32_t()),
+                8: ComplexTypeMember(size=32, name="author", offset=8, type=Pointer(Integer.char())),
+                12: m
+            }),
+            size=96,
         )
         result = f"class ClassBook {{\n\tchar * title;\n\tint num_pages;\n\tchar * author;\n\t{m.declaration()};\n}}"
         assert class_book.declaration() == result
