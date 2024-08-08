@@ -297,11 +297,16 @@ class Symbol(Constant):
 class FunctionSymbol(Symbol):
     """Represents a function name"""
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.can_return = None
+
     def __eq__(self, __value):
         return isinstance(__value, FunctionSymbol) and super().__eq__(__value)
 
     def __hash__(self):
         return super().__hash__()
+
 
     def copy(self) -> FunctionSymbol:
         return FunctionSymbol(self.name, self.value, self._type.copy(), self.tags)

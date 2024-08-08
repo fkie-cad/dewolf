@@ -51,7 +51,11 @@ class SymbolHandler(Handler):
         if not (symbol_type := self.SYMBOL_MAP.get(symbol.type, None)):
             warning(f"[Lifter] Can not handle symbols of type {symbol.type}, falling back to constant lifting.")
             return Constant(symbol.address)
-        return symbol_type(self._purge_symbol_name(symbol.short_name[:], symbol.address), symbol.address)
+
+        # add 'can_return' information for functions
+        result = symbol_type(self._purge_symbol_name(symbol.short_name[:], symbol.address), symbol.address)
+        result.can_return = None
+        return result
 
     def _purge_symbol_name(self, name: str, addr: int) -> str:
         """Purge invalid chars from symbol names or lift as data_addr if name is too long"""
