@@ -9,7 +9,7 @@ from typing import Tuple, TypeVar
 _T = TypeVar("_T", bound="Type")
 
 
-@dataclass(frozen=True, order=True, slots=False)
+@dataclass(frozen=True, order=True)
 class Type(ABC):
     """Base interface for all type classes."""
 
@@ -29,20 +29,20 @@ class Type(ABC):
         """Every type should provide a c-like string representation."""
 
 
-@dataclass(frozen=True, order=True, slots=False)
+@dataclass(frozen=True, order=True)
 class UnknownType(Type):
     """Represent an unknown type, mostly utilized for testing purposes."""
 
     def __init__(self, size: int = 0):
         """Create a type with size 0."""
-        Type.__init__(self, size=size)
+        object.__setattr__(self, "size", size)
 
     def __str__(self):
         """Return the representation of the unknown type."""
         return "unknown type"
 
 
-@dataclass(frozen=True, order=True, slots=False)
+@dataclass(frozen=True, order=True)
 class Integer(Type):
     """Type for values representing numbers."""
 
@@ -121,7 +121,7 @@ class Integer(Type):
         return f"{'u' if not self.is_signed else ''}int{self.size}_t"
 
 
-@dataclass(frozen=True, order=True, slots=False)
+@dataclass(frozen=True, order=True)
 class Float(Type):
     """Class representing the type of a floating point number as defined in IEEE 754."""
 
@@ -142,7 +142,7 @@ class Float(Type):
         return self.SIZE_TYPES[self.size]
 
 
-@dataclass(frozen=True, order=True, slots=False)
+@dataclass(frozen=True, order=True)
 class Pointer(Type):
     """Class representing types based on being pointers on other types."""
 
@@ -160,7 +160,7 @@ class Pointer(Type):
         return f"{self.type} *"
 
 
-@dataclass(frozen=True, order=True, slots=False)
+@dataclass(frozen=True, order=True)
 class ArrayType(Type):
     """Class representing arrays."""
 
@@ -182,7 +182,7 @@ class ArrayType(Type):
         return f"{self.type} [{self.elements}]"
 
 
-@dataclass(frozen=True, order=True, slots=False)
+@dataclass(frozen=True, order=True)
 class CustomType(Type):
     """Class representing a non-basic type."""
 
@@ -218,7 +218,7 @@ class CustomType(Type):
         return self.text
 
 
-@dataclass(frozen=True, order=True, slots=False)
+@dataclass(frozen=True, order=True)
 class FunctionTypeDef(Type):
     return_type: Type
     parameters: Tuple[Type, ...]
