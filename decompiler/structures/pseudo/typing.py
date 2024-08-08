@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, replace
-from typing import Tuple, TypeVar, final
+from typing import Tuple, TypeVar
 
 _T = TypeVar("_T", bound="Type")
 
@@ -172,6 +172,10 @@ class ArrayType(Type):
         object.__setattr__(self, "type", basetype)
         object.__setattr__(self, "size", basetype.size * elements)
         object.__setattr__(self, "elements", elements)
+
+    def resize(self, new_size: int) -> ArrayType:
+        # Overridden because of backwards compatibility... ArrayType was not able to be resized.
+        return self
 
     def __str__(self) -> str:
         """Return a nice string representation."""
