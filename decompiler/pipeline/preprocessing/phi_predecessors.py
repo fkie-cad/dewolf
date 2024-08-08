@@ -27,6 +27,7 @@ class PhiFunctionFixer(PipelineStage):
         self.cfg = task.graph
         self.head = task.graph.root
         self._def_map, self._use_map = _init_maps(self.cfg)
+        self._basic_block_of_definition = _init_basicblocks_of_definition(self.cfg)
         self.extend_phi_functions()
 
     def extend_phi_functions(self):
@@ -77,10 +78,9 @@ class PhiFunctionFixer(PipelineStage):
                 each key is the variable that is defined at the node
         """
         variable_definition_nodes: Dict[BasicBlock, Variable] = dict()
-        basic_block_of_definition = _init_basicblocks_of_definition(self.cfg)
         for variable in used_variables:
             if self._def_map.get(variable):
-                node_with_variable_definition = basic_block_of_definition[variable]
+                node_with_variable_definition = self._basic_block_of_definition[variable]
             else:
                 node_with_variable_definition = None if is_head else self.head
             if node_with_variable_definition not in variable_definition_nodes.keys():
