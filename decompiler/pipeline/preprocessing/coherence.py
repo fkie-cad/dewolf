@@ -74,7 +74,7 @@ class Coherence(PipelineStage):
         """Harmonize the variable type of the given non-empty list of variables."""
         group_type = variables[0].type
         for variable in variables:
-            variable._type = group_type.copy()
+            variable._type = group_type
 
     def _set_variables_aliased(self, variables: List) -> None:
         """Set all variables in the given list as aliased."""

@@ -78,7 +78,7 @@ class UnaryOperationHandler(Handler):
             OperationType.plus,
             [
                 UnaryOperation(OperationType.address, [operand := self._lifter.lift(operation.src, parent=operation)]),
-                Constant(operation.offset, vartype=operand.type.copy()),
+                Constant(operation.offset, vartype=operand.type),
             ],
             vartype=self._lifter.lift(operation.expr_type),
         )

@@ -1,10 +1,10 @@
-import copy
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from decompiler.structures.pseudo.typing import Type
+from decompiler.util.frozen_dict import FrozenDict
 
 
 class ComplexTypeSpecifier(Enum):
@@ -14,16 +14,13 @@ class ComplexTypeSpecifier(Enum):
     CLASS = "class"
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True, order=True, slots=True)
 class ComplexType(Type):
     size = 0
     name: str
 
     def __str__(self):
         return self.name
-
-    def copy(self, **kwargs) -> Type:
-        return copy.deepcopy(self)
 
     def declaration(self) -> str:
         raise NotImplementedError
@@ -61,11 +58,8 @@ class ComplexTypeMember(ComplexType):
 class _BaseStruct(ComplexType):
     """Class representing a struct type."""
 
-    members: Dict[int, ComplexTypeMember] = field(compare=False)
+    members: FrozenDict[int, ComplexTypeMember] = field(compare=False)
     type_specifier: ComplexTypeSpecifier
-
-    def add_member(self, member: ComplexTypeMember):
-        self.members[member.offset] = member
 
     def get_member_by_offset(self, offset: int) -> Optional[ComplexTypeMember]:
         return self.members.get(offset)
@@ -99,9 +93,6 @@ class Union(ComplexType):
     members: List[ComplexTypeMember] = field(compare=False)
     type_specifier = ComplexTypeSpecifier.UNION
 
-    def add_member(self, member: ComplexTypeMember):
-        self.members.append(member)
-
     def declaration(self) -> str:
         members = ";\n\t".join(x.declaration() for x in self.members) + ";"
         return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}}"
@@ -126,9 +117,6 @@ class Union(ComplexType):
 class Enum(ComplexType):
     members: Dict[int, ComplexTypeMember] = field(compare=False)
     type_specifier = ComplexTypeSpecifier.ENUM
-
-    def add_member(self, member: ComplexTypeMember):
-        self.members[member.value] = member
 
     def get_name_by_value(self, value: int) -> Optional[str]:
         member = self.members.get(value)

@@ -59,7 +59,7 @@ class _VariableCopyPool:
         """
         first_copy = self.get_smallest_label_copy(var_name)
         if first_copy.ssa_label > 0 and first_copy.is_aliased:
-            first_copy = variable.copy(vartype=first_copy.type.copy(), is_aliased=True, ssa_label=0)
+            first_copy = variable.copy(vartype=first_copy.type, is_aliased=True, ssa_label=0)
             self._sorted_copies_of[var_name].insert(0, first_copy)
 
     def get_smallest_label_copy(self, variable: Union[str, Variable]):
