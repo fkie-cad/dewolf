@@ -66,11 +66,13 @@ class TestClass:
 def book() -> Struct:
     return Struct(
         name="Book",
-        members=FrozenDict({
-            0: ComplexTypeMember(size=32, name="title", offset=0, type=Pointer(Integer.char())),
-            4: ComplexTypeMember(size=32, name="num_pages", offset=4, type=Integer.int32_t()),
-            8: ComplexTypeMember(size=32, name="author", offset=8, type=Pointer(Integer.char())),
-        }),
+        members=FrozenDict(
+            {
+                0: ComplexTypeMember(size=32, name="title", offset=0, type=Pointer(Integer.char())),
+                4: ComplexTypeMember(size=32, name="num_pages", offset=4, type=Integer.int32_t()),
+                8: ComplexTypeMember(size=32, name="author", offset=8, type=Pointer(Integer.char())),
+            }
+        ),
         size=96,
     )
 
@@ -79,11 +81,13 @@ def book() -> Struct:
 def class_book() -> Class:
     return Class(
         name="ClassBook",
-        members=FrozenDict({
-            0: ComplexTypeMember(size=32, name="title", offset=0, type=Pointer(Integer.char())),
-            4: ComplexTypeMember(size=32, name="num_pages", offset=4, type=Integer.int32_t()),
-            8: ComplexTypeMember(size=32, name="author", offset=8, type=Pointer(Integer.char())),
-        }),
+        members=FrozenDict(
+            {
+                0: ComplexTypeMember(size=32, name="title", offset=0, type=Pointer(Integer.char())),
+                4: ComplexTypeMember(size=32, name="num_pages", offset=4, type=Integer.int32_t()),
+                8: ComplexTypeMember(size=32, name="author", offset=8, type=Pointer(Integer.char())),
+            }
+        ),
         size=96,
     )
 
