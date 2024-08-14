@@ -215,7 +215,7 @@
             },
             {
                 "dest": "variable-name-generation.notation",
-                "default": "system_hungarian",
+                "default": "default",
                 "title": "Variable Naming Convention",
                 "type": "string",
                 "enum": ["default", "system_hungarian"],
