@@ -166,6 +166,11 @@ class AbstractSyntaxTreeNode(BaseAbstractSyntaxTreeNode, ABC):
         """Checks whether the node is a CodeNode and ends with a return."""
         return isinstance(self, CodeNode) and self.does_end_with_return
 
+    @property
+    def is_single_branch(self) -> bool:
+        """Check whether the node is a condition node with one branch."""
+        return isinstance(self, ConditionNode) and len(self.children) == 1
+
     def get_end_nodes(self) -> Iterable[Union[CodeNode, SwitchNode, LoopNode, ConditionNode]]:
         """Yields all nodes where the subtree can terminate."""
         for child in self.children:

@@ -72,9 +72,6 @@ class ConstantHandler(Handler):
         if isinstance(res, Constant):  # BNinja Error case handling
             return res
 
-        if isinstance(res.type, Pointer) and res.type.type == CustomType.void():
-            return res
-
         if isinstance(pointer, mediumlevelil.MediumLevelILImport):  # Temp fix for '&'
             return res
 

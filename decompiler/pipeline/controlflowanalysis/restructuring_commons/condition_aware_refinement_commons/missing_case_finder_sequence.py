@@ -12,8 +12,8 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.condition_awa
 )
 from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, ConditionNode, FalseNode, SeqNode, SwitchNode, TrueNode
+from decompiler.structures.ast.condition_symbol import ExpressionUsages
 from decompiler.structures.ast.reachability_graph import SiblingReachabilityGraph
-from decompiler.structures.ast.switch_node_handler import ExpressionUsages
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition, PseudoLogicCondition
 from decompiler.structures.pseudo import Condition, Constant, OperationType
@@ -38,7 +38,7 @@ class MissingCaseFinderSequence(MissingCaseFinder):
         self._switch_node_of_expression: Dict[ExpressionUsages, SwitchNode] = dict()
 
     @classmethod
-    def find(cls, asforest: AbstractSyntaxForest, options: RestructuringOptions):
+    def find(cls, asforest: AbstractSyntaxForest, options: RestructuringOptions) -> Set[SwitchNode]:
         """
         Try to find missing cases that are children of sequence nodes.
 
@@ -58,6 +58,7 @@ class MissingCaseFinderSequence(MissingCaseFinder):
 
             if seq_node in asforest:
                 seq_node.clean()
+        return missing_case_finder.updated_switch_nodes
 
     def _initialize_switch_node_of_expression_dictionary(self) -> None:
         """

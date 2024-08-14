@@ -232,7 +232,7 @@ class AcyclicProcessor(Processor):
 
         :param nodes: The AST nodes that we want to group.
         :return: A dictionary that assigns to a reaching condition the list of AST code nodes with this reaching condition,
-                 if it are at least two with the same.
+                 if there are at least two with the same.
         """
         initial_groups: Dict[LogicCondition, List[AbstractSyntaxTreeNode]] = dict()
         for node in nodes:

@@ -119,8 +119,7 @@ class NestedDoWhileLoopRule(LoopStructuringRule):
         return (
             loop_node.is_endless_loop
             and isinstance(body := loop_node.body, SeqNode)
-            and isinstance(condition_node := body.children[-1], ConditionNode)
-            and len(condition_node.children) == 1
+            and body.children[-1].is_single_branch
             and not any(child._has_descendant_code_node_breaking_ancestor_loop() for child in body.children[:-1])
         )
 

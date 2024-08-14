@@ -1,10 +1,9 @@
 from dataclasses import dataclass
-from typing import Iterator, Optional, Tuple
+from typing import Iterator, Optional, Set, Tuple
 
 from decompiler.pipeline.controlflowanalysis.restructuring_options import LoopBreakOptions, RestructuringOptions
 from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CaseNode, FalseNode, SwitchNode, TrueNode
-from decompiler.structures.ast.condition_symbol import ConditionHandler
-from decompiler.structures.ast.switch_node_handler import ExpressionUsages
+from decompiler.structures.ast.condition_symbol import ConditionHandler, ExpressionUsages
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.logic.logic_condition import LogicCondition, PseudoLogicCondition
 from decompiler.structures.pseudo import Condition, Constant, Expression, OperationType
@@ -63,6 +62,7 @@ class BaseClassConditionAwareRefinement:
         self.asforest: AbstractSyntaxForest = asforest
         self.condition_handler: ConditionHandler = asforest.condition_handler
         self.options: RestructuringOptions = options
+        self.updated_switch_nodes: Set[SwitchNode] = set()
 
     def _get_constant_equality_check_expressions_and_conditions(
         self, condition: LogicCondition
@@ -109,14 +109,14 @@ class BaseClassConditionAwareRefinement:
         Check whether the given reaching condition, which is a literal, i.e., a z3-symbol or its negation is of the form `expr == const`.
         If this is the case, then we return the expression `expr`.
         """
-        return self.asforest.switch_node_handler.get_potential_switch_expression(reaching_condition)
+        return self.asforest.condition_handler.get_potential_switch_expression_of(reaching_condition)
 
     def _get_constant_compared_with_expression(self, reaching_condition: LogicCondition) -> Optional[Constant]:
         """
         Check whether the given reaching condition, which is a literal, i.e., a z3-symbol or its negation is of the form `expr == const`.
         If this is the case, then we return the constant `const`.
         """
-        return self.asforest.switch_node_handler.get_potential_switch_constant(reaching_condition)
+        return self.asforest.condition_handler.get_potential_switch_constant_of(reaching_condition)
 
     def _convert_to_z3_condition(self, condition: LogicCondition) -> PseudoLogicCondition:
         return PseudoLogicCondition.initialize_from_formula(condition, self.condition_handler.get_z3_condition_map())

@@ -163,6 +163,10 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         # OperationType.adc: "adc",
     }
 
+    ESCAPE_TABLE = str.maketrans(
+        {"\\": r"\\", '"': r"\"", "'": r"\'", "\n": r"\n", "\r": r"\r", "\t": r"\t", "\v": r"\v", "\b": r"\b", "\f": r"\f", "\0": r"\0"}
+    )
+
     def visit_unknown_expression(self, expr: expressions.UnknownExpression) -> str:
         """Return the error message for this UnknownExpression."""
         return expr.msg
@@ -197,13 +201,16 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         """Visit a Constant Array."""
         match expr.type.type:
             case CustomType(text="wchar16") | CustomType(text="wchar32"):
-                val = "".join([x.value for x in expr.value])
+                val = "".join([x.value for x in expr.value]).translate(self.ESCAPE_TABLE)
                 return f'L"{val}"' if len(val) <= MAX_GLOBAL_INIT_LENGTH else f'L"{val[:MAX_GLOBAL_INIT_LENGTH]}..."'
+            case Integer(size=8, signed=False):
+                val = "".join([f"\\x{x.value:02X}" for x in expr.value][:MAX_GLOBAL_INIT_LENGTH])
+                return f'"{val}"' if len(val) <= MAX_GLOBAL_INIT_LENGTH else f'"{val[:MAX_GLOBAL_INIT_LENGTH]}..."'
             case Integer(8):
-                val = "".join([x.value for x in expr.value][:MAX_GLOBAL_INIT_LENGTH])
+                val = "".join([x.value for x in expr.value][:MAX_GLOBAL_INIT_LENGTH]).translate(self.ESCAPE_TABLE)
                 return f'"{val}"' if len(val) <= MAX_GLOBAL_INIT_LENGTH else f'"{val[:MAX_GLOBAL_INIT_LENGTH]}..."'
             case _:
-                return f'{", ".join([self.visit(x) for x in expr.value])}'  # Todo: Should we print every member? Could get pretty big
+                return f'{", ".join([self.visit(x) for x in expr.value]).translate(self.ESCAPE_TABLE)}'  # Todo: Should we print every member? Could get pretty big
 
     def visit_variable(self, expr: expressions.Variable) -> str:
         """Return a string representation of the variable."""
