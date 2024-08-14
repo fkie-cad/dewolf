@@ -29,7 +29,7 @@ class TransitionBlock(GraphNodeInterface):
         self.ast: AbstractSyntaxTreeNode = ast
 
     def __str__(self) -> str:
-        """Return a string representation of all instructions in the basic block."""
+        """Return a string representation of the block"""
         return str(self.ast)
 
     def __repr__(self) -> str:
