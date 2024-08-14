@@ -153,6 +153,11 @@ class Pointer(Type):
         object.__setattr__(self, "type", basetype)
         object.__setattr__(self, "size", size)
 
+    def resize(self, new_size: int) -> Pointer:
+        # Needs custom implementation, because construction parameter 'basetype' differs in name to field 'type'.
+        # This causes dataclasses.replace to not work
+        return Pointer(self.type, new_size)
+
     def __str__(self) -> str:
         """Return a nice string representation."""
         if isinstance(self.type, Pointer):
