@@ -13,7 +13,7 @@ from decompiler.util.options import Options
 from ..frontend import Frontend
 from .lifter import BinaryninjaLifter
 from .parser import BinaryninjaParser
-from .tagging import CompilerIdiomsTagging
+# from .tagging import CompilerIdiomsTagging
 
 
 class BinaryninjaFrontend(Frontend):
@@ -70,8 +70,8 @@ class BinaryninjaFrontend(Frontend):
             task.function_return_type = lifter.lift(function.return_type)
             task.function_parameters = [lifter.lift(param_type) for param_type in function.type.parameters]
 
-            tagging = CompilerIdiomsTagging(self._bv, function.start, task.options)
-            tagging.run()
+            # tagging = CompilerIdiomsTagging(self._bv, function.start, task.options)
+            # tagging.run()
 
             task.cfg = parser.parse(function)
             task.function_parameter_locations = self._parameter_locations(function)
