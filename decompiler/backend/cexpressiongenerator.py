@@ -26,6 +26,11 @@ DETECT_STRUCT_STRINGS = True
 
 
 def get_struct_string_address_offset(vartype) -> int | None:
+    """This function return the offset of its address field if the vartype is a "struct string".
+    Otherwise it returns None.
+
+    struct strings are structs comprising of a length and a pointer to string data.
+    """
     if not isinstance(vartype, Struct):
         return None
     if len(vartype.members) != 2:
@@ -46,12 +51,14 @@ def get_struct_string_address_offset(vartype) -> int | None:
 
 
 def is_struct_string(vartype) -> bool:
+    """Checks if a vartype represents a "struct string" (i.e. a struct comprising of a length and a pointer to string data) or not."""
     if not DETECT_STRUCT_STRINGS:
         return False
     return get_struct_string_address_offset(vartype) is not None
 
 
 def get_data_of_struct_string(variable) -> GlobalVariable:
+    """Returns the data of a "struct string" (i.e. a struct comprising of a length and a pointer to string data)."""
     address_offset = get_struct_string_address_offset(variable.type)
     address = variable.initial_value.value[address_offset]
     return address
