@@ -261,15 +261,7 @@ class GlobalHandler(Handler):
         match variable.type.named_type_class:
             case NamedTypeReferenceClass.StructNamedTypeClass:
                 struct_type = self._view.get_type_by_id(variable.type.type_id)
-                values = {}
-                s_type = self._lifter.lift(struct_type)
-                for member_type in struct_type.members:
-                    dv = DataVariable(self._view, variable.address + member_type.offset, member_type.type, False)
-                    lift = self._lifter.lift(dv, view=self._view)
-                    values[member_type.offset] = lift.initial_value
-                return self._build_global_variable(
-                    variable.name, s_type, variable.address, StructConstant(values, s_type), parent.ssa_memory_version if parent else 0
-                )
+                return self._lift_struct_helper(variable, parent, struct_type)
 
             case NamedTypeReferenceClass.EnumNamedTypeClass:
                 try:
@@ -288,6 +280,9 @@ class GlobalHandler(Handler):
 
     def _lift_structure_type(self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None, **_):
         struct_type = variable.type
+        return self._lift_struct_helper(variable, parent, struct_type)
+
+    def _lift_struct_helper(self, variable, parent, struct_type):
         values = {}
         s_type = self._lifter.lift(struct_type)
         for member_type in struct_type.members:
