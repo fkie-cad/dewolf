@@ -603,9 +603,9 @@ class StructConstant(Constant):
         return hash(tuple(self.value.items()))
 
     def __str__(self) -> str:
-        """Return a string representation of the ConstantComposition"""
-        # TODO:
-        return f"to_fix_struct_repr."
+        """Return a trivial string representation of the struct."""
+
+        return f"StructConstant()"
 
     def __iter__(self) -> Iterator[Expression]:
         yield from self.value.values()
