@@ -563,9 +563,8 @@ class ConstantComposition(Constant):
     def __init__(self, value: list[Constant], vartype: DecompiledType = UnknownType(), tags: Optional[Tuple[Tag, ...]] = None):
         super().__init__(
             value,
-            vartype,
-            None,
-            tags,
+            vartype=vartype,
+            tags=tags,
         )
 
     def __eq__(self, __value):
@@ -591,9 +590,8 @@ class StructConstant(Constant):
     def __init__(self, value: dict[int, Expression], vartype: Struct, tags: Optional[Tuple[Tag, ...]] = None):
         super().__init__(
             value,
-            vartype,
-            None,
-            tags,
+            vartype=vartype,
+            tags=tags,
         )
 
     def __eq__(self, __value):
