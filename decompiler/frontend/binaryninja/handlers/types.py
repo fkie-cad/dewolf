@@ -75,7 +75,8 @@ class TypeHandler(Handler):
         return CustomType(str(custom), custom.width * self.BYTE_SIZE)
 
     def lift_enum(self, binja_enum: EnumerationType, name: str = None, **kwargs) -> Enum:
-        """Lift enum type."""
+        """Lift enum type.
+        The cache lookup uses the hash of the Binary Ninja object instead of names, as names might collide."""
         type_id = hash(binja_enum)
         cached_type = self._lifter.complex_types.retrieve_by_id(type_id)
         if cached_type is not None:
@@ -92,6 +93,8 @@ class TypeHandler(Handler):
         return ComplexTypeMember(size=0, name=enum_member.name, offset=-1, type=Integer(32), value=int(enum_member.value))
 
     def lift_struct(self, struct: StructureType, name: str = None, **kwargs) -> Union[Struct, Union_, Class, ComplexTypeName]:
+        """lift struct/class and union types.
+        The cache lookup uses the hash of the Binary Ninja object instead of names, as names might collide."""
         type_id = hash(struct)
         cached_type = self._lifter.complex_types.retrieve_by_id(type_id)
         if cached_type is not None:
