@@ -43,8 +43,10 @@ class BasicBlock(GraphNodeInterface):
         yield from self._instructions
 
     def __str__(self) -> str:
-        """Return a string representation of all instructions in the basic block."""
-        return "\n".join((f"{instruction}" for instruction in self))
+        """Return a string representation of the block"""
+        # Note: Returning a string representation of all instructions here can be pretty expensive.
+        # Because most code does not expect this, we choose to simply return the cheap repr instead.
+        return repr(self)
 
     def __repr__(self) -> str:
         """Return a debug representation of the block."""
