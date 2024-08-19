@@ -598,7 +598,7 @@ class StructConstant(Constant):
         return isinstance(__value, StructConstant) and super().__eq__(__value)
 
     def __hash__(self):
-        return hash(tuple(self.value.items()))
+        return hash(tuple(sorted(self.value.items())))
 
     def __str__(self) -> str:
         """Return a trivial string representation of the struct."""
