@@ -65,6 +65,7 @@ def get_data_of_struct_string(variable) -> GlobalVariable:
 
 
 def inline_global_variable(var) -> bool:
+    """Decides whether or not to inline a global variable."""
     if not var.is_constant:
         return False
     match var.type:

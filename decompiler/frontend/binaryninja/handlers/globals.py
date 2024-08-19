@@ -279,10 +279,16 @@ class GlobalHandler(Handler):
                 raise NotImplementedError(f"No handler for '{variable.type.named_type_class}' in lifter")
 
     def _lift_structure_type(self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None, **_):
+        """Lift a struct"""
         struct_type = variable.type
         return self._lift_struct_helper(variable, parent, struct_type)
 
     def _lift_struct_helper(self, variable, parent, struct_type):
+        """This helper method for lifting structs does the heavy lifting.
+        A structs initial value is comprised of its membembers' initial values.
+        This method iterates over all struct members, interprets the corresponding memory locations as new data variables
+        and lifts them (recursively) to gain access to the members' initial values.
+        """
         values = {}
         s_type = self._lifter.lift(struct_type)
         for member_type in struct_type.members:

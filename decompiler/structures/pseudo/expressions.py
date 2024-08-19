@@ -560,6 +560,9 @@ class RegisterPair(Variable):
 
 
 class ConstantComposition(Constant):
+    """This class stores multiple constants of the same type in a list.
+    It is used to represent arrays and string constants"""
+
     def __init__(self, value: list[Constant], vartype: DecompiledType = UnknownType(), tags: Optional[Tuple[Tag, ...]] = None):
         super().__init__(
             value,
@@ -587,6 +590,10 @@ class ConstantComposition(Constant):
 
 
 class StructConstant(Constant):
+    """This class represents constant structs.
+    The value is a dictionary mapping offsets to the corresponding fields' value.
+    The vartype is a 'Struct' (a special ComplexType), which provides a mapping from offsets to field names."""
+
     def __init__(self, value: dict[int, Expression], vartype: Struct, tags: Optional[Tuple[Tag, ...]] = None):
         super().__init__(
             value,
