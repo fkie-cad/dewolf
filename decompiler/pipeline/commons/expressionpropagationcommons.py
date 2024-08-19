@@ -363,7 +363,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         for basic_block in self._cfg:
             for instruction in basic_block:
                 if isinstance(instruction, Relation) and instruction.destination.name == alias_variable.name:
-                    relations |= {instruction}
+                    relations.add(instruction)
 
         return relations
 

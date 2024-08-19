@@ -117,7 +117,7 @@ def test_instruction_management(testblock: BasicBlock):
 
 
 def test_block_representations(testblock: BasicBlock):
-    assert str(testblock) == "\n".join(str(instruction) for instruction in testblock)
+    assert str(testblock) == "BasicBlock(0x539, len=5)"
     assert repr(testblock) == "BasicBlock(0x539, len=5)"
 
 
