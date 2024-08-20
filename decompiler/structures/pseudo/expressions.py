@@ -582,7 +582,7 @@ class ConstantComposition(Constant):
 
     def copy(self) -> ConstantComposition:
         """Generate a copy of the UnknownExpression with the same message."""
-        return ConstantComposition([x.copy() for x in self.value], self._type.copy())
+        return ConstantComposition(self.value, self._type)
 
     def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
         """Invoke the appropriate visitor for this Expression."""
@@ -617,4 +617,4 @@ class StructConstant(Constant):
 
     def copy(self) -> StructConstant:
         """Generate a copy of the UnknownExpression with the same message."""
-        return StructConstant(self.value.copy(), self._type.copy())  # Deep copy needed for all Expr inside.
+        return StructConstant(self.value, self._type)
