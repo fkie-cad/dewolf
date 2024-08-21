@@ -30,6 +30,7 @@ def get_struct_string_address_offset(vartype) -> int | None:
     Otherwise it returns None.
 
     struct strings are structs comprising of a length and a pointer to string data.
+    The code does not assume whether data or length comes first. The loop is for determining the order.
     """
     if not isinstance(vartype, Struct):
         return None
