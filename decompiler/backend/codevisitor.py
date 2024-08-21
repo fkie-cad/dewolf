@@ -251,7 +251,11 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
     def _format_integer_literal(self, type_info: Integer, value: int) -> str:
         """Format the integer based on the codegenerators settings."""
 
-        byte_format_handler = {"char": lambda x: f"'{chr(x)}'", "hex": lambda x: f"{hex(x)}", "dec": lambda x: f"{x}"}
+        byte_format_handler = {
+            "char": lambda x: f"'{chr(x).translate(self.ESCAPE_TABLE)}'",
+            "hex": lambda x: f"{hex(x)}",
+            "dec": lambda x: f"{x}",
+        }
         if self._possibly_char_in_ascii_range(type_info, value):
             if value_handler := byte_format_handler.get(self._byte_format, None):
                 if hint_handler := byte_format_handler.get(self._byte_format_hint, None):
