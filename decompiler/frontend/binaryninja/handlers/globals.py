@@ -402,7 +402,7 @@ def _get_string_at(view: BinaryView, addr: int, width: int) -> Optional[str]:
 def addr_in_section(view: BinaryView, addr: int) -> bool:
     """Returns True if address is contained in a section, False otherwise"""
     for _, section in view.sections.items():
-        if addr >= section.start and addr <= section.end:
+        if addr >= section.start and addr < section.end:
             return True
     return False
 
