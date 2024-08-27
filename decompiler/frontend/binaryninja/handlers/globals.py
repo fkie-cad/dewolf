@@ -3,6 +3,7 @@
 from typing import Callable, Optional, Tuple, Union
 
 from binaryninja import BinaryView, DataVariable, Endianness, MediumLevelILInstruction, SectionSemantics, Type
+from binaryninja.enums import NamedTypeReferenceClass
 from binaryninja.types import (
     ArrayType,
     BoolType,
@@ -12,6 +13,7 @@ from binaryninja.types import (
     IntegerType,
     NamedTypeReferenceType,
     PointerType,
+    StructureType,
     Type,
     VoidType,
 )
@@ -19,6 +21,7 @@ from decompiler.frontend.binaryninja.handlers.symbols import GLOBAL_VARIABLE_PRE
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import ArrayType as PseudoArrayType
 from decompiler.structures.pseudo import (
+    ComplexTypeMember,
     Constant,
     ConstantComposition,
     CustomType,
@@ -28,6 +31,8 @@ from decompiler.structures.pseudo import (
     Integer,
     OperationType,
     Pointer,
+    Struct,
+    StructConstant,
     Symbol,
     UnaryOperation,
 )
@@ -59,9 +64,12 @@ BYTE_SIZE = 8
             ==> trust bninja lift normally
             => If a void*, then we try determine the value via get_unknown_pointer_value
         - NamedTypeReferenceType
+            - (enum/structs
+            => lifts struct members recursively
+            => includes special handling of a BNinja bug when accessing certain PDB enum types
+        - StructType 
             - enum/structs
-            => not supported currently
-            => has a BNinja bug when accessing certain PDB enum types
+            => implementation *very* similar to NamedTypeReferenceType
 
     MISC:
         - ._callers will be empty for each call of lift_global_variable 
@@ -88,8 +96,11 @@ class GlobalHandler(Handler):
             ArrayType: self._lift_array_type,
             PointerType: self._lift_pointer_type,
             NamedTypeReferenceType: self._lift_named_type_ref,
+            StructureType: self._lift_structure_type,
         }
-        self._lifted_globals: dict[int, GlobalVariable] = {}  # Cache for already lifted global variables, keys are addresses
+        self._lifted_globals: dict[tuple, GlobalVariable] = (
+            {}
+        )  # Cache for already lifted global variables, keys are addresses + type (required to distinguish struct from its first member)
         self._view: Optional[BinaryView] = None  # Will be set in first call to lift_global_variable
 
     def register(self):
@@ -101,9 +112,18 @@ class GlobalHandler(Handler):
         lifted_names = [v.name for v in self._lifted_globals.values()]
         if bninjaName is None:
             return GLOBAL_VARIABLE_PREFIX + f"{addr:x}"
-        if bninjaName in lifted_names:
-            return bninjaName + "_" + f"{addr:x}"
-        return bninjaName
+        name = bninjaName.translate(
+            {
+                ord(" "): "_",
+                ord("'"): "",
+                ord("."): "_",
+                ord("`"): "",
+                ord('"'): "",
+            }
+        ).strip()
+        if name in lifted_names:
+            return name + "_" + f"{addr:x}"
+        return name
 
     def _build_global_variable(self, name: Optional[str], type: Type, addr: int, init_value, ssa_label: Optional[int]) -> GlobalVariable:
         """Wrapper for building global variables."""
@@ -117,10 +137,10 @@ class GlobalHandler(Handler):
             case _:
                 raise TypeError(f"Type violation: '{init_value}'")
 
-        self._lifted_globals[addr] = GlobalVariable(
+        self._lifted_globals[(addr, type)] = GlobalVariable(
             name=vname, vartype=type, initial_value=vinit_value, ssa_label=ssa_label, is_constant=addr_in_ro_section(self._view, addr)
         )
-        return self._lifted_globals[addr]
+        return self._lifted_globals[(addr, type)]
 
     def lift_global_variable(
         self,
@@ -136,11 +156,12 @@ class GlobalHandler(Handler):
             self._view = view
 
         # If addr was already lifted: Return lifted GlobalVariable with updated SSA
-        if variable.address in self._lifted_globals.keys():
+        variable_identifier = (variable.address, self._lifter.lift(variable.type))
+        if variable_identifier in self._lifted_globals.keys():
             return (
-                self._lifted_globals[variable.address].copy(ssa_label=parent.ssa_memory_version)
+                self._lifted_globals[variable_identifier].copy(ssa_label=parent.ssa_memory_version)
                 if parent
-                else self._lifted_globals[variable.address]
+                else self._lifted_globals[variable_identifier]
             )
 
         # BNinja error cases: nullptr/small numbers (0, -12...)
@@ -237,9 +258,46 @@ class GlobalHandler(Handler):
 
     def _lift_named_type_ref(self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None, **_):
         """Lift a named custom type (Enum, Structs)"""
-        return Constant(
-            "Unknown value", self._lifter.lift(variable.type)
-        )  # BNinja error, need to check with the issue to get the correct value + entry for structs
+        match variable.type.named_type_class:
+            case NamedTypeReferenceClass.StructNamedTypeClass:
+                struct_type = self._view.get_type_by_id(variable.type.type_id)
+                return self._lift_struct_helper(variable, parent, struct_type)
+
+            case NamedTypeReferenceClass.EnumNamedTypeClass:
+                try:
+                    value = Constant(variable.value, self._lifter.lift(variable.type))
+                    return self._build_global_variable(
+                        variable.name,
+                        value.type,
+                        variable.address,
+                        value,
+                        parent.ssa_memory_version if parent else 0,
+                    )
+                except Exception:
+                    return Constant("Unknown value", self._lifter.lift(variable.type))  # BNinja error
+            case _:
+                raise NotImplementedError(f"No handler for '{variable.type.named_type_class}' in lifter")
+
+    def _lift_structure_type(self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None, **_):
+        """Lift a struct"""
+        struct_type = variable.type
+        return self._lift_struct_helper(variable, parent, struct_type)
+
+    def _lift_struct_helper(self, variable, parent, struct_type):
+        """This helper method for lifting structs does the heavy lifting.
+        A structs initial value is comprised of its membembers' initial values.
+        This method iterates over all struct members, interprets the corresponding memory locations as new data variables
+        and lifts them (recursively) to gain access to the members' initial values.
+        """
+        values = {}
+        s_type = self._lifter.lift(struct_type)
+        for member_type in struct_type.members:
+            dv = DataVariable(self._view, variable.address + member_type.offset, member_type.type, False)
+            lift = self._lifter.lift(dv, view=self._view)
+            values[member_type.offset] = lift.initial_value
+        return self._build_global_variable(
+            variable.name, s_type, variable.address, StructConstant(values, s_type), parent.ssa_memory_version if parent else 0
+        )
 
     def _get_unknown_value(self, variable: DataVariable):
         """Return string or bytes at dv.address(!) (dv.type must be void)"""
@@ -344,7 +402,7 @@ def _get_string_at(view: BinaryView, addr: int, width: int) -> Optional[str]:
 def addr_in_section(view: BinaryView, addr: int) -> bool:
     """Returns True if address is contained in a section, False otherwise"""
     for _, section in view.sections.items():
-        if addr >= section.start and addr <= section.end:
+        if addr >= section.start and addr < section.end:
             return True
     return False
 

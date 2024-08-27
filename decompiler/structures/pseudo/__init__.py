@@ -11,6 +11,7 @@ from .expressions import (
     IntrinsicSymbol,
     NotUseableConstant,
     RegisterPair,
+    StructConstant,
     Symbol,
     Tag,
     UnknownExpression,

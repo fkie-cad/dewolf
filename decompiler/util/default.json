@@ -230,7 +230,7 @@
             },
             {
                 "dest": "variable-name-generation.variable_name",
-                "default": "Var",
+                "default": "var",
                 "title": "Variable Base Name for hungarian notation",
                 "type": "string",
                 "description": "",

@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Generic, Iterator, List, Optional, Tuple, TypeVar, Union, final
 
 from ...util.insertion_ordered_set import InsertionOrderedSet
-from .complextypes import Enum
+from .complextypes import Enum, Struct
 from .typing import CustomType, Type, UnknownType
 
 T = TypeVar("T")
@@ -560,12 +560,14 @@ class RegisterPair(Variable):
 
 
 class ConstantComposition(Constant):
+    """This class stores multiple constants of the same type in a list.
+    It is used to represent arrays and string constants"""
+
     def __init__(self, value: list[Constant], vartype: DecompiledType = UnknownType(), tags: Optional[Tuple[Tag, ...]] = None):
         super().__init__(
             value,
-            vartype,
-            None,
-            tags,
+            vartype=vartype,
+            tags=tags,
         )
 
     def __eq__(self, __value):
@@ -580,8 +582,39 @@ class ConstantComposition(Constant):
 
     def copy(self) -> ConstantComposition:
         """Generate a copy of the UnknownExpression with the same message."""
-        return ConstantComposition([x.copy() for x in self.value], self._type)
+        return ConstantComposition(self.value, self._type)
 
     def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
         """Invoke the appropriate visitor for this Expression."""
         return visitor.visit_constant_composition(self)
+
+
+class StructConstant(Constant):
+    """This class represents constant structs.
+    The value is a dictionary mapping offsets to the corresponding fields' value.
+    The vartype is a 'Struct' (a special ComplexType), which provides a mapping from offsets to field names."""
+
+    def __init__(self, value: dict[int, Expression], vartype: Struct, tags: Optional[Tuple[Tag, ...]] = None):
+        super().__init__(
+            value,
+            vartype=vartype,
+            tags=tags,
+        )
+
+    def __eq__(self, __value):
+        return isinstance(__value, StructConstant) and super().__eq__(__value)
+
+    def __hash__(self):
+        return hash(tuple(sorted(self.value.items())))
+
+    def __str__(self) -> str:
+        """Return a string representation of the struct"""
+
+        return str(self.value)
+
+    def __iter__(self) -> Iterator[Expression]:
+        yield from self.value.values()
+
+    def copy(self) -> StructConstant:
+        """Generate a copy of the UnknownExpression with the same message."""
+        return StructConstant(self.value, self._type)
