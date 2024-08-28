@@ -12,17 +12,6 @@ from decompiler.structures.pseudo.operations import Call, Condition, OperationTy
 from decompiler.structures.pseudo.typing import Integer
 from decompiler.task import DecompilerTask
 
-import os
-import shelve
-
-def get_shelve():
-    path = os.environ.get("go_shelve_path", "go_prologue_results.shelve")
-    return shelve.open(path)
-    # return shelve.open("trash.shelve")
-
-
-with get_shelve() as storage:
-    storage.clear()
 
 class RemoveGoPrologue(PipelineStage):
     """
@@ -40,13 +29,7 @@ class RemoveGoPrologue(PipelineStage):
             if self._check_and_remove_go_prologue():
                 pass
             else:
-                with get_shelve() as shelve:
-                    shelve[task.name] = None
-                print("Did not remove go prologue", flush=True)
-            # if not self._dont_crash:
-            #     raise ValueError("Crash on purpose")
-            if os.environ.get("go_eval_only"):
-                raise ValueError("Crash on purpose")
+                logging.info("No Go function prologue found")
 
     def _get_r14_name(self, task: DecompilerTask):
         r14_parameter_index = None
@@ -377,9 +360,6 @@ class RemoveGoPrologue(PipelineStage):
         root.add_instruction_where_possible(comment)
 
         logging.info(comment_string)
-        print("removed go prologue for function", function, flush=True)
-        with get_shelve() as shelve:
-            shelve[self._function_name] = str(function)
 
     def _get_constant_condition(self, value: bool):
         int_value = 1 if value else 0
