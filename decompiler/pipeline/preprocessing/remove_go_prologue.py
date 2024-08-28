@@ -1,8 +1,9 @@
 """Module for removing go idioms"""
+
 import logging
 from typing import Optional, Tuple
-from decompiler.pipeline.preprocessing.util import match_expression
 
+from decompiler.pipeline.preprocessing.util import match_expression
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.graphs.branches import ConditionalEdge, FalseCase, TrueCase, UnconditionalEdge
@@ -75,8 +76,7 @@ class RemoveGoPrologue(PipelineStage):
         # Typically Binary ninja successfully detected the loop leading form the morestack_node back to the root.
         # Since 3.5 this is no longer the case. Therefore, we also check if an alternative (loopless) graph structure matches.
 
-        return self._verify_graph_structure_loop() or  self._verify_graph_structure_loopless()
-
+        return self._verify_graph_structure_loop() or self._verify_graph_structure_loopless()
 
     def _verify_graph_structure_loopless(self) -> Optional[Tuple[BasicBlock, BasicBlock]]:
         """
@@ -93,7 +93,7 @@ class RemoveGoPrologue(PipelineStage):
         if root is None:
             return None
 
-        # root node should have no incoming node: not even from morestack node 
+        # root node should have no incoming node: not even from morestack node
         if self._cfg.in_degree(root) != 0:
             return None
 
@@ -108,7 +108,7 @@ class RemoveGoPrologue(PipelineStage):
         for successor in successors:
             # TODO: consider indirection
             # if root in self._cfg.get_successors(successor):
-            if (result := self._find_morestack_node_loopless(successor, set())):
+            if result := self._find_morestack_node_loopless(successor, set()):
                 morestack_node = result
             else:
                 start_node = successor
@@ -160,7 +160,6 @@ class RemoveGoPrologue(PipelineStage):
         if len(called_functions) != 1:
             return False
         return called_functions[0].can_return == False
-
 
     def _verify_graph_structure_loop(self) -> Optional[Tuple[BasicBlock, BasicBlock]]:
         """

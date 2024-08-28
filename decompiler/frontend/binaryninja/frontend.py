@@ -95,7 +95,6 @@ class BinaryninjaFrontend(Frontend):
             parameter_locations.append(name)
         return parameter_locations
 
-
     def get_all_function_names(self):
         """Returns the entire list of all function names in the binary. Ignores blacklisted functions and imported functions."""
         functions = list()

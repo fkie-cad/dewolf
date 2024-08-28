@@ -1,7 +1,7 @@
 """Helper functions for modules in the preprocessing pipeline."""
 
 from collections import defaultdict
-from typing import Callable, DefaultDict, Dict, Optional, Set, Tuple, List
+from typing import Callable, DefaultDict, Dict, List, Optional, Set, Tuple
 
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.maps import DefMap, UseMap

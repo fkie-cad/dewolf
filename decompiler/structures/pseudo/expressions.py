@@ -307,7 +307,6 @@ class FunctionSymbol(Symbol):
     def __hash__(self):
         return super().__hash__()
 
-
     def copy(self) -> FunctionSymbol:
         return FunctionSymbol(self.name, self.value, self._type.copy(), self.tags)
 

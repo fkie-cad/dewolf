@@ -1,10 +1,11 @@
 import logging
+import sys
 
 from binaryninja import BinaryView
 from decompiler.util.options import Options
-import sys
 
 string_slicer_path = "/home/manuel/repos/"
+
 
 class RustStringDetection:
     """TODO:"""
@@ -29,7 +30,7 @@ class RustStringDetection:
         """
         if not self._enabled:
             return
-        
+
         if self._rust_binaries_only and not self.is_rust_binary():
             logging.info("Rust String Slicer not executed: Not a Rust Binary")
             return

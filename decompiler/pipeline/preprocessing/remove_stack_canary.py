@@ -1,8 +1,8 @@
 """Module for removing ELF stack canaries."""
 
 from typing import Iterator
-from decompiler.pipeline.preprocessing.util import match_expression
 
+from decompiler.pipeline.preprocessing.util import match_expression
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.branches import BasicBlockEdgeCondition
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, UnconditionalEdge
@@ -21,8 +21,7 @@ class RemoveStackCanary(PipelineStage):
     name = "remove-stack-canary"
     STACK_FAIL_STR = "__stack_chk_fail"
 
-    #__security_check_cookie funktion bei windows (vs compiler)
-
+    # __security_check_cookie funktion bei windows (vs compiler)
 
     def run(self, task: DecompilerTask):
         if task.options.getboolean(f"{self.name}.remove_canary", fallback=False) and task.name != self.STACK_FAIL_STR:
@@ -35,7 +34,7 @@ class RemoveStackCanary(PipelineStage):
 
     def _is_trap_0xd_function(self, function_symbol):
         return False
-        cfg: ControlFlowGraph = self._get_cfg(function_symbol) 
+        cfg: ControlFlowGraph = self._get_cfg(function_symbol)
         if len(cfg.nodes) != 1:
             return False
         node = cfg.nodes[0]
@@ -48,7 +47,7 @@ class RemoveStackCanary(PipelineStage):
         for instruction in instructions:
             if isinstance(instruction, Assignment) and isinstance(instruction.value, Call):
                 yield instruction.value.function
-        
+
     def _contains_stack_check_fail(self) -> Iterator[BasicBlock]:
         """
         Iterate leaf nodes of cfg, yield nodes containing canary check.
@@ -62,9 +61,11 @@ class RemoveStackCanary(PipelineStage):
         """
         Check if node contains call to __stack_chk_fail
         """
-        return any(self.STACK_FAIL_STR in str(inst) for inst in node.instructions) or \
-            any(self._is_trap_0xd_function(function) for function in self._get_called_functions(node.instructions)) or \
-            self._reached_by_failed_canary_check(node)
+        return (
+            any(self.STACK_FAIL_STR in str(inst) for inst in node.instructions)
+            or any(self._is_trap_0xd_function(function) for function in self._get_called_functions(node.instructions))
+            or self._reached_by_failed_canary_check(node)
+        )
 
     def _reached_by_failed_canary_check(self, node: BasicBlock) -> bool:
         pattern = ("fsbase", 0x28)
@@ -72,7 +73,10 @@ class RemoveStackCanary(PipelineStage):
             predecessor = in_edge.source
             if len(predecessor.instructions) and isinstance(predecessor.instructions[-1], Branch):
                 condition = predecessor.instructions[-1].condition
-                if not (condition.operation, in_edge.condition_type) in {(OperationType.equal, BasicBlockEdgeCondition.false), (OperationType.not_equal, BasicBlockEdgeCondition.true)}:
+                if not (condition.operation, in_edge.condition_type) in {
+                    (OperationType.equal, BasicBlockEdgeCondition.false),
+                    (OperationType.not_equal, BasicBlockEdgeCondition.true),
+                }:
                     continue
                 if match_expression(predecessor, condition.left, pattern) or match_expression(predecessor, condition.right, pattern):
                     return True

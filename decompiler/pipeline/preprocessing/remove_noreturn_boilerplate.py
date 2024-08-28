@@ -4,9 +4,7 @@ import os
 import shelve
 from typing import Callable, Generator, Iterator, List, Optional, Set, Tuple
 
-from networkx import DiGraph, MultiDiGraph, dominance_frontiers, reverse_view
-from decompiler.pipeline.preprocessing.util import match_expression
-
+from decompiler.pipeline.preprocessing.util import _unused_addresses, match_expression
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.graphs.branches import ConditionalEdge, FalseCase, TrueCase, UnconditionalEdge
@@ -16,8 +14,8 @@ from decompiler.structures.pseudo.expressions import Constant, Expression, Varia
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Comment, Phi
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import Integer
-from decompiler.pipeline.preprocessing.util import _unused_addresses
 from decompiler.task import DecompilerTask
+from networkx import DiGraph, MultiDiGraph, dominance_frontiers, reverse_view
 
 
 class RemoveNoreturnBoilerplate(PipelineStage):
