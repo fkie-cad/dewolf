@@ -21,8 +21,6 @@ class RemoveStackCanary(PipelineStage):
     name = "remove-stack-canary"
     STACK_FAIL_STR = "__stack_chk_fail"
 
-    # __security_check_cookie funktion bei windows (vs compiler)
-
     def run(self, task: DecompilerTask):
         if task.options.getboolean(f"{self.name}.remove_canary", fallback=False) and task.name != self.STACK_FAIL_STR:
             self._cfg = task.graph
