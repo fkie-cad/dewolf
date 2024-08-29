@@ -88,6 +88,8 @@ class BinaryninjaFrontend(Frontend):
                 raise e
 
     def _parameter_locations(self, function: binaryninja.function.Function) -> list[str | None]:
+        """For a given Binary Ninja Function, this method returns a list of its parameters' locations in the correct order.
+        E.g. if the first parameter is stored in r14, the first entry in the returned list will be 'r14'."""
         raw_parameters = function.type.parameters
         parameter_locations = []
         for parameter in raw_parameters:

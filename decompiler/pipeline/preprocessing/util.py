@@ -27,6 +27,7 @@ def _init_maps(cfg: ControlFlowGraph) -> Tuple[DefMap, UseMap]:
 
 
 def _unused_addresses(cfg: ControlFlowGraph, amount: int = 1) -> List[int]:
+    """Returns a list with the specified amount of addresses, which are not used by any block of the given CFG."""
     used_addresses = {c.address for c in cfg.nodes}
     address = -1
 
@@ -77,6 +78,8 @@ def _init_basicblocks_usages_variable(cfg: ControlFlowGraph) -> DefaultDict[Vari
 
 
 def _get_last_definition(node: BasicBlock, var: Variable, max_instr_num: int) -> Optional[Tuple[int, Expression]]:
+    """This helper method finds a variable's last definition within a Block. Only instructions up to `max_instr_num` are considered.
+    It returns the instructions position and the assigned value if a definition exists and none otherwise."""
     for index in reversed(range(max_instr_num + 1)):
         instruction = node.instructions[index]
         if isinstance(instruction, Assignment) and instruction.destination == var:
@@ -85,6 +88,40 @@ def _get_last_definition(node: BasicBlock, var: Variable, max_instr_num: int) ->
 
 
 def match_expression(node: BasicBlock, expression: Expression, pattern, instr_num=None):
+    """This function checks whether the given `expression` matches the specified `pattern`.
+
+    The function uses recursion to check whether the provided `expression` matches the given `pattern`. 
+    It also considers the instructions defined earlier in the provided `node` (a `BasicBlock`) to resolve variable definitions.
+
+    Args:
+        node (BasicBlock): The basic block containing instructions that define variables and their usage.
+        expression (Expression): The expression to be matched against the `pattern`.
+        pattern (tuple or Callable or str): The pattern used for matching. 
+            Patterns are nested tuples representing the structure of expressions, constants, and operations. 
+            The innermost (first) entry in a pattern is either:
+              - A string representing a variable name to be matched exactly.
+              - A function (Callable) that takes an `expression` and returns `True` if the expression matches some criteria, `False` otherwise.
+            The rest of the entries are constants representing offsets or operations to be dereferenced. 
+            For example:
+              - (self._match_r14, 0x10) 
+              - ((("gsbase", 0), -4), 0x8) 
+            The latter pattern represents an expression equivalent to *(*(*(gsbase+0) - 4) + 8).
+        instr_num (int, optional): The instruction number to start searching backwards for variable definitions. 
+            If not provided, it defaults to the last instruction in the `node`.
+
+    Returns:
+        bool: Returns `True` if the `expression` matches the specified `pattern`, `False` otherwise.
+
+    The function operates as follows:
+    - If the pattern is not a tuple, it checks if it's a callable or a string:
+      - If callable, it calls the pattern function with `expression`.
+      - If string, it checks if the `expression` is a `Variable` and its name matches the string.
+    - If the pattern is a tuple, it extracts the inner pattern and dereference offset and tries to match:
+      - If the expression is a `Variable` and there are earlier instructions, it retrieves the last definition of the variable and recursively checks.
+      - If the expression involves dereferencing with specific operations (plus or minus with constants), it adjusts and continues matching.
+      - It also handles simple dereferences when the offset is zero.
+    - The function returns `False` if no match is found according to the above rules.
+    """
     if not isinstance(pattern, tuple):
         if isinstance(pattern, Callable):
             return pattern(expression)
