@@ -120,6 +120,16 @@
                 "argument_name": "--remove-go-prologue"
             },
             {
+                "dest": "remove-noreturn-boilerplate.remove_noreturn_boilerplate",
+                "default": true,
+                "title": "Generic no-return boilerplate removal",
+                "type": "boolean",
+                "description": "remove boilerplate leading to non-returning functions",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--remove-no-return-boilerplate"
+            },
+            {
                 "dest": "array-access-detection.enabled",
                 "default": true,
                 "title": "Array access detection",
