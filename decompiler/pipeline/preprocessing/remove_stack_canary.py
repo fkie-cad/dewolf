@@ -28,22 +28,13 @@ class RemoveStackCanary(PipelineStage):
             self._cfg = task.graph
             if len(self._cfg) == 1:
                 return  # do not remove the only node
-            fail_nodes = list(self._contains_stack_check_fail())
-            for fail_node in fail_nodes:
+            for fail_node in list(self._contains_stack_check_fail()):
                 self._patch_canary(fail_node)
 
-    def _is_trap_0xd_function(self, function_symbol):
-        return False
-        cfg: ControlFlowGraph = self._get_cfg(function_symbol)
-        if len(cfg.nodes) != 1:
-            return False
-        node = cfg.nodes[0]
-        if len(node.instructions) != 1:
-            return False
-        # TODO: replace with real check
-        return node.instructions[0] == ...
-
     def _get_called_functions(self, instructions):
+        """
+        Yields all functions called by an instruction
+        """
         for instruction in instructions:
             if isinstance(instruction, Assignment) and isinstance(instruction.value, Call):
                 yield instruction.value.function
@@ -61,13 +52,27 @@ class RemoveStackCanary(PipelineStage):
         """
         Check if node contains call to __stack_chk_fail
         """
-        return (
-            any(self.STACK_FAIL_STR in str(inst) for inst in node.instructions)
-            or any(self._is_trap_0xd_function(function) for function in self._get_called_functions(node.instructions))
-            or self._reached_by_failed_canary_check(node)
-        )
+        return any(self.STACK_FAIL_STR in str(inst) for inst in node.instructions) or self._reached_by_failed_canary_check(node)
 
     def _reached_by_failed_canary_check(self, node: BasicBlock) -> bool:
+        """Determine if the given `node` is reached by a failed stack canary check.
+
+        This function checks if any incoming edges to the `node` are conditional branches
+        that failed a stack canary check. It examines the predecessor nodes to see if the
+        branching condition corresponds to a failed comparison involving the canary value.
+
+        Args:
+            node (BasicBlock): The basic block to check if it is reached by a failed canary check.
+
+        Returns:
+            bool: Returns `True` if the node is reached by a failed canary check; otherwise, `False`.
+
+        The function specifically looks for conditions that match the pattern *(fsbase+0x28),
+        indicating a check involving a stack canary. It then verifies if the condition's operation
+        and the type of the edge align with typical patterns of failed canary checks:
+        - `equal` operation with `false` edge condition, or
+        - `not_equal` operation with `true` edge condition.
+        """
         pattern = ("fsbase", 0x28)
         for in_edge in self._cfg.get_in_edges(node):
             predecessor = in_edge.source
