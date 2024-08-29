@@ -90,23 +90,23 @@ def _get_last_definition(node: BasicBlock, var: Variable, max_instr_num: int) ->
 def match_expression(node: BasicBlock, expression: Expression, pattern, instr_num=None):
     """This function checks whether the given `expression` matches the specified `pattern`.
 
-    The function uses recursion to check whether the provided `expression` matches the given `pattern`. 
+    The function uses recursion to check whether the provided `expression` matches the given `pattern`.
     It also considers the instructions defined earlier in the provided `node` (a `BasicBlock`) to resolve variable definitions.
 
     Args:
         node (BasicBlock): The basic block containing instructions that define variables and their usage.
         expression (Expression): The expression to be matched against the `pattern`.
-        pattern (tuple or Callable or str): The pattern used for matching. 
-            Patterns are nested tuples representing the structure of expressions, constants, and operations. 
+        pattern (tuple or Callable or str): The pattern used for matching.
+            Patterns are nested tuples representing the structure of expressions, constants, and operations.
             The innermost (first) entry in a pattern is either:
               - A string representing a variable name to be matched exactly.
               - A function (Callable) that takes an `expression` and returns `True` if the expression matches some criteria, `False` otherwise.
-            The rest of the entries are constants representing offsets or operations to be dereferenced. 
+            The rest of the entries are constants representing offsets or operations to be dereferenced.
             For example:
-              - (self._match_r14, 0x10) 
-              - ((("gsbase", 0), -4), 0x8) 
+              - (self._match_r14, 0x10)
+              - ((("gsbase", 0), -4), 0x8)
             The latter pattern represents an expression equivalent to *(*(*(gsbase+0) - 4) + 8).
-        instr_num (int, optional): The instruction number to start searching backwards for variable definitions. 
+        instr_num (int, optional): The instruction number to start searching backwards for variable definitions.
             If not provided, it defaults to the last instruction in the `node`.
 
     Returns:
