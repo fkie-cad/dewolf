@@ -108,7 +108,8 @@
                 "is_hidden_from_gui": false,
                 "is_hidden_from_cli": false,
                 "argument_name": "--remove-stack-canary"
-            },            {
+            },
+            {
                 "dest": "remove-go-prologue.remove_prologue",
                 "default": true,
                 "title": "Remove Go function prologues",
