@@ -177,7 +177,7 @@ class RemoveGoPrologue(PipelineStage):
 
     def _is_noreturn_node(self, node: BasicBlock) -> bool:
         """
-        Helper method to check if `node` contains just one call to a non-returning function. 
+        Helper method to check if `node` contains just one call to a non-returning function.
         """
         called_functions = list(self._get_called_functions(node.instructions))
         if len(called_functions) != 1:
@@ -234,7 +234,7 @@ class RemoveGoPrologue(PipelineStage):
     def _match_r14(self, variable: Variable):
         """
         This method is used to check if `variable` corresponds to r14 which has a special meaning in Go prologues.
-        
+
         It is used for the pattern matching of the root node.
         """
         if self.r14_name is not None and variable.name == self.r14_name:

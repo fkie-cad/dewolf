@@ -95,7 +95,7 @@ class RemoveNoreturnBoilerplate(PipelineStage):
         except when the node is always executed.
         In other words, we cut the CFG between the post-dominance frontier and the nodes postdominated by non-returning nodes.
         Differen non-returning nodes are considered to be 'the same', by adding a merged sink.
-        
+
         Implementations detail: We calculate the postdominance frontier via the dominance frontier of the reversed CFG.
         To add virtual nodes to the (read-only) reversed CFG, we create an editable shallow copy of it.
         """
