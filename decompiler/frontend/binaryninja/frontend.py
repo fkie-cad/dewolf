@@ -73,8 +73,6 @@ class BinaryninjaFrontend(Frontend):
             tagging = CompilerIdiomsTagging(self._bv, function.start, task.options)
             tagging.run()
 
-            instructions = list(function.instructions)
-
             task.cfg = parser.parse(function)
             task.complex_types = parser.complex_types
         except Exception as e:
