@@ -60,10 +60,6 @@ class RemoveNoreturnBoilerplate(PipelineStage):
 
         It works by changing the conditions leading to the boilerplate in a way, that it is never reached.
         """
-        removed_nodes = set()
-        for edge in edges:
-            removed_nodes.update(self._cfg.iter_depth_first(edge.sink))
-
         for edge in edges:
             match edge:
                 case TrueCase():
