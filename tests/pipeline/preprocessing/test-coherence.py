@@ -21,14 +21,14 @@ u32 = Integer.uint32_t()
     [
         (
             {
-                "a": {0: [Variable("a", i32.copy()), Variable("a", u32.copy())], 1: [Variable("a", u32.copy())]},
+                "a": {0: [Variable("a", i32), Variable("a", u32)], 1: [Variable("a", u32)]},
                 "b": {42: [Variable("b")]},
-                "c": {0: [Variable("c", u32.copy())], 2: [Variable("c", i64.copy())]},
+                "c": {0: [Variable("c", u32)], 2: [Variable("c", i64)]},
             },
             {
-                "a": {0: [Variable("a", i32.copy()), Variable("a", i32.copy())], 1: [Variable("a", u32.copy())]},
+                "a": {0: [Variable("a", i32), Variable("a", i32)], 1: [Variable("a", u32)]},
                 "b": {42: [Variable("b")]},
-                "c": {0: [Variable("c", u32.copy())], 2: [Variable("c", i64.copy())]},
+                "c": {0: [Variable("c", u32)], 2: [Variable("c", i64)]},
             },
         )
     ],
@@ -72,16 +72,16 @@ def test_acceptance():
             BasicBlock(
                 0,
                 instructions=[
-                    Assignment(x01 := Variable("x", i32.copy(), ssa_label=0), Constant(0x1337, i32.copy())),
+                    Assignment(x01 := Variable("x", i32, ssa_label=0), Constant(0x1337, i32)),
                     Assignment(
-                        x10 := Variable("x", i32.copy(), is_aliased=True, ssa_label=1),
-                        Call(FunctionSymbol("foo", 0x42), [x02 := Variable("x", u32.copy(), ssa_label=0)]),
+                        x10 := Variable("x", i32, is_aliased=True, ssa_label=1),
+                        Call(FunctionSymbol("foo", 0x42), [x02 := Variable("x", u32, ssa_label=0)]),
                     ),
-                    Return([x12 := Variable("x", i32.copy(), is_aliased=False, ssa_label=1)]),
+                    Return([x12 := Variable("x", i32, is_aliased=False, ssa_label=1)]),
                 ],
             )
         ]
     )
     Coherence().run(DecompilerTask(name="test", function_identifier="", cfg=cfg))
-    assert {variable.type for variable in [x01, x02]} == {i32.copy()}
+    assert {variable.type for variable in [x01, x02]} == {i32}
     assert {variable.is_aliased for variable in [x01, x02, x10, x12]} == {True}

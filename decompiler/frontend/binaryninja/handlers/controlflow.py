@@ -25,7 +25,7 @@ class FlowHandler(Handler):
         """Lift a branch instruction by lifting its condition."""
         condition = self._lifter.lift(branch.condition, parent=branch)
         if not isinstance(condition, Condition):
-            condition = Condition(OperationType.not_equal, [condition, Constant(0, condition.type.copy())])
+            condition = Condition(OperationType.not_equal, [condition, Constant(0, condition.type)])
         return Branch(condition)
 
     def lift_branch_indirect(self, branch: mediumlevelil.MediumLevelILJumpTo, **kwargs) -> IndirectBranch:

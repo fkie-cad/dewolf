@@ -131,7 +131,7 @@ def branch(operation, *args):
 
 
 def contract(_type: Type, var):
-    t = _type.copy()
+    t = _type
     _field = UnaryOperation(OperationType.cast, [var], vartype=t, contraction=True)
     return _field
 

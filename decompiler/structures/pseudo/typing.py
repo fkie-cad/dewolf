@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, replace
-from typing import Tuple
+from typing import Tuple, TypeVar
+
+_T = TypeVar("_T", bound="Type")
 
 
 @dataclass(frozen=True, order=True)
@@ -18,25 +20,13 @@ class Type(ABC):
         """Check whether the given value is a boolean."""
         return str(self) == "bool"
 
-    def copy(self, **kwargs) -> Type:
-        """Generate a copy of the current type."""
-        return replace(self, **kwargs)
-
-    def resize(self, new_size: int) -> Type:
+    def resize(self: _T, new_size: int) -> _T:
         """Create an object of the type with a different size."""
-        return self.copy(size=new_size)
+        return replace(self, size=new_size)
 
     @abstractmethod
     def __str__(self) -> str:
         """Every type should provide a c-like string representation."""
-
-    def __add__(self, other) -> Type:
-        """Add two types to generate one type of bigger size."""
-        return self.copy(size=self.size + other.size)
-
-    def __hash__(self) -> int:
-        """Return a hash value for the given type."""
-        return hash(repr(self))
 
 
 @dataclass(frozen=True, order=True)
@@ -45,7 +35,7 @@ class UnknownType(Type):
 
     def __init__(self, size: int = 0):
         """Create a type with size 0."""
-        super().__init__(size)
+        object.__setattr__(self, "size", size)
 
     def __str__(self):
         """Return the representation of the unknown type."""
@@ -137,10 +127,6 @@ class Float(Type):
 
     SIZE_TYPES = {8: "quarter", 16: "half", 32: "float", 64: "double", 80: "long double", 128: "quadruple", 256: "octuple"}
 
-    def __init__(self, size: int):
-        """Create a new float type with the given size."""
-        super().__init__(size)
-
     @classmethod
     def float(cls) -> Float:
         """Return a float type (IEEE 754)."""
@@ -167,15 +153,16 @@ class Pointer(Type):
         object.__setattr__(self, "type", basetype)
         object.__setattr__(self, "size", size)
 
+    def resize(self, new_size: int) -> Pointer:
+        # Needs custom implementation, because construction parameter 'basetype' differs in name to field 'type'.
+        # This causes dataclasses.replace to not work
+        return Pointer(self.type, new_size)
+
     def __str__(self) -> str:
         """Return a nice string representation."""
         if isinstance(self.type, Pointer):
             return f"{self.type}*"
         return f"{self.type} *"
-
-    def copy(self, **kwargs) -> Pointer:
-        """Generate a copy of the current pointer."""
-        return Pointer(self.type.copy(), self.size)
 
 
 @dataclass(frozen=True, order=True)
@@ -191,13 +178,13 @@ class ArrayType(Type):
         object.__setattr__(self, "size", basetype.size * elements)
         object.__setattr__(self, "elements", elements)
 
+    def resize(self, new_size: int) -> ArrayType:
+        # Overridden because of backwards compatibility... ArrayType was not able to be resized.
+        return self
+
     def __str__(self) -> str:
         """Return a nice string representation."""
         return f"{self.type} [{self.elements}]"
-
-    def copy(self, **kwargs) -> Pointer:
-        """Generate a copy of the current pointer."""
-        return ArrayType(self.type.copy(), self.elements)
 
 
 @dataclass(frozen=True, order=True)
@@ -234,10 +221,6 @@ class CustomType(Type):
     def __str__(self) -> str:
         """Return the given string representation."""
         return self.text
-
-    def copy(self, **kwargs) -> CustomType:
-        """Generate a copy of the current custom type."""
-        return CustomType(self.text, self.size)
 
 
 @dataclass(frozen=True, order=True)

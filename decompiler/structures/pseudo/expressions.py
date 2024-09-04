@@ -227,7 +227,7 @@ class Constant(Expression[DecompiledType]):
 
     def copy(self) -> Constant:
         """Generate a Constant with the same value and type."""
-        return Constant(self.value, self._type.copy(), self._pointee.copy() if self._pointee else None, self.tags)
+        return Constant(self.value, self._type, self._pointee.copy() if self._pointee else None, self.tags)
 
     def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
         """Invoke the appropriate visitor for this Expression."""
@@ -289,7 +289,7 @@ class Symbol(Constant):
         raise ValueError(f"Unknown symbol type {type(self.value)}")
 
     def copy(self) -> Symbol:
-        return Symbol(self.name, self.value, self._type.copy(), self.tags)
+        return Symbol(self.name, self.value, self._type, self.tags)
 
 
 class FunctionSymbol(Symbol):
@@ -302,7 +302,7 @@ class FunctionSymbol(Symbol):
         return super().__hash__()
 
     def copy(self) -> FunctionSymbol:
-        return FunctionSymbol(self.name, self.value, self._type.copy(), self.tags)
+        return FunctionSymbol(self.name, self.value, self._type, self.tags)
 
 
 class ImportedFunctionSymbol(FunctionSymbol):
@@ -315,7 +315,7 @@ class ImportedFunctionSymbol(FunctionSymbol):
         return super().__hash__()
 
     def copy(self) -> ImportedFunctionSymbol:
-        return ImportedFunctionSymbol(self._name, self.value, self._type.copy(), self.tags)
+        return ImportedFunctionSymbol(self._name, self.value, self._type, self.tags)
 
 
 class IntrinsicSymbol(FunctionSymbol):
@@ -410,7 +410,7 @@ class Variable(Expression[DecompiledType]):
         """Provide a copy of the current Variable."""
         return self.__class__(
             self._name[:] if name is None else name,
-            self._type.copy() if vartype is None else vartype,
+            self._type if vartype is None else vartype,
             self.ssa_label if ssa_label is None else ssa_label,
             self.is_aliased if is_aliased is None else is_aliased,
             self.ssa_name if ssa_name is None else ssa_name,
@@ -467,7 +467,7 @@ class GlobalVariable(Variable):
 
         return self.__class__(
             self._name[:] if name is None else name,
-            self._type.copy() if vartype is None else vartype,
+            self._type if vartype is None else vartype,
             self.initial_value.copy() if initial_value is None else initial_value.copy(),
             self.ssa_label if ssa_label is None else ssa_label,
             self.is_aliased if is_aliased is None else is_aliased,
@@ -552,7 +552,7 @@ class RegisterPair(Variable):
 
     def copy(self) -> RegisterPair:
         """Return a copy of the current register pair."""
-        return RegisterPair(self._high.copy(), self._low.copy(), self._type.copy(), self.tags)
+        return RegisterPair(self._high.copy(), self._low.copy(), self._type, self.tags)
 
     def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
         """Invoke the appropriate visitor for this Expression."""
