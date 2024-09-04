@@ -3,7 +3,7 @@
 import logging
 from typing import Optional, Tuple
 
-from decompiler.pipeline.preprocessing.util import match_expression
+from decompiler.pipeline.preprocessing.util import _unused_addresses, match_expression
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.graphs.branches import ConditionalEdge, FalseCase, TrueCase, UnconditionalEdge
@@ -361,7 +361,7 @@ class RemoveGoPrologue(PipelineStage):
         # A conditional edge to a newly created "return_node" is added as well.
         # The return_node does nothing.
         # After dead code elmination, this will just have the effect of deleting the edge.
-        return_node = BasicBlock(-1, [], self._cfg)
+        return_node = BasicBlock(_unused_addresses(cfg=self._cfg, amount=1)[0], [], self._cfg)
         self._cfg.add_node(return_node)
         unconditional_in_edges = [edge for edge in self._cfg.get_in_edges(morestack_node) if isinstance(edge, UnconditionalEdge)]
         for edge in unconditional_in_edges:
