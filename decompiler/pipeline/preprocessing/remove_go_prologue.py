@@ -33,6 +33,10 @@ class RemoveGoPrologue(PipelineStage):
                 logging.info("No Go function prologue found")
 
     def _get_r14_name(self, task: DecompilerTask):
+        """
+        Returns the variable name of the parameter stored in r14, e.g. 'arg1'.
+        If no such parameter exists, None is returned.
+        """
         r14_parameter_index = None
         for i, location in enumerate(task.function_parameter_locations):
             if location == "r14":
@@ -43,6 +47,12 @@ class RemoveGoPrologue(PipelineStage):
         return task.function_parameters[r14_parameter_index].name
 
     def _is_root_single_indirect_successor(self, node: BasicBlock):
+        """
+        Helper function used to verify the graph structure.
+
+        It checks whether there is a path from the given `node` to the root, in which every node only has one successor, zero instructions and just one incomming edge.
+        In other words, it checks if root is the single successor of the given `node`, but with possibly only indirect via jumps.
+        """
         successors = self._cfg.get_successors(node)
 
         if len(successors) != 1:
@@ -58,12 +68,17 @@ class RemoveGoPrologue(PipelineStage):
         return False
 
     def _find_morestack_node_in_loop(self, node: BasicBlock):
+        """
+        Helper function used to verify the graph structure.
+
+        If we have a loop connecting the morestack node to the root node, possibly via jumps, we can identify the morestack node as it is the only node with >0 instructions.
+        """
         if len(node.instructions) != 0:
             return node
 
         successor = self._cfg.get_successors(node)[0]
 
-        # To prevent endless loops?
+        # To prevent endless loops
         if successor == self._cfg.root:
             return node
 
@@ -71,16 +86,18 @@ class RemoveGoPrologue(PipelineStage):
 
     def _verify_graph_structure(self) -> Optional[Tuple[BasicBlock, BasicBlock]]:
         """
-        returns morestack_node and start_node if graph structure matches go prologue, otherwise None
-        """
-        # Typically Binary ninja successfully detected the loop leading form the morestack_node back to the root.
-        # Since 3.5 this is no longer the case. Therefore, we also check if an alternative (loopless) graph structure matches.
+        Verify the graph structure. This method returns morestack_node and start_node if graph structure matches go prologue, otherwise None.
 
+        Typically Binary ninja successfully detected the loop leading form the morestack_node back to the root.
+        Since 3.5 this is no longer the case. Therefore, we also check if an alternative (loopless) graph structure matches.
+        """
         return self._verify_graph_structure_loop() or self._verify_graph_structure_loopless()
 
     def _verify_graph_structure_loopless(self) -> Optional[Tuple[BasicBlock, BasicBlock]]:
         """
-        returns morestack_node and start_node if graph structure matches go prologue, otherwise None
+        Verify the graph structure. This method returns morestack_node and start_node if graph structure matches go prologue, otherwise None.
+
+        This method checks for the newer CFGs without loops created by Binary Ninja >= 4.0
         """
         # In a Go function prologue one of the successors (start_node) marks the start of the function.
         # The other successor (morestack_node) contains a call to runtime_morestack(_noctxt_abi0)
@@ -106,8 +123,6 @@ class RemoveGoPrologue(PipelineStage):
         morestack_node = None
         start_node = None
         for successor in successors:
-            # TODO: consider indirection
-            # if root in self._cfg.get_successors(successor):
             if result := self._find_morestack_node_loopless(successor, set()):
                 morestack_node = result
             else:
@@ -125,6 +140,11 @@ class RemoveGoPrologue(PipelineStage):
         return start_node, morestack_node
 
     def _find_morestack_node_loopless(self, node, visited):
+        """
+        Helper function used to verify the graph structure.
+
+        For Binary Ninja >=4.0 the morestack node is a no return node connected to the root (possibly via jump nodes)
+        """
         if node in visited:
             return None
 
@@ -148,13 +168,16 @@ class RemoveGoPrologue(PipelineStage):
         return None
 
     def _get_called_functions(self, instructions):
+        """
+        Helper method to iterate over all called functions in a list of instructions.
+        """
         for instruction in instructions:
             if isinstance(instruction, Assignment) and isinstance(instruction.value, Call):
                 yield instruction.value.function
 
     def _is_noreturn_node(self, node: BasicBlock) -> bool:
         """
-        Check if node contains call to __stack_chk_fail
+        Helper method to check if `node` contains just one call to a non-returning function. 
         """
         called_functions = list(self._get_called_functions(node.instructions))
         if len(called_functions) != 1:
@@ -163,7 +186,9 @@ class RemoveGoPrologue(PipelineStage):
 
     def _verify_graph_structure_loop(self) -> Optional[Tuple[BasicBlock, BasicBlock]]:
         """
-        returns morestack_node and start_node if graph structure matches go prologue, otherwise None
+        Verify the graph structure. This method returns morestack_node and start_node if graph structure matches go prologue, otherwise None.
+
+        This method checks for the older CFGs with loops created by Binary Ninja <= 3.5
         """
         # In a Go function prologue one of the successors (start_node) marks the start of the function.
         # The other successor (morestack_node) contains a call to runtime_morestack(_noctxt_abi0)
@@ -207,6 +232,11 @@ class RemoveGoPrologue(PipelineStage):
         return start_node, morestack_node
 
     def _match_r14(self, variable: Variable):
+        """
+        This method is used to check if `variable` corresponds to r14 which has a special meaning in Go prologues.
+        
+        It is used for the pattern matching of the root node.
+        """
         if self.r14_name is not None and variable.name == self.r14_name:
             return True
 
@@ -216,11 +246,14 @@ class RemoveGoPrologue(PipelineStage):
         return False
 
     def _check_root_node(self) -> bool:
-        # check if root node has an if similar to "if((&(__return_addr)) u<= (*(r14 + 0x10)))"
-        # or "if((&(__return_addr)) u<= (*(*(fsbase -8) + 0x10)))".
-        # or .....
-        # however, the variable in lhs sometimes differs from __return_address,
-        # so we just check for the address operator.
+        """
+        This method checks if the root node looks like expected for a Go prologue.
+
+        It checks if the node has an if similar to "if((&(__return_addr)) u<= (*(r14 + 0x10)))",
+        or "if((&(__return_addr)) u<= (*(*(fsbase -8) + 0x10)))",
+        or any of the other patterns found below.
+        As the variable in lhs sometimes differs from __return_address we just check for the address operator.
+        """
 
         root = self._cfg.root
         if root is None:
@@ -261,11 +294,14 @@ class RemoveGoPrologue(PipelineStage):
         return False
 
     def _verify_morestack_instructions(self, morestack_node: BasicBlock) -> bool:
-        # check if morestack_node just contains (in this order)
-        # - an arbitrary number of assignments, where value is Phi or MemPhi
-        # - n assignments (storing registers)
-        # - a single call call
-        # - n assignments (restoring registers)
+        """
+        This helper method verifies if the morestack node is of the expected format:
+
+        - an arbitrary number of assignments, where value is Phi or MemPhi
+        - n assignments (storing registers)
+        - a single call call
+        - n assignments (restoring registers)
+        """
         instructions = morestack_node.instructions
         # Find end of Phi / MemPhi Assignments
         phi_pos = 0
@@ -285,26 +321,15 @@ class RemoveGoPrologue(PipelineStage):
         if not isinstance(morestack_instruction, Assignment) or not isinstance(morestack_instruction.value, Call):
             return False
 
-        # # TODO: convert to match with constant*[Subject]
-        # # TODO: also require other side to be dereference?
-        # # verify other assignments set and load variables
-        # for instruction in instructions[phi_pos:phi_pos+num_assignments]:
-        #     if not isinstance(instruction, Assignment):
-        #         return False
-        #     if not isinstance(instruction.value, Variable):
-        #         return False
-
-        # for instruction in instructions[phi_pos+num_assignments+1:]:
-        #     if not isinstance(instruction, Assignment):
-        #         return False
-        #     if not isinstance(instruction.destination, Variable):
-        #         return False
-
         # save this to restore function name later
         self._morestack_instruction = morestack_instruction
         return True
 
     def _remove_go_prologue(self, start_node: BasicBlock, morestack_node: BasicBlock):
+        """
+        This method removes the Go prologue. It is only called if a Go prologue was detected before.
+        """
+
         # get root_node_if
         root = self._cfg.root
         assert root is not None
@@ -327,7 +352,6 @@ class RemoveGoPrologue(PipelineStage):
             # This should never happen
             raise ValueError("If condition with broken out edges")
 
-        # TODO: This might cause problems, because Constant != Condition
         root_node_if.substitute(root_node_if.condition, self._get_constant_condition(new_condition))
 
         # Handle incoming edges to morestack_node from non-returning functions
@@ -345,7 +369,6 @@ class RemoveGoPrologue(PipelineStage):
             self._cfg.remove_edge(edge)
             self._cfg.add_edge(FalseCase(edge.source, edge.sink))
             self._cfg.add_edge(TrueCase(edge.source, return_node))
-            # TODO: This might cause problems, because Constant != Condition
             condition = self._get_constant_condition(True)
             edge.source.add_instruction(Branch(condition))
 
@@ -361,6 +384,9 @@ class RemoveGoPrologue(PipelineStage):
         logging.info(comment_string)
 
     def _get_constant_condition(self, value: bool):
+        """
+        Helper method creating a Pseudo condition that always evaluates to `True` or `False`, depending on `value`.
+        """
         int_value = 1 if value else 0
         return Condition(
             OperationType.equal,
@@ -372,7 +398,11 @@ class RemoveGoPrologue(PipelineStage):
 
     def _check_and_remove_go_prologue(self):
         """
-        Remove the typical go function prologue
+        Detect and remove the typical go function prologue
+
+        First we check if the CFG matches a pattern the expected structure of a Go Prologue.
+        If the match is successful, the graph result will contain the detected start node and morestack node
+        If the root node and the morestack node pass some additional checks, we asume that we found a Go prologue and it will removed.
         """
 
         if (graph_result := self._verify_graph_structure()) is None:
