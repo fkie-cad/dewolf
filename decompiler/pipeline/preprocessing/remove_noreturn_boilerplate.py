@@ -31,18 +31,6 @@ class RemoveNoreturnBoilerplate(PipelineStage):
             self._cfg = task.graph
             self._aggressive_removal_postdominators_merged_sinks()
 
-    def _non_aggressive_removal(self):
-        if len(self._cfg) == 1:
-            return  # do not remove the only node
-        noreturn_nodes = list(self._get_noreturn_nodes())
-        for node in noreturn_nodes:
-            # # this might be too weak
-            # if not any(self._are_ingoing_edges_conditional(node)):
-            # This might be too strong
-            if not all(self._are_ingoing_edges_conditional(node)):
-                continue
-            self._remove_boilerplate(node)
-
     def _get_called_functions(self, instructions):
         """
         Helper method to iterate over all called functions in a list of instructions.
@@ -69,43 +57,6 @@ class RemoveNoreturnBoilerplate(PipelineStage):
             return False
         return called_functions[0].can_return == False
 
-    def _are_ingoing_edges_conditional(self, node: BasicBlock):
-        for in_edge in self._cfg.get_in_edges(node):
-            predecessor = in_edge.source
-            yield (len(predecessor.instructions) and isinstance(predecessor.instructions[-1], Branch))
-
-    def _remove_boilerplate(self, node: BasicBlock):
-        """
-        Patch Branches to stack fail node.
-        """
-        for pred in self._cfg.get_predecessors(node):
-            self._remove_empty_block_between(pred)
-        self._cfg.remove_node(node)
-
-    def _remove_empty_block_between(self, node: BasicBlock) -> None:
-        """
-        Removes empty nodes between stack fail and branch recursively.
-        """
-        if not node.is_empty():
-            self._patch_branch_condition(node)
-            return
-        for pred in self._cfg.get_predecessors(node):
-            self._remove_empty_block_between(pred)
-        self._cfg.remove_node(node)
-
-    def _patch_branch_condition(self, node: BasicBlock) -> None:
-        """
-        If stack fail node is reached via direct Branch, remove Branch.
-        """
-        branch_instruction = node.instructions[-1]
-        if isinstance(branch_instruction, Branch):
-            node.instructions = node.instructions[:-1]
-            for edge in self._cfg.get_out_edges(node):
-                self._cfg.substitute_edge(edge, UnconditionalEdge(edge.source, edge.sink))
-            node.instructions.append(Comment("Removed potential boilerplate code"))
-        else:
-            raise RuntimeError("did not expect to reach canary check this way")
-
     ######################## super aggressive removal code below####
     # Idea remove everything that will always end in noreturn,
     # except if everything ends in noreturn
@@ -116,23 +67,6 @@ class RemoveNoreturnBoilerplate(PipelineStage):
     # consider set of all nodes which can (not must) reach a node in N. call it R.
     # There is the Postdominance frontier or s.th like that:
     # Nodes in R which are not in D and are immediately before a node in D. The connection will by construction be conditional. Remove this conditional path.
-
-    def _aggressive_removal(self):
-        if len(self._cfg) == 1:
-            return  # do not remove the only node
-        noreturn_nodes = list(self._get_noreturn_nodes())
-        condition_edges = set()
-        for node in noreturn_nodes:
-            condition_edges.update(set(self._get_conditional_edges_to_patch(node)))
-        self._patch_condition_edges(list(condition_edges))
-
-    def _get_conditional_edges_to_patch(self, node: BasicBlock) -> Iterator[ConditionalEdge]:
-        for in_edge in self._cfg.get_in_edges(node):
-            if isinstance(in_edge, ConditionalEdge):
-                yield in_edge
-            else:
-                for a in self._get_conditional_edges_to_patch(in_edge.source):
-                    yield a
 
     def _patch_condition_edges(self, edges: List[ConditionalEdge]) -> None:
         """
@@ -170,8 +104,6 @@ class RemoveNoreturnBoilerplate(PipelineStage):
                 Constant(int_value, Integer.int32_t()),
             ],
         )
-
-    ######################## super aggressive removal code (post dominator frontier edition) below ####
 
     def _aggressive_removal_postdominators(self):
         if len(self._cfg) == 1:
