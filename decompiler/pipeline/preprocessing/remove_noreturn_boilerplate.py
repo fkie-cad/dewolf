@@ -15,30 +15,21 @@ from decompiler.structures.pseudo.instructions import Assignment, Branch, Commen
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, OperationType, UnaryOperation
 from decompiler.structures.pseudo.typing import Integer
 from decompiler.task import DecompilerTask
-from networkx import DiGraph, MultiDiGraph, dominance_frontiers, reverse_view
+from networkx import MultiDiGraph, dominance_frontiers, reverse_view
 
 
 class RemoveNoreturnBoilerplate(PipelineStage):
     """
-    RemoveGoIdioms finds and removes go function prologues,
+    RemoveNoreturnBoilerplate finds and removes boilerplate related to non-returning functions.
     Caution: this stage changes code semantic
     """
 
     name = "remove-noreturn-boilerplate"
 
-    # def run(self, task: DecompilerTask):
-    #     for basic_block in task.graph:
-    #         for instruction in basic_block:
-    #             print(instruction)
-
     def run(self, task: DecompilerTask):
-        # TODO: remove True, make really configurable
-        if task.options.getboolean(f"{self.name}.remove_noreturn_boilerplate", fallback=False) or True:
+        if task.options.getboolean(f"{self.name}.remove_noreturn_boilerplate", fallback=False):
             self._cfg = task.graph
             self._aggressive_removal_postdominators_merged_sinks()
-            # self._aggressive_removal_postdominators()
-            # self._aggressive_removal()
-            # self._non_aggressive_removal()
 
     def _non_aggressive_removal(self):
         if len(self._cfg) == 1:
@@ -53,13 +44,16 @@ class RemoveNoreturnBoilerplate(PipelineStage):
             self._remove_boilerplate(node)
 
     def _get_called_functions(self, instructions):
+        """
+        Helper method to iterate over all called functions in a list of instructions.
+        """
         for instruction in instructions:
             if isinstance(instruction, Assignment) and isinstance(instruction.value, Call):
                 yield instruction.value.function
 
     def _get_noreturn_nodes(self) -> Iterator[BasicBlock]:
         """
-        Iterate leaf nodes of cfg, yield nodes containing canary check.
+        Iterate leaf nodes of cfg, yield nodes containing a call to a non-returning funtion.
         """
         leaf_nodes = [x for x in self._cfg.nodes if self._cfg.out_degree(x) == 0]
         for node in leaf_nodes:
@@ -68,7 +62,7 @@ class RemoveNoreturnBoilerplate(PipelineStage):
 
     def _is_noreturn_node(self, node: BasicBlock) -> bool:
         """
-        Check if node contains call to __stack_chk_fail
+        Check if node contains call to a non-returning function.
         """
         called_functions = list(self._get_called_functions(node.instructions))
         if len(called_functions) != 1:
@@ -141,7 +135,11 @@ class RemoveNoreturnBoilerplate(PipelineStage):
                     yield a
 
     def _patch_condition_edges(self, edges: List[ConditionalEdge]) -> None:
-        # TODO: analyze removed code + statistics.
+        """
+        This method removes whatever was detected to be boilerplate.
+
+        It works by changing the conditions leading to the boilerplate in a way, that it is never reached.
+        """
         removed_nodes = set()
         for edge in edges:
             removed_nodes.update(self._cfg.iter_depth_first(edge.sink))
@@ -153,7 +151,6 @@ class RemoveNoreturnBoilerplate(PipelineStage):
                 case FalseCase():
                     condition = self._get_constant_condition(True)
                 case _:
-                    # TODO: logging
                     continue
             instructions = edge.source.instructions
             assert isinstance(instructions[-1], Branch)
@@ -161,8 +158,10 @@ class RemoveNoreturnBoilerplate(PipelineStage):
             instructions.append(Comment("Removed potential boilerplate code"))
             instructions.append(Branch(condition))
 
-    # TODO: move to util
     def _get_constant_condition(self, value: bool):
+        """
+        Helper method creating a Pseudo condition that always evaluates to `True` or `False`, depending on `value`.
+        """
         int_value = 1 if value else 0
         return Condition(
             OperationType.equal,
@@ -180,7 +179,6 @@ class RemoveNoreturnBoilerplate(PipelineStage):
         noreturn_nodes = list(self._get_noreturn_nodes())
         leaf_nodes = [x for x in self._cfg.nodes if self._cfg.out_degree(x) == 0]
         virtual_end_node = BasicBlock(address=_unused_addresses(self._cfg)[0])
-        # TODO: MultiDiGraph or DiGraph?
         reversed_cfg_view: MultiDiGraph = self._cfg._graph.reverse(copy=False)
         reversed_cfg_shallow_copy = MultiDiGraph(reversed_cfg_view)
         reversed_cfg_shallow_copy.add_node(virtual_end_node)
@@ -205,7 +203,6 @@ class RemoveNoreturnBoilerplate(PipelineStage):
         unused_addresses = _unused_addresses(cfg=self._cfg, amount=2)
         virtual_end_node = BasicBlock(address=unused_addresses[0])
         virtual_merged_noreturn_node = BasicBlock(address=unused_addresses[1])
-        # TODO: MultiDiGraph or DiGraph?
         reversed_cfg_view: MultiDiGraph = self._cfg._graph.reverse(copy=False)
         reversed_cfg_shallow_copy = MultiDiGraph(reversed_cfg_view)
         reversed_cfg_shallow_copy.add_node(virtual_end_node)
