@@ -131,7 +131,7 @@
             },
             {
                 "dest": "rust-string-detection.enabled",
-                "default": true,
+                "default": false,
                 "title": "Detect Rust string slices",
                 "type": "boolean",
                 "description": "enable the detection of Rust string slices. Requires setting up Rust String Slicer",
