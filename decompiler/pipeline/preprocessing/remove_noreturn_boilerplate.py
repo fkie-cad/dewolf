@@ -57,17 +57,6 @@ class RemoveNoreturnBoilerplate(PipelineStage):
             return False
         return called_functions[0].can_return == False
 
-    ######################## super aggressive removal code below####
-    # Idea remove everything that will always end in noreturn,
-    # except if everything ends in noreturn
-    # postdominance....
-    # consider set of all no-return nodes N
-    # consider set of all nodes postdominating any node of N. call it D
-    # (or get an even larger set: consider set of all nodes which will always lead to one of the nodes in N)
-    # consider set of all nodes which can (not must) reach a node in N. call it R.
-    # There is the Postdominance frontier or s.th like that:
-    # Nodes in R which are not in D and are immediately before a node in D. The connection will by construction be conditional. Remove this conditional path.
-
     def _patch_condition_edges(self, edges: List[ConditionalEdge]) -> None:
         """
         This method removes whatever was detected to be boilerplate.
@@ -104,27 +93,6 @@ class RemoveNoreturnBoilerplate(PipelineStage):
                 Constant(int_value, Integer.int32_t()),
             ],
         )
-
-    def _aggressive_removal_postdominators(self):
-        if len(self._cfg) == 1:
-            return  # do not remove the only node
-        noreturn_nodes = list(self._get_noreturn_nodes())
-        leaf_nodes = [x for x in self._cfg.nodes if self._cfg.out_degree(x) == 0]
-        virtual_end_node = BasicBlock(address=_unused_addresses(self._cfg)[0])
-        reversed_cfg_view: MultiDiGraph = self._cfg._graph.reverse(copy=False)
-        reversed_cfg_shallow_copy = MultiDiGraph(reversed_cfg_view)
-        reversed_cfg_shallow_copy.add_node(virtual_end_node)
-        for leaf_node in leaf_nodes:
-            reversed_cfg_shallow_copy.add_edge(virtual_end_node, leaf_node)
-        post_dominance_frontier = dominance_frontiers(reversed_cfg_shallow_copy, virtual_end_node)
-        wrapped_reverse_cfg = RootedGraph(reversed_cfg_shallow_copy, virtual_end_node)
-        condition_edges = set()
-        for no_return_node in noreturn_nodes:
-            for post_dominator in post_dominance_frontier[no_return_node]:
-                for edge_from_post_dominator in self._cfg.get_out_edges(post_dominator):
-                    if wrapped_reverse_cfg.is_dominating(no_return_node, edge_from_post_dominator.sink):
-                        condition_edges.add(edge_from_post_dominator)
-        self._patch_condition_edges(list(condition_edges))
 
     def _aggressive_removal_postdominators_merged_sinks(self):
         if len(self._cfg) == 1:
