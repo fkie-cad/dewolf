@@ -1,21 +1,18 @@
 """Module for removing go idioms"""
 
-import os
-import shelve
-from typing import Callable, Generator, Iterator, List, Optional, Set, Tuple
+from typing import Iterator, List
 
-from decompiler.pipeline.preprocessing.util import _unused_addresses, match_expression
+from decompiler.pipeline.preprocessing.util import _unused_addresses
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.basicblock import BasicBlock
-from decompiler.structures.graphs.branches import ConditionalEdge, FalseCase, TrueCase, UnconditionalEdge
-from decompiler.structures.graphs.nxgraph import NetworkXGraph
+from decompiler.structures.graphs.branches import ConditionalEdge, FalseCase, TrueCase
 from decompiler.structures.graphs.rootedgraph import RootedGraph
-from decompiler.structures.pseudo.expressions import Constant, Expression, Variable
-from decompiler.structures.pseudo.instructions import Assignment, Branch, Comment, Phi
-from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, OperationType, UnaryOperation
+from decompiler.structures.pseudo.expressions import Constant
+from decompiler.structures.pseudo.instructions import Assignment, Branch, Comment
+from decompiler.structures.pseudo.operations import Call, Condition, OperationType
 from decompiler.structures.pseudo.typing import Integer
 from decompiler.task import DecompilerTask
-from networkx import MultiDiGraph, dominance_frontiers, reverse_view
+from networkx import MultiDiGraph, dominance_frontiers
 
 
 class RemoveNoreturnBoilerplate(PipelineStage):
