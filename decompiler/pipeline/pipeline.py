@@ -31,8 +31,8 @@ from .stage import PipelineStage
 PREPROCESSING_STAGES = [
     CompilerIdiomHandling,
     RemoveGoPrologue,
-    RemoveNoreturnBoilerplate,
     RemoveStackCanary,
+    RemoveNoreturnBoilerplate,
     RegisterPairHandling,
     Coherence,
     SwitchVariableDetection,
