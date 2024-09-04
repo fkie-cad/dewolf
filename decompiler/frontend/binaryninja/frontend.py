@@ -7,6 +7,7 @@ import logging
 import binaryninja
 from binaryninja import BinaryView
 from binaryninja.types import SymbolType
+from decompiler.frontend.binaryninja.rust_string_detection import RustStringDetection
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
@@ -67,6 +68,9 @@ class BinaryninjaFrontend(Frontend):
             function = self._get_binninja_function(task.function_identifier)
             lifter, parser = self._create_lifter_parser(task.options)
 
+            rust_string_detection = RustStringDetection(self._bv, task.options)
+            rust_string_detection.run()
+
             task.function_return_type = lifter.lift(function.return_type)
             task.function_parameters = [lifter.lift(param_type) for param_type in function.type.parameters]
 
@@ -74,6 +78,7 @@ class BinaryninjaFrontend(Frontend):
             tagging.run()
 
             task.cfg = parser.parse(function)
+            task.function_parameter_locations = self._parameter_locations(function)
             task.complex_types = parser.complex_types
         except Exception as e:
             task.fail("Function lifting")
@@ -81,6 +86,16 @@ class BinaryninjaFrontend(Frontend):
 
             if task.options.getboolean("pipeline.debug", fallback=False):
                 raise e
+
+    def _parameter_locations(self, function: binaryninja.function.Function) -> list[str | None]:
+        """For a given Binary Ninja Function, this method returns a list of its parameters' locations in the correct order.
+        E.g. if the first parameter is stored in r14, the first entry in the returned list will be 'r14'."""
+        raw_parameters = function.type.parameters
+        parameter_locations = []
+        for parameter in raw_parameters:
+            name = parameter.location.name if parameter.location is not None else None
+            parameter_locations.append(name)
+        return parameter_locations
 
     def get_all_function_names(self):
         """Returns the entire list of all function names in the binary. Ignores blacklisted functions and imported functions."""

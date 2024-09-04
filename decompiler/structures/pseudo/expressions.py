@@ -164,6 +164,8 @@ class UnknownExpression(Expression[UnknownType]):
 class Constant(Expression[DecompiledType]):
     """Represents a constant expression type."""
 
+    __match_args__ = ("value", "vartype")
+
     def __init__(
         self,
         value: Union[int, float, str, bytes],
@@ -295,6 +297,10 @@ class Symbol(Constant):
 class FunctionSymbol(Symbol):
     """Represents a function name"""
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.can_return = None
+
     def __eq__(self, __value):
         return isinstance(__value, FunctionSymbol) and super().__eq__(__value)
 
@@ -341,6 +347,8 @@ class IntrinsicSymbol(FunctionSymbol):
 
 class Variable(Expression[DecompiledType]):
     """Represents a variable based expression."""
+
+    __match_args__ = ("name", "vartype")
 
     def __init__(
         self,

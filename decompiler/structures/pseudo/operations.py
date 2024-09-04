@@ -329,6 +329,8 @@ class ArrayInfo:
 class UnaryOperation(Operation):
     """Represents an expression with a single operand."""
 
+    __match_args__ = ("operation", "operand")
+
     def __init__(
         self,
         operation: OperationType,
