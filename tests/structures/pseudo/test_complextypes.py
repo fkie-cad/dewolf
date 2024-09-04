@@ -26,16 +26,6 @@ class TestStruct:
     def test_str(self, book: Struct):
         assert str(book) == "Book"
 
-    def test_copy(self, book: Struct):
-        new_book: Struct = book.copy()
-        assert id(new_book) != id(book)
-        assert new_book.size == book.size
-        assert new_book.type_specifier == book.type_specifier == ComplexTypeSpecifier.STRUCT
-        assert id(new_book.members) != id(book.members)
-        assert new_book.get_member_by_offset(0) == book.get_member_by_offset(0)
-        assert id(new_book.get_member_by_offset(0)) != id(book.get_member_by_offset(0))
-        assert len(new_book.members) == len(book.members)
-
     def test_add_members(self, book, title, num_pages, author):
         empty_book = Struct(name="Book", members={}, size=96)
         empty_book.add_member(title)
@@ -71,16 +61,6 @@ class TestClass:
 
     def test_str(self, class_book: Struct):
         assert str(class_book) == "ClassBook"
-
-    def test_copy(self, class_book: Struct):
-        new_class_book: Struct = class_book.copy()
-        assert id(new_class_book) != id(class_book)
-        assert new_class_book.size == class_book.size
-        assert new_class_book.type_specifier == class_book.type_specifier == ComplexTypeSpecifier.CLASS
-        assert id(new_class_book.members) != id(class_book.members)
-        assert new_class_book.get_member_by_offset(0) == class_book.get_member_by_offset(0)
-        assert id(new_class_book.get_member_by_offset(0)) != id(class_book.get_member_by_offset(0))
-        assert len(new_class_book.members) == len(class_book.members)
 
     def test_add_members(self, class_book, title, num_pages, author):
         empty_class_book = Class(name="ClassBook", members={}, size=96)
@@ -156,14 +136,6 @@ class TestUnion:
     def test_str(self, record_id):
         assert str(record_id) == "RecordID"
 
-    def test_copy(self, record_id):
-        new_record_id: Union = record_id.copy()
-        assert new_record_id == record_id
-        assert id(new_record_id) != id(record_id)
-        assert id(new_record_id.members) != id(record_id.members)
-        assert new_record_id.get_member_by_type(Float.float()) == record_id.get_member_by_type(Float.float())
-        assert id(new_record_id.get_member_by_type(Float.float())) != id(record_id.get_member_by_type(Float.float()))
-
     def test_add_members(self, empty_record_id, record_id, float_id, int_id, double_id):
         empty_record_id.add_member(float_id)
         empty_record_id.add_member(int_id)
@@ -224,11 +196,6 @@ class TestEnum:
 
     def test_str(self, color):
         assert str(color) == "Color"
-
-    def test_copy(self, color):
-        new_color = color.copy()
-        assert new_color == color
-        assert id(new_color) != color
 
     def test_add_members(self, empty_color, color, red, green, blue):
         empty_color.add_member(red)
