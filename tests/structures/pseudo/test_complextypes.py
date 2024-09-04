@@ -5,20 +5,44 @@ from decompiler.structures.pseudo.complextypes import (
     ComplexTypeMap,
     ComplexTypeMember,
     ComplexTypeName,
+    ComplexTypeSpecifier,
     Enum,
     Struct,
     Union,
     UniqueNameProvider,
 )
-from decompiler.util.frozen_dict import FrozenDict
+from pydot import frozendict
 
 
 class TestStruct:
-    def test_declaration(self, book: Struct):
+    def test_declaration(self, book: Struct, record_id: Union):
         assert book.declaration() == "struct Book {\n\tchar * title;\n\tint num_pages;\n\tchar * author;\n}"
+        # nest complex type
+        book.add_member(
+            m := ComplexTypeMember(size=64, name="id", offset=12, type=record_id),
+        )
+        result = f"struct Book {{\n\tchar * title;\n\tint num_pages;\n\tchar * author;\n\t{m.declaration()};\n}}"
+        assert book.declaration() == result
 
     def test_str(self, book: Struct):
         assert str(book) == "Book"
+
+    def test_copy(self, book: Struct):
+        new_book: Struct = book.copy()
+        assert id(new_book) != id(book)
+        assert new_book.size == book.size
+        assert new_book.type_specifier == book.type_specifier == ComplexTypeSpecifier.STRUCT
+        assert id(new_book.members) != id(book.members)
+        assert new_book.get_member_by_offset(0) == book.get_member_by_offset(0)
+        assert id(new_book.get_member_by_offset(0)) != id(book.get_member_by_offset(0))
+        assert len(new_book.members) == len(book.members)
+
+    def test_add_members(self, book, title, num_pages, author):
+        empty_book = Struct(name="Book", members={}, size=96)
+        empty_book.add_member(title)
+        empty_book.add_member(author)
+        empty_book.add_member(num_pages)
+        assert empty_book == book
 
     def test_get_member_by_offset(self, book, title, num_pages, author):
         assert book.get_member_by_offset(0) == title
@@ -37,11 +61,40 @@ class TestStruct:
 
 
 class TestClass:
-    def test_declaration(self, class_book):
-        assert class_book.declaration() == "class ClassBook {\n\tchar * title;\n\tint num_pages;\n\tchar * author;\n}"
+    def test_declaration(self, record_id: Union):
+        m = ComplexTypeMember(size=64, name="id", offset=12, type=record_id)
+        class_book = Struct(
+            name="Book",
+            members=frozendict({
+                0: ComplexTypeMember(size=32, name="title", offset=0, type=Pointer(Integer.char())),
+                4: ComplexTypeMember(size=32, name="num_pages", offset=4, type=Integer.int32_t()),
+                8: ComplexTypeMember(size=32, name="author", offset=8, type=Pointer(Integer.char())),
+                12: m
+            }),
+            size=96,
+        )
+        result = f"class ClassBook {{\n\tchar * title;\n\tint num_pages;\n\tchar * author;\n\t{m.declaration()};\n}}"
+        assert class_book.declaration() == result
 
     def test_str(self, class_book: Struct):
         assert str(class_book) == "ClassBook"
+
+    def test_copy(self, class_book: Struct):
+        new_class_book: Struct = class_book.copy()
+        assert id(new_class_book) != id(class_book)
+        assert new_class_book.size == class_book.size
+        assert new_class_book.type_specifier == class_book.type_specifier == ComplexTypeSpecifier.CLASS
+        assert id(new_class_book.members) != id(class_book.members)
+        assert new_class_book.get_member_by_offset(0) == class_book.get_member_by_offset(0)
+        assert id(new_class_book.get_member_by_offset(0)) != id(class_book.get_member_by_offset(0))
+        assert len(new_class_book.members) == len(class_book.members)
+
+    def test_add_members(self, class_book, title, num_pages, author):
+        empty_class_book = Class(name="ClassBook", members={}, size=96)
+        empty_class_book.add_member(title)
+        empty_class_book.add_member(author)
+        empty_class_book.add_member(num_pages)
+        assert empty_class_book == class_book
 
     def test_get_member_by_offset(self, class_book, title, num_pages, author):
         assert class_book.get_member_by_offset(0) == title
@@ -66,13 +119,11 @@ class TestClass:
 def book() -> Struct:
     return Struct(
         name="Book",
-        members=FrozenDict(
-            {
-                0: ComplexTypeMember(size=32, name="title", offset=0, type=Pointer(Integer.char())),
-                4: ComplexTypeMember(size=32, name="num_pages", offset=4, type=Integer.int32_t()),
-                8: ComplexTypeMember(size=32, name="author", offset=8, type=Pointer(Integer.char())),
-            }
-        ),
+        members={
+            0: ComplexTypeMember(size=32, name="title", offset=0, type=Pointer(Integer.char())),
+            4: ComplexTypeMember(size=32, name="num_pages", offset=4, type=Integer.int32_t()),
+            8: ComplexTypeMember(size=32, name="author", offset=8, type=Pointer(Integer.char())),
+        },
         size=96,
     )
 
@@ -81,13 +132,11 @@ def book() -> Struct:
 def class_book() -> Class:
     return Class(
         name="ClassBook",
-        members=FrozenDict(
-            {
-                0: ComplexTypeMember(size=32, name="title", offset=0, type=Pointer(Integer.char())),
-                4: ComplexTypeMember(size=32, name="num_pages", offset=4, type=Integer.int32_t()),
-                8: ComplexTypeMember(size=32, name="author", offset=8, type=Pointer(Integer.char())),
-            }
-        ),
+        members={
+            0: ComplexTypeMember(size=32, name="title", offset=0, type=Pointer(Integer.char())),
+            4: ComplexTypeMember(size=32, name="num_pages", offset=4, type=Integer.int32_t()),
+            8: ComplexTypeMember(size=32, name="author", offset=8, type=Pointer(Integer.char())),
+        },
         size=96,
     )
 
@@ -113,6 +162,20 @@ class TestUnion:
 
     def test_str(self, record_id):
         assert str(record_id) == "RecordID"
+
+    def test_copy(self, record_id):
+        new_record_id: Union = record_id.copy()
+        assert new_record_id == record_id
+        assert id(new_record_id) != id(record_id)
+        assert id(new_record_id.members) != id(record_id.members)
+        assert new_record_id.get_member_by_type(Float.float()) == record_id.get_member_by_type(Float.float())
+        assert id(new_record_id.get_member_by_type(Float.float())) != id(record_id.get_member_by_type(Float.float()))
+
+    def test_add_members(self, empty_record_id, record_id, float_id, int_id, double_id):
+        empty_record_id.add_member(float_id)
+        empty_record_id.add_member(int_id)
+        empty_record_id.add_member(double_id)
+        assert empty_record_id == record_id
 
     def test_get_member_by_type(self, record_id, float_id, int_id, double_id):
         assert record_id.get_member_by_type(Float.float()) == float_id
@@ -169,6 +232,17 @@ class TestEnum:
     def test_str(self, color):
         assert str(color) == "Color"
 
+    def test_copy(self, color):
+        new_color = color.copy()
+        assert new_color == color
+        assert id(new_color) != color
+
+    def test_add_members(self, empty_color, color, red, green, blue):
+        empty_color.add_member(red)
+        empty_color.add_member(green)
+        empty_color.add_member(blue)
+        assert empty_color == color
+
     def test_get_complex_type_name(self, color):
         assert color.complex_type_name == (ComplexTypeName(0, "Color"))
 
@@ -187,22 +261,22 @@ def color():
 
 
 @pytest.fixture
-def empty_color() -> Enum:
+def empty_color():
     return Enum(0, "Color", {})
 
 
 @pytest.fixture
-def red() -> ComplexTypeMember:
+def red():
     return ComplexTypeMember(0, "red", value=0, offset=0, type=Integer.int32_t())
 
 
 @pytest.fixture
-def green() -> ComplexTypeMember:
+def green():
     return ComplexTypeMember(0, "green", value=1, offset=0, type=Integer.int32_t())
 
 
 @pytest.fixture
-def blue() -> ComplexTypeMember:
+def blue():
     return ComplexTypeMember(0, "blue", value=2, offset=0, type=Integer.int32_t())
 
 

@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Dict, List, Optional
 
 from decompiler.structures.pseudo.typing import Type
-from decompiler.util.frozen_dict import FrozenDict
+from pydot import frozendict
 
 
 class ComplexTypeSpecifier(Enum):
@@ -58,7 +58,7 @@ class ComplexTypeMember(ComplexType):
 class _BaseStruct(ComplexType):
     """Class representing a struct type."""
 
-    members: FrozenDict[int, ComplexTypeMember] = field(compare=False)
+    members: frozendict[int, ComplexTypeMember] = field(compare=False)
     type_specifier: ComplexTypeSpecifier
 
     def get_member_by_offset(self, offset: int) -> Optional[ComplexTypeMember]:
