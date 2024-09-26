@@ -30,7 +30,6 @@ from decompiler.structures.pseudo import (
     Integer,
     OperationType,
     Pointer,
-    StructConstant,
     Symbol,
     UnaryOperation,
 )
@@ -288,7 +287,7 @@ class GlobalHandler(Handler):
             lift = self._lifter.lift(dv, view=self._view)
             values[member_type.offset] = lift.initial_value
         return self._build_global_variable(
-            variable.name, s_type, variable.address, StructConstant(values, s_type), parent.ssa_memory_version if parent else 0
+            variable.name, s_type, variable.address, Constant(values, s_type), parent.ssa_memory_version if parent else 0
         )
 
     def _lift_enum_type(self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None, **_):
