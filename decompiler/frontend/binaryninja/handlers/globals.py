@@ -8,6 +8,7 @@ from binaryninja.types import (
     ArrayType,
     BoolType,
     CharType,
+    EnumerationType,
     FloatType,
     FunctionType,
     IntegerType,
@@ -21,7 +22,6 @@ from decompiler.frontend.binaryninja.handlers.symbols import GLOBAL_VARIABLE_PRE
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import ArrayType as PseudoArrayType
 from decompiler.structures.pseudo import (
-    ComplexTypeMember,
     Constant,
     ConstantComposition,
     CustomType,
@@ -31,7 +31,6 @@ from decompiler.structures.pseudo import (
     Integer,
     OperationType,
     Pointer,
-    Struct,
     StructConstant,
     Symbol,
     UnaryOperation,
@@ -64,9 +63,12 @@ BYTE_SIZE = 8
             ==> trust bninja lift normally
             => If a void*, then we try determine the value via get_unknown_pointer_value
         - NamedTypeReferenceType
-            - (enum/structs
+            - (enum/structs references)
             => lifts struct members recursively
             => includes special handling of a BNinja bug when accessing certain PDB enum types
+        - EnumerationType
+            - lift enums with their corresponding type
+            - !Upstream Error with with PE files with PDB information present
         - StructType 
             - enum/structs
             => implementation *very* similar to NamedTypeReferenceType
@@ -95,6 +97,7 @@ class GlobalHandler(Handler):
             VoidType: self._lift_void_type,
             ArrayType: self._lift_array_type,
             PointerType: self._lift_pointer_type,
+            EnumerationType: self._lift_enum_type,
             NamedTypeReferenceType: self._lift_named_type_ref,
             StructureType: self._lift_structure_type,
         }
@@ -264,17 +267,7 @@ class GlobalHandler(Handler):
                 return self._lift_struct_helper(variable, parent, struct_type)
 
             case NamedTypeReferenceClass.EnumNamedTypeClass:
-                try:
-                    value = Constant(variable.value, self._lifter.lift(variable.type))
-                    return self._build_global_variable(
-                        variable.name,
-                        value.type,
-                        variable.address,
-                        value,
-                        parent.ssa_memory_version if parent else 0,
-                    )
-                except Exception:
-                    return Constant("Unknown value", self._lifter.lift(variable.type))  # BNinja error
+                return self._lift_enum_type(variable, parent)
             case _:
                 raise NotImplementedError(f"No handler for '{variable.type.named_type_class}' in lifter")
 
@@ -298,6 +291,20 @@ class GlobalHandler(Handler):
         return self._build_global_variable(
             variable.name, s_type, variable.address, StructConstant(values, s_type), parent.ssa_memory_version if parent else 0
         )
+
+    def _lift_enum_type(self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None, **_):
+        """Lift a Enum type from Binary Ninja. Try/Catch Block because of an upstream problem with PDB on PE files"""
+        try:
+            value = Constant(variable.value, self._lifter.lift(variable.type))
+            return self._build_global_variable(
+                variable.name,
+                value.type,
+                variable.address,
+                value,
+                parent.ssa_memory_version if parent else 0,
+            )
+        except Exception:
+            return Constant("Unknown value", self._lifter.lift(variable.type))  # BNinja error
 
     def _get_unknown_value(self, variable: DataVariable):
         """Return string or bytes at dv.address(!) (dv.type must be void)"""
