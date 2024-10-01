@@ -1,15 +1,24 @@
 {
     "pluginmetadataversion": 2,
     "name": "dewolf Decompiler",
-    "type": ["helper","ui"],
-    "api": ["python3"],
+    "type": [
+        "helper",
+        "ui"
+    ],
+    "api": [
+        "python3"
+    ],
     "description": "Research Decompiler to generate a C-like function representation",
     "longdescription": "# dewolf\n\ndewolf is a research decompiler we developed during a research cooperation from 2019 to 2021 between Germany (Fraunhofer FKIE) and Singapore (DSO National Laboratories).\n\nThe restructuring of dewolf is based on the former DREAM/DREAM++ approach [Yakdan et al. NDSS 2015, IEEE (SP) 2016].\n\nThe decompiler dewolf is implemented as a plugin for Binary Ninja and uses their Medium-Level intermediate language as the starting point.\nAlthough we consider dewolf to be pretty stable, it is still a research prototype and not extensively optimized for production use.\nConsequently, you will likely observe a few bugs or even decompilation failures when applying dewolf on real-world binaries.\n\n**If you encounter any bugs, please report them to us so that we can further improve dewolf. :)**\n\n## Usage\n\nAfter enabling the dewolf decompilation dock widget via **View > Other Docks > Show Dewolf**, the decompiled code for the currently active symbol will be displayed.\nIn the dewolf dock, it is possible to navigate through functions by double-clicking them.\n\n![Widget Menu](https://user-images.githubusercontent.com/12004321/145460440-be4b7dfd-bf7e-497f-a7af-1911bf3efc50.png)\n\nThe automatic decompilation of selected functions can be toggled with the *follow* button.\nDecompiled code is cached and can be generated again with the *decompile* button, e.g. after patching instructions in the binary view.\n\n![Widget](https://user-images.githubusercontent.com/12004321/145460476-f869e5cc-d585-4f53-8920-6ecfa4b346d5.png)\n\n## Configuration\ndewolf has multiple configuration options of which some are configurable via the GUI.\n\nYou can configure dewolf from the Binary Ninja GUI by navigating to **Edit > Preferences > Settings** or by pressing <kbd>Ctrl</kbd> + <kbd>,</kbd>.\nSearch for **dewolf** in the search bar and all dewolf related settings will be displayed.\n\n## Support\n\nIf you have any suggestions, or bug reports, please create an issue in the [Issue Tracker](https://github.com/fkie-cad/dewolf/issues).\n\nIn case you have any questions or other problems, feel free to send an email to:\n\n[dewolf@fkie.fraunhofer.de](mailto:dewolf@fkie.fraunhofer.de).",
     "license": {
         "name": "LGPL-2.1",
         "text": "This library is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation; either version 2.1 of the License, or (at your option) any later version.\n\nThis library is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.\n\nYou should have received a copy of the GNU Lesser General Public License along with this library; if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA"
     },
-    "platforms": ["Windows", "Linux", "Darwin"],
+    "platforms": [
+        "Windows",
+        "Linux",
+        "Darwin"
+    ],
     "installinstructions": {
         "Windows": "## Install Dependencies\nPlease make sure you have the following dependencies installed and available on your computer:\n\n- At least [Python 3.10](https://www.python.org/)\n- Latest stable release of [Binary Ninja (>=3.0)](https://binary.ninja/)\n- [astyle](https://code.tools/man/1/astyle/) for proper indentation of the decompiled code\n\nUnder **Windows**, please make sure the **astyle**-binary has been added to the environment Path.",
         "Linux": "## Install Dependencies\nPlease make sure you have the following dependencies installed and available on your computer:\n\n- At least [Python 3.10](https://www.python.org/)\n- Latest stable release of [Binary Ninja (>=3.0)](https://binary.ninja/)\n- [astyle](https://code.tools/man/1/astyle/) for proper indentation of the decompiled code\n\nUnder **Linux** (Ubuntu / Debian), you can use the following command to install **astyle**:\n\n```bash\nsudo apt install astyle\n```",
@@ -28,5 +37,6 @@
         "other": []
     },
     "author": "fkie-cad",
-    "minimumbinaryninjaversion": 4271
+    "minimumbinaryninjaversion": 4271,
+    "version": "2024-10-01"
 }
