@@ -233,6 +233,8 @@ class GlobalHandler(Handler):
         1. Function pointer: If Bninja already knows it's a function pointer.
         2. Type pointer: As normal type pointer (there _should_ be a datavariable at the pointers dest.)
         3. Void pointer: Try to extract a datavariable (recover type of void* directly), string (char*) or raw bytes (void*) at the given address
+        Caution: A pointer can point at a constant instead of a variable (e.g. stdout/stderr)
+            => 2/3 catch this error with a value in section check
         """
         match variable.type.target:
             case FunctionType():  # BNinja knows it's a imported function pointer
@@ -241,19 +243,23 @@ class GlobalHandler(Handler):
                 )
             case VoidType():  # BNinja knows it's a pointer pointing at something
                 # Extract the initial_value and type from the location where the pointer is pointing to
-                init_value, type = self._get_unknown_pointer_value(variable, callers)
+                init_value, vtype = self._get_unknown_pointer_value(variable, callers)
             case _:
                 if callers:
                     callers.append(variable.address)
                 else:
                     callers = [variable.address]
-                init_value, type = (
-                    self._lifter.lift(self._view.get_data_var_at(variable.value), view=self._view, callers=callers),
-                    self._lifter.lift(variable.type),
-                )
+
+                vtype = self._lifter.lift(variable.type)
+                # BNinja error case: Pointer does not point at variable in view
+                if not addr_in_section(self._view, variable.value):
+                    init_value = Constant(variable.value, vartype=Integer(self._view.address_size * BYTE_SIZE, False))
+                else:
+                    self._lifter.lift(self._view.get_data_var_at(variable.value), view=self._view, callers=callers)
+
         return self._build_global_variable(
             name=self._lifter.lift(variable.symbol).name if variable.symbol else None,
-            type=type,
+            type=vtype,
             addr=variable.address,
             init_value=init_value,
             ssa_label=parent.ssa_memory_version if parent else 0,
