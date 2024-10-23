@@ -158,6 +158,10 @@ class GlobalHandler(Handler):
         if not self._view:
             self._view = view
 
+        # BNinja error cases: nullptr/small numbers (0, -12...)
+        if not addr_in_section(view, variable.address):
+            return Constant(variable.address, vartype=Integer(view.address_size * BYTE_SIZE, False))
+
         # If addr was already lifted: Return lifted GlobalVariable with updated SSA
         variable_identifier = (variable.address, self._lifter.lift(variable.type))
         if variable_identifier in self._lifted_globals.keys():
@@ -166,10 +170,6 @@ class GlobalHandler(Handler):
                 if parent
                 else self._lifted_globals[variable_identifier]
             )
-
-        # BNinja error cases: nullptr/small numbers (0, -12...)
-        if not addr_in_section(view, variable.address):
-            return Constant(variable.address, vartype=Integer(view.address_size * BYTE_SIZE, False))
 
         # Check if there is a cycle between GlobalVariables initial_value
         if callers and variable.address in callers:
