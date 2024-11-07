@@ -29,14 +29,6 @@ class RemoveStackCanary(PipelineStage):
             for fail_node in list(self._contains_stack_check_fail()):
                 self._patch_canary(fail_node)
 
-    def _get_called_functions(self, instructions):
-        """
-        Yields all functions called by an instruction
-        """
-        for instruction in instructions:
-            if isinstance(instruction, Assignment) and isinstance(instruction.value, Call):
-                yield instruction.value.function
-
     def _contains_stack_check_fail(self) -> Iterator[BasicBlock]:
         """
         Iterate leaf nodes of cfg, yield nodes containing canary check.
@@ -53,7 +45,8 @@ class RemoveStackCanary(PipelineStage):
         return any(self.STACK_FAIL_STR in str(inst) for inst in node.instructions) or self._reached_by_failed_canary_check(node)
 
     def _reached_by_failed_canary_check(self, node: BasicBlock) -> bool:
-        """Determine if the given `node` is reached by a failed stack canary check.
+        """
+        Determine if the given `node` is reached by a failed stack canary check.
 
         This function checks if any incoming edges to the `node` are conditional branches
         that failed a stack canary check. It examines the predecessor nodes to see if the

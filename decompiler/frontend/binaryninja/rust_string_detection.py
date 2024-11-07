@@ -17,10 +17,10 @@ class RustStringDetection:
 
     def __init__(self, binary_view: BinaryView, options: Options):
         self._bv = binary_view
-        self._enabled = options.getboolean("rust-string-detection.enabled", fallback=True)
-        self._rust_binaries_only = options.getboolean("rust-string-detection.rust_binaries_only", fallback=True)
-        self._string_slicer_path = options.getstring("rust-string-detection.string_slicer_path")
-        self._debug_submodules = options.getboolean("logging.debug-submodules")
+        self._enabled = options.getboolean("rust-string-detection.enabled", fallback=False)
+        self._rust_binaries_only = options.getboolean("rust-string-detection.rust_binaries_only", fallback=False)
+        self._string_slicer_path = options.getstring("rust-string-detection.string_slicer_path", fallback="")
+        self._debug_submodules = options.getboolean("logging.debug-submodules", fallback=False)
 
     def is_rust_binary(self):
         """
@@ -40,6 +40,7 @@ class RustStringDetection:
         String Slicer's path will be added to Python's path before importing the module.
         """
         if not self._enabled:
+            logging.info("Rust String Slicer not executed")
             return
 
         if self._rust_binaries_only and not self.is_rust_binary():

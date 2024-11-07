@@ -141,7 +141,7 @@
             },
             {
                 "dest": "rust-string-detection.rust_binaries_only",
-                "default": true,
+                "default": false,
                 "title": "Restrict string slice detection to Rust binaries",
                 "type": "boolean",
                 "description": "string slices will only be detected for Rust binaries",

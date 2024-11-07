@@ -15,7 +15,7 @@ from decompiler.structures.pseudo import (
     OperationType,
     Pointer,
     Symbol,
-    UnaryOperation,
+    UnaryOperation, FunctionSymbol,
 )
 
 BYTE_SIZE = 8
@@ -61,18 +61,17 @@ class ConstantHandler(Handler):
             res = self._lifter.lift(variable, view=view, parent=pointer)
 
         elif (symbol := view.get_symbol_at(pointer.constant)) and symbol.type != SymbolType.DataSymbol:
-            result = self._lifter.lift(symbol)
-            can_return = None
-            try:
-                can_return = view.get_function_at(pointer.constant).can_return.value
-            except Exception:
-                pass
-            result.can_return = can_return
+            if isinstance(result := self._lifter.lift(symbol), FunctionSymbol):
+                try:
+                    result.can_return = view.get_function_at(pointer.constant).can_return.value
+                    return result
+                except Exception:
+                    pass
             return result
 
         elif function := view.get_function_at(pointer.constant):
-            result = self._lifter.lift(function.symbol)
-            result.can_return = function.can_return.value
+            if isinstance(result := self._lifter.lift(function.symbol), FunctionSymbol):
+                result.can_return = function.can_return.value
             return result
 
         else:
