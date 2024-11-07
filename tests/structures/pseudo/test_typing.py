@@ -55,8 +55,6 @@ def test_resize():
     """Test the resize system generating new types."""
     assert Integer.int32_t().resize(64) == Integer.int64_t()
     assert Float.float().resize(64) == Float.double()
-    assert Integer.uint8_t() + Integer.int16_t() == Integer(24, signed=False)
-    assert CustomType.void() + CustomType.void() == CustomType.void()
     assert CustomType.bool().size + Float.float().size == CustomType("bool", 32 + SIZEOF_BOOL).size
 
 

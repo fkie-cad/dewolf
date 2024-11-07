@@ -1,8 +1,7 @@
-import copy
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from decompiler.structures.pseudo.typing import Type
 
@@ -14,16 +13,13 @@ class ComplexTypeSpecifier(Enum):
     CLASS = "class"
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True, order=True, slots=True)
 class ComplexType(Type):
     size = 0
     name: str
 
     def __str__(self):
         return self.name
-
-    def copy(self, **kwargs) -> Type:
-        return copy.deepcopy(self)
 
     def declaration(self) -> str:
         raise NotImplementedError
@@ -83,6 +79,10 @@ class _BaseStruct(ComplexType):
         members = ";\n\t".join(self.members[k].declaration() for k in sorted(self.members.keys())) + ";"
         return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}}"
 
+    def __hash__(self) -> int:
+        # Because dict is not hashable, we need our own hash implementation
+        return hash(repr(self))
+
 
 @dataclass(frozen=True, order=True)
 class Struct(_BaseStruct):
@@ -121,6 +121,10 @@ class Union(ComplexType):
             logging.warning(f"Cannot get member name for union {self}")
             return "unknown_field"
 
+    def __hash__(self) -> int:
+        # Because list is not hashable, we need our own hash implementation
+        return hash(repr(self))
+
 
 @dataclass(frozen=True, order=True)
 class Enum(ComplexType):
@@ -137,6 +141,10 @@ class Enum(ComplexType):
     def declaration(self) -> str:
         members = ",\n\t".join(f"{x.name} = {x.value}" for x in self.members.values())
         return f"{self.type_specifier.value} {self.name} {{\n\t{members}\n}}"
+
+    def __hash__(self) -> int:
+        # Because dict is not hashable, we need our own hash implementation
+        return hash(repr(self))
 
 
 @dataclass(frozen=True, order=True)

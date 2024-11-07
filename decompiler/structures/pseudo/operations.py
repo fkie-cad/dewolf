@@ -407,7 +407,7 @@ class UnaryOperation(Operation):
         return UnaryOperation(
             self._operation,
             [operand.copy() for operand in self._operands],
-            self._type.copy(),
+            self._type,
             writes_memory=self._writes_memory,
             contraction=self.contraction,
             array_info=ArrayInfo(self.array_info.base, self.array_info.index, self.array_info.confidence) if self.array_info else None,
@@ -459,7 +459,7 @@ class MemberAccess(UnaryOperation):
             self.member_offset,
             self.member_name,
             [operand.copy() for operand in self._operands],
-            self._type.copy(),
+            self._type,
             writes_memory=self.writes_memory,
         )
 
@@ -501,7 +501,7 @@ class BinaryOperation(Operation):
 
     def copy(self) -> BinaryOperation:
         """Generate a deep copy of the current binary operation."""
-        return self.__class__(self._operation, [operand.copy() for operand in self._operands], self._type.copy(), self.tags)
+        return self.__class__(self._operation, [operand.copy() for operand in self._operands], self._type, self.tags)
 
     def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
         """Invoke the appropriate visitor for this Operation."""
@@ -585,7 +585,7 @@ class Call(Operation):
         return Call(
             self._function,
             [operand.copy() for operand in self._operands],
-            self._type.copy(),
+            self._type,
             self._writes_memory,
             self._meta_data.copy() if self._meta_data is not None else None,
             self.tags,
