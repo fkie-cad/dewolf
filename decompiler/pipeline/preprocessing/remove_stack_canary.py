@@ -2,9 +2,12 @@
 
 from typing import Iterator
 
+from decompiler.pipeline.preprocessing.util import match_expression
 from decompiler.pipeline.stage import PipelineStage
+from decompiler.structures.graphs.branches import BasicBlockEdgeCondition
 from decompiler.structures.graphs.cfg import BasicBlock, UnconditionalEdge
 from decompiler.structures.pseudo.instructions import Branch
+from decompiler.structures.pseudo.operations import OperationType
 from decompiler.task import DecompilerTask
 
 
@@ -39,7 +42,41 @@ class RemoveStackCanary(PipelineStage):
         """
         Check if node contains call to __stack_chk_fail
         """
-        return any(self.STACK_FAIL_STR in str(inst) for inst in node.instructions)
+        return any(self.STACK_FAIL_STR in str(inst) for inst in node.instructions) or self._reached_by_failed_canary_check(node)
+
+    def _reached_by_failed_canary_check(self, node: BasicBlock) -> bool:
+        """
+        Determine if the given `node` is reached by a failed stack canary check.
+
+        This function checks if any incoming edges to the `node` are conditional branches
+        that failed a stack canary check. It examines the predecessor nodes to see if the
+        branching condition corresponds to a failed comparison involving the canary value.
+
+        Args:
+            node (BasicBlock): The basic block to check if it is reached by a failed canary check.
+
+        Returns:
+            bool: Returns `True` if the node is reached by a failed canary check; otherwise, `False`.
+
+        The function specifically looks for conditions that match the pattern *(fsbase+0x28),
+        indicating a check involving a stack canary. It then verifies if the condition's operation
+        and the type of the edge align with typical patterns of failed canary checks:
+        - `equal` operation with `false` edge condition, or
+        - `not_equal` operation with `true` edge condition.
+        """
+        pattern = ("fsbase", 0x28)
+        for in_edge in self._cfg.get_in_edges(node):
+            predecessor = in_edge.source
+            if len(predecessor.instructions) and isinstance(predecessor.instructions[-1], Branch):
+                condition = predecessor.instructions[-1].condition
+                if not (condition.operation, in_edge.condition_type) in {
+                    (OperationType.equal, BasicBlockEdgeCondition.false),
+                    (OperationType.not_equal, BasicBlockEdgeCondition.true),
+                }:
+                    continue
+                if match_expression(predecessor, condition.left, pattern) or match_expression(predecessor, condition.right, pattern):
+                    return True
+        return False
 
     def _patch_canary(self, node: BasicBlock):
         """

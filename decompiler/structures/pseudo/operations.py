@@ -473,8 +473,6 @@ class MemberAccess(UnaryOperation):
 class BinaryOperation(Operation):
     """Class representing operations with two operands."""
 
-    __match_args__ = ("operation", "left", "right")
-
     def __eq__(self, __value):
         return isinstance(__value, BinaryOperation) and super().__eq__(__value)
 

@@ -8,12 +8,11 @@ from decompiler.frontend.binaryninja.handlers.globals import addr_in_section
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import (
     Constant,
-    CustomType,
+    FunctionSymbol,
     GlobalVariable,
     Integer,
     NotUseableConstant,
     OperationType,
-    Pointer,
     Symbol,
     UnaryOperation,
 )
@@ -61,10 +60,18 @@ class ConstantHandler(Handler):
             res = self._lifter.lift(variable, view=view, parent=pointer)
 
         elif (symbol := view.get_symbol_at(pointer.constant)) and symbol.type != SymbolType.DataSymbol:
-            return self._lifter.lift(symbol)
+            if isinstance(result := self._lifter.lift(symbol), FunctionSymbol):
+                try:
+                    result.can_return = view.get_function_at(pointer.constant).can_return.value
+                    return result
+                except Exception:
+                    pass
+            return result
 
         elif function := view.get_function_at(pointer.constant):
-            return self._lifter.lift(function.symbol)
+            if isinstance(result := self._lifter.lift(function.symbol), FunctionSymbol):
+                result.can_return = function.can_return.value
+            return result
 
         else:
             res = self._lifter.lift(DataVariable(view, pointer.constant, Type.void(), False), view=view, parent=pointer)
