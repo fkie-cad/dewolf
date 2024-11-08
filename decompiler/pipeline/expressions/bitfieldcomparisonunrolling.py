@@ -132,17 +132,19 @@ class BitFieldComparisonUnrolling(PipelineStage):
         """
         match subexpr:
             case BinaryOperation(
-                OperationType.bitwise_and,
-                BinaryOperation(
-                    OperationType.bitwise_and, BinaryOperation(OperationType.left_shift, Constant(value=1), switch_var), Constant()
+                operation=OperationType.bitwise_and,
+                left=BinaryOperation(
+                    operation=OperationType.bitwise_and,
+                    left=BinaryOperation(operation=OperationType.left_shift, left=Constant(value=1), right=switch_var),
+                    right=Constant(),
                 ),
-                Constant() as bit_field,
+                right=Constant() as bit_field,
             ) if bit_field.value != 0xFFFFFFFF:
                 return switch_var, bit_field
             case BinaryOperation(
-                OperationType.bitwise_and,
-                BinaryOperation(OperationType.left_shift, Constant(value=1), switch_var),
-                Constant() as bit_field,
+                operation=OperationType.bitwise_and,
+                left=BinaryOperation(operation=OperationType.left_shift, left=Constant(value=1), right=switch_var),
+                right=Constant() as bit_field,
             ) if bit_field.value != 0xFFFFFFFF:
                 return switch_var, bit_field
             case _:
