@@ -41,6 +41,7 @@ class BinaryninjaFrontend(Frontend):
     def __init__(self, bv: BinaryView):
         """Create a new binaryninja view with the given path."""
         self._bv = bv if type(bv) == BinaryView else bv.getCurrentFunction().view
+        self._tagging = CompilerIdiomsTagging(self._bv)
 
     @classmethod
     def from_path(cls, path: str, options: Options):
@@ -75,8 +76,7 @@ class BinaryninjaFrontend(Frontend):
             task.function_return_type = lifter.lift(function.return_type)
             task.function_parameters = [lifter.lift(param_type) for param_type in function.type.parameters]
 
-            tagging = CompilerIdiomsTagging(self._bv, function.start, task.options)
-            tagging.run()
+            self._tagging.run(function, task.options)
 
             task.cfg = parser.parse(function)
             task.function_parameter_locations = self._parameter_locations(function)
