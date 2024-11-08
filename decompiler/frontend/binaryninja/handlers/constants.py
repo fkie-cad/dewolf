@@ -8,14 +8,13 @@ from decompiler.frontend.binaryninja.handlers.globals import addr_in_section
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import (
     Constant,
-    CustomType,
+    FunctionSymbol,
     GlobalVariable,
     Integer,
     NotUseableConstant,
     OperationType,
-    Pointer,
     Symbol,
-    UnaryOperation, FunctionSymbol,
+    UnaryOperation,
 )
 
 BYTE_SIZE = 8

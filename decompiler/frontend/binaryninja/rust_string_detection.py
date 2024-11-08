@@ -22,7 +22,7 @@ class RustStringDetection:
         self._string_slicer_path = options.getstring("rust-string-detection.string_slicer_path", fallback="")
         self._debug_submodules = options.getboolean("logging.debug-submodules", fallback=False)
 
-    def is_rust_binary(self):
+    def is_rust_binary(self) -> bool:
         """
         Simple heurstic to determine, whether the binary is a Rust binary.
 

@@ -2,15 +2,12 @@
 
 from typing import Iterator, List
 
-from decompiler.pipeline.preprocessing.util import _unused_addresses
+from decompiler.pipeline.preprocessing.util import get_constant_condition, is_noreturn_node
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.graphs.branches import ConditionalEdge, FalseCase, TrueCase
 from decompiler.structures.graphs.rootedgraph import RootedGraph
-from decompiler.structures.pseudo.expressions import Constant
-from decompiler.structures.pseudo.instructions import Assignment, Branch, Comment
-from decompiler.structures.pseudo.operations import Call, Condition, OperationType
-from decompiler.structures.pseudo.typing import Integer
+from decompiler.structures.pseudo.instructions import Branch, Comment
 from decompiler.task import DecompilerTask
 from networkx import MultiDiGraph, dominance_frontiers
 
@@ -28,31 +25,14 @@ class RemoveNoreturnBoilerplate(PipelineStage):
             self._cfg = task.graph
             self._aggressive_removal_postdominators_merged_sinks()
 
-    def _get_called_functions(self, instructions):
-        """
-        Helper method to iterate over all called functions in a list of instructions.
-        """
-        for instruction in instructions:
-            if isinstance(instruction, Assignment) and isinstance(instruction.value, Call):
-                yield instruction.value.function
-
     def _get_noreturn_nodes(self) -> Iterator[BasicBlock]:
         """
         Iterate leaf nodes of cfg, yield nodes containing a call to a non-returning funtion.
         """
         leaf_nodes = [x for x in self._cfg.nodes if self._cfg.out_degree(x) == 0]
         for node in leaf_nodes:
-            if self._is_noreturn_node(node):
+            if is_noreturn_node(node):
                 yield node
-
-    def _is_noreturn_node(self, node: BasicBlock) -> bool:
-        """
-        Check if node contains call to a non-returning function.
-        """
-        called_functions = list(self._get_called_functions(node.instructions))
-        if len(called_functions) != 1:
-            return False
-        return called_functions[0].can_return == False
 
     def _patch_condition_edges(self, edges: List[ConditionalEdge]) -> None:
         """
@@ -63,9 +43,9 @@ class RemoveNoreturnBoilerplate(PipelineStage):
         for edge in edges:
             match edge:
                 case TrueCase():
-                    condition = self._get_constant_condition(False)
+                    condition = get_constant_condition(False)
                 case FalseCase():
-                    condition = self._get_constant_condition(True)
+                    condition = get_constant_condition(True)
                 case _:
                     continue
             instructions = edge.source.instructions
@@ -73,19 +53,6 @@ class RemoveNoreturnBoilerplate(PipelineStage):
             instructions.pop()
             instructions.append(Comment("Removed potential boilerplate code"))
             instructions.append(Branch(condition))
-
-    def _get_constant_condition(self, value: bool):
-        """
-        Helper method creating a Pseudo condition that always evaluates to `True` or `False`, depending on `value`.
-        """
-        int_value = 1 if value else 0
-        return Condition(
-            OperationType.equal,
-            [
-                Constant(1, Integer.int32_t()),
-                Constant(int_value, Integer.int32_t()),
-            ],
-        )
 
     def _aggressive_removal_postdominators_merged_sinks(self):
         """
@@ -107,9 +74,9 @@ class RemoveNoreturnBoilerplate(PipelineStage):
         returning_leaf_nodes = [node for node in leaf_nodes if node not in noreturn_nodes]
         # create a virtual merged end node (for post dominance calculation)
         # additionally we create another virtual node so that different non-returning nodes are 'merged'
-        unused_addresses = _unused_addresses(cfg=self._cfg, amount=2)
-        virtual_end_node = BasicBlock(address=unused_addresses[0])
-        virtual_merged_noreturn_node = BasicBlock(address=unused_addresses[1])
+        min_used_address = min(block.address for block in self._cfg)
+        virtual_end_node = BasicBlock(min_used_address - 1)
+        virtual_merged_noreturn_node = BasicBlock(min_used_address - 2)
         # reverse CFG and add virtual nodes to it
         reversed_cfg_view: MultiDiGraph = self._cfg._graph.reverse(copy=False)
         reversed_cfg_shallow_copy = MultiDiGraph(reversed_cfg_view)

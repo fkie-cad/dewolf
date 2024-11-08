@@ -111,7 +111,7 @@
             },
             {
                 "dest": "remove-go-prologue.remove_prologue",
-                "default": true,
+                "default": false,
                 "title": "Remove Go function prologues",
                 "type": "boolean",
                 "description": "remove go funcion prologues",
@@ -121,7 +121,7 @@
             },
             {
                 "dest": "remove-noreturn-boilerplate.remove_noreturn_boilerplate",
-                "default": true,
+                "default": false,
                 "title": "Generic no-return boilerplate removal",
                 "type": "boolean",
                 "description": "remove boilerplate leading to non-returning functions",

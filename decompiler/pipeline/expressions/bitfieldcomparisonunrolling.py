@@ -103,13 +103,13 @@ class BitFieldComparisonUnrolling(PipelineStage):
         if not isinstance(branch_instruction := block[-1], Branch):
             return None
         match branch_instruction.condition:
-            case Condition(OperationType.equal, subexpr, Constant(value=0x0)):
+            case Condition(operation=OperationType.equal, left=subexpr, right=Constant(value=0x0)):
                 edge_type_to_case_node = FalseCase
-            case Condition(OperationType.not_equal, subexpr, Constant(value=0x0)):
+            case Condition(operation=OperationType.not_equal, left=subexpr, right=Constant(value=0x0)):
                 edge_type_to_case_node = TrueCase
-            case Condition(OperationType.equal, Constant(value=0x0), subexpr):
+            case Condition(operation=OperationType.equal, left=Constant(value=0x0), right=subexpr):
                 edge_type_to_case_node = FalseCase
-            case Condition(OperationType.not_equal, Constant(value=0x0), subexpr):
+            case Condition(operation=OperationType.not_equal, left=Constant(value=0x0), right=subexpr):
                 edge_type_to_case_node = TrueCase
             case _:
                 return None

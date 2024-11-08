@@ -5,9 +5,9 @@ from typing import Iterator
 from decompiler.pipeline.preprocessing.util import match_expression
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.branches import BasicBlockEdgeCondition
-from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, UnconditionalEdge
-from decompiler.structures.pseudo.instructions import Assignment, Branch
-from decompiler.structures.pseudo.operations import Call, OperationType
+from decompiler.structures.graphs.cfg import BasicBlock, UnconditionalEdge
+from decompiler.structures.pseudo.instructions import Branch
+from decompiler.structures.pseudo.operations import OperationType
 from decompiler.task import DecompilerTask
 
 

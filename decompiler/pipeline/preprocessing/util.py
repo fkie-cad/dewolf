@@ -1,13 +1,14 @@
 """Helper functions for modules in the preprocessing pipeline."""
 
 from collections import defaultdict
-from typing import Callable, DefaultDict, Dict, List, Optional, Set, Tuple
+from typing import Callable, DefaultDict, Dict, Iterator, List, Optional, Set, Tuple
 
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.maps import DefMap, UseMap
+from decompiler.structures.pseudo import Integer
 from decompiler.structures.pseudo.expressions import Constant, Expression, Variable
-from decompiler.structures.pseudo.instructions import Assignment
-from decompiler.structures.pseudo.operations import BinaryOperation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.instructions import Assignment, Instruction
+from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, OperationType, UnaryOperation
 
 
 def _init_maps(cfg: ControlFlowGraph) -> Tuple[DefMap, UseMap]:
@@ -24,22 +25,6 @@ def _init_maps(cfg: ControlFlowGraph) -> Tuple[DefMap, UseMap]:
         def_map.add(instruction)
         use_map.add(instruction)
     return def_map, use_map
-
-
-def _unused_addresses(cfg: ControlFlowGraph, amount: int = 1) -> List[int]:
-    """Returns a list with the specified amount of addresses, which are not used by any block of the given CFG."""
-    used_addresses = {c.address for c in cfg.nodes}
-    address = -1
-
-    addresses = list()
-
-    for _ in range(amount):
-        while address in used_addresses:
-            address -= 1
-        used_addresses.add(address)
-        addresses.append(address)
-
-    return addresses
 
 
 def _init_basicblocks_of_definition(cfg: ControlFlowGraph) -> Dict[Variable, BasicBlock]:
@@ -78,8 +63,10 @@ def _init_basicblocks_usages_variable(cfg: ControlFlowGraph) -> DefaultDict[Vari
 
 
 def _get_last_definition(node: BasicBlock, var: Variable, max_instr_num: int) -> Optional[Tuple[int, Expression]]:
-    """This helper method finds a variable's last definition within a Block. Only instructions up to `max_instr_num` are considered.
-    It returns the instructions position and the assigned value if a definition exists and none otherwise."""
+    """
+    This helper method finds a variable's last definition within a Block. Only instructions up to `max_instr_num` are considered.
+    It returns the instructions position and the assigned value if a definition exists and none otherwise.
+    """
     for index in reversed(range(max_instr_num + 1)):
         instruction = node.instructions[index]
         if isinstance(instruction, Assignment) and instruction.destination == var:
@@ -87,8 +74,11 @@ def _get_last_definition(node: BasicBlock, var: Variable, max_instr_num: int) ->
     return None
 
 
-def match_expression(node: BasicBlock, expression: Expression, pattern, instr_num=None):
-    """This function checks whether the given `expression` matches the specified `pattern`.
+def match_expression(
+    node: BasicBlock, expression: Expression, pattern: Tuple | Callable[[Variable], bool] | str, instr_num: int | None = None
+) -> bool:
+    """
+    This function checks whether the given `expression` matches the specified `pattern`.
 
     The function uses recursion to check whether the provided `expression` matches the given `pattern`.
     It also considers the instructions defined earlier in the provided `node` (a `BasicBlock`) to resolve variable definitions.
@@ -122,10 +112,12 @@ def match_expression(node: BasicBlock, expression: Expression, pattern, instr_nu
       - It also handles simple dereferences when the offset is zero.
     - The function returns `False` if no match is found according to the above rules.
     """
-    if not isinstance(pattern, tuple):
+    if not isinstance(pattern, Tuple):
         if isinstance(pattern, Callable):
+            assert isinstance(expression, Variable), "The callable must get a Variable as Input."
             return pattern(expression)
         else:
+            # pattern is a sting in this case
             return isinstance(expression, Variable) and expression.name == pattern
 
     if instr_num is None:
@@ -139,13 +131,50 @@ def match_expression(node: BasicBlock, expression: Expression, pattern, instr_nu
                 definition_instruction_num, defined_value = last_def
                 # important: dont use inner_pattern here
                 return match_expression(node, defined_value, pattern, definition_instruction_num)
-        case UnaryOperation(OperationType.dereference, BinaryOperation(OperationType.plus, inner_expression, Constant(value=deref_offset))):
-            return match_expression(node, inner_expression, inner_pattern, instr_num)
         case UnaryOperation(
-            OperationType.dereference, BinaryOperation(OperationType.minus, inner_expression, Constant(value=neg_deref_offset))
+            operation=OperationType.dereference,
+            operand=BinaryOperation(operation=OperationType.plus, left=inner_expression, right=Constant(value=deref_offset)),
         ):
             return match_expression(node, inner_expression, inner_pattern, instr_num)
-        case UnaryOperation(OperationType.dereference, inner_expression) if deref_offset == 0:
+        case UnaryOperation(
+            operation=OperationType.dereference,
+            operand=BinaryOperation(operation=OperationType.minus, left=inner_expression, right=Constant(value=neg_deref_offset)),
+        ):
+            return match_expression(node, inner_expression, inner_pattern, instr_num)
+        case UnaryOperation(operation=OperationType.dereference, operand=inner_expression) if deref_offset == 0:
             return match_expression(node, inner_expression, inner_pattern, instr_num)
 
     return False
+
+
+def _get_called_functions(instructions: List[Instruction]) -> Iterator[Expression]:
+    """
+    Helper method to iterate over all called functions in a list of instructions.
+    """
+    for instruction in instructions:
+        if isinstance(instruction, Assignment) and isinstance(instruction.value, Call):
+            yield instruction.value.function
+
+
+def is_noreturn_node(node: BasicBlock) -> bool:
+    """
+    Helper method to check if `node` contains just one call to a non-returning function.
+    """
+    called_functions = list(_get_called_functions(node.instructions))
+    if len(called_functions) != 1:
+        return False
+    return called_functions[0].can_return == False
+
+
+def get_constant_condition(value: bool) -> Condition:
+    """
+    Helper method creating a Pseudo condition that always evaluates to `True` or `False`, depending on `value`.
+    """
+    int_value = 1 if value else 0
+    return Condition(
+        OperationType.equal,
+        [
+            Constant(1, Integer.int32_t()),
+            Constant(int_value, Integer.int32_t()),
+        ],
+    )

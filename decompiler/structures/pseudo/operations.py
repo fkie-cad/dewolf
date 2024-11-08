@@ -329,8 +329,6 @@ class ArrayInfo:
 class UnaryOperation(Operation):
     """Represents an expression with a single operand."""
 
-    __match_args__ = ("operation", "operand")
-
     def __init__(
         self,
         operation: OperationType,
@@ -474,8 +472,6 @@ class MemberAccess(UnaryOperation):
 
 class BinaryOperation(Operation):
     """Class representing operations with two operands."""
-
-    __match_args__ = ("operation", "left", "right")
 
     def __eq__(self, __value):
         return isinstance(__value, BinaryOperation) and super().__eq__(__value)

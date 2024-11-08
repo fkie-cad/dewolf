@@ -1,16 +1,15 @@
 """Module for removing go idioms"""
 
 import logging
-from typing import Optional, Tuple
+from typing import Optional, Set, Tuple
 
-from decompiler.pipeline.preprocessing.util import _unused_addresses, match_expression
+from decompiler.pipeline.preprocessing.util import get_constant_condition, is_noreturn_node, match_expression
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.graphs.branches import ConditionalEdge, FalseCase, TrueCase, UnconditionalEdge
-from decompiler.structures.pseudo.expressions import Constant, Variable
+from decompiler.structures.pseudo.expressions import Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Comment, Phi
-from decompiler.structures.pseudo.operations import Call, Condition, OperationType, UnaryOperation
-from decompiler.structures.pseudo.typing import Integer
+from decompiler.structures.pseudo.operations import Call, OperationType, UnaryOperation
 from decompiler.task import DecompilerTask
 
 
@@ -32,7 +31,7 @@ class RemoveGoPrologue(PipelineStage):
             else:
                 logging.info("No Go function prologue found")
 
-    def _get_r14_name(self, task: DecompilerTask):
+    def _get_r14_name(self, task: DecompilerTask) -> str | None:
         """
         Returns the variable name of the parameter stored in r14, e.g. 'arg1'.
         If no such parameter exists, None is returned.
@@ -46,7 +45,7 @@ class RemoveGoPrologue(PipelineStage):
             return None
         return task.function_parameters[r14_parameter_index].name
 
-    def _is_root_single_indirect_successor(self, node: BasicBlock):
+    def _is_root_single_indirect_successor(self, node: BasicBlock) -> bool:
         """
         Helper function used to verify the graph structure.
 
@@ -67,7 +66,7 @@ class RemoveGoPrologue(PipelineStage):
 
         return False
 
-    def _find_morestack_node_in_loop(self, node: BasicBlock):
+    def _find_morestack_node_in_loop(self, node: BasicBlock) -> BasicBlock:
         """
         Helper function used to verify the graph structure.
 
@@ -139,7 +138,7 @@ class RemoveGoPrologue(PipelineStage):
 
         return start_node, morestack_node
 
-    def _find_morestack_node_loopless(self, node, visited):
+    def _find_morestack_node_loopless(self, node: BasicBlock, visited: Set[BasicBlock]) -> BasicBlock | None:
         """
         Helper function used to verify the graph structure.
 
@@ -162,27 +161,10 @@ class RemoveGoPrologue(PipelineStage):
                 return None
 
         # zero successors, check for no return
-        if self._is_noreturn_node(node):
+        if is_noreturn_node(node):
             return node
 
         return None
-
-    def _get_called_functions(self, instructions):
-        """
-        Helper method to iterate over all called functions in a list of instructions.
-        """
-        for instruction in instructions:
-            if isinstance(instruction, Assignment) and isinstance(instruction.value, Call):
-                yield instruction.value.function
-
-    def _is_noreturn_node(self, node: BasicBlock) -> bool:
-        """
-        Helper method to check if `node` contains just one call to a non-returning function.
-        """
-        called_functions = list(self._get_called_functions(node.instructions))
-        if len(called_functions) != 1:
-            return False
-        return called_functions[0].can_return == False
 
     def _verify_graph_structure_loop(self) -> Optional[Tuple[BasicBlock, BasicBlock]]:
         """
@@ -214,7 +196,6 @@ class RemoveGoPrologue(PipelineStage):
         morestack_node = None
         start_node = None
         for successor in successors:
-            # if root in self._cfg.get_successors(successor):
             if self._is_root_single_indirect_successor(successor):
                 morestack_node = self._find_morestack_node_in_loop(successor)
             else:
@@ -231,7 +212,7 @@ class RemoveGoPrologue(PipelineStage):
 
         return start_node, morestack_node
 
-    def _match_r14(self, variable: Variable):
+    def _match_r14(self, variable: Variable) -> bool:
         """
         This method is used to check if `variable` corresponds to r14 which has a special meaning in Go prologues.
 
@@ -266,7 +247,7 @@ class RemoveGoPrologue(PipelineStage):
         # check if rhs of condition compares an address (e.g. of __return_addr)
         left_expression = root_node_if.condition.left
         match left_expression:
-            case UnaryOperation(OperationType.address):
+            case UnaryOperation(operation=OperationType.address):
                 pass
             case _:
                 return False
@@ -352,24 +333,22 @@ class RemoveGoPrologue(PipelineStage):
             # This should never happen
             raise ValueError("If condition with broken out edges")
 
-        root_node_if.substitute(root_node_if.condition, self._get_constant_condition(new_condition))
+        root_node_if.substitute(root_node_if.condition, get_constant_condition(new_condition))
 
         # Handle incoming edges to morestack_node from non-returning functions
         # We can't simply delete edges without causing problems to Phi functions.
-        # Therefore we replace the unconditional edge with a conditional one.
+        # Therefore, we replace the unconditional edge with a conditional one.
         # The added condition at the end of the block makes sure the edge is never taken.
         # A conditional edge to a newly created "return_node" is added as well.
         # The return_node does nothing.
         # After dead code elmination, this will just have the effect of deleting the edge.
-        return_node = BasicBlock(_unused_addresses(cfg=self._cfg, amount=1)[0], [], self._cfg)
-        self._cfg.add_node(return_node)
+        return_node = self._cfg.create_block()
         unconditional_in_edges = [edge for edge in self._cfg.get_in_edges(morestack_node) if isinstance(edge, UnconditionalEdge)]
         for edge in unconditional_in_edges:
-            # edge.source.add_instruction(Return([]))
             self._cfg.remove_edge(edge)
             self._cfg.add_edge(FalseCase(edge.source, edge.sink))
             self._cfg.add_edge(TrueCase(edge.source, return_node))
-            condition = self._get_constant_condition(True)
+            condition = get_constant_condition(True)
             edge.source.add_instruction(Branch(condition))
 
         if unconditional_in_edges:
@@ -383,20 +362,7 @@ class RemoveGoPrologue(PipelineStage):
 
         logging.info(comment_string)
 
-    def _get_constant_condition(self, value: bool):
-        """
-        Helper method creating a Pseudo condition that always evaluates to `True` or `False`, depending on `value`.
-        """
-        int_value = 1 if value else 0
-        return Condition(
-            OperationType.equal,
-            [
-                Constant(1, Integer.int32_t()),
-                Constant(int_value, Integer.int32_t()),
-            ],
-        )
-
-    def _check_and_remove_go_prologue(self):
+    def _check_and_remove_go_prologue(self) -> bool:
         """
         Detect and remove the typical go function prologue
 
