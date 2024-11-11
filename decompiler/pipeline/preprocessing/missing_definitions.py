@@ -110,11 +110,6 @@ class InsertMissingDefinitions(PipelineStage):
         self._check_ssa_label_for_all_variables()
         self.insert_missing_definitions()
 
-        import random
-
-        if random.randint(1, 100) > 80:
-            raise ValueError("Test Error")
-
     def _setup(self, cfg: ControlFlowGraph):
         """Initialize all necessary attributes."""
         self.cfg: ControlFlowGraph = cfg
