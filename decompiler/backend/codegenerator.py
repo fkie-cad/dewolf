@@ -8,6 +8,8 @@ from decompiler.backend.codevisitor import CodeVisitor
 from decompiler.backend.variabledeclarations import GlobalDeclarationGenerator, LocalDeclarationGenerator
 from decompiler.task import DecompilerTask
 
+FAIL_MESSAGE = "Decompilation Failed!\n"
+
 
 class CodeGenerator:
     """Class in charge of emitting C-code from pseudo code."""
@@ -53,7 +55,8 @@ class CodeGenerator:
     @staticmethod
     def generate_failure_message(task: DecompilerTask):
         """Returns the message to be shown for a failed task."""
-        msg = f"Failed to decompile {task.name}"
+        msg = FAIL_MESSAGE
+        msg += f"Failed to decompile {task.name}"
         if origin := task.failure_origin:  # checks if the string is empty (should never be None when this method is called)
             msg += f" due to error during {origin}."
         return msg

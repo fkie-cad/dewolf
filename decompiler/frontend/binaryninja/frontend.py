@@ -76,8 +76,7 @@ class BinaryninjaFrontend(Frontend):
             task.cfg = parser.parse(function)
             task.complex_types = parser.complex_types
         except Exception as e:
-            task.fail("Function lifting")
-            logging.exception(f"Failed to decompile {task.name}, error during function lifting")
+            task.fail("Function lifting", e)
 
             if task.options.getboolean("pipeline.debug", fallback=False):
                 raise e

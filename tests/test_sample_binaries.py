@@ -2,13 +2,14 @@ import re
 import subprocess
 
 import pytest
+from decompiler.backend.codegenerator import FAIL_MESSAGE
 
 
 def test_sample(test_cases):
     """Test the decompiler with the given test case."""
     sample, function_name = test_cases
     output = subprocess.run(("python", "decompile.py", sample, function_name), check=True, capture_output=True).stdout.decode("utf-8")
-    assert "Failed to decompile due to error during " not in output
+    assert FAIL_MESSAGE not in output
 
 
 def test_globals():
