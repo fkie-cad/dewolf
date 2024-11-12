@@ -29,7 +29,6 @@ def __add_sample_to_crashed_sample_folder(sample, function_name):
     shutil.copy(sample, output_file)
 
 
-
 def test_globals():
     """Test and ensure that display of global variables appear correct."""
     base_args = ["python", "decompile.py"]
