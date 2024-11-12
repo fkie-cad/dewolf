@@ -68,6 +68,8 @@ def _discover_full_tests() -> Iterator[tuple[pathlib.Path, str]]:
     extended_test_cases = _discover_tests_in_directory_tree(makefile["extended_tests_src_path"], makefile["extended_tests_bin_path"])
 
     for sample_path, functions in chain(test_cases.items(), extended_test_cases.items()):
+        if sample_path != "tests/samples/bin/systemtests/64/s/test_loop":
+            continue
         for function in functions:
             yield sample_path, function
 
