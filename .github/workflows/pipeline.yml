@@ -27,4 +27,11 @@ jobs:
           docker run dewolf make check-format
       - name: Run Tests
         run: |
-          docker run dewolf make
+          docker run -v "$(pwd)"/artifacts:/opt/dewolf/crash_reports dewolf make
+      - name: Upload Crash Reports
+        if: ${{ failure() && steps.run_tests.conclusion == 'failure' }}  # Only run if previous steps fail
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-reports
+          path: artifacts/*
+          retention-days: 7 # Adjust retention as needed

@@ -69,8 +69,6 @@ def _discover_full_tests() -> Iterator[tuple[pathlib.Path, str]]:
 
     for sample_path, functions in chain(test_cases.items(), extended_test_cases.items()):
         for function in functions:
-            if function != "test9":
-                continue
             yield sample_path, function
 
 

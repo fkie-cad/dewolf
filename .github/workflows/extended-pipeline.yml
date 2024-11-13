@@ -25,11 +25,6 @@ jobs:
         id: run_tests
         run: |
           docker run -v "$(pwd)"/artifacts:/opt/dewolf/crash_reports dewolf make extendedtests
-      - name: Check directories
-        if: always()
-        run: |
-          pwd
-          ls -lh
       - name: Upload Crash Reports
         if: ${{ failure() && steps.run_tests.conclusion == 'failure' }}  # Only run if previous steps fail
         uses: actions/upload-artifact@v4
