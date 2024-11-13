@@ -26,6 +26,7 @@ class DecompilerTask:
     ast: AbstractSyntaxTree | None = None
     function_return_type: Type = Integer.int32_t()
     function_parameters: List[Variable] = field(default_factory=list)
+    function_parameter_locations: List[str | None] = field(default_factory=list)
     complex_types: ComplexTypeMap = field(default_factory=ComplexTypeMap)
 
     _failure_origin: str | None = field(default=None, init=False)
