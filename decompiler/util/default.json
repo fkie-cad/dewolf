@@ -110,6 +110,56 @@
                 "argument_name": "--remove-stack-canary"
             },
             {
+                "dest": "remove-go-prologue.remove_prologue",
+                "default": false,
+                "title": "Remove Go function prologues",
+                "type": "boolean",
+                "description": "remove go funcion prologues",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--remove-go-prologue"
+            },
+            {
+                "dest": "remove-noreturn-boilerplate.remove_noreturn_boilerplate",
+                "default": false,
+                "title": "Generic no-return boilerplate removal",
+                "type": "boolean",
+                "description": "remove boilerplate leading to non-returning functions",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--remove-no-return-boilerplate"
+            },
+            {
+                "dest": "rust-string-detection.enabled",
+                "default": false,
+                "title": "Detect Rust string slices",
+                "type": "boolean",
+                "description": "enable the detection of Rust string slices. Requires setting up Rust String Slicer",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--detect-rust-string-slices"
+            },
+            {
+                "dest": "rust-string-detection.rust_binaries_only",
+                "default": false,
+                "title": "Restrict string slice detection to Rust binaries",
+                "type": "boolean",
+                "description": "string slices will only be detected for Rust binaries",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--string-slices-rust-only"
+            },
+            {
+                "dest": "rust-string-detection.string_slicer_path",
+                "default": "",
+                "title": "Rust String Slicer Path",
+                "type": "string",
+                "description": "Path to the Rust String Slicer folder",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--rust-string-slicer-path"
+            },
+            {
                 "dest": "array-access-detection.enabled",
                 "default": true,
                 "title": "Array access detection",
