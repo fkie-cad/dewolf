@@ -1,7 +1,8 @@
 """Module describing tasks to be handled by the decompiler pipleline."""
 
 from dataclasses import dataclass, field
-from typing import List
+from logging import error
+from typing import List, Optional
 
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.graphs.cfg import ControlFlowGraph
@@ -25,6 +26,7 @@ class DecompilerTask:
     ast: AbstractSyntaxTree | None = None
     function_return_type: Type = Integer.int32_t()
     function_parameters: List[Variable] = field(default_factory=list)
+    function_parameter_locations: List[str | None] = field(default_factory=list)
     complex_types: ComplexTypeMap = field(default_factory=ComplexTypeMap)
 
     _failure_origin: str | None = field(default=None, init=False)
@@ -39,12 +41,13 @@ class DecompilerTask:
     def syntax_tree(self):
         return self.ast
 
-    def fail(self, origin: str = ""):
+    def fail(self, origin: str = "", exception: Optional[Exception] = None):
         """Sets the task to be failed by setting the failure origin."""
         if self.failure_origin is not None:
             raise RuntimeError("Tried failing already failed task")
 
         self._failure_origin = origin
+        error(f"Failed to decompile {self.name}, error during stage {origin}: {exception}")
 
     @property
     def failed(self) -> bool:

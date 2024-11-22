@@ -103,13 +103,13 @@ class BitFieldComparisonUnrolling(PipelineStage):
         if not isinstance(branch_instruction := block[-1], Branch):
             return None
         match branch_instruction.condition:
-            case Condition(OperationType.equal, subexpr, Constant(value=0x0)):
+            case Condition(operation=OperationType.equal, left=subexpr, right=Constant(value=0x0)):
                 edge_type_to_case_node = FalseCase
-            case Condition(OperationType.not_equal, subexpr, Constant(value=0x0)):
+            case Condition(operation=OperationType.not_equal, left=subexpr, right=Constant(value=0x0)):
                 edge_type_to_case_node = TrueCase
-            case Condition(OperationType.equal, Constant(value=0x0), subexpr):
+            case Condition(operation=OperationType.equal, left=Constant(value=0x0), right=subexpr):
                 edge_type_to_case_node = FalseCase
-            case Condition(OperationType.not_equal, Constant(value=0x0), subexpr):
+            case Condition(operation=OperationType.not_equal, left=Constant(value=0x0), right=subexpr):
                 edge_type_to_case_node = TrueCase
             case _:
                 return None
@@ -132,17 +132,19 @@ class BitFieldComparisonUnrolling(PipelineStage):
         """
         match subexpr:
             case BinaryOperation(
-                OperationType.bitwise_and,
-                BinaryOperation(
-                    OperationType.bitwise_and, BinaryOperation(OperationType.left_shift, Constant(value=1), switch_var), Constant()
+                operation=OperationType.bitwise_and,
+                left=BinaryOperation(
+                    operation=OperationType.bitwise_and,
+                    left=BinaryOperation(operation=OperationType.left_shift, left=Constant(value=1), right=switch_var),
+                    right=Constant(),
                 ),
-                Constant() as bit_field,
+                right=Constant() as bit_field,
             ) if bit_field.value != 0xFFFFFFFF:
                 return switch_var, bit_field
             case BinaryOperation(
-                OperationType.bitwise_and,
-                BinaryOperation(OperationType.left_shift, Constant(value=1), switch_var),
-                Constant() as bit_field,
+                operation=OperationType.bitwise_and,
+                left=BinaryOperation(operation=OperationType.left_shift, left=Constant(value=1), right=switch_var),
+                right=Constant() as bit_field,
             ) if bit_field.value != 0xFFFFFFFF:
                 return switch_var, bit_field
             case _:

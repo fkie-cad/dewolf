@@ -1,6 +1,8 @@
 import logging
 
+import binaryninja.function
 from binaryninja import BinaryView
+from compiler_idioms.disassembly.smda_disassembly import SMDADisassembly
 from compiler_idioms.matcher import Matcher
 from decompiler.util.options import Options
 
@@ -11,23 +13,26 @@ class CompilerIdiomsTagging:
     TAG_SYMBOL = "⚙"
     TAG_PREFIX = "compiler_idiom: "
 
-    def __init__(self, binary_view: BinaryView, start: int, options: Options):
+    def __init__(self, binary_view: BinaryView):
         self._bv = binary_view
-        self._function_start = start
-        self._enabled = options.getboolean("compiler-idioms-tagging.enabled", fallback=True)
-        self._debug_submodules = options.getboolean("logging.debug-submodules")
+        self._disassembly = SMDADisassembly(self._bv.file.filename)
+        self._matcher = Matcher()
 
-    def run(self):
+    def run(self, function: binaryninja.function.Function, options: Options):
         """
         Matches idioms in the function (disassembly) currently being decompiled.
         For each found match creates a tag that contains info for original computation reconstruction.
         """
-        if not self._enabled:
+        enabled = options.getboolean("compiler-idioms-tagging.enabled", fallback=True)
+        debug_submodules = options.getboolean("logging.debug-submodules")
+
+        if not enabled:
             return
         try:
-            matches = Matcher().find_idioms_in_function(self._bv.file.filename, self._function_start)
+            instructions = self._disassembly.get_smda_function_at(function.start)
+            matches = self._matcher._match_single_function(instructions)
         except Exception as e:
-            if self._debug_submodules:
+            if debug_submodules:
                 raise RuntimeError(e)
             logging.warning("Compiler idioms matching failed, continue without compiler idioms.")
             return

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from logging import debug, error, warning
+from logging import debug, warning
 from typing import List
 
 from decompiler.pipeline.controlflowanalysis.restructuring import PatternIndependentRestructuring
@@ -13,6 +13,8 @@ from decompiler.pipeline.preprocessing import (
     MemPhiConverter,
     PhiFunctionFixer,
     RegisterPairHandling,
+    RemoveGoPrologue,
+    RemoveNoreturnBoilerplate,
     RemoveStackCanary,
     SwitchVariableDetection,
 )
@@ -28,7 +30,9 @@ from .stage import PipelineStage
 
 PREPROCESSING_STAGES = [
     CompilerIdiomHandling,
+    RemoveGoPrologue,
     RemoveStackCanary,
+    RemoveNoreturnBoilerplate,
     RegisterPairHandling,
     Coherence,
     SwitchVariableDetection,
@@ -108,8 +112,7 @@ class DecompilerPipeline:
                 if show_all or stage.name in showed_stages:
                     self._show_stage(task, f"After {stage.name}", print_ascii, show_in_tabs)
             except Exception as e:
-                task.fail(origin=stage.name)
-                error(f"Failed to decompile {task.name}, error during stage {stage.name}: {e}")
+                task.fail(origin=stage.name, exception=e)
                 if debug_mode:
                     raise e
                 break
