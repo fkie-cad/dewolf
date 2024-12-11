@@ -255,7 +255,7 @@ class GlobalHandler(Handler):
                 if not addr_in_section(self._view, variable.value):
                     init_value = Constant(variable.value, vartype=Integer(self._view.address_size * BYTE_SIZE, False))
                 else:
-                    self._lifter.lift(self._view.get_data_var_at(variable.value), view=self._view, callers=callers)
+                    init_value = self._lifter.lift(self._view.get_data_var_at(variable.value), view=self._view, callers=callers)
 
         return self._build_global_variable(
             name=self._lifter.lift(variable.symbol).name if variable.symbol else None,
