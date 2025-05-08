@@ -2,7 +2,7 @@
 
 from typing import Callable, Optional, Tuple, Union
 
-from binaryninja import BinaryView, DataVariable, Endianness, MediumLevelILInstruction, SectionSemantics, Type
+from binaryninja import BinaryView, DataVariable, Endianness, MediumLevelILInstruction, SectionSemantics
 from binaryninja.enums import NamedTypeReferenceClass
 from binaryninja.types import (
     ArrayType,
@@ -23,7 +23,6 @@ from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import ArrayType as PseudoArrayType
 from decompiler.structures.pseudo import (
     Constant,
-    ConstantComposition,
     CustomType,
     Expression,
     GlobalVariable,
@@ -31,7 +30,6 @@ from decompiler.structures.pseudo import (
     Integer,
     OperationType,
     Pointer,
-    StructConstant,
     Symbol,
     UnaryOperation,
 )
@@ -158,6 +156,10 @@ class GlobalHandler(Handler):
         if not self._view:
             self._view = view
 
+        # BNinja error cases: nullptr/small numbers (0, -12...)
+        if not addr_in_section(view, variable.address):
+            return Constant(variable.address, vartype=Integer(view.address_size * BYTE_SIZE, False))
+
         # If addr was already lifted: Return lifted GlobalVariable with updated SSA
         variable_identifier = (variable.address, self._lifter.lift(variable.type))
         if variable_identifier in self._lifted_globals.keys():
@@ -166,10 +168,6 @@ class GlobalHandler(Handler):
                 if parent
                 else self._lifted_globals[variable_identifier]
             )
-
-        # BNinja error cases: nullptr/small numbers (0, -12...)
-        if not addr_in_section(view, variable.address):
-            return Constant(variable.address, vartype=Integer(view.address_size * BYTE_SIZE, False))
 
         # Check if there is a cycle between GlobalVariables initial_value
         if callers and variable.address in callers:
@@ -186,15 +184,15 @@ class GlobalHandler(Handler):
         type = self._lifter.lift(variable.type)
         match variable.value:
             case bytes():  # BNinja corner case: C-Strings (8Bit) are represented as python Bytes
-                value = [Constant(x, type.type) for x in str(variable.value.rstrip(b"\x00"))[2:-1]]
+                value = [x for x in str(variable.value.rstrip(b"\x00"))[2:-1]]
             case _:
-                value = [Constant(x, type.type) for x in variable.value]
+                value = list(variable.value)
 
         return self._build_global_variable(
             name=variable.name,
             type=type,
             addr=variable.address,
-            init_value=ConstantComposition(value, type),
+            init_value=Constant(value, type),
             ssa_label=parent.ssa_memory_version if parent else 0,
         )
 
@@ -233,6 +231,8 @@ class GlobalHandler(Handler):
         1. Function pointer: If Bninja already knows it's a function pointer.
         2. Type pointer: As normal type pointer (there _should_ be a datavariable at the pointers dest.)
         3. Void pointer: Try to extract a datavariable (recover type of void* directly), string (char*) or raw bytes (void*) at the given address
+        Caution: A pointer can point at a constant instead of a variable (e.g. stdout/stderr)
+            => 2/3 catch this error with a value in section check
         """
         match variable.type.target:
             case FunctionType():  # BNinja knows it's a imported function pointer
@@ -241,19 +241,23 @@ class GlobalHandler(Handler):
                 )
             case VoidType():  # BNinja knows it's a pointer pointing at something
                 # Extract the initial_value and type from the location where the pointer is pointing to
-                init_value, type = self._get_unknown_pointer_value(variable, callers)
+                init_value, vtype = self._get_unknown_pointer_value(variable, callers)
             case _:
                 if callers:
                     callers.append(variable.address)
                 else:
                     callers = [variable.address]
-                init_value, type = (
-                    self._lifter.lift(self._view.get_data_var_at(variable.value), view=self._view, callers=callers),
-                    self._lifter.lift(variable.type),
-                )
+
+                vtype = self._lifter.lift(variable.type)
+                # BNinja error case: Pointer does not point at variable in view
+                if not addr_in_section(self._view, variable.value):
+                    init_value = Constant(variable.value, vartype=Integer(self._view.address_size * BYTE_SIZE, False))
+                else:
+                    init_value = self._lifter.lift(self._view.get_data_var_at(variable.value), view=self._view, callers=callers)
+
         return self._build_global_variable(
             name=self._lifter.lift(variable.symbol).name if variable.symbol else None,
-            type=type,
+            type=vtype,
             addr=variable.address,
             init_value=init_value,
             ssa_label=parent.ssa_memory_version if parent else 0,
@@ -289,7 +293,7 @@ class GlobalHandler(Handler):
             lift = self._lifter.lift(dv, view=self._view)
             values[member_type.offset] = lift.initial_value
         return self._build_global_variable(
-            variable.name, s_type, variable.address, StructConstant(values, s_type), parent.ssa_memory_version if parent else 0
+            variable.name, s_type, variable.address, Constant(values, s_type), parent.ssa_memory_version if parent else 0
         )
 
     def _lift_enum_type(self, variable: DataVariable, parent: Optional[MediumLevelILInstruction] = None, **_):
@@ -310,11 +314,11 @@ class GlobalHandler(Handler):
         """Return string or bytes at dv.address(!) (dv.type must be void)"""
         if (data := get_different_string_types_at(variable.address, self._view)) and data[0] is not None:
             type = PseudoArrayType(self._lifter.lift(data[1]), len(data[0]))
-            data = ConstantComposition([Constant(x, type.type) for x in data[0]], type)
+            data = Constant(list(data[0]), type)
         else:
             rbytes = get_raw_bytes(variable.address, self._view)
             type = PseudoArrayType(Integer.uint8_t(), len(rbytes))
-            data = ConstantComposition([Constant(b, type.type) for b in rbytes], type)
+            data = Constant(list(rbytes), type)
         return data, type
 
     def _get_unknown_pointer_value(self, variable: DataVariable, callers: list[int] = None):
@@ -343,7 +347,7 @@ class GlobalHandler(Handler):
             0
         ] is not None:  # Implicit pointer removal if called from a pointer value, does NOT need to be a UnaryOperation
             vtype = PseudoArrayType(self._lifter.lift(data[1]), len(data[0]))
-            vdata = ConstantComposition([Constant(x, vtype.type) for x in data[0]], vtype)
+            vdata = Constant(list(data[0]), vtype)
             data = self._build_global_variable(None, vtype, variable.value, vdata, None)
             type = Pointer(vtype, self._view.address_size * BYTE_SIZE)
             return (

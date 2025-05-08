@@ -29,12 +29,13 @@ constant         <-  string_constant | numeric_constant
 
 from __future__ import annotations
 
+import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Generic, Iterator, List, Optional, Tuple, TypeVar, Union, final
 
 from ...util.insertion_ordered_set import InsertionOrderedSet
-from .complextypes import Enum, Struct
+from .complextypes import Enum
 from .typing import CustomType, Type, UnknownType
 
 T = TypeVar("T")
@@ -164,9 +165,11 @@ class UnknownExpression(Expression[UnknownType]):
 class Constant(Expression[DecompiledType]):
     """Represents a constant expression type."""
 
+    ValueType = int | float | str | bytes | Expression | list["ValueType"] | dict[int, "ValueType"]
+
     def __init__(
         self,
-        value: Union[int, float, str, bytes],
+        value: ValueType,
         vartype: DecompiledType = UnknownType(),
         pointee: Optional[Constant] = None,
         tags: Optional[Tuple[Tag, ...]] = None,
@@ -186,7 +189,12 @@ class Constant(Expression[DecompiledType]):
         )
 
     def __hash__(self):
-        return hash((tuple(self.value) if isinstance(self.value, list) else self.value, self._type, self._pointee))
+        match self.value:
+            case dict() | list():
+                value_hash_obj = json.dumps(self.value, sort_keys=True)
+            case _:
+                value_hash_obj = self.value
+        return hash((value_hash_obj, self._type, self._pointee))
 
     def __repr__(self) -> str:
         value = str(self) if isinstance(self.value, str) else self.value
@@ -561,64 +569,3 @@ class RegisterPair(Variable):
     def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
         """Invoke the appropriate visitor for this Expression."""
         return visitor.visit_register_pair(self)
-
-
-class ConstantComposition(Constant):
-    """This class stores multiple constants of the same type in a list.
-    It is used to represent arrays and string constants"""
-
-    def __init__(self, value: list[Constant], vartype: DecompiledType = UnknownType(), tags: Optional[Tuple[Tag, ...]] = None):
-        super().__init__(
-            value,
-            vartype=vartype,
-            tags=tags,
-        )
-
-    def __eq__(self, __value):
-        return isinstance(__value, ConstantComposition) and super().__eq__(__value)
-
-    def __hash__(self):
-        return super().__hash__()
-
-    def __str__(self) -> str:
-        """Return a string representation of the ConstantComposition"""
-        return "{" + ",".join([str(x) for x in self.value]) + "}"
-
-    def copy(self) -> ConstantComposition:
-        """Generate a copy of the UnknownExpression with the same message."""
-        return ConstantComposition(self.value, self._type)
-
-    def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
-        """Invoke the appropriate visitor for this Expression."""
-        return visitor.visit_constant_composition(self)
-
-
-class StructConstant(Constant):
-    """This class represents constant structs.
-    The value is a dictionary mapping offsets to the corresponding fields' value.
-    The vartype is a 'Struct' (a special ComplexType), which provides a mapping from offsets to field names."""
-
-    def __init__(self, value: dict[int, Expression], vartype: Struct, tags: Optional[Tuple[Tag, ...]] = None):
-        super().__init__(
-            value,
-            vartype=vartype,
-            tags=tags,
-        )
-
-    def __eq__(self, __value):
-        return isinstance(__value, StructConstant) and super().__eq__(__value)
-
-    def __hash__(self):
-        return hash(tuple(sorted(self.value.items())))
-
-    def __str__(self) -> str:
-        """Return a string representation of the struct"""
-
-        return str(self.value)
-
-    def __iter__(self) -> Iterator[Expression]:
-        yield from self.value.values()
-
-    def copy(self) -> StructConstant:
-        """Generate a copy of the UnknownExpression with the same message."""
-        return StructConstant(self.value, self._type)
