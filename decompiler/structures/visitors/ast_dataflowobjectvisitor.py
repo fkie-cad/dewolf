@@ -14,10 +14,11 @@ from decompiler.structures.ast.ast_nodes import (
     VirtualRootNode,
 )
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
+from decompiler.structures.pseudo import instructions
 from decompiler.structures.pseudo.expressions import Constant, DataflowObject, RegisterPair, UnknownExpression, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Break, Comment, Continue, GenericBranch, MemPhi, Phi, Return
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, TernaryExpression, UnaryOperation
-from decompiler.structures.visitors.interfaces import ASTVisitorInterface, DataflowObjectVisitorInterface
+from decompiler.structures.visitors.interfaces import ASTVisitorInterface, DataflowObjectVisitorInterface, T
 
 
 class AstDataflowObjectVisitor(ASTVisitorInterface, DataflowObjectVisitorInterface, ABC):
@@ -136,3 +137,11 @@ class BaseAstDataflowObjectVisitor(AstDataflowObjectVisitor):
 
     def visit_mem_phi(self, instruction: MemPhi):
         pass
+
+    def visit_goto(self, instr: instructions.Goto):
+        pass
+
+    def visit_label(self, instr: instructions.Label):
+        pass
+
+    

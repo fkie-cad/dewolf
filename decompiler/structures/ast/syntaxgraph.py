@@ -242,6 +242,34 @@ class AbstractSyntaxInterface(ABC):
             self._substitute_node(false_branch, self.factory.create_true_node())
         condition_node.condition = ~condition_node.condition
 
+    def add_instructions_before(self, node: AbstractSyntaxTreeNode, *instruction: Instruction) -> AbstractSyntaxTreeNode:
+        """
+        Add an instruction before the given AST node.
+            - If it is a CodeNode, we insert it as the first instruction and return this node
+            - Otherwise, we insert a sequence node that has node and the new code node has child and return it.
+
+        If we add the instruction to a code-node then we return the code node. Otherwise, we return the parent of the newly added code node.
+        """
+        if isinstance(node, CodeNode) and node.reaching_condition.is_true:
+            node.instructions += list(instruction)
+            return node
+
+        new_code_node = self._add_code_node(list(instruction))
+        for code_node in node.get_descendant_code_nodes():
+            self._code_node_reachability_graph.add_reachability(code_node, new_code_node)
+            self._code_node_reachability_graph.add_reachability_from(
+                (new_code_node, reaching) for reaching in node.get_reachable_code_nodes()
+            )
+
+        new_seq_node = self._add_sequence_node_before(node)
+        self._add_edge(new_seq_node, new_code_node)
+        new_seq_node._sorted_children = (node, new_code_node)
+        if isinstance(parent := new_seq_node.parent, SeqNode):
+            parent.clean()
+            return parent
+
+        return new_seq_node
+
     def add_instructions_after(self, node: AbstractSyntaxTreeNode, *instruction: Instruction) -> AbstractSyntaxTreeNode:
         """
         Add an instruction after the given AST node.

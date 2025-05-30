@@ -49,7 +49,7 @@ class CodeGenerator:
                     map(lambda param: CExpressionGenerator.format_variables_declaration(param.type, [param.name]), task.function_parameters)
                 ),
                 local_declarations=LocalDeclarationGenerator.from_task(task),
-                function_body=CodeVisitor(task).visit(task.syntax_tree.root),
+                function_body=CodeVisitor.from_task(task).visit(task.syntax_tree.root),
             )
 
     @staticmethod

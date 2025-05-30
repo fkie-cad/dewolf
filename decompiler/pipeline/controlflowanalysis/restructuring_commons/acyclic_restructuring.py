@@ -14,10 +14,14 @@ from decompiler.pipeline.controlflowanalysis.restructuring_commons.region_finder
     Strategy,
 )
 from decompiler.pipeline.controlflowanalysis.restructuring_options import RestructuringOptions
-from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, SeqNode
+from decompiler.structures.ast.ast_nodes import AbstractSyntaxTreeNode, CodeNode, ConditionNode, SeqNode
 from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
-from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock, TransitionCFG
+from decompiler.structures.graphs.interface import GraphEdgeInterface, GraphInterface
+from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock, TransitionCFG, TransitionEdge
 from decompiler.structures.logic.logic_condition import LogicCondition
+from decompiler.structures.pseudo import Comment
+from decompiler.structures.pseudo.instructions import Goto, Label
+from decompiler.util.decoration import DecoratedTransitionCFG
 
 
 class AcyclicRegionRestructurer:
@@ -39,11 +43,62 @@ class AcyclicRegionRestructurer:
 
     def restructure(self):
         """Restructure the acyclic transition graph."""
+        counter = 0
+        DecoratedTransitionCFG.from_transition_cfg(self.t_cfg).export_plot(f"tcfg-{counter}.png")
+        
         acyclic_region_finder: AcyclicRegionFinder = AcyclicRegionFinderFactory.create(Strategy.improved_dream)(self.t_cfg)
         while len(self.t_cfg) > 1:
             for node in self.t_cfg.iter_postorder():
                 if restructurable_region := acyclic_region_finder.find(node):
+                    changes = False
+                    for block in restructurable_region:
+                        edges = self.t_cfg.get_out_edges(block)
+                        if len(edges) == 0:
+                            continue
+                        
+                        e0, *e_rest = sorted(edges, key=lambda e: self.t_cfg.out_degree(e.sink) > 1)
+                        edge: TransitionEdge
+                        for edge in e_rest:
+                            if self.t_cfg.out_degree(edge.sink) <= 1:
+                                continue
+                            
+                            self.t_cfg.remove_edge(edge)
+                            source: TransitionBlock = edge.source
+                            target: TransitionBlock = edge.sink
+                            
+                            label = f"l{target.address}"
+                            
+                            seq_node = self.asforest._add_sequence_node_before(source.ast)
+                            seq_node.reaching_condition = source.ast.reaching_condition
+                            condition_node = self.asforest._add_condition_node_with(
+                                edge.tag,
+                                self.asforest.add_code_node([Goto(label)]),
+                                None
+                            )
+                            self.asforest._add_edge(seq_node, condition_node)
+                            seq_node._sorted_children = (source.ast, condition_node)
+                            source.ast = seq_node
+                            
+                            if isinstance(target.ast, CodeNode):
+                                target.ast.instructions.insert(0, Label(label))
+                            else:
+                                seq_node = self.asforest._add_sequence_node_before(target.ast)
+                                # seq_node.reaching_condition = target.ast.reaching_condition
+                                code_node = self.asforest.add_code_node([Label(label)])
+                                self.asforest._add_edge(seq_node, code_node)
+                                seq_node._sorted_children = (code_node, target.ast)
+                                target.ast = seq_node
+                                
+                            changes |= True
+                    
+                    if changes:
+                        counter += 1
+                        DecoratedTransitionCFG.from_transition_cfg(self.t_cfg).export_plot(f"tcfg-{counter}.png")
+                        break
+
                     self._construct_ast_for_region(restructurable_region, node)
+                    counter += 1
+                    DecoratedTransitionCFG.from_transition_cfg(self.t_cfg).export_plot(f"tcfg-{counter}.png")
                     break
             else:
                 raise RuntimeError(f"We are not able to restructure the remaining graph which has still {len(self.t_cfg)} nodes.")

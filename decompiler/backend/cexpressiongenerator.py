@@ -17,7 +17,7 @@ from decompiler.structures.pseudo import instructions as instructions
 from decompiler.structures.pseudo import operations as operations
 from decompiler.structures.pseudo.complextypes import Struct
 from decompiler.structures.pseudo.operations import MemberAccess
-from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInterface
+from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInterface, T
 from decompiler.util.integer_util import normalize_int
 
 MAX_GLOBAL_INIT_LENGTH = 128
@@ -392,6 +392,12 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
     def visit_mem_phi(self, instr: instructions.MemPhi) -> str:
         """Return a string representation of a mem phi instruction. Only included for completeness."""
         return f"{instr}"
+
+    def visit_goto(self, instr: instructions.Goto) -> T:
+        return f"goto {instr.label}"
+
+    def visit_label(self, instr: instructions.Label) -> T:
+        return f"{instr.label}:"
 
     def _get_integer_literal_value(self, literal: expressions.Constant) -> int:
         """

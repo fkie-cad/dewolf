@@ -23,6 +23,7 @@ from decompiler.structures.pseudo import (
     UnaryOperation,
     UnknownExpression,
     Variable,
+    instructions,
 )
 from decompiler.structures.pseudo.operations import ArrayInfo
 from decompiler.structures.visitors.interfaces import DataflowObjectVisitorInterface
@@ -216,3 +217,11 @@ class SubstituteVisitor(DataflowObjectVisitorInterface[Optional[DataflowObject]]
         """We do not want substitute capabilities for MemPhi, since we remove it while preprocessing."""
         # return self._visit_phi_base(instr, Union[Variable])
         pass
+
+    def visit_goto(self, instr: instructions.Goto) -> Optional[DataflowObject]:
+        return self._mapper(instr)
+
+    def visit_label(self, instr: instructions.Label) -> Optional[DataflowObject]:
+        return self._mapper(instr)
+    
+    

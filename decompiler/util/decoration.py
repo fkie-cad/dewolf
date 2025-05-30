@@ -11,6 +11,7 @@ from typing import Dict, TextIO
 
 import z3
 from binaryninja import BranchType, EdgePenStyle, EdgeStyle, FlowGraph, FlowGraphNode, HighlightStandardColor, ThemeColor, show_graph_report
+from decompiler.backend.codevisitor import CodeVisitor
 from decompiler.structures.ast.ast_nodes import (
     AbstractSyntaxTreeNode,
     CaseNode,
@@ -28,8 +29,10 @@ from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.ast.syntaxgraph import AbstractSyntaxInterface
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.graphs.cfg import BasicBlock, BasicBlockEdge, BasicBlockEdgeCondition, ControlFlowGraph
+from decompiler.structures.graphs.restructuring_graph.transition_cfg import TransitionBlock, TransitionCFG, TransitionEdge
 from decompiler.structures.pseudo.operations import Condition
 from decompiler.util.closeable_named_temporary_file import CloseableNamedTemporaryFile
+from decompiler.util.options import Options
 from decompiler.util.to_dot_converter import ToDotConverter
 from networkx import DiGraph
 from pygments import highlight
@@ -292,6 +295,83 @@ class DecoratedAST(DecoratedGraph):
             nodes[source].add_outgoing_edge(data.get("branch_type", BranchType.UnconditionalBranch), nodes[sink], data.get("edge_style"))
 
         return graph
+
+    @staticmethod
+    def _format_node_content(label: str, max_width: int = 60):
+        """Keep content of decorated nodes <= max_width for readability purposes."""
+        splitted_lines = "\n"
+        for label in label.splitlines():
+            splitted_lines += "\n" + textwrap.fill(label, max_width)
+        return splitted_lines
+
+
+class DecoratedTransitionCFG(DecoratedGraph):
+    """Class representing an decorated AST for plotting purposes."""
+
+    GENERAL_NODE_DECORATION = {"style": "filled", "fillcolor": "#fff2ae"}
+
+    # NODE_DECORATION = {
+    #     SeqNode: {"fillcolor": "#e6f5c9", "highlight": HighlightStandardColor.GreenHighlightColor},
+    #     ConditionNode: {"fillcolor": "#e6f5c9", "highlight": HighlightStandardColor.RedHighlightColor},
+    #     SwitchNode: {"fillcolor": "#fdcdac", "highlight": HighlightStandardColor.YellowHighlightColor},
+    #     CaseNode: {"fillcolor": "#e6f5c9", "highlight": HighlightStandardColor.OrangeHighlightColor},
+    #     WhileLoopNode: {"fillcolor": "#b3e2cd", "highlight": HighlightStandardColor.BlueHighlightColor},
+    #     DoWhileLoopNode: {"fillcolor": "#b3e2cd", "highlight": HighlightStandardColor.BlueHighlightColor},
+    #     ForLoopNode: {"fillcolor": "#b3e2cd", "highlight": HighlightStandardColor.BlueHighlightColor},
+    # }
+
+    # EDGE_DECORATION = {
+    #     "true_branch": {"branch_type": BranchType.TrueBranch, "label": "T", "color": "#228B22"},
+    #     "false_branch": {"branch_type": BranchType.FalseBranch, "label": "F", "color": "#c2261f"},
+    #     SwitchNode: {
+    #         "branch_type": BranchType.UserDefinedBranch,
+    #         "edge_style": EdgeStyle(EdgePenStyle.DashLine, 1, ThemeColor.YellowStandardHighlightColor),
+    #     },
+    #     CaseNode: {
+    #         "branch_type": BranchType.UserDefinedBranch,
+    #         "edge_style": EdgeStyle(EdgePenStyle.SolidLine, 1, ThemeColor.YellowStandardHighlightColor),
+    #     },
+    # }
+
+    def __init__(self, condition_map, code_visitor: CodeVisitor, graph=None):
+        super().__init__(graph)
+        self._node_to_id = {}
+        self._condition_map = condition_map
+        self._code_visitor = code_visitor
+
+    @classmethod
+    def from_transition_cfg(cls, cfg: TransitionCFG) -> DecoratedTransitionCFG:
+        """Generate a decorated graph based on the given TransitionCFG."""
+        graph = cls(
+            cfg.condition_handler.get_condition_map(),
+            CodeVisitor(cfg.condition_handler.get_condition_map(), Options.load_default_options()),
+        )
+
+        node_id = 0
+        for node in cfg.nodes:
+            graph.decorate_node(node, node_id)
+            node_id += 1
+
+        for edge in cfg.edges:
+            graph.decorate_edge(edge)
+
+        return graph
+
+    def decorate_node(self, node: TransitionBlock, node_id: int):
+        """Decorate the given node while adding it to the DecoratedTransitionCFG."""
+        attributes = self.GENERAL_NODE_DECORATION.copy()
+        # attributes.update(self.NODE_DECORATION.get(type(node), {}))
+
+        label = f"{node_id}\n"
+        label += f"{node.ast.reaching_condition.rich_string_representation(self._condition_map)}"
+        label += self._format_node_content(f"{self._code_visitor.visit(node.ast)}")
+
+        self._graph.add_node(node_id, **attributes, label=label)
+        self._node_to_id[node] = node_id
+
+    def decorate_edge(self, edge: TransitionEdge):
+        label = "none" if edge.property is None else edge.property.name
+        self._graph.add_edge(self._node_to_id[edge.source], self._node_to_id[edge.sink], label=label)
 
     @staticmethod
     def _format_node_content(label: str, max_width: int = 60):

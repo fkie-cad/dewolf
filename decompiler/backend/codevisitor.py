@@ -19,6 +19,7 @@ from decompiler.structures.pseudo import (
 from decompiler.structures.pseudo.operations import COMMUTATIVE_OPERATIONS, NON_COMPOUNDABLE_OPERATIONS
 from decompiler.structures.visitors.interfaces import ASTVisitorInterface
 from decompiler.task import DecompilerTask
+from decompiler.util.options import Options
 
 ConditionVar = TypeVar("ConditionVar", Constant, Variable, LogicCondition)
 
@@ -26,21 +27,24 @@ ConditionVar = TypeVar("ConditionVar", Constant, Variable, LogicCondition)
 class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
     """Visits all nodes in the AST and produce C code."""
 
-    def __init__(self, task: DecompilerTask):
+    def __init__(self, condition_map, options: Options):
         """Initialize this CodeVisitor with a specific DecompilerTask."""
         super().__init__()
-        self._condition_map = task.syntax_tree.condition_map if task.syntax_tree else {}
-        self.complexity_bound: int = task.options.getint("code-generator.max_complexity")
-        self._use_increment_int: bool = task.options.getboolean("code-generator.use_increment_int")
-        self._use_increment_float: bool = task.options.getboolean("code-generator.use_increment_float")
-        self._use_compound_assignment: bool = task.options.getboolean("code-generator.use_compound_assignment")
-        self._byte_format: str = task.options.getstring("code-generator.byte_format", fallback="char")
-        self._byte_format_hint: str = task.options.getstring("code-generator.byte_format_hint", fallback="none")
-        self._int_repr_scope: int = task.options.getint("code-generator.int_representation_scope", fallback=256)
-        self._neg_hex_as_twos_complement: bool = task.options.getboolean("code-generator.negative_hex_as_twos_complement", fallback=True)
-        self._aggressive_array_detection: bool = task.options.getboolean("code-generator.aggressive_array_detection", fallback=False)
-        self._preferred_true_branch: str = task.options.getstring("code-generator.preferred_true_branch", fallback="none")
-        self.task = task
+        self._condition_map = condition_map
+        self.complexity_bound: int = options.getint("code-generator.max_complexity")
+        self._use_increment_int: bool = options.getboolean("code-generator.use_increment_int")
+        self._use_increment_float: bool = options.getboolean("code-generator.use_increment_float")
+        self._use_compound_assignment: bool = options.getboolean("code-generator.use_compound_assignment")
+        self._byte_format: str = options.getstring("code-generator.byte_format", fallback="char")
+        self._byte_format_hint: str = options.getstring("code-generator.byte_format_hint", fallback="none")
+        self._int_repr_scope: int = options.getint("code-generator.int_representation_scope", fallback=256)
+        self._neg_hex_as_twos_complement: bool = options.getboolean("code-generator.negative_hex_as_twos_complement", fallback=True)
+        self._aggressive_array_detection: bool = options.getboolean("code-generator.aggressive_array_detection", fallback=False)
+        self._preferred_true_branch: str = options.getstring("code-generator.preferred_true_branch", fallback="none")
+
+    @staticmethod
+    def from_task(task: DecompilerTask) -> "CodeVisitor":
+        return CodeVisitor(task.syntax_tree.condition_map, task.options)
 
     def visit_seq_node(self, node: ast_nodes.SeqNode) -> str:
         """Concatenate nodes in a SeqNode."""

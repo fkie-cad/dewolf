@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Dict, Optional, Type, TypeVar
 
 from decompiler.structures.logic.custom_logic import CustomLogicCondition, PseudoCustomLogicCondition
 from decompiler.structures.logic.interface_decorators import ensure_cnf
+from decompiler.structures.logic.logic_interface import ConditionInterface
 from decompiler.structures.logic.z3_logic import PseudoZ3LogicCondition, Z3LogicCondition
 
 if TYPE_CHECKING:
@@ -65,7 +66,7 @@ def generate_logic_condition_class(base) -> Type[LOGICCLASS]:
     return BLogicCondition
 
 
-LogicCondition = generate_logic_condition_class(Z3LogicCondition)
+LogicCondition: ConditionInterface = generate_logic_condition_class(Z3LogicCondition)
 # LogicCondition = generate_logic_condition_class(CustomLogicCondition)
 
 

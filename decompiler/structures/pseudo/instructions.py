@@ -604,3 +604,65 @@ class MemPhi(Phi):
             phi_arg = var.copy(ssa_label=variable.ssa_label, is_aliased=True)
             phi_arguments.append(phi_arg)
         return Phi(phi_target, phi_arguments)
+
+
+class Goto(Instruction):
+    def __init__(self, label: str, tags: Optional[Tuple[Tag, ...]] = None):
+        """Create a new return instruction."""
+        super().__init__(tags)
+        self.label = label
+
+    def __eq__(self, __value):
+        return isinstance(__value, Goto) and self.label == __value.label
+
+    def __hash__(self):
+        return hash((Goto, self.label))
+
+    def __str__(self) -> str:
+        return f"goto {self.label}"
+
+    @property
+    def complexity(self) -> int:
+        return 0
+
+    def substitute(self, replacee: Expression, replacement: Expression) -> None:
+        return
+
+    def __iter__(self) -> Iterator[Expression]:
+        return 
+        yield
+
+    def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
+        """Invoke the appropriate visitor for this Instruction."""
+        return visitor.visit_goto(self)
+    
+
+class Label(Instruction):
+    def __init__(self, label: str, tags: Optional[Tuple[Tag, ...]] = None):
+        """Create a new return instruction."""
+        super().__init__(tags)
+        self.label = label
+
+    def __eq__(self, __value):
+        return isinstance(__value, Label) and self.label == __value.label
+
+    def __hash__(self):
+        return hash((Label, self.label))
+
+    def __str__(self) -> str:
+        return f"{self.label}:;"
+
+    @property
+    def complexity(self) -> int:
+        return 0
+
+    def substitute(self, replacee: Expression, replacement: Expression) -> None:
+        return
+
+    def __iter__(self) -> Iterator[Expression]:
+        return
+        yield
+
+    def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
+        """Invoke the appropriate visitor for this Instruction."""
+        return visitor.visit_label(self)

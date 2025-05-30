@@ -141,3 +141,11 @@ class DataflowObjectVisitorInterface(ABC, Generic[T]):
     @abstractmethod
     def visit_mem_phi(self, instr: instructions.MemPhi) -> T:
         """Visit an MemPhi."""
+
+    @abstractmethod
+    def visit_goto(self, instr: instructions.Goto) -> T:
+        """Visit a Goto."""
+
+    @abstractmethod
+    def visit_label(self, instr: instructions.Label) -> T:
+        """Visit a Label."""
