@@ -1,14 +1,11 @@
 import itertools
-import errno
 
-from networkx import intersection
 
 from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
-from decompiler.structures.pseudo import instructions
 from decompiler.structures.pseudo.expressions import Variable
-from decompiler.structures.pseudo.instructions import Phi, Assignment, Comment, Relation, Return,Branch
+from decompiler.structures.pseudo.instructions import Phi, Assignment 
 from copy import deepcopy
 
 
@@ -18,35 +15,53 @@ class SreedharOutOfSsa:
         self._interference_graph = interference_graph
         self._phi_congruence_class = {}
         self.liveness = liveness
-        self._live_in = []
-        self._live_out = []
+        self._live_in = {} 
+        self._live_out = {} 
         for bb in self.cfg:
-            self._live_in.append(liveness.live_in_of(bb))
-            self._live_out.append(liveness.live_out_of(bb))
+            self._live_in[bb] = liveness.live_in_of(bb)
+            self._live_out[bb] = liveness.live_out_of(bb)
 
-    def _init_phi_congruence_classes(self):
-        for instr in self.cfg.instructions:
-            if isinstance(instr, Phi):
-                self._phi_congruence_class[instr.definitions[0]] = set([instr.definitions[0]])
-                for x in instr.requirements:
-                 self._phi_congruence_class[x] = set([x])
-
-    def _phi_congruence_classes_interfere(self, i, j):
-        cc_i = self._get_phi_congruence_class[i]
-        cc_j = self._get_phi_congruence_class[j]
-        if isinstance(i,set) and isinstance(j,set):
-            cc_i = i
-            cc_j = j
-        for y_i, y_j in itertools.product(cc_i, cc_j, repeat=1):
-            if self._interference_graph.are_interfering(y_i, y_j): return True
-        return False
-        
 
     def _get_orig_block(self, phi_instr: Phi, phi_arg):
         #TODO check if this works
         inv_block = {v: k for k, v in phi_instr.origin_block.items() if v != None}
         return inv_block[phi_arg] 
 
+    def _get_phi_congruence_class(self, a):
+        x = self._phi_congruence_class[a]
+        if isinstance(x, set):
+            return x
+        return self._phi_congruence_class[x]
+
+    def _merge_phi_congruence_classes(self, *phi_resources):
+        merged_set = set()
+        for a in phi_resources:
+            merged_set.update(self._get_phi_congruence_class(a))
+
+        rep = phi_resources[0]
+        self._phi_congruence_class[rep] = merged_set
+        for a in phi_resources[1:]:
+            self._phi_congruence_class[a] = rep
+
+
+    def _init_phi_congruence_classes(self):
+        for instr in self.cfg.instructions:
+            if isinstance(instr, Phi):
+                self._phi_congruence_class[instr.definitions[0]] = set([instr.definitions[0]])
+                for x in instr.requirements:
+                    self._phi_congruence_class[x] = set([x])
+
+    def _phi_congruence_classes_interfere(self, i, j):
+        cc_i = self._get_phi_congruence_class(i)
+        cc_j = self._get_phi_congruence_class(j)
+        for y_i, y_j in itertools.product(cc_i, cc_j, repeat=1):
+            if self._interference_graph.are_interfering(y_i, y_j): 
+                return True
+        return False
+
+
+    def _insert_copy(self, x, instr):
+        pass
 
     def _eliminate_phi_resource_interference(self):
         self._init_phi_congruence_classes()
@@ -54,6 +69,7 @@ class SreedharOutOfSsa:
             if isinstance(instr, Phi):
                 candidate_resource_set = set()
                 unresolved_neighbor_map = {} 
+
                 phi_resources = [instr.definitions[0]]
                 phi_resources.extend(instr.requirements)
                 for x in phi_resources:
@@ -62,7 +78,7 @@ class SreedharOutOfSsa:
                 for x_i, x_j, in itertools.combinations(phi_resources, 2):
                     if self._phi_congruence_classes_interfere(x_i, x_j):
                         l_i = self._get_orig_block(instr, x_i)
-                        l_j = self._get_orig_block(instr, x_i)
+                        l_j = self._get_orig_block(instr, x_j)
 
                         # handle the 4 cases
                         a = self._phi_congruence_class[x_i].intersection(self._live_out[l_j])
@@ -79,31 +95,36 @@ class SreedharOutOfSsa:
                             unresolved_neighbor_map[x_i].add(x_j)
                             unresolved_neighbor_map[x_j].add(x_i)
 
+                # process unresolved neighbors
+                resolved_resources = set()
+                sorted_resources = sorted(
+                    unresolved_neighbor_map.keys(),
+                    key = lambda x: len(unresolved_neighbor_map[x]),
+                    reverse=True
+                )
+                for x in sorted_resources:
+                    # if has_unresolved_neighbor  
+                    if not unresolved_neighbor_map[x].issubset(resolved_resources):
+                        candidate_resource_set.add(x)
+                        resolved_resources.add(x)
 
-    def _init_phi_congruence_in_CSSA(self): #Set phi congruence classes to the variables involved in a phi instruction; NOTE: use only when cfg is in CSSA-Form
-        self._phi_congruence_class = {}
-        for instr in self.cfg.instructions:
-            if isinstance(instr,Phi):
-                self._phi_congruence_class[instr.definitions[0]] = set(s for s in instr.requirements)
-                self._phi_congruence_class[instr.definitions[0]].add(instr.definitions[0])
-                for s in instr.requirements:
-                    self._phi_congruence_class[s] = instr.definitions[0]
-    
-    def _get_phi_congruence_class(self,a): #returns the Set
-        if isinstance(x := (self._phi_congruence_class[a]),set):
-            return x
-        else: return self._phi_congruence_class[x]
+                # discard all candidates which are now resolved
+                for x in list(candidate_resource_set):
+                    if unresolved_neighbor_map[x].issubset(resolved_resources):
+                        candidate_resource_set.discard(x)
 
-    def _merge_phi_congruence_classes(self,a,b):
-        aset = self._get_phi_congruence_class(self,a)
-        bset = self._get_phi_congruence_class(self,b)
-        aset = aset.union(bset)
-        for x in aset:
-            self._phi_congruence_class[x] = a
-        self._phi_congruence_class[a] = aset
+                for x in candidate_resource_set:
+                    self._insert_copy(x, instr) 
+                
+                # merge phi congruence classes
+                self._merge_phi_congruence_classes(*phi_resources)
+
+        # Nullify phi congruence classes that contain only singleton resources
+        for x, cls in list(self._phi_congruence_class.items()):
+            if len(cls) == 1:
+                del self._phi_congruence_class[x]
                         
     def _remove_unnecessary_copies(self):
-        self._init_phi_congruence_in_CSSA(self)
         self._interference_graph = InterferenceGraph(self.cfg)
         self.liveness = LivenessAnalysis(self.cfg)
         for inst in self.cfg.instructions:
@@ -147,11 +168,9 @@ class SreedharOutOfSsa:
         pass
                         
 
-
-
     def perform(self):
-        self._eliminate_phi_resource_interference()     #Step 1: Translation to CSSA
-        self._remove_unnecessary_copies(self)           #Step 2: Eliminate redundant copies
-        self._leave_CSSA(self)                          #Step 3: Eliminate phi instructions and use phi-congruence-property
+        self._eliminate_phi_resource_interference() #Step 1: Translation to CSSA
+        self._remove_unnecessary_copies()           #Step 2: Eliminate redundant copies
+        self._leave_CSSA()                          #Step 3: Eliminate phi instructions and use phi-congruence-property
 
 
