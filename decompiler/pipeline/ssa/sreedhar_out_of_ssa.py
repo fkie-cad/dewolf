@@ -14,6 +14,7 @@ class SreedharOutOfSsa:
         self.cfg = cfg
         self._interference_graph = interference_graph
         self._phi_congruence_class = {}
+        self.liveness = liveness
         self._live_in = []
         self._live_out = []
         for bb in self.cfg:
@@ -32,6 +33,7 @@ class SreedharOutOfSsa:
         cc_j = self._phi_congruence_class[j]
         for y_i, y_j in itertools.product(cc_i, cc_j, repeat=1):
             if self._interference_graph.are_interfering(y_i, y_j): return True
+        return False
 
     def _get_orig_block(self, phi_instr: Phi, phi_arg):
         #TODO check if this works
@@ -69,11 +71,45 @@ class SreedharOutOfSsa:
                         else:
                             unresolved_neighbor_map[x_i].add(x_j)
                             unresolved_neighbor_map[x_j].add(x_i)
-                        
 
+
+    def _init_phi_congruence_in_CSSA(self): #Set phi congruence classes to the variables involved in a phi instruction; NOTE: use only when cfg is in CSSA-Form
+        self._phi_congruence_class = {}
+        for instr in self.cfg.instructions:
+            if isinstance(instr,Phi):
+                self._phi_congruence_class[instr.definitions[0]] = set(s for s in instr.requirements)
+                self._phi_congruence_class[instr.definitions[0]].add(instr.definitions[0])
+                for s in instr.requirements:
+                    self._phi_congruence_class[s] = instr.definitions[0]
+    
+    def _get_phi_congruence_class(self,a): #returns the Set
+        if isinstance(x := (self._phi_congruence_class[a]),set):
+            return x
+        else: return self._get_phi_congruence_class(self,x)
+
+    def _merge_phi_congruence_classes(self,a,b):
+        aset = self._get_phi_congruence_class(self,a)
+        bset = self._get_phi_congruence_class(self,b)
+        aset = aset.union(bset)
+        for x in aset:
+            self._phi_congruence_class[x] = a
+        self._phi_congruence_class[a] = aset
+                        
+    def _remove_unnecessary_copies(self):
+        self._init_phi_congruence_in_CSSA(self)
+        self._interference_graph = InterferenceGraph(self.cfg)
+        self.liveness = LivenessAnalysis(self.cfg)
+        
+
+    def _leave_CSSA(self):
+        pass
                         
 
 
 
     def perform(self):
-        self._eliminate_phi_resource_interference()
+        self._eliminate_phi_resource_interference()     #Step 1: Translation to CSSA
+        self._remove_unnecessary_copies(self)           #Step 2: Eliminate redundant copies
+        self._leave_CSSA(self)                          #Step 3: Eliminate phi instructions and use phi-congruence-property
+
+
