@@ -1,21 +1,28 @@
 import itertools
-import errno
+from copy import deepcopy
+
 
 from networkx import intersection
+from typing import DefaultDict, List
 
 from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
 from decompiler.structures.graphs.cfg import ControlFlowGraph
+from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo import instructions
 from decompiler.structures.pseudo.expressions import Variable
 from decompiler.structures.pseudo.instructions import Phi, Assignment, Comment, Relation, Return,Branch
-from copy import deepcopy
+from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
+from decompiler.pipeline.ssa.outofssatranslation import SimpleVariableRenamer
+from decompiler.task import DecompilerTask
 
 
 class SreedharOutOfSsa:
-    def __init__(self, cfg: ControlFlowGraph, interference_graph: InterferenceGraph, liveness: LivenessAnalysis):
-        self.cfg = cfg
+    def __init__(self, task :DecompilerTask, interference_graph: InterferenceGraph, liveness: LivenessAnalysis, phi_fuctions: DefaultDict[BasicBlock, List[Phi]]):
+        self.task = task
+        self.cfg = task.cfg
         self._interference_graph = interference_graph
+        self.phi_functions_of = phi_fuctions
         self._phi_congruence_class = {}
         self.liveness = liveness
         self._live_in = []
@@ -141,13 +148,25 @@ class SreedharOutOfSsa:
                     if (not (self._phi_congruence_classes_interfere(dest,defic))) and (not (self._phi_congruence_classes_interfere(defi,destc))):
                         self.cfg.remove_instruction(inst)
                         self._merge_phi_congruence_classes(destv,defiv)
+        self._interference_graph = InterferenceGraph(self.cfg)
 
 
     def _leave_CSSA(self):
-        pass
+        PhiFunctionLifter(self.cfg,self._interference_graph,self.phi_functions_of)
+        renamer = SimpleVariableRenamer(self.task,self._interference_graph)
+        max = 0
+        for x in renamer.renaming_map:
+            if x := int(x.name.split("_")[1]) > max: max = x
+        max += 1    
+
+        for var in self._phi_congruence_class:
+            if isinstance(self._phi_congruence_class[var],set):
+                for entry in self._phi_congruence_class[var]:
+                    renamer.renaming_map[entry] = Variable(f"{renamer.new_variable_name}{max}",entry.type)
+                max += 1
+
+        renamer.rename()
                         
-
-
 
     def perform(self):
         self._eliminate_phi_resource_interference()     #Step 1: Translation to CSSA
