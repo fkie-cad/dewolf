@@ -1,4 +1,5 @@
 import itertools
+import errno
 
 from networkx import intersection
 
@@ -6,7 +7,9 @@ from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo import instructions
-from decompiler.structures.pseudo.instructions import Phi
+from decompiler.structures.pseudo.expressions import Variable
+from decompiler.structures.pseudo.instructions import Phi, Assignment, Comment, Relation, Return,Branch
+from copy import deepcopy
 
 
 class SreedharOutOfSsa:
@@ -29,11 +32,15 @@ class SreedharOutOfSsa:
                  self._phi_congruence_class[x] = set([x])
 
     def _phi_congruence_classes_interfere(self, i, j):
-        cc_i = self._phi_congruence_class[i]
-        cc_j = self._phi_congruence_class[j]
+        cc_i = self._get_phi_congruence_class[i]
+        cc_j = self._get_phi_congruence_class[j]
+        if isinstance(i,set) and isinstance(j,set):
+            cc_i = i
+            cc_j = j
         for y_i, y_j in itertools.product(cc_i, cc_j, repeat=1):
             if self._interference_graph.are_interfering(y_i, y_j): return True
         return False
+        
 
     def _get_orig_block(self, phi_instr: Phi, phi_arg):
         #TODO check if this works
@@ -85,7 +92,7 @@ class SreedharOutOfSsa:
     def _get_phi_congruence_class(self,a): #returns the Set
         if isinstance(x := (self._phi_congruence_class[a]),set):
             return x
-        else: return self._get_phi_congruence_class(self,x)
+        else: return self._phi_congruence_class[x]
 
     def _merge_phi_congruence_classes(self,a,b):
         aset = self._get_phi_congruence_class(self,a)
@@ -99,7 +106,42 @@ class SreedharOutOfSsa:
         self._init_phi_congruence_in_CSSA(self)
         self._interference_graph = InterferenceGraph(self.cfg)
         self.liveness = LivenessAnalysis(self.cfg)
-        
+        for inst in self.cfg.instructions:
+            if isinstance(inst,Assignment) and (isinstance(inst.definitions,Variable)) and (isinstance(inst.destination,Variable)):
+                destv = inst.destination
+                defiv = inst.definitions
+
+                try: 
+                    dest = self._get_phi_congruence_class(destv)
+                except KeyError:
+                    dest = set()
+                try:
+                    defi = self._get_phi_congruence_class(defiv)
+                except:
+                    defi = set()
+                
+                if dest == defi:   #Case 1 --> Variables are not reffrred in any Phi-instruction or they're in the same Phi-Congruence-Class
+                    self.cfg.remove_instruction(inst)
+                    self._merge_phi_congruence_classes(destv,defiv)
+                elif (dest == set()) and (defi != set()): #Case 2a
+                    defic = deepcopy(defi).remove(defiv)
+                    if not (self._phi_congruence_classes_interfere(set(destv),defic)):
+                        self.cfg.remove_instruction(inst)
+                        self._merge_phi_congruence_classes(destv,defiv)
+                
+                elif (dest != set()) and (defi == set()): #Case 2b
+                    destc = deepcopy(dest).remove(destv)
+                    if not (self._phi_congruence_classes_interfere(set(defiv),destc)):
+                        self.cfg.remove_instruction(inst)
+                        self._merge_phi_congruence_classes(destv,defiv)
+
+                elif (dest != set()) and (defi != set()): #Case 3
+                    destc = deepcopy(dest).remove(destv)
+                    defic = deepcopy(defi).remove(defiv)
+                    if (not (self._phi_congruence_classes_interfere(dest,defic))) and (not (self._phi_congruence_classes_interfere(defi,destc))):
+                        self.cfg.remove_instruction(inst)
+                        self._merge_phi_congruence_classes(destv,defiv)
+
 
     def _leave_CSSA(self):
         pass
