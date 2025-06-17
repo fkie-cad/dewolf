@@ -21,7 +21,6 @@ from copy import deepcopy
 
 
 class SreedharOutOfSsa:
-    def __init__(self, task: DecompilerTask, interference_graph: InterferenceGraph, liveness: LivenessAnalysis, phi_fuctions: DefaultDict[BasicBlock, List[Phi]]):
     def __init__(self, task :DecompilerTask, interference_graph: InterferenceGraph, phi_fuctions: DefaultDict[BasicBlock, List[Phi]]):
         self.task = task
         self.cfg =  task.cfg
@@ -33,8 +32,8 @@ class SreedharOutOfSsa:
         self._live_out = {} 
         self._inst_to_block_map = {}
         for bb in self.cfg:
-            self._live_in[bb] = liveness.live_in_of(bb)
-            self._live_out[bb] = liveness.live_out_of(bb)
+            self._live_in[bb] = self.liveness.live_in_of(bb)
+            self._live_out[bb] = self.liveness.live_out_of(bb)
             #TODO find a good way to do this
             for instr in bb.instructions:
                 self._inst_to_block_map[instr] = bb
@@ -261,5 +260,3 @@ class SreedharOutOfSsa:
         self._eliminate_phi_resource_interference() #Step 1: Translation to CSSA
         self._remove_unnecessary_copies()           #Step 2: Eliminate redundant copies
         self._leave_CSSA()                          #Step 3: Eliminate phi instructions and use phi-congruence-property
-
-
