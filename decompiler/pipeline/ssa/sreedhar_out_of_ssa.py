@@ -44,12 +44,6 @@ class SreedharOutOfSsa:
         inv_block = {v: k for k, v in phi_instr.origin_block.items() if v != None}
         return inv_block[phi_arg] 
 
-    def _get_phi_congruence_class(self, a):
-        x = self._phi_congruence_class[a]
-        if isinstance(x, set):
-            return x
-        return self._phi_congruence_class[x]
-
     def _merge_phi_congruence_classes(self, *phi_resources):
         merged_set = set()
         for a in phi_resources:
@@ -190,14 +184,6 @@ class SreedharOutOfSsa:
         if isinstance(x := (self._phi_congruence_class[a]),set):
             return x
         else: return self._phi_congruence_class[x]
-
-    def _merge_phi_congruence_classes(self,a,b):
-        aset = self._get_phi_congruence_class(self,a)
-        bset = self._get_phi_congruence_class(self,b)
-        aset = aset.union(bset)
-        for x in aset:
-            self._phi_congruence_class[x] = a
-        self._phi_congruence_class[a] = aset
                         
     def _remove_unnecessary_copies(self):
         self._interference_graph = InterferenceGraph(self.cfg)
