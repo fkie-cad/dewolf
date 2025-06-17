@@ -22,12 +22,13 @@ from copy import deepcopy
 
 class SreedharOutOfSsa:
     def __init__(self, task: DecompilerTask, interference_graph: InterferenceGraph, liveness: LivenessAnalysis, phi_fuctions: DefaultDict[BasicBlock, List[Phi]]):
+    def __init__(self, task :DecompilerTask, interference_graph: InterferenceGraph, phi_fuctions: DefaultDict[BasicBlock, List[Phi]]):
         self.task = task
         self.cfg =  task.cfg
         self._interference_graph = interference_graph
         self.phi_functions_of = phi_fuctions
         self._phi_congruence_class = {}
-        self.liveness = liveness
+        self.liveness = LivenessAnalysis(self.cfg)
         self._live_in = {} 
         self._live_out = {} 
         self._inst_to_block_map = {}
@@ -71,6 +72,9 @@ class SreedharOutOfSsa:
     def _phi_congruence_classes_interfere(self, i, j):
         cc_i = self._get_phi_congruence_class(i)
         cc_j = self._get_phi_congruence_class(j)
+        if isinstance(i,set) and isinstance(j,set):
+            cc_i = i
+            cc_j = j
         for y_i, y_j in itertools.product(cc_i, cc_j, repeat=1):
             if self._interference_graph.are_interfering(y_i, y_j): 
                 return True
@@ -182,6 +186,19 @@ class SreedharOutOfSsa:
         for x, cls in list(self._phi_congruence_class.items()):
             if len(cls) == 1:
                 del self._phi_congruence_class[x]
+
+    def _get_phi_congruence_class(self,a): #returns the Set
+        if isinstance(x := (self._phi_congruence_class[a]),set):
+            return x
+        else: return self._phi_congruence_class[x]
+
+    def _merge_phi_congruence_classes(self,a,b):
+        aset = self._get_phi_congruence_class(self,a)
+        bset = self._get_phi_congruence_class(self,b)
+        aset = aset.union(bset)
+        for x in aset:
+            self._phi_congruence_class[x] = a
+        self._phi_congruence_class[a] = aset
                         
     def _remove_unnecessary_copies(self):
         self._interference_graph = InterferenceGraph(self.cfg)
@@ -227,17 +244,16 @@ class SreedharOutOfSsa:
     def _leave_CSSA(self):
         PhiFunctionLifter(self.cfg,self._interference_graph,self.phi_functions_of)
         renamer = SimpleVariableRenamer(self.task,self._interference_graph)
-        max = 0
+        """max = 0
         for x in renamer.renaming_map:
-            if x := int(x.name.split("_")[1]) > max: max = x
+            if (renamer.new_variable_name in x.name) and (x.name.split("_")[1].isnumeric()) (x := int(x.name.split("_")[1]) > max): max = x
         max += 1    
-
         for var in self._phi_congruence_class:
             if isinstance(self._phi_congruence_class[var],set):
                 for entry in self._phi_congruence_class[var]:
                     renamer.renaming_map[entry] = Variable(f"{renamer.new_variable_name}{max}",entry.type)
                 max += 1
-
+        """
         renamer.rename()
                         
 
