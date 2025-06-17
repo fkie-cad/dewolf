@@ -2,8 +2,11 @@ import itertools
 
 
 from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
+from decompiler.structures.graphs import cfg
+from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
+from decompiler.structures.pseudo import expressions
 from decompiler.structures.pseudo.expressions import Variable
 from decompiler.structures.pseudo.instructions import Phi, Assignment 
 from copy import deepcopy
@@ -17,9 +20,13 @@ class SreedharOutOfSsa:
         self.liveness = liveness
         self._live_in = {} 
         self._live_out = {} 
+        self._inst_to_block_map = {}
         for bb in self.cfg:
             self._live_in[bb] = liveness.live_in_of(bb)
             self._live_out[bb] = liveness.live_out_of(bb)
+            #TODO find a good way to do this
+            for instr in bb.instructions:
+                self._inst_to_block_map[instr] = bb
 
 
     def _get_orig_block(self, phi_instr: Phi, phi_arg):
@@ -59,10 +66,55 @@ class SreedharOutOfSsa:
                 return True
         return False
 
+    def _used_in_phi(self, var, j):
+        for i in self.cfg.instructions:
+            if isinstance(i, Phi):
+                if var == i.definitions[0] or var in i.requirements:
+                    return True
+        return False
 
-    def _insert_copy(self, x, instr):
-        pass
+    def _insert_copy(self, x, instr: Phi):
+        if x in instr.requirements:
+            orig_block: BasicBlock= self._get_orig_block(instr, x)
+            copy = expressions.Variable(instr.definitions[0].name + "_new", instr.definitions[0].type)
+            copy_instr = Assignment(copy, x)
+            orig_block.instructions.append(copy_instr)
+            instr.requirements.remove(x)
+            instr.requirements.append(copy)
+            self._phi_congruence_class[copy] = set([copy])
+            self._live_out[orig_block].append(copy)
+            for s in self.cfg.get_successors(orig_block):
+                if x not in self._live_in[s] and not self._used_in_phi(x, s):
+                    # consider discard
+                    if x in self._live_out[orig_block]:
+                        self._live_out[orig_block].remove(x)
+            for e in self._live_out[orig_block]:
+                self._interference_graph.add_edge(copy, e)
+            
+        else:
+            current_block = self._inst_to_block_map[instr]
+            xnew = expressions.Variable(x.name, x.type)
+            xnew_copy = Assignment(x, xnew)
+            instructions = current_block.instructions
+            index = 0
+            for i in range(len(instructions)):
+                if not isinstance(instructions[i], Phi):
+                    index = i
+                    break
+            current_block.instructions.insert(index, xnew_copy)
+            # is this the correct way
+            instr.definitions[0] = xnew
+            self._phi_congruence_class[xnew] = set([xnew])
+            # does discard work?
+            self._live_in[current_block].discard(x)
+            self._live_in[current_block].add(xnew)
 
+            for e in self._live_out[current_block]:
+                self._interference_graph.add_edge(xnew, e)
+
+            self._inst_to_block_map[xnew_copy] = current_block
+
+ 
     def _eliminate_phi_resource_interference(self):
         self._init_phi_congruence_classes()
         for instr in self.cfg.instructions:
