@@ -202,19 +202,23 @@ class SreedharOutOfSsa:
                 except:
                     defi = set()
                 
-                if dest == defi:   #Case 1 --> Variables are not reffrred in any Phi-instruction or they're in the same Phi-Congruence-Class
+                if dest == defi:   #Case 1 --> Variables are not refrred to in any Phi-instruction or they're in the same Phi-Congruence-Class
                     self.cfg.remove_instruction(inst)
+                    self._phi_congruence_class[destv] = set([destv])
+                    self._phi_congruence_class[defiv] = set([defiv])
                     self._merge_phi_congruence_classes(destv,defiv)
                 elif (dest == set()) and (defi != set()): #Case 2a
                     defic = deepcopy(defi).remove(defiv)
                     if not (self._phi_congruence_classes_interfere(set(destv),defic)):
                         self.cfg.remove_instruction(inst)
+                        self._phi_congruence_class[destv] = set([destv])
                         self._merge_phi_congruence_classes(destv,defiv)
                 
                 elif (dest != set()) and (defi == set()): #Case 2b
                     destc = deepcopy(dest).remove(destv)
                     if not (self._phi_congruence_classes_interfere(set(defiv),destc)):
                         self.cfg.remove_instruction(inst)
+                        self._phi_congruence_class[defiv] = set([defiv])
                         self._merge_phi_congruence_classes(destv,defiv)
 
                 elif (dest != set()) and (defi != set()): #Case 3
@@ -229,16 +233,13 @@ class SreedharOutOfSsa:
     def _leave_CSSA(self):
         PhiFunctionLifter(self.cfg,self._interference_graph,self.phi_functions_of)
         renamer = SimpleVariableRenamer(self.task,self._interference_graph)
-        """max = 0
-        for x in renamer.renaming_map:
-            if (renamer.new_variable_name in x.name) and (x.name.split("_")[1].isnumeric()) (x := int(x.name.split("_")[1]) > max): max = x
-        max += 1    
+        nr = 0
         for var in self._phi_congruence_class:
             if isinstance(self._phi_congruence_class[var],set):
                 for entry in self._phi_congruence_class[var]:
-                    renamer.renaming_map[entry] = Variable(f"{renamer.new_variable_name}{max}",entry.type)
-                max += 1
-        """
+                    renamer.renaming_map[entry] = Variable(f"{renamer.new_variable_name}p{nr}",entry.type)
+                nr += 1
+
         renamer.rename()
                         
 
