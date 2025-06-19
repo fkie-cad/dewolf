@@ -11,7 +11,6 @@ from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo import expressions
 from decompiler.structures.pseudo.expressions import Variable
-from decompiler.structures.pseudo.instructions import Phi, Assignment 
 from decompiler.structures.pseudo.instructions import Phi, Assignment, Comment, Relation, Return,Branch
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
 from decompiler.pipeline.ssa.outofssatranslation import SimpleVariableRenamer
@@ -177,7 +176,7 @@ class SreedharOutOfSsa:
 
         # Nullify phi congruence classes that contain only singleton resources
         for x, cls in list(self._phi_congruence_class.items()):
-            if len(cls) == 1:
+            if isinstance(cls,set) and len(cls) == 1:
                 del self._phi_congruence_class[x]
 
     def _get_phi_congruence_class(self,a): #returns the Set
@@ -231,17 +230,35 @@ class SreedharOutOfSsa:
 
 
     def _leave_CSSA(self):
-        PhiFunctionLifter(self.cfg,self._interference_graph,self.phi_functions_of)
+        for inst in self.cfg.instructions: #remove Phi-Instructions
+            if isinstance(inst,Phi):
+                self.cfg.remove_instruction(inst)
+            #TODO: why are the phi-Instructions not removed?
+
         renamer = SimpleVariableRenamer(self.task,self._interference_graph)
-        nr = 0
-        for var in self._phi_congruence_class:
-            if isinstance(self._phi_congruence_class[var],set):
-                for entry in self._phi_congruence_class[var]:
-                    renamer.renaming_map[entry] = Variable(f"{renamer.new_variable_name}p{nr}",entry.type)
-                nr += 1
+        realocation = DefaultDict(lambda: -1)
+        newName = DefaultDict(lambda: -1)
+        count = 1
+        for pck in self._phi_congruence_class:
+            if isinstance(self._phi_congruence_class[pck],set):
+                for var in self._phi_congruence_class[pck]:
+                    newName[var] = f"{renamer.new_variable_name}{count}"
+                count += 1
+
+        for var in renamer.renaming_map:
+            if newName[var] != -1:
+                renamer.renaming_map[var] = Variable(newName[var],renamer.renaming_map[var].type)
+            elif renamer.renaming_map[var].name.count(renamer.new_variable_name) != 0:
+                if realocation[renamer.renaming_map[var].name] == -1:
+                    realocation[renamer.renaming_map[var].name] = f"{renamer.new_variable_name}{count}"
+                    renamer.renaming_map[var] = Variable(f"{renamer.new_variable_name}{count}",renamer.renaming_map[var].type)
+                    count += 1
+                else:
+                    renamer.renaming_map[var] = Variable(realocation[renamer.renaming_map[var].name],renamer.renaming_map[var].type)
 
         renamer.rename()
-                        
+        #TODO: fix Error in the Rlation-Class
+
 
     def perform(self):
         self._eliminate_phi_resource_interference() #Step 1: Translation to CSSA
