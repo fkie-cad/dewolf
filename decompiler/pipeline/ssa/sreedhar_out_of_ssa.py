@@ -15,6 +15,7 @@ from decompiler.structures.pseudo.instructions import Phi, Assignment, Comment, 
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
 from decompiler.pipeline.ssa.outofssatranslation import SimpleVariableRenamer
 from decompiler.task import DecompilerTask
+from decompiler.frontend.binaryninja.handlers.symbols import GLOBAL_VARIABLE_PREFIX
 
 from copy import deepcopy
 
@@ -180,61 +181,76 @@ class SreedharOutOfSsa:
                 del self._phi_congruence_class[x]
 
     def _get_phi_congruence_class(self,a): #returns the Set
-        if isinstance(x := (self._phi_congruence_class[a]),set):
-            return x
-        else: return self._phi_congruence_class[x]
+        try:
+            if isinstance(x := (self._phi_congruence_class[a]),set):
+                return x
+            else: return self._phi_congruence_class[x]
+        except KeyError:
+            return -1
+
+    def _handle_Relations(self):
+        for bb in self.cfg:
+            for inst in bb.instructions:
+                if isinstance(inst,Relation) and isinstance(inst.value,Variable) and isinstance(inst.destination,Variable):
+                    if (self._get_phi_congruence_class(inst.value) == -1) and isinstance(inst.value,Variable):
+                        self._phi_congruence_class[inst.value] = set(inst.value)
+                    if (self._get_phi_congruence_class(inst.destination) == -1) and isinstance(inst.value,Variable):
+                        self._phi_congruence_class[inst.destination] = set(inst.destination)
+                    self._merge_phi_congruence_classes(inst.value,inst.destination)
                         
     def _remove_unnecessary_copies(self):
         self._interference_graph = InterferenceGraph(self.cfg)
         self.liveness = LivenessAnalysis(self.cfg)
-        for inst in self.cfg.instructions:
-            if isinstance(inst,Assignment) and (isinstance(inst.definitions,Variable)) and (isinstance(inst.destination,Variable)):
-                destv = inst.destination
-                defiv = inst.definitions
+        self._handle_Relations()
+        for bb in self.cfg:
+            for inst in bb:
+                if isinstance(inst,Assignment) and (isinstance(inst.definitions,Variable)) and (isinstance(inst.destination,Variable)):
+                    destv = inst.destination
+                    defiv = inst.definitions
 
-                try: 
-                    dest = self._get_phi_congruence_class(destv)
-                except KeyError:
-                    dest = set()
-                try:
-                    defi = self._get_phi_congruence_class(defiv)
-                except:
-                    defi = set()
-                
-                if dest == defi:   #Case 1 --> Variables are not refrred to in any Phi-instruction or they're in the same Phi-Congruence-Class
-                    self.cfg.remove_instruction(inst)
-                    self._phi_congruence_class[destv] = set([destv])
-                    self._phi_congruence_class[defiv] = set([defiv])
-                    self._merge_phi_congruence_classes(destv,defiv)
-                elif (dest == set()) and (defi != set()): #Case 2a
-                    defic = deepcopy(defi).remove(defiv)
-                    if not (self._phi_congruence_classes_interfere(set(destv),defic)):
-                        self.cfg.remove_instruction(inst)
+                    try: 
+                        dest = self._get_phi_congruence_class(destv)
+                    except KeyError:
+                        dest = set()
+                    try:
+                        defi = self._get_phi_congruence_class(defiv)
+                    except:
+                        defi = set()
+                    
+                    if dest == defi:   #Case 1 --> Variables are not refrred to in any Phi-instruction or they're in the same Phi-Congruence-Class
+                        bb.replace_instruction(inst,[])
                         self._phi_congruence_class[destv] = set([destv])
-                        self._merge_phi_congruence_classes(destv,defiv)
-                
-                elif (dest != set()) and (defi == set()): #Case 2b
-                    destc = deepcopy(dest).remove(destv)
-                    if not (self._phi_congruence_classes_interfere(set(defiv),destc)):
-                        self.cfg.remove_instruction(inst)
                         self._phi_congruence_class[defiv] = set([defiv])
                         self._merge_phi_congruence_classes(destv,defiv)
+                    elif (dest == set()) and (defi != set()): #Case 2a
+                        defic = deepcopy(defi).remove(defiv)
+                        if not (self._phi_congruence_classes_interfere(set(destv),defic)):
+                            bb.replace_instruction(inst,[])
+                            self._phi_congruence_class[destv] = set([destv])
+                            self._merge_phi_congruence_classes(destv,defiv)
+                    
+                    elif (dest != set()) and (defi == set()): #Case 2b
+                        destc = deepcopy(dest).remove(destv)
+                        if not (self._phi_congruence_classes_interfere(set(defiv),destc)):
+                            bb.replace_instruction(inst,[])
+                            self._phi_congruence_class[defiv] = set([defiv])
+                            self._merge_phi_congruence_classes(destv,defiv)
 
-                elif (dest != set()) and (defi != set()): #Case 3
-                    destc = deepcopy(dest).remove(destv)
-                    defic = deepcopy(defi).remove(defiv)
-                    if (not (self._phi_congruence_classes_interfere(dest,defic))) and (not (self._phi_congruence_classes_interfere(defi,destc))):
-                        self.cfg.remove_instruction(inst)
-                        self._merge_phi_congruence_classes(destv,defiv)
+                    elif (dest != set()) and (defi != set()): #Case 3
+                        destc = deepcopy(dest).remove(destv)
+                        defic = deepcopy(defi).remove(defiv)
+                        if (not (self._phi_congruence_classes_interfere(dest,defic))) and (not (self._phi_congruence_classes_interfere(defi,destc))):
+                            bb.replace_instruction(inst,[])
+                            self._merge_phi_congruence_classes(destv,defiv)
         self._interference_graph = InterferenceGraph(self.cfg)
 
 
     def _leave_CSSA(self):
-        for inst in self.cfg.instructions: #remove Phi-Instructions
-            if isinstance(inst,Phi):
-                self.cfg.remove_instruction(inst)
-            #TODO: why are the phi-Instructions not removed?
-
+        for bb in self.cfg: #remove Phi-Instructions
+            for inst in bb:
+                if isinstance(inst,Phi):
+                    bb.replace_instruction(inst,[])                    
+    
         renamer = SimpleVariableRenamer(self.task,self._interference_graph)
         realocation = DefaultDict(lambda: -1)
         newName = DefaultDict(lambda: -1)
@@ -246,7 +262,7 @@ class SreedharOutOfSsa:
                 count += 1
 
         for var in renamer.renaming_map:
-            if newName[var] != -1:
+            if (newName[var] != -1):  
                 renamer.renaming_map[var] = Variable(newName[var],renamer.renaming_map[var].type)
             elif renamer.renaming_map[var].name.count(renamer.new_variable_name) != 0:
                 if realocation[renamer.renaming_map[var].name] == -1:
@@ -256,8 +272,18 @@ class SreedharOutOfSsa:
                 else:
                     renamer.renaming_map[var] = Variable(realocation[renamer.renaming_map[var].name],renamer.renaming_map[var].type)
 
+        #for bb in self.cfg:
+        #    for inst in bb:
+        #        if isinstance(inst,Relation):
+        #            print(newName[inst.value] == newName[inst.destination])
+        #            if(newName[inst.value] != newName[inst.destination]):
+        #                print(inst)
+        #                print(inst.value)
+        #                print(inst.destination)
+        #                print(self._get_phi_congruence_class(inst.value))
+        #                print(self._get_phi_congruence_class(inst.destination))
         renamer.rename()
-        #TODO: fix Error in the Rlation-Class
+        #TODO: fix Error in the Relation-Class
 
 
     def perform(self):
