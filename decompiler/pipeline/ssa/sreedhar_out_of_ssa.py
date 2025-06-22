@@ -26,7 +26,6 @@ class SreedharOutOfSsa:
         self.task = task
         self.cfg =  task.cfg
         self._interference_graph = interference_graph
-        self.phi_functions_of = phi_fuctions
         self._phi_congruence_class = {}
         self.liveness = LivenessAnalysis(self.cfg)
         self._live_in = {} 
@@ -260,6 +259,9 @@ class SreedharOutOfSsa:
 
 
     def _leave_CSSA(self):
+        #for x in self._phi_congruence_class:
+        #    if isinstance(self._phi_congruence_class[x],set):
+        #        print(self._phi_congruence_class[x])
         for bb in self.cfg: #remove Phi-Instructions
             for inst in bb:
                 if isinstance(inst,Phi):
