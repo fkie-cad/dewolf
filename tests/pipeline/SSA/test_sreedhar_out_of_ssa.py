@@ -71,11 +71,9 @@ def test_sreedhar_Step1_Swap():
     
     decompTask = DecompilerTask("test_task",None)
     decompTask.cfg = cfg
-    ig = InterferenceGraph(cfg)
 
-    soossa = SreedharOutOfSsa(decompTask,ig,None)
+    soossa = SreedharOutOfSsa(decompTask)
     soossa._eliminate_phi_resource_interference()
-    DecoratedCFG.print_ascii(cfg)
 
     bb1 = cfg.nodes[1].instructions
     assert(
