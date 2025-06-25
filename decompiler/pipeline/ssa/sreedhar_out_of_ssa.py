@@ -58,9 +58,9 @@ class SreedharOutOfSsa:
 
     def _get_phi_congruence_class(self,a): #returns the Set
         try:
-            if isinstance(x := (self._phi_congruence_class[a]),set):
-                return x   
-            else: return self._phi_congruence_class[x]
+            if isinstance((self._phi_congruence_class[a]),set):
+                return self._phi_congruence_class[a]
+            else: return self._phi_congruence_class[self._phi_congruence_class[a]]
         except KeyError:
             return -1
 
@@ -78,10 +78,32 @@ class SreedharOutOfSsa:
             merged_set.update(self._get_phi_congruence_class(a))
 
         rep = phi_resources[0]
-        self._phi_congruence_class[rep] = merged_set
-        for a in phi_resources[1:]:
+        for a in merged_set:
             self._phi_congruence_class[a] = rep
+        self._phi_congruence_class[rep] = merged_set
+        
 
+
+    def _init_phi_congruence_classes(self):
+        for instr in self.cfg.instructions:
+            if isinstance(instr, Phi):
+                self._phi_congruence_class[instr.definitions[0]] = set([instr.definitions[0]])
+                for x in instr.requirements:
+                    self._phi_congruence_class[x] = set([x])
+
+    def _phi_congruence_classes_interfere(self, i, j):
+        
+        if isinstance(i,set) and isinstance(j,set):
+            cc_i = i
+            cc_j = j
+        else:
+            cc_i = self._get_phi_congruence_class(i)
+            cc_j = self._get_phi_congruence_class(j)
+        for y_i, y_j in itertools.product(cc_i, cc_j, repeat=1):
+            if self._interference_graph.are_interfering(y_i, y_j): 
+                return True
+        return False
+    
     def _gen_new_name(self, x: Variable):
         t = x.name + (str(x.ssa_label) if x.ssa_label else "")
         c = self._new_name_map.get(t, 0) + 1
@@ -224,66 +246,67 @@ class SreedharOutOfSsa:
 
 
     def _handle_Relations(self):
-        for instr in self.cfg.instructions:
-            if isinstance(instr,Relation) and isinstance(instr.value,Variable) and isinstance(instr.destination,Variable):
-                if (self._get_phi_congruence_class(instr.value) == -1) and isinstance(instr.value,Variable):
-                    self._phi_congruence_class[instr.value] = set(instr.value)
-                if (self._get_phi_congruence_class(instr.destination) == -1) and isinstance(instr.value,Variable):
-                    self._phi_congruence_class[instr.destination] = set(instr.destination)
-                self._merge_phi_congruence_classes(instr.value,instr.destination)
+        for bb in self.cfg:
+            for instr in bb.instructions:
+                if isinstance(instr,Relation) and isinstance(instr.value,Variable) and isinstance(instr.destination,Variable):
+                    if (self._get_phi_congruence_class(instr.value) == -1):
+                        self._phi_congruence_class[instr.value] = set([instr.value])
+                    if (self._get_phi_congruence_class(instr.destination) == -1):
+                        self._phi_congruence_class[instr.destination] = set([instr.destination])
+                    self._merge_phi_congruence_classes(instr.value,instr.destination)
                         
     def _remove_unnecessary_copies(self):
         #self._interference_graph = InterferenceGraph(self.cfg)
         self._handle_Relations()
         for bb in self.cfg:
             for inst in bb:
-                if isinstance(inst,Assignment) and (isinstance(inst.definitions,Variable)) and (isinstance(inst.destination,Variable)):
-                    destv = inst.destination
-                    defiv = inst.definitions
-
-                    try: 
-                        dest = self._get_phi_congruence_class(destv)
-                    except KeyError:
-                        dest = set()
-                    try:
-                        defi = self._get_phi_congruence_class(defiv)
-                    except:
-                        defi = set()
+                if isinstance(inst,Assignment) and (isinstance(inst.value,Variable)) and (isinstance(inst.destination,Variable)):
+                    inst : Assignment
+                    leftv = inst.destination
+                    rightv = inst.value
                     
-                    if dest == defi:   #Case 1 --> Variables are not refrred to in any Phi-instruction or they're in the same Phi-Congruence-Class
+                    leftpck = self._get_phi_congruence_class(leftv)
+                    if leftpck == -1:
+                        leftpck = set()
+                    rightpck = self._get_phi_congruence_class(rightv)
+                    if rightpck == -1:
+                        rightpck = set()
+                    
+                    if (leftpck == rightpck) and (leftpck == set()):   #Case 1 --> Variables are not refrred to in any Phi-instruction or they're in the same Phi-Congruence-Class
                         bb.replace_instruction(inst,[])
-                        self._phi_congruence_class[destv] = set([destv])
-                        self._phi_congruence_class[defiv] = set([defiv])
-                        self._merge_phi_congruence_classes(destv,defiv)
-                    elif (dest == set()) and (defi != set()): #Case 2a
-                        defic = deepcopy(defi).remove(defiv)
-                        if not (self._phi_congruence_classes_interfere(set(destv),defic)):
+                        self._phi_congruence_class[leftv] = set([leftv])
+                        self._phi_congruence_class[rightv] = set([rightv])
+                        self._merge_phi_congruence_classes(leftv,rightv)
+                    elif (leftpck == set()) and (rightpck != set()): #Case 2a
+                        rightrem = deepcopy(rightpck)
+                        rightrem.remove(rightv)
+                        if not (self._phi_congruence_classes_interfere(set([leftv]),rightrem)):
                             bb.replace_instruction(inst,[])
-                            self._phi_congruence_class[destv] = set([destv])
-                            self._merge_phi_congruence_classes(destv,defiv)
+                            self._phi_congruence_class[leftv] = set([leftv])
+                            self._merge_phi_congruence_classes(leftv,rightv)
                     
-                    elif (dest != set()) and (defi == set()): #Case 2b
-                        destc = deepcopy(dest).remove(destv)
-                        if not (self._phi_congruence_classes_interfere(set(defiv),destc)):
+                    elif (leftpck != set()) and (rightpck == set()): #Case 2b
+                        leftrem = deepcopy(leftpck)
+                        leftrem.remove(leftv)
+                        if not (self._phi_congruence_classes_interfere(set([rightv]),leftrem)):
                             bb.replace_instruction(inst,[])
-                            self._phi_congruence_class[defiv] = set([defiv])
-                            self._merge_phi_congruence_classes(destv,defiv)
+                            self._phi_congruence_class[rightv] = set([rightv])
+                            self._merge_phi_congruence_classes(leftv,rightv)
 
-                    elif (dest != set()) and (defi != set()): #Case 3
-                        destc = deepcopy(dest).remove(destv)
-                        defic = deepcopy(defi).remove(defiv)
-                        if (not (self._phi_congruence_classes_interfere(dest,defic))) and (not (self._phi_congruence_classes_interfere(defi,destc))):
+                    elif (leftpck != set()) and (rightpck != set()): #Case 3
+                        leftrem = deepcopy(leftpck)
+                        leftrem.remove(leftv)
+                        rightrem = deepcopy(rightpck)
+                        rightrem.remove(rightv)
+                        if (not (self._phi_congruence_classes_interfere(leftpck,rightrem))) and (not (self._phi_congruence_classes_interfere(rightpck,leftrem))):
                             bb.replace_instruction(inst,[])
-                            self._merge_phi_congruence_classes(destv,defiv)
-
+                            self._merge_phi_congruence_classes(leftv,rightv)
+                            
         self._interference_graph = InterferenceGraph(self.cfg)
 
 
 
     def _leave_CSSA(self):
-        #for x in self._phi_congruence_class:
-        #    if isinstance(self._phi_congruence_class[x],set):
-        #        print(self._phi_congruence_class[x])
         for bb in self.cfg: #remove Phi-Instructions
             for inst in bb:
                 if isinstance(inst,Phi):
@@ -301,28 +324,16 @@ class SreedharOutOfSsa:
 
         for var in renamer.renaming_map:
             if (newName[var] != -1):  
-                renamer.renaming_map[var] = Variable(newName[var],renamer.renaming_map[var].type)
-            elif renamer.renaming_map[var].name.count(renamer.new_variable_name) != 0:
+                renamer.renaming_map[var] = Variable(newName[var],renamer.renaming_map[var].type,ssa_name=var)
+            elif renamer.renaming_map[var].name.count(renamer.new_variable_name) != 0 or ((renamer.renaming_map[var].name.count("_") != 0) and renamer.renaming_map[var].name.count("data") == 0):
                 if realocation[renamer.renaming_map[var].name] == -1:
                     realocation[renamer.renaming_map[var].name] = f"{renamer.new_variable_name}{count}"
-                    renamer.renaming_map[var] = Variable(f"{renamer.new_variable_name}{count}",renamer.renaming_map[var].type)
+                    renamer.renaming_map[var] = Variable(f"{renamer.new_variable_name}{count}",renamer.renaming_map[var].type,ssa_name=var)
                     count += 1
                 else:
-                    renamer.renaming_map[var] = Variable(realocation[renamer.renaming_map[var].name],renamer.renaming_map[var].type)
+                    renamer.renaming_map[var] = Variable(realocation[renamer.renaming_map[var].name],renamer.renaming_map[var].type,ssa_name=var)
 
-        #for bb in self.cfg:
-        #    for inst in bb:
-        #        if isinstance(inst,Relation):
-        #            print(newName[inst.value] == newName[inst.destination])
-        #            if(newName[inst.value] != newName[inst.destination]):
-        #                print(inst)
-        #                print(inst.value)
-        #                print(inst.destination)
-        #                print(self._get_phi_congruence_class(inst.value))
-        #                print(self._get_phi_congruence_class(inst.destination))
         renamer.rename()
-        #TODO: fix Error in the Relation-Class
-        #TODO: fix Error in the Rlation-Class
 
     def perform(self):
         self._eliminate_phi_resource_interference() #Step 1: Translation to CSSA
