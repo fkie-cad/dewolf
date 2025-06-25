@@ -1,7 +1,7 @@
 import itertools
 
 from networkx import intersection
-from typing import DefaultDict, List
+from typing import DefaultDict, List, Set
 
 from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
 from decompiler.structures.graphs import cfg
@@ -11,7 +11,7 @@ from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo import expressions
 from decompiler.structures.pseudo.expressions import Variable
-from decompiler.structures.pseudo.instructions import Phi, Assignment, Comment, Relation, Return,Branch
+from decompiler.structures.pseudo.instructions import GenericBranch, Phi, Assignment, Comment, Relation, Return,Branch
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
 from decompiler.pipeline.ssa.variable_renaming import SimpleVariableRenamer
 from decompiler.task import DecompilerTask
@@ -19,33 +19,58 @@ from decompiler.frontend.binaryninja.handlers.symbols import GLOBAL_VARIABLE_PRE
 
 from copy import deepcopy
 
+from decompiler.util.decoration import DecoratedCFG
+
 
 class SreedharOutOfSsa:
 #: DefaultDict[BasicBlock, List[Phi]]
-    def __init__(self, task :DecompilerTask, interference_graph: InterferenceGraph, phi_fuctions):
+    def __init__(self, task :DecompilerTask):
         self.task = task
         self.cfg =  task.cfg
-        self._interference_graph = interference_graph
         self._phi_congruence_class = {}
-        self.liveness = LivenessAnalysis(self.cfg)
         self._live_in = {} 
         self._live_out = {} 
-        self._inst_to_block_map = {}
-        for bb in self.cfg:
-            self._live_in[bb] = self.liveness.live_in_of(bb)
-            self._live_out[bb] = self.liveness.live_out_of(bb)
-            #TODO find a good way to do this
-            for instr in bb.instructions:
-                self._inst_to_block_map[instr] = bb
+        self._new_name_map = {}
+        self._interference_graph = InterferenceGraph(self.cfg) 
 
+        liveness = LivenessAnalysis(self.cfg)
+        for bb in self.cfg:
+            self._live_in[bb] = liveness.live_in_of(bb)
+            self._live_out[bb] = liveness.live_out_of(bb)
 
     def _get_orig_block(self, phi_instr: Phi, phi_arg):
-        #TODO check if this works
+        #TODO find a better way 
         inv_block = {v: k for k, v in phi_instr.origin_block.items() if v != None}
         if x:= inv_block.get(phi_arg):
             return x
-        return self._inst_to_block_map[phi_instr]
-            
+
+        for bb in self.cfg:
+            for instr in bb:
+                if instr is phi_instr:
+                    return bb
+
+    def _init_phi_congruence_classes(self):
+        for instr in self.cfg.instructions:
+            if isinstance(instr, Phi):
+                self._phi_congruence_class[instr.destination] = set([instr.destination])
+                for x in instr.requirements:
+                    self._phi_congruence_class[x] = set([x])
+
+    def _get_phi_congruence_class(self,a): #returns the Set
+        try:
+            if isinstance(x := (self._phi_congruence_class[a]),set):
+                return x   
+            else: return self._phi_congruence_class[x]
+        except KeyError:
+            return -1
+
+    def _phi_congruence_classes_interfere(self, i, j):
+        if isinstance(i, Variable) and isinstance(j, Variable):
+            i, j = self._get_phi_congruence_class(i), self._get_phi_congruence_class(j)
+        for y_i, y_j in itertools.product(i, j):
+            if self._interference_graph.are_interfering(y_i, y_j):
+                return True
+        return False
 
     def _merge_phi_congruence_classes(self, *phi_resources):
         merged_set = set()
@@ -57,163 +82,158 @@ class SreedharOutOfSsa:
         for a in phi_resources[1:]:
             self._phi_congruence_class[a] = rep
 
+    def _gen_new_name(self, x: Variable):
+        t = x.name + (str(x.ssa_label) if x.ssa_label else "")
+        c = self._new_name_map.get(t, 0) + 1
+        self._new_name_map[t] = c
+        return t + "'" * c
 
-    def _init_phi_congruence_classes(self):
-        for instr in self.cfg.instructions:
-            if isinstance(instr, Phi):
-                self._phi_congruence_class[instr.definitions[0]] = set([instr.definitions[0]])
-                for x in instr.requirements:
-                    self._phi_congruence_class[x] = set([x])
+    def _insert_before_branch(self, instrs, instr):
+        for i in range(len(instrs)-1, -1, -1):
+            if isinstance(instrs[i], GenericBranch):
+                instrs.insert(i, instr)
+                return
+        instrs.append(instr)
 
-    def _phi_congruence_classes_interfere(self, i, j):
-        cc_i = self._get_phi_congruence_class(i)
-        cc_j = self._get_phi_congruence_class(j)
-        if isinstance(i,set) and isinstance(j,set):
-            cc_i = i
-            cc_j = j
-        for y_i, y_j in itertools.product(cc_i, cc_j, repeat=1):
-            if self._interference_graph.are_interfering(y_i, y_j): 
-                return True
-        return False
+    def _insert_after_phis(self, instrs, new_inst):
+        # find first non-Phi
+        for idx, ins in enumerate(instrs):
+            if not isinstance(ins, Phi):
+                instrs.insert(idx, new_inst)
+                return
+        instrs.append(new_inst)
 
     def _used_in_phi(self, var, j):
-        for i in self.cfg.instructions:
-            if isinstance(i, Phi):
-                if var == i.definitions[0] or var in i.requirements:
+        for instr in j.instructions:
+            if isinstance(instr, Phi):
+                if var is instr.destination or var in instr.requirements:
                     return True
         return False
 
+    def _prune_dead_out(self, var, block):
+        # drop var from live_out if no successor uses it
+        for succ in self.cfg.get_successors(block):
+            if var not in self._live_in[succ] and not self._used_in_phi(var, succ):
+                self._live_out[block].discard(var)
+
+    def _add_interference_edges(self, var, vars):
+        for v in vars:
+            self._interference_graph.add_edge(var, v)
+
     def _insert_copy(self, x, instr: Phi):
-        if x in instr.requirements:
-            orig_block: BasicBlock= self._get_orig_block(instr, x)
-            x_new = expressions.Variable(x.name + "_new", x.type)
-            x_new_copy_ass = Assignment(x_new, x)
-            orig_block.instructions.append(x_new_copy_ass)
-            instr.substitute(x, x_new) 
-            self._phi_congruence_class[x_new] = set([x_new])
+        is_req = x in instr.requirements
+        orig_block = self._get_orig_block(instr, x)
+        x_new = expressions.Variable(self._gen_new_name(x), x.type)
+        copy_instr = Assignment(x_new, x) if is_req else Assignment(x, x_new)
+        live_set = self._live_out[orig_block] if is_req else self._live_in[orig_block]
+        block_instrs = orig_block.instructions
+
+        if is_req:
+            self._insert_before_branch(block_instrs, copy_instr)
+            instr.substitute(x, x_new)
             self._live_out[orig_block].add(x_new)
-            for s in self.cfg.get_successors(orig_block):
-                if x not in self._live_in[s] and not self._used_in_phi(x, s):
-                    self._live_out[orig_block].discard(x)
-
-            for e in self._live_out[orig_block]:
-                self._interference_graph.add_edge(x_new, e)
-            
+            self._prune_dead_out(x, orig_block)
+            self._add_interference_edges(x, self._live_out[orig_block])
         else:
-            x_new = expressions.Variable(x.name+"_new", x.type)
-            x_new_copy_ass = Assignment(x, x_new)
-            current_block = self._get_orig_block(instr, x)
-            instructions = current_block.instructions
-            index = 0
-            for i in range(len(instructions)):
-                if not isinstance(instructions[i], Phi):
-                    index = i
-                    break
-            current_block.instructions.insert(index, x_new_copy_ass)
+            self._insert_after_phis(block_instrs, copy_instr)
             instr.rename_destination(x, x_new)
-            self._phi_congruence_class[x_new] = set([x_new])
-            self._live_in[current_block].discard(x)
-            self._live_in[current_block].add(x_new)
+            self._live_in[orig_block].discard(x)
+            self._live_in[orig_block].add(x_new)
 
-            for e in self._live_out[current_block]:
-                self._interference_graph.add_edge(x_new, e)
+        self._add_interference_edges(x, live_set)
+        self._phi_congruence_class[x_new] = {x_new}
+    
+    def _classify_pair(self, instr, x_i, x_j, dest, candidates, unresolved):
+        l_i = self._get_orig_block(instr, x_i)
+        l_j = self._get_orig_block(instr, x_j)
 
-            self._inst_to_block_map[x_new_copy_ass] = current_block
+        if x_j is dest:
+            cond_1 = self._get_phi_congruence_class(x_i) & self._live_in[l_j]
+            cond_2 = self._get_phi_congruence_class(x_j) & self._live_out[l_i]
+        else:
+            cond_1 = self._get_phi_congruence_class(x_i) & self._live_out[l_j]
+            if x_i is dest:
+                cond_2 = self._get_phi_congruence_class(x_j) & self._live_in[l_i]
+            else:
+                cond_2 = self._get_phi_congruence_class(x_j) & self._live_out[l_i]
 
- 
+        # case 1
+        if cond_1 and not cond_2:
+            candidates.add(x_i)
+        # case 2
+        elif not cond_1 and cond_2:
+            candidates.add(x_j)
+        # case 3
+        elif cond_1 and cond_2:
+            candidates.update((x_i, x_j))
+        # case 4
+        else:
+            unresolved[x_i].add(x_j)
+            unresolved[x_j].add(x_i)
+
+
+    def _resolve_unresolved_neighbors(self, candidates, unresolved):
+        resolved = set()
+        for x in sorted(unresolved.keys(), 
+                        key = lambda x: len(unresolved[x]),
+                        reverse = True):
+
+            # if has_unresolved_neighbor  
+            if not unresolved[x].issubset(resolved):
+                candidates.add(x)
+                resolved.add(x)
+
+        # discard all candidates which are now resolved
+        for x in list(resolved):
+            if unresolved[x].issubset(resolved):
+                candidates.discard(x)
+
+    def _prune_singleton_phi_classes(self):
+        self._phi_congruence_class = {
+                k: v for k, v in  self._phi_congruence_class.items()
+                if not (isinstance(v, set) and len(v) == 1)
+        }
+
     def _eliminate_phi_resource_interference(self):
         self._init_phi_congruence_classes()
         for instr in self.cfg.instructions:
-            if isinstance(instr, Phi):
-                candidate_resource_set = set()
-                unresolved_neighbor_map = {} 
+            if not isinstance(instr, Phi):
+                continue
 
-                phi_resources = [instr.definitions[0]]
-                phi_resources.extend(instr.requirements)
-                for x in phi_resources:
-                    unresolved_neighbor_map[x] = set()
+            candidates = set()
+            dest = instr.destination
+            resources = [dest, *instr.requirements]
+            unresolved = {x: set() for x in resources}
 
-                for x_i, x_j, in itertools.combinations(phi_resources, 2):
-                    if self._phi_congruence_classes_interfere(x_i, x_j):
-                        l_i = self._get_orig_block(instr, x_i)
-                        l_j = self._get_orig_block(instr, x_j)
+            for x_i, x_j, in itertools.combinations(resources, 2):
+                if self._phi_congruence_classes_interfere(x_i, x_j):
+                    self._classify_pair(instr, x_i, x_j, dest, candidates, unresolved)
 
-                        # handle the 4 cases
-                        if x_j == phi_resources[0]: 
-                            a = self._get_phi_congruence_class(x_i).intersection(self._live_in[l_j])
-                        else:
-                            a = self._get_phi_congruence_class(x_i).intersection(self._live_out[l_j])
+            self._resolve_unresolved_neighbors(candidates, unresolved)
+            for x in candidates:
+                self._insert_copy(x, instr) 
 
-                        if x_i == phi_resources[0]: 
-                            b = self._get_phi_congruence_class(x_j).intersection(self._live_in[l_i])
-                        else:
-                            b = self._get_phi_congruence_class(x_j).intersection(self._live_out[l_i])
+            # merge phi congruence classes
+            # Note phi_resources has changed due to _insert_copy
+            self._merge_phi_congruence_classes(instr.destination, *instr.requirements)
 
-                        if a and not b:
-                            candidate_resource_set.add(x_i)
-                        elif not a and b:
-                            candidate_resource_set.add(x_j)
-                        elif a and b:
-                            candidate_resource_set.add(x_i)
-                            candidate_resource_set.add(x_j)
-                        else:
-                            unresolved_neighbor_map[x_i].add(x_j)
-                            unresolved_neighbor_map[x_j].add(x_i)
+            #DecoratedCFG.print_ascii(self.cfg)
+            ##print('-'*100)
 
-                # process unresolved neighbors
-                resolved_resources = set()
-                sorted_resources = sorted(
-                    unresolved_neighbor_map.keys(),
-                    key = lambda x: len(unresolved_neighbor_map[x]),
-                    reverse=True
-                )
-                for x in sorted_resources:
-                    # if has_unresolved_neighbor  
-                    if not unresolved_neighbor_map[x].issubset(resolved_resources):
-                        candidate_resource_set.add(x)
-                        resolved_resources.add(x)
+        self._prune_singleton_phi_classes()
 
-                # discard all candidates which are now resolved
-                for x in list(resolved_resources):
-                    if unresolved_neighbor_map[x].issubset(resolved_resources):
-                        candidate_resource_set.discard(x)
-
-                for x in candidate_resource_set:
-                    self._insert_copy(x, instr) 
-
-                # merge phi congruence classes
-                phi_resources = [instr.definitions[0]]
-                phi_resources.extend(instr.requirements)
-                self._merge_phi_congruence_classes(*phi_resources)
-
-
-        # Nullify phi congruence classes that contain only singleton resources
-        for x, cls in list(self._phi_congruence_class.items()):
-            if isinstance(cls,set) and len(cls) == 1:
-
-                del self._phi_congruence_class[x]
-
-    def _get_phi_congruence_class(self,a): #returns the Set
-        try:
-            if isinstance(x := (self._phi_congruence_class[a]),set):
-                return x
-            else: return self._phi_congruence_class[x]
-        except KeyError:
-            return -1
 
     def _handle_Relations(self):
-        for bb in self.cfg:
-            for inst in bb.instructions:
-                if isinstance(inst,Relation) and isinstance(inst.value,Variable) and isinstance(inst.destination,Variable):
-                    if (self._get_phi_congruence_class(inst.value) == -1) and isinstance(inst.value,Variable):
-                        self._phi_congruence_class[inst.value] = set(inst.value)
-                    if (self._get_phi_congruence_class(inst.destination) == -1) and isinstance(inst.value,Variable):
-                        self._phi_congruence_class[inst.destination] = set(inst.destination)
-                    self._merge_phi_congruence_classes(inst.value,inst.destination)
+        for instr in self.cfg.instructions:
+            if isinstance(instr,Relation) and isinstance(instr.value,Variable) and isinstance(instr.destination,Variable):
+                if (self._get_phi_congruence_class(instr.value) == -1) and isinstance(instr.value,Variable):
+                    self._phi_congruence_class[instr.value] = set(instr.value)
+                if (self._get_phi_congruence_class(instr.destination) == -1) and isinstance(instr.value,Variable):
+                    self._phi_congruence_class[instr.destination] = set(instr.destination)
+                self._merge_phi_congruence_classes(instr.value,instr.destination)
                         
     def _remove_unnecessary_copies(self):
-        self._interference_graph = InterferenceGraph(self.cfg)
-        self.liveness = LivenessAnalysis(self.cfg)
+        #self._interference_graph = InterferenceGraph(self.cfg)
         self._handle_Relations()
         for bb in self.cfg:
             for inst in bb:
@@ -255,7 +275,9 @@ class SreedharOutOfSsa:
                         if (not (self._phi_congruence_classes_interfere(dest,defic))) and (not (self._phi_congruence_classes_interfere(defi,destc))):
                             bb.replace_instruction(inst,[])
                             self._merge_phi_congruence_classes(destv,defiv)
+
         self._interference_graph = InterferenceGraph(self.cfg)
+
 
 
     def _leave_CSSA(self):

@@ -168,8 +168,7 @@ class OutOfSsaTranslation(PipelineStage):
         ConditionalVariableRenamer(self.task, self.interference_graph).rename()
 
     def _sreedhar_out_of_ssa(self) -> None:
-        self.interference_graph = InterferenceGraph(self.task.graph)
-        SreedharOutOfSsa(self.task,self.interference_graph,self._phi_functions_of).perform()
+        SreedharOutOfSsa(self.task).perform()
 
     # This translator maps the optimization levels to the functions.
     out_of_ssa_strategy: dict[SSAOptions, Callable[["OutOfSsaTranslation"], None]] = {
