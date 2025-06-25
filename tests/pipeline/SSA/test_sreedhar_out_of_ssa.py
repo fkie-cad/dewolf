@@ -83,17 +83,17 @@ def test_sreedhar_Step1_Swap():
             type (bb1[0]) == type(bb1[1]) == Phi and
             type(bb1[5]) == Branch
     )
-    inst : Assignment
-    for inst in bb1[2:5]:
-        assert(type(inst) == Assignment)
-        if inst.destination == x_2:
-            assert(inst.value == bb1[0].destination)
-        elif inst.destination == bb1[0].value[1]:
-            assert(inst.value == bb1[1].destination)
-        else:
-            assert(inst.destination == bb1[1].value[1] and
-                   inst.value == x_2)
-
+    assert(
+            bb1[0].destination == bb1[3].value and
+            bb1[0].value[0] == x_1 and
+            bb1[0].value[1] == bb1[4].destination and
+            bb1[1].destination == bb1[2].value and
+            bb1[1].value[0] == y_1 and
+            bb1[1].value[1] == x_2 and
+            bb1[2].destination == y_2 and
+            bb1[3].destination == x_2 and
+            bb1[4].value == y_2
+    )
 
 def test_sreedhar_Step2():
     pass
