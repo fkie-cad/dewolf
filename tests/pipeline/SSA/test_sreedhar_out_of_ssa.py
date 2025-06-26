@@ -284,9 +284,8 @@ def test_sreedhar_Step2_Case3_Step3():
 
     decompTask = DecompilerTask("test_task",None)
     decompTask.cfg = cfg
-    ig = InterferenceGraph(cfg)
 
-    soossa = SreedharOutOfSsa(decompTask,ig,None)
+    soossa = SreedharOutOfSsa(decompTask)
     soossa._phi_congruence_class[x_4] = set([x_4,x_1,x_2,x_3])
     soossa._phi_congruence_class[x_1] = x_4
     soossa._phi_congruence_class[x_2] = x_4
