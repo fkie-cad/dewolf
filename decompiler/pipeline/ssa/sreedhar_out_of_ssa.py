@@ -82,8 +82,6 @@ class SreedharOutOfSsa:
             self._phi_congruence_class[a] = rep
         self._phi_congruence_class[rep] = merged_set
         
-
-
     def _init_phi_congruence_classes(self):
         for instr in self.cfg.instructions:
             if isinstance(instr, Phi):
@@ -210,9 +208,10 @@ class SreedharOutOfSsa:
                 candidates.discard(x)
 
     def _nullify_singleton_phi_classes(self):
-        for k, v in self._phi_congruence_class.items():
-            if isinstance(v, set) and len(v) == 1:
-                self._phi_congruence_class[k] = set()
+        self._phi_congruence_class = {
+            k: v for k, v in  self._phi_congruence_class.items()
+            if not (isinstance(v, set) and len(v) == 1)
+        }
 
     def _eliminate_phi_resource_interference(self):
         self._init_phi_congruence_classes()
