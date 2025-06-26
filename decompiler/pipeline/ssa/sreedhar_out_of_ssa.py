@@ -19,7 +19,7 @@ from decompiler.frontend.binaryninja.handlers.symbols import GLOBAL_VARIABLE_PRE
 
 from copy import deepcopy
 
-from decompiler.util.decoration import DecoratedCFG
+from decompiler.util.decoration import DecoratedCFG, DecoratedGraph
 
 
 class SreedharOutOfSsa:
@@ -108,7 +108,7 @@ class SreedharOutOfSsa:
         t = x.name + (str(x.ssa_label) if x.ssa_label else "")
         c = self._new_name_map.get(t, 0) + 1
         self._new_name_map[t] = c
-        return t + "'" * c
+        return t + "\'" * c
 
     def _insert_before_branch(self, instrs, instr):
         for i in range(len(instrs)-1, -1, -1):
@@ -145,7 +145,7 @@ class SreedharOutOfSsa:
     def _insert_copy(self, x, instr: Phi):
         is_req = x in instr.requirements
         orig_block = self._get_orig_block(instr, x)
-        x_new = expressions.Variable(self._gen_new_name(x), x.type)
+        x_new = expressions.Variable(self._gen_new_name(x), x.type, ssa_label=1)
         copy_instr = Assignment(x_new, x) if is_req else Assignment(x, x_new)
         live_set = self._live_out[orig_block] if is_req else self._live_in[orig_block]
         block_instrs = orig_block.instructions
@@ -155,7 +155,6 @@ class SreedharOutOfSsa:
             instr.substitute(x, x_new)
             self._live_out[orig_block].add(x_new)
             self._prune_dead_out(x, orig_block)
-            self._add_interference_edges(x, self._live_out[orig_block])
         else:
             self._insert_after_phis(block_instrs, copy_instr)
             instr.rename_destination(x, x_new)
@@ -210,11 +209,10 @@ class SreedharOutOfSsa:
             if unresolved[x].issubset(resolved):
                 candidates.discard(x)
 
-    def _prune_singleton_phi_classes(self):
-        self._phi_congruence_class = {
-                k: v for k, v in  self._phi_congruence_class.items()
-                if not (isinstance(v, set) and len(v) == 1)
-        }
+    def _nullify_singleton_phi_classes(self):
+        for k, v in self._phi_congruence_class.items():
+            if isinstance(v, set) and len(v) == 1:
+                self._phi_congruence_class[k] = set()
 
     def _eliminate_phi_resource_interference(self):
         self._init_phi_congruence_classes()
@@ -239,10 +237,7 @@ class SreedharOutOfSsa:
             # Note phi_resources has changed due to _insert_copy
             self._merge_phi_congruence_classes(instr.destination, *instr.requirements)
 
-            #DecoratedCFG.print_ascii(self.cfg)
-            ##print('-'*100)
-
-        self._prune_singleton_phi_classes()
+        self._nullify_singleton_phi_classes()
 
 
     def _handle_Relations(self):
@@ -256,7 +251,6 @@ class SreedharOutOfSsa:
                     self._merge_phi_congruence_classes(instr.value,instr.destination)
                         
     def _remove_unnecessary_copies(self):
-        #self._interference_graph = InterferenceGraph(self.cfg)
         self._handle_Relations()
         for bb in self.cfg:
             for inst in bb:
@@ -337,5 +331,5 @@ class SreedharOutOfSsa:
 
     def perform(self):
         self._eliminate_phi_resource_interference() #Step 1: Translation to CSSA
-        self._remove_unnecessary_copies()           #Step 2: Eliminate redundant copies
+        self._remove_unnecessary_copies()           #Step 3: Eliminate redundant copies
         self._leave_CSSA()                          #Step 3: Eliminate phi instructions and use phi-congruence-property
