@@ -1,4 +1,5 @@
 from typing import List
+from copy import deepcopy
 from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
 from decompiler.pipeline.ssa.sreedhar_out_of_ssa import SreedharOutOfSsa
 from decompiler.structures.graphs.basicblock import BasicBlock
@@ -11,6 +12,9 @@ from decompiler.structures.pseudo.typing import Integer
 from decompiler.task import DecompilerTask
 from decompiler.util.decoration import DecoratedCFG, DecoratedGraph
 from decompiler.structures.pseudo.operations import BinaryOperation, OperationType
+from tests.pipeline.SSA.test_out_of_ssa import run_out_of_ssa
+from decompiler.pipeline.ssa.outofssatranslation import SSAOptions
+from tests.pipeline.SSA.utils_out_of_ssa_tests import *
 
 def test_sreedhar_Step1_Swap():
     ''' +---------------+
@@ -175,9 +179,8 @@ def test_sreedhar_Step2_Case1_2():
 
     decompTask = DecompilerTask("test_task",None)
     decompTask.cfg = cfg
-    ig = InterferenceGraph(cfg)
 
-    soossa = SreedharOutOfSsa(decompTask,ig,None)
+    soossa = SreedharOutOfSsa(decompTask)
     soossa._phi_congruence_class[x_4] = set([x_4,x_1,x_2,x_3])
     soossa._phi_congruence_class[x_1] = x_4
     soossa._phi_congruence_class[x_2] = x_4
@@ -198,132 +201,159 @@ def test_sreedhar_Step2_Case1_2():
             Assignment(x_7,BinaryOperation(OperationType.plus,[x_7,Constant(1)])) in bb[3].instructions
     )
 
-def test_sreedhar_Step2_Case3_Step3():
+
+def test_no_dependency_unconditional_edge_sreedhar(graph_no_dependency, variable_x, variable_x_new):
+    '''Here we test whether Phi-functions, without dependency and where one ingoing edge is not unconditional, are lifted correctly.
+        +------------------------+
+        |           0.           |
+        |   printf(0x804b00c)    |
+        +------------------------+
+        |
+        |
+        v
+        +------------------------+
+        |           1.           |
+        |    x#3 = ϕ(x#2,x#4)    |
+        |    v#2 = ϕ(v#1,v#3)    |
+        |    u#2 = ϕ(u#1,u#3)    |
+        |    y#4 = ϕ(y#3,y#5)    |
+        |       u#3 = y#4        |
+        |     if(v#2 <= u#3)     |
+        +------------------------+
+        ^
+        |
+        |
+        +------------------------+
+        |           2.           |
+        |       x#4 = v#2        |
+        | printf(0x804b045, x#4) |
+        |     if(x#4 == 0x5)     |
+        +------------------------+
     '''
-                  +----------------------+
-                  |          1.          |
-                  |      x#1 = 0x1       |
-                  |      y#1 = 0x2       |
-                  +----------------------+
-                    |
-                    |
-                    v
-+-----------+     +----------------------+
-|           |     |          4.          |
-|           |     | x#4 = ϕ(x#1,x#2,x#3) |
-|           |     | y#4 = ϕ(y#1,y#2,y#3) |
-|    2.     |     |     x#6 = 0x7e9      |
-| x#2 = 0x3 |     |      x#5 = x#4       |
-| y#2 = 0x4 |     |      y#5 = y#4       |
-|           |     |   x#6 = x#6 + 0x1    |
-|           |     |      x#5 = x#6       |
-|           |     |      x#4 = y#4       |
-|           | --> |   x#5 = x#5 + y#5    |
-+-----------+     +----------------------+
-                    ^
-                    |
-                    |
-                  +----------------------+
-                  |          3.          |
-                  |      x#3 = 0x5       |
-                  |      y#3 = 0x6       |
-                  +----------------------+
-    '''
-    y_1 = Variable("y",vartype=Integer.int32_t(),ssa_label="1")
-    y_2 = Variable("y",vartype=Integer.int32_t(),ssa_label="2")
-    y_3 = Variable("y",vartype=Integer.int32_t(),ssa_label="3")
-    y_4 = Variable("y",vartype=Integer.int32_t(),ssa_label="4")
-    y_5 = Variable("y",vartype=Integer.int32_t(),ssa_label="5")
-    x_1 = Variable("x",vartype=Integer.int32_t(),ssa_label="1")
-    x_2 = Variable("x",vartype=Integer.int32_t(),ssa_label="2")
-    x_3 = Variable("x",vartype=Integer.int32_t(),ssa_label="3")
-    x_4 = Variable("x",vartype=Integer.int32_t(),ssa_label="4")
-    x_5 = Variable("x",vartype=Integer.int32_t(),ssa_label="5")
-    x_6 = Variable("x",vartype=Integer.int32_t(),ssa_label="6")
+    nodes, instructions, cfg = graph_no_dependency
+    cfg.substitute_edge(cfg.get_edge(nodes[2], nodes[1]), TrueCase(nodes[2], nodes[1]))
+    nodes[2].instructions.append(Branch(Condition(OperationType.equal, [variable_x[4], Constant(5)])))
+    
+    run_out_of_ssa(cfg, SSAOptions.sreedhar)
+    cfgascii = DecoratedCFG.get_ascii(cfg)
+    
+    assert(
+                len(cfg.nodes[0].instructions) == 1 and
+                len(cfg.nodes[1].instructions) == 3 and
+                len(cfg.nodes[2].instructions) == 2 and
+                cfgascii.count("var_1") == 4 and
+                cfgascii.count("var_2") == 2 and
+                cfgascii.count("var_3") == 1 and
+                cfgascii.count("var_4") == 1 and
+                cfgascii.count("var_1 = var_4") == 1 and
+                cfgascii.count("var_2 = var_3") == 1                
+    )
 
-    px = Phi(x_4,[x_1,x_2,x_3])
-    py = Phi(y_4,[y_1,y_2,y_3])
+def test_no_dependency_phi_target_value_same_sreedhar(graph_no_dependency,variable_v):
+    """Here we test whether we do not insert the definition when the Phi-function target is the same as a Phi-function value.
+        +------------------------+
+        |           0.           |
+        |   printf(0x804b00c)    |
+        +------------------------+
+          |
+          |
+          v
+        +------------------------+
+        |           1.           |
+        |    x#3 = ϕ(x#2,x#4)    |
+        |    v#2 = ϕ(v#1,v#2)    |
+        |    u#2 = ϕ(u#1,u#3)    |
+        |    y#4 = ϕ(y#3,y#5)    |
+        |       u#3 = y#4        |
+        |     if(v#2 <= u#3)     |
+        +------------------------+
+          ^
+          |
+          |
+        +------------------------+
+        |           2.           |
+        |       x#4 = v#2        |
+        | printf(0x804b045, x#4) |
+        +------------------------+
+    """
+    nodes, instructions, cfg = graph_no_dependency
+    nodes[1].instructions[1].substitute(variable_v[3], variable_v[2])
+        
+    run_out_of_ssa(cfg, SSAOptions.sreedhar)
 
-    bb = [BasicBlock(1),BasicBlock(2),BasicBlock(3),BasicBlock(4)]
-
-    px.update_phi_function({bb[0]: x_1, bb[1]: x_2,bb[2]:x_3})
-    py.update_phi_function({bb[0]: y_1, bb[1]: y_2,bb[2]:y_3})
-
-    bb[0].instructions = [
-            Assignment(x_1,Constant(1)),
-            Assignment(y_1,Constant(2)),
-    ]
-    bb[1].instructions = [
-            Assignment(x_2,Constant(3)),
-            Assignment(y_2,Constant(4)),
-    ]
-    bb[2].instructions = [
-            Assignment(x_3,Constant(5)),
-            Assignment(y_3,Constant(6)),
-    ]
-    bb[3].instructions = [
-            px,
-            py,
-            Assignment(x_6,Constant(2025)),
-            Assignment(x_5,x_4),
-            Assignment(y_5,y_4),
-            Assignment(x_6,BinaryOperation(OperationType.plus,[x_6,Constant(1)])),
-            Assignment(x_5,x_6),
-            Assignment(x_4,y_4),
-            Assignment(x_5,BinaryOperation(OperationType.plus,[x_5,y_5])),
-    ]
-
-    cfg = ControlFlowGraph()
-    cfg.add_node(bb[0])
-    cfg.add_node(bb[1])
-    cfg.add_node(bb[2])
-    cfg.add_node(bb[3])
-    cfg.add_edge(UnconditionalEdge(bb[0],bb[3]))
-    cfg.add_edge(UnconditionalEdge(bb[1],bb[3]))
-    cfg.add_edge(UnconditionalEdge(bb[2],bb[3]))
-
-    decompTask = DecompilerTask("test_task",None)
-    decompTask.cfg = cfg
-
-    soossa = SreedharOutOfSsa(decompTask)
-    soossa._phi_congruence_class[x_4] = set([x_4,x_1,x_2,x_3])
-    soossa._phi_congruence_class[x_1] = x_4
-    soossa._phi_congruence_class[x_2] = x_4
-    soossa._phi_congruence_class[x_3] = x_4
-    soossa._phi_congruence_class[y_4] = set([y_4,y_1,y_2,y_3])
-    soossa._phi_congruence_class[y_1] = y_4
-    soossa._phi_congruence_class[y_2] = y_4
-    soossa._phi_congruence_class[y_3] = y_4
-    soossa._remove_unnecessary_copies()
+    cfgascii = DecoratedCFG.get_ascii(cfg)
 
     assert(
-            len(bb[3].instructions) == 7 and
-            px in bb[3].instructions and
-            py in bb[3].instructions and 
-            Assignment(x_6,Constant(2025)) in bb[3].instructions and 
-            Assignment(x_5,x_4) not in bb[3].instructions and 
-            Assignment(y_5,y_4) not in bb[3].instructions and 
-            Assignment(x_6,BinaryOperation(OperationType.plus,[x_6,Constant(1)])) in bb[3].instructions and 
-            Assignment(x_5,x_6) in bb[3].instructions and 
-            Assignment(x_4,y_4) in bb[3].instructions and 
-            Assignment(x_5,BinaryOperation(OperationType.plus,[x_5,y_5])) in bb[3].instructions
+        len(cfg.nodes[0].instructions) == 1 and
+        len(cfg.nodes[1].instructions) == 2 and
+        len(cfg.nodes[2].instructions) == 2 and
+        cfgascii.count("var_1") == 2 and
+        cfgascii.count("var_2") == 2 and
+        cfgascii.count("var_3") == 2 and
+        cfgascii.count("var_4") == 1 and
+        cfgascii.count("var_3 = var_4") == 1 and
+        cfgascii.count("var_1 = var_2") == 1
     )
-    soossa._leave_CSSA()
+
+def test_dependency_but_no_circle_some_same_values_sreedhar(graph_dependency_but_not_circular, aliased_variable_y, variable_u):
+    """Here we test whether Phi-functions, with dependency, but no circular dependency and where one ingoing edge is not unconditional,
+    are lifted correctly.
+                                       +--------------------------+
+                                       |            0.            |
+                                       |    printf(0x804a00c)     |
+                                       | scanf(0x804a025, &(y#1)) |
+                                       |  printf(0x804a028, y#1)  |
+                                       +--------------------------+
+                                         |
+                                         |
+                                         v
+        +------------------------+     +------------------------------------+
+        |           2.           |     |                 1.                 |
+        | printf(0x804a049, u#3) |     |        u#3 = ϕ(y#1,y#4,y#4)        |
+        |       return 0x0       |     |        y#4 = ϕ(y#1,y#7,v#4)        |
+        |                        | <-- |           if(y#4 <= 0x0)           |
+        +------------------------+     +------------------------------------+
+                                         |                           ^    ^
+                                         |                           |    |
+                                         v                           |    |
+                                       +--------------------------+  |    |
+                                       |            3.            |  |    |
+                                       |  printf(0x804a045, y#4)  |  |    |
+                                       |     y#7 = y#4 - 0x2      |  |    |
+                                       |    v#2 = is_odd(y#7)     |  |    |
+                                       | if((v#2 & 0xff) == 0x0)  | -+    |
+                                       +--------------------------+       |
+                                         |                                |
+                                         |                                |
+                                         v                                |
+                                       +--------------------------+       |
+                                       |            4.            |       |
+                                       |     v#4 = y#7 - 0x1      | ------+
+                                       +--------------------------+
+    """
+
+    nodes, instructions, cfg = graph_dependency_but_not_circular
+    new_phi = Phi(variable_u[3], [aliased_variable_y[1], aliased_variable_y[4], aliased_variable_y[4]])
+    new_phi._origin_block = {nodes[0]: aliased_variable_y[1], nodes[3]: aliased_variable_y[4], nodes[4]: aliased_variable_y[4]}
+    nodes[1].instructions[0] = new_phi
+
+    run_out_of_ssa(cfg, SSAOptions.sreedhar)
+
     asciicfg = DecoratedCFG.get_ascii(cfg)
 
     assert(
-            "x_1" not in asciicfg and
-            "x_2" not in asciicfg and
-            "x_3" not in asciicfg and
-            "x_4" not in asciicfg and
-            "x_5" not in asciicfg and
-            "x_6" not in asciicfg and
-            "y_1" not in asciicfg and
-            "y_2" not in asciicfg and
-            "y_3" not in asciicfg and
-            "y_4" not in asciicfg and
-            "y_5" not in asciicfg and
-            asciicfg.count("var_1") == 7 and
-            asciicfg.count("var_2") == 5 and 
-            asciicfg.count("var_3") == 4
+                len(cfg.nodes[0].instructions) == 4 and
+                len(cfg.nodes[1].instructions) == 2 and
+                len(cfg.nodes[2].instructions) == 2 and
+                len(cfg.nodes[3].instructions) == 5 and
+                len(cfg.nodes[4].instructions) == 2
     )
+    assert(
+                asciicfg.count("var_1") == 6 and
+                asciicfg.count("var_2") == 6 and
+                asciicfg.count("var_3") == 6 and
+                asciicfg.count("var_4") == 2 and
+                asciicfg.count("var_1 = var_3") == 2 and
+                asciicfg.count("var_3 = var_2") == 1
+    )
+    
