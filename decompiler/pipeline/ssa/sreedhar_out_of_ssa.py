@@ -250,6 +250,7 @@ class SreedharOutOfSsa:
                     self._merge_phi_congruence_classes(instr.value,instr.destination)
                         
     def _remove_unnecessary_copies(self):
+        self._interference_graph = InterferenceGraph(self.cfg)
         self._handle_Relations()
         for bb in self.cfg:
             for inst in bb:
@@ -270,6 +271,7 @@ class SreedharOutOfSsa:
                         self._phi_congruence_class[leftv] = set([leftv])
                         self._phi_congruence_class[rightv] = set([rightv])
                         self._merge_phi_congruence_classes(leftv,rightv)
+                        self._interference_graph = InterferenceGraph(self.cfg)
                     elif (leftpck == set()) and (rightpck != set()): #Case 2a
                         rightrem = deepcopy(rightpck)
                         rightrem.remove(rightv)
@@ -277,6 +279,7 @@ class SreedharOutOfSsa:
                             bb.replace_instruction(inst,[])
                             self._phi_congruence_class[leftv] = set([leftv])
                             self._merge_phi_congruence_classes(leftv,rightv)
+                            self._interference_graph = InterferenceGraph(self.cfg)
                     
                     elif (leftpck != set()) and (rightpck == set()): #Case 2b
                         leftrem = deepcopy(leftpck)
@@ -285,6 +288,7 @@ class SreedharOutOfSsa:
                             bb.replace_instruction(inst,[])
                             self._phi_congruence_class[rightv] = set([rightv])
                             self._merge_phi_congruence_classes(leftv,rightv)
+                            self._interference_graph = InterferenceGraph(self.cfg)
 
                     elif (leftpck != set()) and (rightpck != set()): #Case 3
                         leftrem = deepcopy(leftpck)
@@ -294,6 +298,7 @@ class SreedharOutOfSsa:
                         if (not (self._phi_congruence_classes_interfere(leftpck,rightrem))) and (not (self._phi_congruence_classes_interfere(rightpck,leftrem))):
                             bb.replace_instruction(inst,[])
                             self._merge_phi_congruence_classes(leftv,rightv)
+                            self._interference_graph = InterferenceGraph(self.cfg)
                             
         self._interference_graph = InterferenceGraph(self.cfg)
 

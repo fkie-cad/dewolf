@@ -356,4 +356,31 @@ def test_dependency_but_no_circle_some_same_values_sreedhar(graph_dependency_but
                 asciicfg.count("var_1 = var_3") == 2 and
                 asciicfg.count("var_3 = var_2") == 1
     )
+
+def test_graph_with_input_arguments_more_variable_types_circular_dependency_sreedhar(
+    graph_with_input_arguments_different_variable_types_2, variable_v_new, variable_u_new, variable_x_new, variable_y_new
+):
+    """Graph where we have input arguments and where there is more than one variable type.
+
+
+    """
+    nodes, cfg = graph_with_input_arguments_different_variable_types_2
     
+
+    live = LivenessAnalysis(cfg)
+    with open("./start.txt","w") as f:
+        for bb in cfg:
+            f.write(str(bb.name))
+            f.write(":")
+            f.write(str(live._live_in_block[bb]))
+            f.write("/")
+            f.write(str(live._live_out_block[bb]))
+            f.write("\n")
+        f.write(DecoratedCFG.get_ascii(cfg))
+    run_out_of_ssa(
+        cfg,
+        SSAOptions.sreedhar,
+        arguments=[argument1 := Variable("arg1", Integer.int32_t()), argument2 := Variable("arg2", Integer.int32_t())],
+    )
+    with open("./Lsg.txt","w") as f:
+        f.write(DecoratedCFG.get_ascii(cfg))
