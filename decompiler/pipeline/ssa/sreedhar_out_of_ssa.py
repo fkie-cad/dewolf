@@ -10,7 +10,7 @@ from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo import expressions
-from decompiler.structures.pseudo.expressions import Variable
+from decompiler.structures.pseudo.expressions import Variable, Constant
 from decompiler.structures.pseudo.instructions import GenericBranch, Phi, Assignment, Comment, Relation, Return,Branch
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
 from decompiler.pipeline.ssa.variable_renaming import SimpleVariableRenamer
@@ -248,6 +248,19 @@ class SreedharOutOfSsa:
                     if (self._get_phi_congruence_class(instr.destination) == -1):
                         self._phi_congruence_class[instr.destination] = set([instr.destination])
                     self._merge_phi_congruence_classes(instr.value,instr.destination)
+        
+    def _handle_constants_in_Phi(self):
+        for bb in self.cfg:
+            for instr in bb.instructions:
+                if type(instr) == Phi:
+                    for par in instr.value:
+                        if type(par) == Constant:
+                            assig = Assignment(instr.destination,par)
+                            origblock = self._get_orig_block(instr,par)
+                            if type(origblock.instructions[-1]) == Branch:
+                                origblock.add_instruction(assig, -2)
+                            else: origblock.add_instruction(assig,-1)
+
                         
     def _remove_unnecessary_copies(self):
         self._interference_graph = InterferenceGraph(self.cfg)
@@ -271,7 +284,7 @@ class SreedharOutOfSsa:
                         self._phi_congruence_class[leftv] = set([leftv])
                         self._phi_congruence_class[rightv] = set([rightv])
                         self._merge_phi_congruence_classes(leftv,rightv)
-                        self._interference_graph = InterferenceGraph(self.cfg)
+
                     elif (leftpck == set()) and (rightpck != set()): #Case 2a
                         rightrem = deepcopy(rightpck)
                         rightrem.remove(rightv)
@@ -279,7 +292,6 @@ class SreedharOutOfSsa:
                             bb.replace_instruction(inst,[])
                             self._phi_congruence_class[leftv] = set([leftv])
                             self._merge_phi_congruence_classes(leftv,rightv)
-                            self._interference_graph = InterferenceGraph(self.cfg)
                     
                     elif (leftpck != set()) and (rightpck == set()): #Case 2b
                         leftrem = deepcopy(leftpck)
@@ -288,7 +300,6 @@ class SreedharOutOfSsa:
                             bb.replace_instruction(inst,[])
                             self._phi_congruence_class[rightv] = set([rightv])
                             self._merge_phi_congruence_classes(leftv,rightv)
-                            self._interference_graph = InterferenceGraph(self.cfg)
 
                     elif (leftpck != set()) and (rightpck != set()): #Case 3
                         leftrem = deepcopy(leftpck)
@@ -298,10 +309,8 @@ class SreedharOutOfSsa:
                         if (not (self._phi_congruence_classes_interfere(leftpck,rightrem))) and (not (self._phi_congruence_classes_interfere(rightpck,leftrem))):
                             bb.replace_instruction(inst,[])
                             self._merge_phi_congruence_classes(leftv,rightv)
-                            self._interference_graph = InterferenceGraph(self.cfg)
                             
-        self._interference_graph = InterferenceGraph(self.cfg)
-
+        self._handle_constants_in_Phi()
 
 
     def _leave_CSSA(self):
