@@ -2772,16 +2772,16 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular, al
                                    +--------------------------+             
                                                                             
                                                                             
-                                    +----------------------------+                                                                                                                                 
-                                    |             0.             |                                                                                                                                 
-                                    |     printf(0x804a00c)      |                                                                                                                                 
-                                    | scanf(0x804a025, &(var_1)) |                                                                                                                                 
-                                    |  printf(0x804a028, var_1)  |                                                                                                                                 
-                                    |       var_2 = var_1        |                                                                                                                                 
-                                    +----------------------------+                                                                                                                                 
-                                      |                                                                                                                                                            
-                                      |                                                                                                                                                            
-                                      v                                                                                                                                                            
+                                     +----------------------------+                                                                                                                                 
+                                     |             0.             |                                                                                                                                 
+                                     |     printf(0x804a00c)      |                                                                                                                                 
+                                     | scanf(0x804a025, &(var_1)) |                                                                                                                                 
+                                     |  printf(0x804a028, var_1)  |                                                                                                                                 
+                                     |       var_2 = var_1        |                                                                                                                                 
+                                     +----------------------------+                                                                                                                                 
+                                       |                                                                                                                                                            
+                                       |                                                                                                                                                            
+                                       v                                                                                                                                                            
     +--------------------------+     +--------------------------------------+                                                                                                                       
     |            2.            |     |                  1.                  |                                                                                                                       
     | printf(0x804a049, var_1) |     |            var_3 = var_2             |                                                                                                                       
@@ -2795,24 +2795,24 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular, al
                                      |  printf(0x804a045, var_3)  |  |    |                                                                                                                         
                                      |    var_2 = var_3 - 0x2     |  |    |                                                                                                                         
                                      |   var_4 = is_odd(var_2)    |  |    |                                                                                                                         
-                                     | if((var_4 & 0xff) == 0x0)  | -+    |                                                                                                                         
+                                     |       var_1 = var_3        |  |    |                                                                                                                         
+                                     | if((var_4 & 0xff) == 0x21) | -+    |                                                                                                                         
                                      +----------------------------+       |                                                                                                                         
                                        |                                  |                                                                                                                         
                                        |                                  |                                                                                                                         
                                        v                                  |                                                                                                                         
                                      +----------------------------+       |                                                                                                                         
-                                     |             4.             |       |
-                                     |    var_2 = var_2 - 0x1     |       |
+                                     |             4.             |       |                                                                                                                         
+                                     |    var_2 = var_2 - 0x1     |       |                                                                                                                         
                                      |       var_1 = var_3        | ------+
                                      +----------------------------+
-        
-        """
+    """
     _, _, cfg = graph_dependency_but_not_circular
     run_out_of_ssa(cfg, SSAOptions.sreedhar)
     assert(len(cfg.nodes[0]) == 4 
            and len(cfg.nodes[1]) == 2
            and len(cfg.nodes[2]) == 2
-           and len(cfg.nodes[3]) == 4
+           and len(cfg.nodes[3]) == 5
            and len(cfg.nodes[4]) == 2
     )
     var_1 = Variable("var_1", aliased_variable_y_new[1].type)
@@ -2821,13 +2821,15 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular, al
             and cfg.nodes[0].instructions[2].value == Call(imp_function_symbol("printf"), [Constant(0x804A028), var_1])
             and cfg.nodes[0].instructions[3].value == var_1
             and cfg.nodes[2].instructions[0].value == Call(imp_function_symbol("printf"), [Constant(0x804A049), var_1])
+            and cfg.nodes[3].instructions[3].destination == var_1
+            and cfg.nodes[4].instructions[1].destination == var_1
     )
     var_2 = Variable("var_2", aliased_variable_y_new[7].type)
     assert(
            cfg.nodes[0].instructions[3].destination == var_2
            and cfg.nodes[1].instructions[0].value == var_2
-           and cfg.nodes[3].instructions[2].value == Call(function_symbol("is_odd"), [var_2])
            and cfg.nodes[3].instructions[1].destination == var_2
+           and cfg.nodes[3].instructions[2].value == Call(function_symbol("is_odd"), [var_2])
            and cfg.nodes[4].instructions[0].destination == var_2 
            and cfg.nodes[4].instructions[0].value == BinaryOperation(OperationType.minus, [var_2, Constant(0x01)])
     )
@@ -2837,12 +2839,13 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular, al
             and cfg.nodes[1].instructions[1] == Branch(Condition(OperationType.less_or_equal, [var_3, Constant(0x00)]))
             and cfg.nodes[3].instructions[0].value == Call(imp_function_symbol("printf"), [Constant(0x804A045), var_3])
             and cfg.nodes[3].instructions[1].value == BinaryOperation(OperationType.minus, [var_3, Constant(0x02)])
+            and cfg.nodes[3].instructions[3].value == var_3 
             and cfg.nodes[4].instructions[1].value == var_3
     )
     var_4 = Variable("var_4", variable_v[2].type)
     assert(
             cfg.nodes[3].instructions[2].destination == var_4
-            and cfg.nodes[3].instructions[3] ==  Branch(Condition(OperationType.equal, [BinaryOperation(OperationType.bitwise_and, [var_4, Constant(0xFF)]), Constant(0x0)]))
+            and cfg.nodes[3].instructions[4] ==  Branch(Condition(OperationType.equal, [BinaryOperation(OperationType.bitwise_and, [var_4, Constant(0xFF)]), Constant(0x0)]))
     )
     assert(
             cfg.nodes[0].instructions[0].value == Call(imp_function_symbol("printf"), [Constant(0x804A00C)])
