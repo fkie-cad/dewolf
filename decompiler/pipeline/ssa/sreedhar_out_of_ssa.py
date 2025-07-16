@@ -1,4 +1,5 @@
 import itertools
+import logging
 
 from networkx import intersection
 from typing import DefaultDict, List, Set
@@ -272,11 +273,8 @@ class SreedharOutOfSsa:
                     for par in instr.value:
                         if type(par) == Constant:
                             assig = Assignment(instr.destination,par)
-                            origblock = self._get_orig_block(instr,par)[0]
-                            if type(origblock.instructions[-1]) == Branch:
-                                origblock.add_instruction(assig, -2)
-                            else: origblock.add_instruction(assig,-1)
-
+                            for origblock in self._get_orig_block(instr,par):
+                                self._insert_before_branch(origblock.instructions, assig)
                         
     def _remove_unnecessary_copies(self):
         self._interference_graph = InterferenceGraph(self.cfg)
