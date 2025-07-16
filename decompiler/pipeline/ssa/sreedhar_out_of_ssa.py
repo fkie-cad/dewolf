@@ -6,6 +6,7 @@ from typing import DefaultDict, List, Set
 from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
 from decompiler.structures.graphs import cfg
 from decompiler.structures.graphs.basicblock import BasicBlock
+from decompiler.structures.graphs.branches import UnconditionalEdge
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.interferencegraph import InterferenceGraph
@@ -15,15 +16,10 @@ from decompiler.structures.pseudo.instructions import GenericBranch, Phi, Assign
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
 from decompiler.pipeline.ssa.variable_renaming import SimpleVariableRenamer
 from decompiler.task import DecompilerTask
-from decompiler.frontend.binaryninja.handlers.symbols import GLOBAL_VARIABLE_PREFIX
 
 from copy import deepcopy
 
-from decompiler.util.decoration import DecoratedCFG, DecoratedGraph
-
-
 class SreedharOutOfSsa:
-#: DefaultDict[BasicBlock, List[Phi]]
     def __init__(self, task :DecompilerTask):
         self.task = task
         self.cfg =  task.cfg
@@ -38,16 +34,23 @@ class SreedharOutOfSsa:
             self._live_in[bb] = liveness.live_in_of(bb)
             self._live_out[bb] = liveness.live_out_of(bb)
 
-    def _get_orig_block(self, phi_instr: Phi, phi_arg):
-        #TODO find a better way 
-        inv_block = {v: k for k, v in phi_instr.origin_block.items() if v != None}
-        if x:= inv_block.get(phi_arg):
-            return x
+        #TODO is this correct or should it be all vars
+        self._live_out[None] = liveness.live_out_of(None) 
 
+    #TODO find a better way 
+    def _get_orig_block(self, phi_instr: Phi, phi_arg):
+        blocks = []
+        for block, var in phi_instr.origin_block.items():
+            if var == phi_arg:
+                blocks.append(block)
+
+        if len(blocks) != 0: 
+            return blocks
+        
         for bb in self.cfg:
             for instr in bb:
                 if instr is phi_instr:
-                    return bb
+                    return [bb]
 
     def _init_phi_congruence_classes(self):
         for instr in self.cfg.instructions:
@@ -123,48 +126,62 @@ class SreedharOutOfSsa:
                 return
         instrs.append(new_inst)
 
-    def _used_in_phi(self, var, j):
+    #TODO is this now correct?
+    def _used_in_phi(self, var, orig, j):
         for instr in j.instructions:
             if isinstance(instr, Phi):
                 if var is instr.destination or var in instr.requirements:
-                    return True
+                    if orig in self._get_orig_block(instr, var):
+                        return True
         return False
 
+    #TODO is this now correct?
     def _prune_dead_out(self, var, block):
-        # drop var from live_out if no successor uses it
+        is_live_out = False
         for succ in self.cfg.get_successors(block):
-            if var not in self._live_in[succ] and not self._used_in_phi(var, succ):
-                self._live_out[block].discard(var)
+            if var in self._live_in[succ] or self._used_in_phi(var, block, succ):
+                is_live_out = True
+                break
 
-    def _add_interference_edges(self, var, vars):
-        for v in vars:
-            self._interference_graph.add_edge(var, v)
+        if not is_live_out:
+            self._live_out[block].discard(var)
 
     def _insert_copy(self, x, instr: Phi):
         is_req = x in instr.requirements
-        orig_block = self._get_orig_block(instr, x)
         x_new = expressions.Variable(self._gen_new_name(x), x.type, ssa_label=1)
         copy_instr = Assignment(x_new, x) if is_req else Assignment(x, x_new)
-        live_set = self._live_out[orig_block] if is_req else self._live_in[orig_block]
-        block_instrs = orig_block.instructions
 
         if is_req:
-            self._insert_before_branch(block_instrs, copy_instr)
+            for orig_block in self._get_orig_block(instr, x): 
+                if orig_block == None:
+                    # create new block
+                    orig_block = self.cfg.create_block([]) 
+                    block_of_instr = self._get_orig_block(instr, instr.definitions[0])[0]
+                    self.cfg.add_edge(UnconditionalEdge(orig_block, block_of_instr))
+
+                block_instrs = orig_block.instructions
+                self._insert_before_branch(block_instrs, copy_instr)
+                if self._live_out.get(orig_block):
+                    self._live_out[orig_block].add(x_new)
+                else :
+                    self._live_out[orig_block] = set(x_new)
+                self._prune_dead_out(x, orig_block)
+
             instr.substitute(x, x_new)
-            self._live_out[orig_block].add(x_new)
-            self._prune_dead_out(x, orig_block)
         else:
+            orig_block = self._get_orig_block(instr, x)[0]
+            block_instrs = orig_block.instructions
             self._insert_after_phis(block_instrs, copy_instr)
             instr.rename_destination(x, x_new)
             self._live_in[orig_block].discard(x)
             self._live_in[orig_block].add(x_new)
 
-        self._add_interference_edges(x, live_set)
+        self._interference_graph = InterferenceGraph(self.cfg)
         self._phi_congruence_class[x_new] = {x_new}
     
     def _classify_pair(self, instr, x_i, x_j, dest, candidates, unresolved):
-        l_i = self._get_orig_block(instr, x_i)
-        l_j = self._get_orig_block(instr, x_j)
+        l_i = self._get_orig_block(instr, x_i)[0]
+        l_j = self._get_orig_block(instr, x_j)[0]
 
         if x_j is dest:
             cond_1 = self._get_phi_congruence_class(x_i) & self._live_in[l_j]
@@ -189,7 +206,6 @@ class SreedharOutOfSsa:
         else:
             unresolved[x_i].add(x_j)
             unresolved[x_j].add(x_i)
-
 
     def _resolve_unresolved_neighbors(self, candidates, unresolved):
         resolved = set()
@@ -256,7 +272,7 @@ class SreedharOutOfSsa:
                     for par in instr.value:
                         if type(par) == Constant:
                             assig = Assignment(instr.destination,par)
-                            origblock = self._get_orig_block(instr,par)
+                            origblock = self._get_orig_block(instr,par)[0]
                             if type(origblock.instructions[-1]) == Branch:
                                 origblock.add_instruction(assig, -2)
                             else: origblock.add_instruction(assig,-1)
