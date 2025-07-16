@@ -270,7 +270,8 @@ class SreedharOutOfSsa:
         for bb in self.cfg:
             for instr in bb.instructions:
                 if type(instr) == Phi:
-                    for par in instr.value:
+                    # set since we want to avoid double insertions
+                    for par in set(instr.value):
                         if type(par) == Constant:
                             assig = Assignment(instr.destination,par)
                             for origblock in self._get_orig_block(instr,par):
