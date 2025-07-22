@@ -265,17 +265,28 @@ class SreedharOutOfSsa:
                     if (self._get_phi_congruence_class(instr.destination) == -1):
                         self._phi_congruence_class[instr.destination] = set([instr.destination])
                     self._merge_phi_congruence_classes(instr.value,instr.destination)
-        
+
+
     def _handle_constants_in_Phi(self):
+        count = 0
         for bb in self.cfg:
             for instr in bb.instructions:
                 if type(instr) == Phi:
-                    # set since we want to avoid double insertions
-                    for par in set(instr.value):
+                    instr : Phi
+                    constList = []
+                    for par in instr.value:
                         if type(par) == Constant:
-                            assig = Assignment(instr.destination,par)
-                            for origblock in self._get_orig_block(instr,par):
-                                self._insert_before_branch(origblock.instructions, assig)
+                            constList.append(par)
+                    for i in range(0,len(constList)):
+                        for j in self._get_orig_block(instr,constList[i]):
+                            var = Variable(f"ConstantPlaceholder{count}", ssa_label=count)
+                            count += 1
+                            self._insert_before_branch(j.instructions,Assignment(var,constList[i]))
+                            self._phi_congruence_class[var] = set([var])
+                            self._merge_phi_congruence_classes(var,instr.destination)
+                        
+        #self._interference_graph = InterferenceGraph(self.cfg)
+
                         
     def _remove_unnecessary_copies(self):
         self._interference_graph = InterferenceGraph(self.cfg)
@@ -354,8 +365,14 @@ class SreedharOutOfSsa:
                     count += 1
                 else:
                     renamer.renaming_map[var] = Variable(realocation[renamer.renaming_map[var].name],renamer.renaming_map[var].type,ssa_name=var)
+        
+        remaining = {k for k in newName if k not in renamer.renaming_map}
+        for x in remaining:
+            x: Variable
+            renamer.renaming_map[x] = Variable(newName[x],x.type,ssa_name=x)
 
         renamer.rename()
+        
 
     def perform(self):
         self._eliminate_phi_resource_interference() #Step 1: Translation to CSSA

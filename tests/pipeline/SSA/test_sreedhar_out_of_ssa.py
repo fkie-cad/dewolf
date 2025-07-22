@@ -427,21 +427,21 @@ def test_graph_with_input_arguments_more_variable_types_circular_dependency_sree
 
     assert(
             len(cfg.nodes[0]) == 2 and
-            len(cfg.nodes[1]) == 1 and #currently failing here #TODO fix it :)
+            len(cfg.nodes[1]) == 1 and
             len(cfg.nodes[2]) == 1 and
             len(cfg.nodes[3]) == 1 and
-            len(cfg.nodes[4]) == 1 and
+            len(cfg.nodes[4]) == (1 + 2) and #+2 because of the constants in the Phi
             len(cfg.nodes[5]) == 2 and
             len(cfg.nodes[6]) == 2 and
             len(cfg.nodes[7]) == 1
     )
 
     assert(
-            asciicfg.count("var_1 = arg1") == 1 and
+            asciicfg.count("var_1 = arg1") == 2 and
             asciicfg.count("var_1 = arg2") == 1 and
-            asciicfg.count("var_5 = var_4") == 1)
+            asciicfg.count("var_5 = var_3") == 1)
     assert(
-            len(re.findall("var_[0-5] = 0x1")) == 2 #does the Extraction of Constants out of Phi-Functions work?
+            len(re.findall("var_[0-5] = 0x1",asciicfg)) == 2 #does the Extraction of Constants out of Phi-Functions work?
     )
 
 
@@ -461,7 +461,9 @@ def test_graph_with_phi_fct_in_head_sreedhar(graph_phi_fct_in_head1, variable, c
     asciicfg = DecoratedCFG.get_ascii(cfg)
 
     assert(
-            len(cfg.nodes[0].instructions) == 4 and
+            len(cfg.nodes[0].instructions) == 3 and
+            len(cfg.nodes[1].instructions) == 1 and
+            len(cfg.nodes) == 2 and
             asciicfg.count("var_3 = var_2") == 1 and
             asciicfg.count("var_1 = var_3") == 1 and
             asciicfg.count("var_2 = var_1") == 2
