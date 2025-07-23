@@ -2,7 +2,7 @@
 
 from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.structures.graphs.cfg import BasicBlockEdgeCondition
-from decompiler.structures.pseudo import Expression, Type, UnknownExpression, instructions
+from decompiler.structures.pseudo import  UnknownExpression
 
 from tests.pipeline.SSA.utils_out_of_ssa_tests import *
 
@@ -3012,7 +3012,6 @@ def test_circular_dependency_sreedhar(graph_circular_dependency, variable_u, var
                                    +-----------------------+     
                                                                  
                                                                  
-                                                                 
 
                                      +-------------------------+                                                                                                                                  
                                      |           0.            |                                                                                                                                  
@@ -3042,6 +3041,33 @@ def test_circular_dependency_sreedhar(graph_circular_dependency, variable_u, var
                                      |      var_2 = var_6      | -+
                                      +-------------------------+
 
+                                     +-------------------------+                                                                                                                                    
+                                     |           0.            |                                                                                                                                    
+                                     |    printf(0x804b00c)    |                                                                                                                                    
+                                     |    var_1 = &(var_3)     |                                                                                                                                    
+                                     | scanf(0x804b01f, var_1) |                                                                                                                                    
+                                     |    printf(0x804bb0c)    |                                                                                                                                    
+                                     |    var_2 = &(var_5)     |                                                                                                                                    
+                                     | scanf(0x804bb1f, var_2) |                                                                                                                                    
+                                     |       var_4 = 0x1       |                                                                                                                                    
+                                     +-------------------------+                                                                                                                                    
+                                       |                                                                                                                                                            
+                                       |                                                                                                                                                            
+                                       v                                                                                                                                                            
+    +--------------------------+     +-------------------------+                                                                                                                                    
+    |                          |     |           1.            |                                                                                                                                    
+    |            3.            |     |      var_6 = var_2      |                                                                                                                                    
+    | printf(0x804bb0c, var_2) |     |      var_2 = var_1      |                                                                                                                                    
+    |                          | <-- |    if(var_4 <= 0x14)    | <+                                                                                                                                 
+    +--------------------------+     +-------------------------+  |                                                                                                                                 
+                                       |                          |                                                                                                                                 
+                                       |                          |                                                                                                                                 
+                                       v                          |                                                                                                                                 
+                                     +-------------------------+  |
+                                     |           2.            |  |
+                                     |   var_4 = var_4 + 0x1   |  |
+                                     |      var_1 = var_6      | -+
+                                     +-------------------------+
 
     """
     nodes, _, cfg = graph_circular_dependency
@@ -3055,36 +3081,10 @@ def test_circular_dependency_sreedhar(graph_circular_dependency, variable_u, var
            and 
            len(nodes[3]) == 1
     )
-    var_1 = Variable("var_1", variable_u[2].type)
-    assert(
-            nodes[0].instructions[6].destination == var_1
-            and 
-            nodes[1].instructions[2] == 
-            Branch(
-                Condition(
-                    OperationType.less_or_equal, 
-                    [
-                        var_1, 
-                        Constant(20)
-                    ]
-                )
-            )
-            and 
-            nodes[2].instructions[0].destination == var_1
-            and 
-            nodes[2].instructions[0].value == 
-            BinaryOperation(
-                OperationType.plus, 
-                [
-                    var_1, 
-                    Constant(1)
-                ]
-            )
-    )
-    var_2 = Variable("var_2", variable_x[1].type)
+    var_1 = Variable("var_1", variable_x[1].type)
     assert(
 
-            nodes[0].instructions[1].destination == var_2
+            nodes[0].instructions[1].destination == var_1
             and
             nodes[0].instructions[2] == 
             Assignment(
@@ -3093,18 +3093,18 @@ def test_circular_dependency_sreedhar(graph_circular_dependency, variable_u, var
                     imp_function_symbol("scanf"), 
                     [
                         Constant(0x804B01F), 
-                        var_2
+                        var_1
                     ]
                 )
             )
             and 
-            nodes[1].instructions[1].value == var_2 
+            nodes[1].instructions[1].value == var_1 
             and 
-            nodes[2].instructions[1].destination == var_2 
+            nodes[2].instructions[1].destination == var_1
     )
-    var_3 = Variable("var_3", variable_v[1].type)
+    var_2 = Variable("var_2", variable_v[1].type)
     assert(
-            nodes[0].instructions[4].destination == var_3
+            nodes[0].instructions[4].destination == var_2
             and nodes[0].instructions[5] == 
             Assignment(
                 ListOperation([]), 
@@ -3112,14 +3112,14 @@ def test_circular_dependency_sreedhar(graph_circular_dependency, variable_u, var
                     imp_function_symbol("scanf"), 
                     [
                         Constant(0x804BB1F), 
-                        var_3
+                        var_2
                     ]
                 )
             )
             and 
-            nodes[1].instructions[0].value == var_3
+            nodes[1].instructions[0].value == var_2
             and 
-            nodes[1].instructions[1].destination == var_3
+            nodes[1].instructions[1].destination == var_2
             and 
             nodes[3].instructions[0] == 
             Assignment(
@@ -3128,21 +3128,47 @@ def test_circular_dependency_sreedhar(graph_circular_dependency, variable_u, var
                     imp_function_symbol("printf"), 
                     [
                         Constant(0x804BB0C), 
-                        var_3
+                        var_2
                     ]
                 )
             )
     )
-    var_4 = Variable("var_4", aliased_variable_y[1].type)
+    var_3 = Variable("var_3", aliased_variable_y[1].type)
     assert(
         nodes[0].instructions[1].value == 
         UnaryOperation(
             OperationType.address, 
             [
-                var_4
+                var_3
             ], 
             Integer.int32_t()
         )
+    )
+    var_4 = Variable("var_4", variable_u[1].type)
+    assert(
+            nodes[0].instructions[6].destination == var_4
+            and 
+            nodes[1].instructions[2] == 
+            Branch(
+                Condition(
+                    OperationType.less_or_equal, 
+                    [
+                        var_4, 
+                        Constant(20)
+                    ]
+                )
+            )
+            and 
+            nodes[2].instructions[0].destination == var_4
+            and 
+            nodes[2].instructions[0].value == 
+            BinaryOperation(
+                OperationType.plus, 
+                [
+                    var_4, 
+                    Constant(1)
+                ]
+            )
     )
     var_5 = Variable("var_5", aliased_variable_z[3].type)
     assert(
@@ -3155,7 +3181,7 @@ def test_circular_dependency_sreedhar(graph_circular_dependency, variable_u, var
             Integer.int32_t()
         )
     )
-    var_6 = Variable("var_6", var_3.type)
+    var_6 = Variable("var_6", var_2.type)
     assert(
         nodes[1].instructions[0].destination == var_6
         and 
@@ -3576,31 +3602,30 @@ def test_aliased_name_problem_sreedhar(graph_aliased_name_problem, aliased_varia
                        |       x#3 = x#2 + 0x1        | -+                                                                                                                                                             
                        +------------------------------+                                                                                                                                                                
                                                                                                                                                                                                                        
-                                                                                                                                                                                                                       
-                       +------------------------------+                                                                                                                                                                
-                       |              0.              |                                                                                                                                                                
-                       | printf("Enter two numbers ") |                                                                                                                                                                
-                       |       var_5 = &(var_3)       |                                                                                                                                                                
-                       |   scanf(0x804a025, var_5)    |                                                                                                                                                                
-                       |       var_4 = &(var_2)       |                                                                                                                                                                
-                       |   scanf(0x804a025, var_4)    |                                                                                                                                                                
-                       |         var_1 = 0x1          |                                                                                                                                                                
-                       +------------------------------+                                                                                                                                                                
-                         |                                                                                                                                                                                             
-                         |                                                                                                                                                                                             
-                         v                                                                                                                                                                                             
-    +------------+     +------------------------------+                                                                                                                                                                
-    |     3.     |     |              1.              |
-    | return 0x0 | <-- |      if(var_1 <= var_3)      | <+
-    +------------+     +------------------------------+  |
-                         |                               |
-                         |                               |
-                         v                               |
-                       +------------------------------+  |                                                                 
-                       |              2.              |  |                                                                 
-                       |    var_2 = var_2 * var_1     |  |                                                                 
-                       |     var_1 = var_1 + 0x1      | -+                                                                 
-                       +------------------------------+        
+                       +------------------------------+                                                                                                                                             
+                       |              0.              |                                                                                                                                             
+                       | printf("Enter two numbers ") |                                                                                                                                             
+                       |       var_5 = &(var_2)       |                                                                                                                                             
+                       |   scanf(0x804a025, var_5)    |                                                                                                                                             
+                       |       var_4 = &(var_1)       |                                                                                                                                             
+                       |   scanf(0x804a025, var_4)    |                                                                                                                                             
+                       |         var_3 = 0x1          |                                                                                                                                             
+                       +------------------------------+                                                                                                                                             
+                         |                                                                                                                                                                          
+                         |                                                                                                                                                                          
+                         v                                                                                                                                                                          
+    +------------+     +------------------------------+                                                                                                                                             
+    |     3.     |     |              1.              |                                                                                                                                             
+    | return 0x0 | <-- |      if(var_3 <= var_2)      | <+                                                                                                                                          
+    +------------+     +------------------------------+  |                                                                                                                                          
+                         |                               |                                                                                                                                          
+                         |                               |                                                                                                                                          
+                         v                               |                                                                                                                                          
+                       +------------------------------+  |
+                       |              2.              |  |
+                       |    var_1 = var_1 * var_3     |  |
+                       |     var_3 = var_3 + 0x1      | -+
+                       +------------------------------+
     """
     nodes, _, cfg = graph_aliased_name_problem
     run_out_of_ssa(cfg, SSAOptions.sreedhar)
@@ -3613,50 +3638,54 @@ def test_aliased_name_problem_sreedhar(graph_aliased_name_problem, aliased_varia
         and
         len(nodes[3]) == 1
     )
-    var_1 = Variable("var_1", variable_x[2].type)
-    assert(
-            nodes[0].instructions[5].destination == var_1
-            and
-            nodes[2].instructions[1] ==
-            Assignment(
-                var_1,
-                BinaryOperation(
-                    OperationType.plus,
-                    [
-                        var_1,
-                        Constant(0x01)
-                    ]
-                )
-            )
-    ) 
-    var_2 = Variable("var_2", aliased_variable_y[0].type)
+    var_1 = Variable("var_1", aliased_variable_y[0].type)
     assert(
        nodes[0].instructions[3].value == 
        UnaryOperation(
            OperationType.address, 
            [
-               var_2
+               var_1
             ]
         )
        and
-       nodes[2].instructions[0].destination == var_2
+       nodes[2].instructions[0].destination == var_1
     )
-    assert(
-            nodes[2].instructions[0].value ==
-            BinaryOperation(
-                OperationType.multiply,
-                [
-                    var_2,
-                    var_1
-                ]
-            )
-    )
-    var_3 = Variable("var_3", aliased_variable_z[0].type)
+    var_2 = Variable("var_2", aliased_variable_z[0].type)
     assert(
             nodes[0].instructions[1].value ==
             UnaryOperation(
                 OperationType.address,
                 [
+                    var_2
+                ]
+            )
+    )
+    var_3 = Variable("var_3", variable_x[2].type)
+    assert(
+            nodes[0].instructions[5] == 
+            Assignment(
+                var_3,
+                Constant(0x01)
+            )
+            and
+            nodes[2].instructions[1] ==
+            Assignment(
+                var_3,
+                BinaryOperation(
+                    OperationType.plus,
+                    [
+                        var_3,
+                        Constant(0x01)
+                    ]
+                )
+            )
+    ) 
+    assert(
+            nodes[2].instructions[0].value ==
+            BinaryOperation(
+                OperationType.multiply,
+                [
+                    var_1,
                     var_3
                 ]
             )
@@ -3667,13 +3696,13 @@ def test_aliased_name_problem_sreedhar(graph_aliased_name_problem, aliased_varia
                 Condition(
                     OperationType.less_or_equal,
                     [
-                        var_1,
-                        var_3
+                        var_3,
+                        var_2
                     ]
                 )
             )
     )
-    var_4 = Variable("var_4", var_2.type)
+    var_4 = Variable("var_4", var_1.type)
     assert(
         nodes[0].instructions[3].destination == var_4
         and
@@ -3689,7 +3718,7 @@ def test_aliased_name_problem_sreedhar(graph_aliased_name_problem, aliased_varia
             )
         )
     )
-    var_5 = Variable("var_5", var_3.type)
+    var_5 = Variable("var_5", var_2.type)
     assert(
         nodes[0].instructions[1].destination == var_5
         and
