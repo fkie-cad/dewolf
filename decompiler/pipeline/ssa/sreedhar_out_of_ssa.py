@@ -12,11 +12,12 @@ from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo import expressions
-from decompiler.structures.pseudo.expressions import Variable, Constant
+from decompiler.structures.pseudo.expressions import Variable, Constant, GlobalVariable
 from decompiler.structures.pseudo.instructions import GenericBranch, Phi, Assignment, Comment, Relation, Return,Branch
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
 from decompiler.pipeline.ssa.variable_renaming import SimpleVariableRenamer
 from decompiler.task import DecompilerTask
+from decompiler.util.decoration import DecoratedGraph, DecoratedCFG
 
 from copy import deepcopy
 
@@ -79,7 +80,11 @@ class SreedharOutOfSsa:
     def _merge_phi_congruence_classes(self, *phi_resources):
         merged_set = set()
         for a in phi_resources:
-            merged_set.update(self._get_phi_congruence_class(a))
+            x = self._get_phi_congruence_class(a)
+            if x == -1:
+                self._phi_congruence_class[a] = set([a])
+                x = self._get_phi_congruence_class(a)
+            merged_set.update(x)
 
         rep = phi_resources[0]
         for a in merged_set:
@@ -351,25 +356,35 @@ class SreedharOutOfSsa:
         count = 1
         for pck in self._phi_congruence_class:
             if isinstance(self._phi_congruence_class[pck],set):
-                for var in self._phi_congruence_class[pck]:
-                    newName[var] = f"{renamer.new_variable_name}{count}"
-                count += 1
+                glob = [k for k in self._phi_congruence_class[pck] if isinstance(k,GlobalVariable)]
+                glob: List[Variable]
+                if len(glob) != 0:
+                    globnames = list({j.name for j in glob})
+                    if len(globnames) == 1:
+                        for var in self._phi_congruence_class[pck]:
+                            newName[var] = f"{globnames[0]}"
+                    else: 
+                        raise Exception("detected more than one global variable in a phi congruence class")
+                else:
+                    for var in self._phi_congruence_class[pck]:
+                        newName[var] = f"{renamer.new_variable_name}{count}"
+                    count += 1
 
         for var in renamer.renaming_map:
             if (newName[var] != -1):  
-                renamer.renaming_map[var] = Variable(newName[var],renamer.renaming_map[var].type,ssa_name=var)
+                renamer.renaming_map[var] = Variable(newName[var],var.type,None,var.is_aliased,var,var.tags)
             elif renamer.renaming_map[var].name.count(renamer.new_variable_name) != 0 or ((renamer.renaming_map[var].name.count("_") != 0) and renamer.renaming_map[var].name.count("data") == 0):
                 if realocation[renamer.renaming_map[var].name] == -1:
                     realocation[renamer.renaming_map[var].name] = f"{renamer.new_variable_name}{count}"
-                    renamer.renaming_map[var] = Variable(f"{renamer.new_variable_name}{count}",renamer.renaming_map[var].type,ssa_name=var)
+                    renamer.renaming_map[var] = Variable(f"{renamer.new_variable_name}{count}",var.type,None,var.is_aliased,var,var.tags)
                     count += 1
                 else:
-                    renamer.renaming_map[var] = Variable(realocation[renamer.renaming_map[var].name],renamer.renaming_map[var].type,ssa_name=var)
+                    renamer.renaming_map[var] = Variable(realocation[renamer.renaming_map[var].name],var.type,None,var.is_aliased,var,var.tags)
         
-        remaining = {k for k in newName if k not in renamer.renaming_map}
-        for x in remaining:
+        remaining = [k for k in newName if k not in renamer.renaming_map]
+        for x in remaining: #ConstantPlaceholder
             x: Variable
-            renamer.renaming_map[x] = Variable(newName[x],x.type,ssa_name=x)
+            renamer.renaming_map[x] = Variable(newName[x],x.type,None,x.is_aliased,x,x.tags)
 
         renamer.rename()
         
