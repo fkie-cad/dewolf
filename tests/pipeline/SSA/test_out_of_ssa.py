@@ -2,9 +2,8 @@
 
 from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.structures.graphs.cfg import BasicBlockEdgeCondition
-from decompiler.structures.pseudo import Expression, Type, UnknownExpression
+from decompiler.structures.pseudo import Expression, Type, UnknownExpression, instructions
 
-from decompiler.util.decoration import DecoratedCFG
 from tests.pipeline.SSA.utils_out_of_ssa_tests import *
 
 
@@ -1853,7 +1852,7 @@ def test_graph_with_edge_conditions_lift_minimal(graph_with_edge_condition, vari
     )
 
 
-def test_aliased_name_problem(aliased_variable_z, aliased_variable_y, variable_u, variable_v, variable_x, variable):
+def test_aliased_name_problem(graph_aliased_name_problem, variable):
     """
                        +------------------------------+                        +------------------------------+
                        |              0.              |                        |              0.              |
@@ -1884,61 +1883,7 @@ def test_aliased_name_problem(aliased_variable_z, aliased_variable_y, variable_u
                        |       x#3 = x#2 + 0x1        | -+                     |       x#3 = x#2 + 0x1        | -+
                        +------------------------------+                        +------------------------------+
     """
-    instructions = [
-        # node 0
-        Assignment(ListOperation([]), Call(imp_function_symbol("printf"), [Constant("Enter two numbers ")])),
-        Assignment(aliased_variable_z[2], aliased_variable_z[0]),
-        Assignment(variable_v[1], UnaryOperation(OperationType.address, [aliased_variable_z[2]])),
-        Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [Constant(0x804A025), variable_v[1]])),
-        Assignment(aliased_variable_y[3], aliased_variable_y[0]),
-        Assignment(variable_u[2], UnaryOperation(OperationType.address, [aliased_variable_y[3]])),
-        Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [Constant(0x804A025), variable_u[2]])),
-        # node 1
-        Phi(variable_x[2], [Constant(0x1), variable_x[3]]),
-        Phi(aliased_variable_y[5], [aliased_variable_y[3], aliased_variable_y[6]]),
-        Phi(aliased_variable_z[5], [aliased_variable_z[2], aliased_variable_z[5]]),
-        Branch(Condition(OperationType.less_or_equal, [variable_x[2], aliased_variable_z[5]])),
-        # node 2
-        Assignment(
-            aliased_variable_y[6],
-            BinaryOperation(
-                OperationType.multiply,
-                [aliased_variable_y[5], variable_x[2]],
-            ),
-        ),
-        Assignment(
-            variable_x[3],
-            BinaryOperation(
-                OperationType.plus,
-                [variable_x[2], Constant(0x1)],
-            ),
-        ),
-        # node 3
-        Return([Constant(0x0)]),
-    ]
-
-    # Set of nodes:
-    nodes = [BasicBlock(i) for i in range(4)]
-    # Add instructions:
-    nodes[0].instructions = instructions[0:7]
-    nodes[1].instructions = instructions[7:11]
-    nodes[2].instructions = instructions[11:13]
-    nodes[3].instructions = [instructions[13]]
-
-    instructions[7]._origin_block = {nodes[0]: Constant(0x1), nodes[2]: variable_x[3]}
-    instructions[8]._origin_block = {nodes[0]: aliased_variable_y[3], nodes[2]: aliased_variable_y[6]}
-    instructions[9]._origin_block = {nodes[0]: aliased_variable_z[2], nodes[2]: aliased_variable_z[5]}
-
-    cfg = ControlFlowGraph()
-    cfg.add_edges_from(
-        [
-            UnconditionalEdge(nodes[0], nodes[1]),
-            TrueCase(nodes[1], nodes[2]),
-            FalseCase(nodes[1], nodes[3]),
-            UnconditionalEdge(nodes[2], nodes[1]),
-        ]
-    )
-
+    nodes, _, cfg = graph_aliased_name_problem
     run_out_of_ssa(cfg, SSAOptions.lift_minimal)
 
     variable[0].is_aliased = True
@@ -2647,25 +2592,54 @@ def test_no_dependency_conditional_edges_sreedhar(graph_no_dependency, variable_
     | printf(0x804b045, var_1) |                                                                                                                                                                    
     +--------------------------+
     """
-    _, _, cfg = graph_no_dependency
+    nodes, _, cfg = graph_no_dependency
     run_out_of_ssa(cfg, SSAOptions.sreedhar)
+    assert(
+            len(nodes[0]) == 1
+            and 
+            len(nodes[1]) == 3
+            and 
+            len(nodes[2]) == 1
+    )
     var_1 = Variable("var_1", variable_v[2].type) 
     assert(
-           cfg.nodes[1].instructions[0].destination == var_1
-           and cfg.nodes[2].instructions[0].value == Call(imp_function_symbol("printf"), [Constant(0x804B045), var_1]) 
+           nodes[1].instructions[0].destination == var_1
+           and 
+           nodes[2].instructions[0] == 
+           Assignment(
+               ListOperation([]), 
+               Call(
+                   imp_function_symbol("printf"), 
+                   [
+                       Constant(0x804B045), 
+                       var_1
+                    ]
+                )
+            )
     )
     var_2 = Variable("var_2", variable_u[3].type) 
     assert(
-        cfg.nodes[1].instructions[1].destination == var_2
-        and cfg.nodes[1].instructions[2] == Branch(Condition(OperationType.less_or_equal, [var_1, var_2], CustomType("bool", 1)))
+        nodes[1].instructions[1].destination == var_2
+        and 
+        nodes[1].instructions[2] == 
+        Branch(
+            Condition(
+                OperationType.less_or_equal, 
+                [
+                    var_1, 
+                    var_2
+                ], 
+                CustomType("bool", 1)
+            )
+        )
     )
     var_3 = Variable("var_3", var_1.type) 
     assert(
-            cfg.nodes[1].instructions[1].value == var_3
+            nodes[1].instructions[1].value == var_3
     )
     var_4 = Variable("var_4", var_2.type) 
     assert(
-            cfg.nodes[1].instructions[0].value == var_4
+            nodes[1].instructions[0].value == var_4
     )
 
 def test_no_dependency_unnecessary_phi_sreedhar(graph_no_dependency, variable_v, variable_u_new, variable_x, aliased_variable_y_new): 
@@ -2719,20 +2693,65 @@ def test_no_dependency_unnecessary_phi_sreedhar(graph_no_dependency, variable_v,
     """
     nodes, _, cfg = graph_no_dependency
     nodes[1].instructions[1].substitute(variable_v[3], variable_v[1])
-    #DEBUG
     run_out_of_ssa(cfg, SSAOptions.sreedhar)
+    assert(
+            len(nodes[0]) == 1 
+            and 
+            len(nodes[1]) == 2 
+            and 
+            len(nodes[2]) == 2
+    )
     var_1 = Variable("var_1", variable_x[4].type) 
+    assert(
+           nodes[2].instructions[0].destination == var_1
+           and 
+           nodes[2].instructions[1] == 
+           Assignment(
+               ListOperation([]), 
+               Call(
+                   imp_function_symbol("printf"), 
+                   [
+                       Constant(0x804B045), 
+                       var_1
+                    ]
+                )
+            )
+    )
     var_2 = Variable("var_2", variable_u_new[3].type) 
+    assert(
+           nodes[1].instructions[0].destination == var_2
+    )
     var_3 = Variable("var_3", aliased_variable_y_new[4].type) 
+    assert(
+           nodes[1].instructions[0].value == var_3
+    )
     var_4 = Variable("var_4", variable_v[2].type) 
-    assert(len(cfg.nodes[0]) == 1 and len(cfg.nodes[1]) == 2 and len(cfg.nodes[2]) == 2)
-    assert(cfg.nodes[0].instructions[0].value ==  Call(imp_function_symbol("printf"), [Constant(0x804B00C)])
-           and cfg.nodes[1].instructions[0].destination == var_2
-           and cfg.nodes[1].instructions[0].value == var_3
-           and cfg.nodes[1].instructions[1] == Branch(Condition(OperationType.less_or_equal, [var_4, var_2]))
-           and cfg.nodes[2].instructions[0].destination == var_1
-           and cfg.nodes[2].instructions[0].value == var_4
-           and cfg.nodes[2].instructions[1].value == Call(imp_function_symbol("printf"), [Constant(0x804B045), var_1])
+    assert(
+          nodes[2].instructions[0].value == var_4
+    )
+    assert(
+           nodes[1].instructions[1] == 
+           Branch(
+               Condition(
+                   OperationType.less_or_equal, 
+                   [
+                       var_4, 
+                        var_2
+                   ]
+                )
+            )
+    )
+    assert(
+            nodes[0].instructions[0] == 
+            Assignment(
+                ListOperation([]), 
+                Call(
+                    imp_function_symbol("printf"), 
+                    [
+                        Constant(0x804B00C)
+                    ]
+                )
+            )
     )
   
 
@@ -2807,52 +2826,162 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular, al
                                      |       var_1 = var_3        | ------+
                                      +----------------------------+
     """
-    _, _, cfg = graph_dependency_but_not_circular
+    nodes, _, cfg = graph_dependency_but_not_circular
     run_out_of_ssa(cfg, SSAOptions.sreedhar)
-    assert(len(cfg.nodes[0]) == 4 
-           and len(cfg.nodes[1]) == 2
-           and len(cfg.nodes[2]) == 2
-           and len(cfg.nodes[3]) == 5
-           and len(cfg.nodes[4]) == 2
+    assert(
+           len(nodes[0]) == 4 
+           and 
+           len(nodes[1]) == 2
+           and 
+           len(nodes[2]) == 2
+           and 
+           len(nodes[3]) == 5
+           and 
+           len(nodes[4]) == 2
     )
     var_1 = Variable("var_1", aliased_variable_y_new[1].type)
     assert(
-            cfg.nodes[0].instructions[1].value == Call(imp_function_symbol("scanf"), [Constant(0x804A025), UnaryOperation(OperationType.address, [var_1])])
-            and cfg.nodes[0].instructions[2].value == Call(imp_function_symbol("printf"), [Constant(0x804A028), var_1])
-            and cfg.nodes[0].instructions[3].value == var_1
-            and cfg.nodes[2].instructions[0].value == Call(imp_function_symbol("printf"), [Constant(0x804A049), var_1])
-            and cfg.nodes[3].instructions[3].destination == var_1
-            and cfg.nodes[4].instructions[1].destination == var_1
+            nodes[0].instructions[1] == 
+            Assignment(
+                ListOperation([]), 
+                Call(
+                    imp_function_symbol("scanf"), 
+                    [
+                        Constant(0x804A025), 
+                        UnaryOperation(
+                            OperationType.address, 
+                            [
+                                var_1
+                            ]
+                        )
+                    ]
+                )
+            )
+            and 
+            nodes[0].instructions[2] == 
+            Assignment(
+                ListOperation([]), 
+                Call(
+                    imp_function_symbol("printf"), 
+                    [
+                        Constant(0x804A028), 
+                        var_1
+                    ]
+                )
+            )
+            and 
+            nodes[0].instructions[3].value == var_1
+            and 
+            nodes[2].instructions[0] == 
+            Assignment(
+                ListOperation([]), 
+                Call(
+                    imp_function_symbol("printf"), 
+                    [
+                        Constant(0x804A049), 
+                        var_1
+                    ]
+                )
+            )
+            and 
+            nodes[3].instructions[3].destination == var_1
+            and 
+            nodes[4].instructions[1].destination == var_1
     )
     var_2 = Variable("var_2", aliased_variable_y_new[7].type)
     assert(
-           cfg.nodes[0].instructions[3].destination == var_2
-           and cfg.nodes[1].instructions[0].value == var_2
-           and cfg.nodes[3].instructions[1].destination == var_2
-           and cfg.nodes[3].instructions[2].value == Call(function_symbol("is_odd"), [var_2])
-           and cfg.nodes[4].instructions[0].destination == var_2 
-           and cfg.nodes[4].instructions[0].value == BinaryOperation(OperationType.minus, [var_2, Constant(0x01)])
+           nodes[0].instructions[3].destination == var_2
+           and 
+           nodes[1].instructions[0].value == var_2
+           and 
+           nodes[3].instructions[1].destination == var_2
+           and 
+           nodes[3].instructions[2].value == 
+           Call(
+               function_symbol("is_odd"), 
+               [
+                   var_2
+               ]
+            )
+           and 
+           nodes[4].instructions[0].destination == var_2 
+           and 
+           nodes[4].instructions[0].value == 
+           BinaryOperation(
+               OperationType.minus, 
+               [
+                   var_2, 
+                   Constant(0x01)
+                ]
+            )
     )
     var_3 = Variable("var_3", aliased_variable_y_new[4].type)
     assert(
-            cfg.nodes[1].instructions[0].destination == var_3
-            and cfg.nodes[1].instructions[1] == Branch(Condition(OperationType.less_or_equal, [var_3, Constant(0x00)]))
-            and cfg.nodes[3].instructions[0].value == Call(imp_function_symbol("printf"), [Constant(0x804A045), var_3])
-            and cfg.nodes[3].instructions[1].value == BinaryOperation(OperationType.minus, [var_3, Constant(0x02)])
-            and cfg.nodes[3].instructions[3].value == var_3 
-            and cfg.nodes[4].instructions[1].value == var_3
+            nodes[1].instructions[0].destination == var_3
+            and 
+            nodes[1].instructions[1] == 
+            Branch(
+                Condition(
+                    OperationType.less_or_equal, 
+                    [
+                        var_3, 
+                        Constant(0x00)
+                    ]
+                )
+            )
+            and 
+            nodes[3].instructions[0] == 
+            Assignment(
+                ListOperation([]), 
+                Call(
+                    imp_function_symbol("printf"), 
+                    [
+                        Constant(0x804A045), 
+                        var_3
+                    ]
+                )
+            )
+            and 
+            nodes[3].instructions[1].value == 
+            BinaryOperation(
+                OperationType.minus, 
+                [
+                    var_3, 
+                    Constant(0x02)
+                ]
+            )
+            and 
+            nodes[3].instructions[3].value == var_3 
+            and 
+            nodes[4].instructions[1].value == var_3
     )
     var_4 = Variable("var_4", variable_v[2].type)
     assert(
-            cfg.nodes[3].instructions[2].destination == var_4
-            and cfg.nodes[3].instructions[4] ==  Branch(Condition(OperationType.equal, [BinaryOperation(OperationType.bitwise_and, [var_4, Constant(0xFF)]), Constant(0x0)]))
+            nodes[3].instructions[2].destination == var_4
+            and 
+            nodes[3].instructions[4] == 
+            Branch(
+                Condition(
+                    OperationType.equal, 
+                    [
+                        BinaryOperation(
+                            OperationType.bitwise_and, 
+                            [
+                                var_4, 
+                                Constant(0xFF)
+                            ]
+                        ), 
+                        Constant(0x0)
+                    ]
+                )
+            )
     )
     assert(
-            cfg.nodes[0].instructions[0].value == Call(imp_function_symbol("printf"), [Constant(0x804A00C)])
-            and cfg.nodes[2].instructions[1] == Return([Constant(0x0)])
+            nodes[0].instructions[0] == Assignment(ListOperation([]), Call(imp_function_symbol("printf"), [Constant(0x804A00C)]))
+            and nodes[2].instructions[1] == Return([Constant(0x0)])
     )
 
-def test_circular_dependency_sreedhar(graph_circular_dependency):
+def test_circular_dependency_sreedhar(graph_circular_dependency, variable_u, variable_x, variable_v, aliased_variable_y, aliased_variable_z):
     """Here we test whether Phi-functions, with circular dependency and where all ingoing edges are unconditional, are lifted correctly.
                                    +-----------------------+     
                                    |          0.           |     
@@ -2884,16 +3013,494 @@ def test_circular_dependency_sreedhar(graph_circular_dependency):
                                                                  
                                                                  
                                                                  
-                                                                 
-    """
-    nodes, instructions, cfg = graph_circular_dependency
-    run_out_of_ssa(cfg, SSAOptions.sreedhar)
-    #bug how to handle constants in phi functions
-    #assert(2==1)
 
-def test_graph_with_edge_condition_sreedhar(graph_with_edge_condition):
-    #bug how to handle constants in phi functions
-    pass
+                                     +-------------------------+                                                                                                                                  
+                                     |           0.            |                                                                                                                                  
+                                     |    printf(0x804b00c)    |                                                                                                                                  
+                                     |    var_2 = &(var_4)     |                                                                                                                                  
+                                     | scanf(0x804b01f, var_2) |                                                                                                                                  
+                                     |    printf(0x804bb0c)    |                                                                                                                                  
+                                     |    var_3 = &(var_5)     |                                                                                                                                  
+                                     | scanf(0x804bb1f, var_3) |                                                                                                                                  
+                                     |       var_1 = 0x1       |                                                                                                                                  
+                                     +-------------------------+                                                                                                                                  
+                                       |                                                                                                                                                          
+                                       |                                                                                                                                                          
+                                       v                                                                                                                                                          
+    +--------------------------+     +-------------------------+                                                                                                                                  
+    |                          |     |           1.            |                                                                                                                                  
+    |            3.            |     |      var_6 = var_3      |                                                                                                                                  
+    | printf(0x804bb0c, var_3) |     |      var_3 = var_2      |                                                                                                                                  
+    |                          | <-- |    if(var_1 <= 0x14)    | <+                                                                                                                               
+    +--------------------------+     +-------------------------+  |                                                                                                                               
+                                       |                          |                                                                                                                               
+                                       |                          |                                                                                                                               
+                                       v                          |                                                                                                                               
+                                     +-------------------------+  |                                                                                                                               
+                                     |           2.            |  |                                                                                                                               
+                                     |   var_1 = var_1 + 0x1   |  |                                                                                                                               
+                                     |      var_2 = var_6      | -+
+                                     +-------------------------+
+
+
+    """
+    nodes, _, cfg = graph_circular_dependency
+    run_out_of_ssa(cfg, SSAOptions.sreedhar)
+    assert(
+           len(nodes[0]) == 7
+           and 
+           len(nodes[1]) == 3
+           and 
+           len(nodes[2]) == 2
+           and 
+           len(nodes[3]) == 1
+    )
+    var_1 = Variable("var_1", variable_u[2].type)
+    assert(
+            nodes[0].instructions[6].destination == var_1
+            and 
+            nodes[1].instructions[2] == 
+            Branch(
+                Condition(
+                    OperationType.less_or_equal, 
+                    [
+                        var_1, 
+                        Constant(20)
+                    ]
+                )
+            )
+            and 
+            nodes[2].instructions[0].destination == var_1
+            and 
+            nodes[2].instructions[0].value == 
+            BinaryOperation(
+                OperationType.plus, 
+                [
+                    var_1, 
+                    Constant(1)
+                ]
+            )
+    )
+    var_2 = Variable("var_2", variable_x[1].type)
+    assert(
+
+            nodes[0].instructions[1].destination == var_2
+            and
+            nodes[0].instructions[2] == 
+            Assignment(
+                ListOperation([]), 
+                Call(
+                    imp_function_symbol("scanf"), 
+                    [
+                        Constant(0x804B01F), 
+                        var_2
+                    ]
+                )
+            )
+            and 
+            nodes[1].instructions[1].value == var_2 
+            and 
+            nodes[2].instructions[1].destination == var_2 
+    )
+    var_3 = Variable("var_3", variable_v[1].type)
+    assert(
+            nodes[0].instructions[4].destination == var_3
+            and nodes[0].instructions[5] == 
+            Assignment(
+                ListOperation([]), 
+                Call(
+                    imp_function_symbol("scanf"), 
+                    [
+                        Constant(0x804BB1F), 
+                        var_3
+                    ]
+                )
+            )
+            and 
+            nodes[1].instructions[0].value == var_3
+            and 
+            nodes[1].instructions[1].destination == var_3
+            and 
+            nodes[3].instructions[0] == 
+            Assignment(
+                ListOperation([]), 
+                Call(
+                    imp_function_symbol("printf"), 
+                    [
+                        Constant(0x804BB0C), 
+                        var_3
+                    ]
+                )
+            )
+    )
+    var_4 = Variable("var_4", aliased_variable_y[1].type)
+    assert(
+        nodes[0].instructions[1].value == 
+        UnaryOperation(
+            OperationType.address, 
+            [
+                var_4
+            ], 
+            Integer.int32_t()
+        )
+    )
+    var_5 = Variable("var_5", aliased_variable_z[3].type)
+    assert(
+        nodes[0].instructions[4].value == 
+        UnaryOperation(
+            OperationType.address, 
+            [
+                var_5
+            ], 
+            Integer.int32_t()
+        )
+    )
+    var_6 = Variable("var_6", var_3.type)
+    assert(
+        nodes[1].instructions[0].destination == var_6
+        and 
+        nodes[2].instructions[1].value == var_6
+    )
+    assert(
+        nodes[0].instructions[0] == 
+        Assignment(
+            ListOperation([]), 
+            Call(
+                imp_function_symbol("printf"), 
+                [
+                    Constant(0x804B00C)
+                ]
+            )
+        )
+    )
+
+def test_graph_with_graph_with_edge_condition_sreedhar(
+    graph_with_edge_condition, aliased_variable_y, aliased_variable_z, aliased_variable_x, variable_v
+):
+    """
+                                              +-----------------------------------------------------------------+                                                                                                                                                                                                                                                                                
+                                              v                                                                 |                                                                                                                                                                                                                                                                                
+                                            +-------------------------+     +--------------------------------+  |  +-------------------------+                                                                                                                                                                                                                                                   
+                                            |                         |     |               0.               |  |  |                         |                                                                                                                                                                                                                                                   
+                                            |                         |     | printf("Enter your choice = ") |  |  |                         |                                                                                                                                                                                                                                                   
+                                            |                         |     |    scanf(0x804a025, &(y#0))    |  |  |                         |                                                                                                                                                                                                                                                   
+                                            |           3.            |     |    puts("Enter a number ")     |  |  |           6.            |                                                                         
+                                            | v#1 = (z#0 + 0x1) * x#0 |     |    scanf(0x804a025, &(z#0))    |  |  | v#4 = (z#0 + 0x4) - x#0 |                                                                         
+                                            |                         |     | puts("Enter a second number ") |  |  |                         |                                                                         
+                                            |                         |     |    scanf(0x804a025, &(x#0))    |  |  |                         |                                                                         
+                                            |                         | <-- |         if(y#0 > 0x5)          |  |  |                         | ---------------------------------+                                      
+                                            +-------------------------+     +--------------------------------+  |  +-------------------------+                                  |                                      
+                                              |                               |                                 |    ^                                                          |                                      
+                                              |                               |                                 |    |                                                          |                                      
+                                              |                               v                                 |    |                                                          |                                      
+    +---------------------------------+       |                             +----------------------------------------------------------------+     +-------------------------+  |                                      
+    |               7.                |       |                             |                                                                |     |           5.            |  |                                      
+    | v#5 = 0x2 * ((z#0 + 0x4) + x#0) | <-----+---------------------------- |                               1.                               | --> | v#3 = x#0 - (z#0 + 0x3) |  |                                      
+    +---------------------------------+       |                             |                            jmp y#0                             |     +-------------------------+  |                                      
+      |                                       |                             |                                                                |       |                          |                                      
+      |                                       |                             |                                                                |       |                          |                                      
+      |                                       |                             +----------------------------------------------------------------+       |                          |                                      
+      |                                       |                               |                                      |                               |                          |                                      
+      |                                       |                               |                                      |                               |                          |                                      
+      |                                       |                               v                                      v                               |                          |                                      
+      |                                       |                             +--------------------------------+     +-------------------------+       |                          |                                      
+      |                                       |                             |               2.               |     |           4.            |       |                          |                                      
+      |                                       |                             |       puts("default !")        |     | v#2 = (z#0 + 0x2) + x#0 |       |                          |                                      
+      |                                       |                             +--------------------------------+     +-------------------------+       |                          |                                      
+      |                                       |                               |                                      |                               |                          |                                      
+      |                                       |                               |                                      |                               |                          |                                      
+      |                                       |                               v                                      v                               |                          |                                      
+      |                                       |                             +----------------------------------------------------------------+       |                          |                                      
+      |                                       +---------------------------> |                               8.                               | <-----+                          |                                      
+      |                                                                     |                v#6 = ϕ(0x0,v#1,v#2,v#3,v#4,v#5)                |                                  |                                      
+      |                                                                     |                     printf("a = %d ", v#6)                     |                                  |                                      
+      +-------------------------------------------------------------------> |                             return                             | <--------------------------------+                                      
+                                                                            +----------------------------------------------------------------+                                                                         
+                                                                                                                                                                                                                       
+                                                                                                                                                                                                                       
+                                                                                                                                                                                                                       
+                                                    +-----------------------------------------------------------------------+                                                                                          
+                                                    v                                                                       |                                                                                          
+                                                  +-------------------------------+     +--------------------------------+  |  +-------------------------------+                                                       
+                                                  |                               |     |               0.               |  |  |                               |                                                       
+                                                  |                               |     | printf("Enter your choice = ") |  |  |                               |                                                       
+                                                  |                               |     |   scanf(0x804a025, &(var_2))   |  |  |                               |                                                       
+                                                  |              3.               |     |    puts("Enter a number ")     |  |  |              6.               |                                                       
+                                                  | var_1 = (var_3 + 0x1) * var_4 |     |   scanf(0x804a025, &(var_3))   |  |  | var_1 = (var_3 + 0x4) - var_4 |                                                       
+                                                  |                               |     | puts("Enter a second number ") |  |  |                               |                                                       
+                                                  |                               |     |   scanf(0x804a025, &(var_4))   |  |  |                               |                                                       
+                                                  |                               | <-- |        if(var_2 > 0x5)         |  |  |                               | ---------------------------------------+              
+                                                  +-------------------------------+     +--------------------------------+  |  +-------------------------------+                                        |
+                                                    |                                     |                                 |    ^                                                                      |
+                                                    |                                     |                                 |    |                                                                      |
+                                                    |                                     v                                 |    |                                                                      |
+    +---------------------------------------+       |                                   +----------------------------------------------------------------------+     +-------------------------------+  |
+    |                  7.                   |       |                                   |                                                                      |     |              5.               |  |
+    | var_1 = 0x2 * ((var_3 + 0x4) + var_4) | <-----+---------------------------------- |                                  1.                                  | --> | var_1 = var_4 - (var_3 + 0x3) |  |                                         
+    +---------------------------------------+       |                                   |                              jmp var_2                               |     +-------------------------------+  |                                         
+      |                                             |                                   |                                                                      |       |                                |                                         
+      |                                             |                                   |                                                                      |       |                                |                                         
+      |                                             |                                   +----------------------------------------------------------------------+       |                                |                                         
+      |                                             |                                     |                                      |                                     |                                |                                         
+      |                                             |                                     |                                      |                                     |                                |                                                                           
+      |                                             |                                     v                                      v                                     |                                |                                                                           
+      |                                             |                                   +--------------------------------+     +-------------------------------+       |                                |                                                                           
+      |                                             |                                   |               2.               |     |              4.               |       |                                |                                                                           
+      |                                             |                                   |       puts("default !")        |     | var_1 = (var_3 + 0x2) + var_4 |       |                                |                                                                                                                        
+      |                                             |                                   |          var_1 = 0x0           |     |                               |       |                                |                                                                                                                        
+      |                                             |                                   +--------------------------------+     +-------------------------------+       |                                |                                                                                                                        
+      |                                             |                                     |                                      |                                     |                                |                                                                                                                        
+      |                                             |                                     |                                      |                                     |                                |                                                                                                                        
+      |                                             |                                     v                                      v                                     |                                |                                                                                                                        
+      |                                             |                                   +----------------------------------------------------------------------+       |                                |                                                                                                                        
+      |                                             +---------------------------------> |                                  8.                                  | <-----+                                |                                                                                                                        
+      |                                                                                 |                       printf("a = %d ", var_1)                       |                                        |                                                                                                                        
+      |                                                                                 |                                return                                |                                        |                                                                                                                        
+      +-------------------------------------------------------------------------------> |                                                                      | <--------------------------------------+                                                                                                                        
+                                                                                        +----------------------------------------------------------------------+
+    """
+    nodes, cfg = graph_with_edge_condition
+    run_out_of_ssa(cfg, SSAOptions.sreedhar)
+    assert(
+            len(nodes[0]) == 7
+            and 
+            len(nodes[1]) == 1
+            and 
+            len(nodes[2]) == 2
+            and 
+            len(nodes[3]) == 1
+            and 
+            len(nodes[4]) == 1
+            and 
+            len(nodes[5]) == 1
+            and 
+            len(nodes[6]) == 1
+            and 
+            len(nodes[7]) == 1
+            and 
+            len(nodes[8]) == 2
+    )
+    var_1 = Variable("var_1", variable_v[1].type)
+    assert(
+            nodes[2].instructions[1].destination == var_1
+            and 
+            nodes[3].instructions[0].destination == var_1
+            and 
+            nodes[4].instructions[0].destination == var_1
+            and 
+            nodes[5].instructions[0].destination == var_1
+            and 
+            nodes[6].instructions[0].destination == var_1
+            and 
+            nodes[7].instructions[0].destination == var_1
+            and 
+            nodes[8].instructions[0] == 
+            Assignment(
+                ListOperation([]),  
+                Call(
+                    imp_function_symbol("printf"), 
+                    [
+                        Constant("a = %d "), 
+                        var_1
+                    ]
+                )
+            )
+    )
+    var_2 = Variable("var_2", aliased_variable_y[0].type)
+    assert(
+            nodes[0].instructions[1] == 
+            Assignment(
+                ListOperation([]), 
+                Call(
+                    imp_function_symbol("scanf"), 
+                    [
+                        Constant(0x804A025), 
+                        UnaryOperation(
+                            OperationType.address, 
+                            [
+                                var_2
+                            ]
+                        )
+                    ]
+                )
+            )
+            and nodes[0].instructions[6] == 
+            Branch(
+                Condition(
+                    OperationType.greater, 
+                    [
+                        var_2, 
+                        Constant(0x5)
+                    ]
+                )
+            )
+            and nodes[1].instructions[0] == IndirectBranch(var_2)
+    )
+    var_3 = Variable("var_3", aliased_variable_z[0].type)
+    assert(
+        nodes[0].instructions[3] == 
+        Assignment(
+            ListOperation([]), 
+            Call(
+                imp_function_symbol("scanf"), 
+                [
+                    Constant(0x804A025), 
+                    UnaryOperation(
+                        OperationType.address, 
+                        [
+                            var_3
+                        ]
+                    )
+                ]
+            )
+        )
+    )
+    var_4 = Variable("var_4", aliased_variable_x[0].type)
+    assert(
+        nodes[0].instructions[5] == 
+        Assignment(
+            ListOperation([]), 
+            Call(
+                imp_function_symbol("scanf"), 
+                [
+                    Constant(0x804a025), 
+                    UnaryOperation(
+                        OperationType.address, 
+                        [
+                            var_4
+                        ]
+                    )
+                ]
+            )
+        )
+    )
+    assert(
+        nodes[3].instructions[0].value ==
+        BinaryOperation(
+                OperationType.multiply,
+                [
+                    BinaryOperation(
+                        OperationType.plus, 
+                        [
+                            var_3, 
+                            Constant(0x1)
+                        ]
+                    ), 
+                    var_4
+                ],
+        )
+        and
+        nodes[4].instructions[0].value ==
+        BinaryOperation(
+            OperationType.plus,
+            [
+                BinaryOperation(
+                    OperationType.plus, 
+                    [
+                        var_3, 
+                        Constant(0x2)
+                    ]
+                ), 
+                var_4
+            ],
+        )
+        and
+        nodes[5].instructions[0].value ==
+        BinaryOperation(
+            OperationType.minus,
+            [
+                var_4, 
+                BinaryOperation(
+                    OperationType.plus, 
+                    [
+                        var_3, 
+                        Constant(0x3)
+                    ]
+                )
+            ],
+        )
+        and 
+        nodes[6].instructions[0].value ==
+        BinaryOperation(
+            OperationType.minus,
+            [
+                BinaryOperation(
+                    OperationType.plus, 
+                    [
+                        var_3, 
+                        Constant(0x4)
+                    ]
+                ), 
+                var_4
+            ],
+        )
+        and
+        nodes[7].instructions[0].value ==
+        BinaryOperation(
+            OperationType.multiply,
+            [
+                Constant(2),
+                BinaryOperation(
+                    OperationType.plus,
+                    [
+                        BinaryOperation(
+                            OperationType.plus, 
+                            [
+                                var_3, 
+                                Constant(0x4)
+                        ]), 
+                        var_4
+                    ],
+                ),
+            ],
+        )
+
+    )
+    assert(
+        nodes[0].instructions[0] == 
+            Assignment(
+                ListOperation([]), 
+                Call(
+                    imp_function_symbol("printf"), 
+                    [
+                        Constant("Enter your choice = ")
+                    ]
+                )
+            )
+        and nodes[0].instructions[2] == Assignment(
+            ListOperation([]), 
+            Call(
+                imp_function_symbol("puts"), 
+                [
+                    Constant("Enter a number ")
+                ]
+            )
+        )
+        and 
+        nodes[0].instructions[4]  == 
+            Assignment(
+                ListOperation([]), 
+                Call(
+                    imp_function_symbol("puts"), 
+                    [
+                        Constant("Enter a second number ")
+                    ]
+                )
+            )
+        and nodes[2].instructions[0] == 
+            Assignment(
+                ListOperation([]), 
+                Call(
+                    imp_function_symbol("puts"), 
+                    [
+                        Constant("default !")
+                    ]
+                )
+            )
+        and nodes[8].instructions[1] == 
+            Return(Constant(0x0))
+    )
+
 
 def test_graph_with_phi_fct_in_head_sreedhar(graph_phi_fct_in_head2, variable_u):
     """
@@ -2913,24 +3520,332 @@ def test_graph_with_phi_fct_in_head_sreedhar(graph_phi_fct_in_head2, variable_u)
 
 
     """
-    _, cfg = graph_phi_fct_in_head2 
+    nodes, cfg = graph_phi_fct_in_head2 
     run_out_of_ssa(cfg, SSAOptions.sreedhar)
     var_1 = Variable("var_1", variable_u[1].type)
     assert(
-            cfg.nodes[0].instructions[1].value == var_1 and
-            cfg.nodes[0].instructions[2].destination == var_1
+            nodes[0].instructions[1].value == var_1 
+            and
+            nodes[0].instructions[2].destination == var_1
     )
     var_2 = Variable("var_2", variable_u[1].type)
     assert(
-            cfg.nodes[0].instructions[0].value == var_2
+            nodes[0].instructions[0].value == var_2
 
     )
     var_3 = Variable("var_3", variable_u[1].type)
     assert(
-            cfg.nodes[0].instructions[2].value == BinaryOperation(OperationType.plus, [var_2, var_3])
+            nodes[0].instructions[2].value == 
+            BinaryOperation(
+                OperationType.plus, 
+                [
+                    var_2, 
+                    var_3
+                ]
+            )
     )
 
-def test_aliased_name_problem(aliased_variable_z, aliased_variable_y, variable_u, variable_v, variable_x, variable):
-    #bug how to handle constants in phi functions
-    pass
+def test_aliased_name_problem_sreedhar(graph_aliased_name_problem, aliased_variable_z, aliased_variable_y, variable_x):
+    """
+                       +------------------------------+                                                                                                                                                                
+                       |              0.              |                                                                                                                                                                
+                       | printf("Enter two numbers ") |                                                                                                                                                                
+                       |          z#2 = z#0           |                                                                                                                                                                
+                       |         v#1 = &(z#2)         |                                                                                                                                                                
+                       |    scanf(0x804a025, v#1)     |                                                                                                                                                                
+                       |          y#3 = y#0           |                                                                                                                                                                
+                       |         u#2 = &(y#3)         |                                                                                                                                                                
+                       |    scanf(0x804a025, u#2)     |                                                                                                                                                                
+                       +------------------------------+                                                                                                                                                                
+                         |                                                                                                                                                                                             
+                         |                                                                                                                                                                                             
+                         v                                                                                                                                                                                             
+    +------------+     +------------------------------+                                                                                                                                                                
+    |            |     |              1.              |                                                                                                                                                                
+    |     3.     |     |       x#2 = ϕ(0x1,x#3)       |                                                                                                                                                                
+    | return 0x0 |     |       y#5 = ϕ(y#3,y#6)       |                                                                                                                                                                
+    |            |     |       z#5 = ϕ(z#2,z#5)       |                                                                                                                                                                
+    |            | <-- |        if(x#2 <= z#5)        | <+                                                                                                                                                             
+    +------------+     +------------------------------+  |                                                                                                                                                             
+                         |                               |                                                                                                                                                             
+                         |                               |                                                                                                                                                             
+                         v                               |                                                                                                                                                             
+                       +------------------------------+  |                                                                                                                                                             
+                       |              2.              |  |                                                                                                                                                             
+                       |       y#6 = y#5 * x#2        |  |                                                                                                                                                             
+                       |       x#3 = x#2 + 0x1        | -+                                                                                                                                                             
+                       +------------------------------+                                                                                                                                                                
+                                                                                                                                                                                                                       
+                                                                                                                                                                                                                       
+                       +------------------------------+                                                                                                                                                                
+                       |              0.              |                                                                                                                                                                
+                       | printf("Enter two numbers ") |                                                                                                                                                                
+                       |       var_5 = &(var_3)       |                                                                                                                                                                
+                       |   scanf(0x804a025, var_5)    |                                                                                                                                                                
+                       |       var_4 = &(var_2)       |                                                                                                                                                                
+                       |   scanf(0x804a025, var_4)    |                                                                                                                                                                
+                       |         var_1 = 0x1          |                                                                                                                                                                
+                       +------------------------------+                                                                                                                                                                
+                         |                                                                                                                                                                                             
+                         |                                                                                                                                                                                             
+                         v                                                                                                                                                                                             
+    +------------+     +------------------------------+                                                                                                                                                                
+    |     3.     |     |              1.              |
+    | return 0x0 | <-- |      if(var_1 <= var_3)      | <+
+    +------------+     +------------------------------+  |
+                         |                               |
+                         |                               |
+                         v                               |
+                       +------------------------------+  |                                                                 
+                       |              2.              |  |                                                                 
+                       |    var_2 = var_2 * var_1     |  |                                                                 
+                       |     var_1 = var_1 + 0x1      | -+                                                                 
+                       +------------------------------+        
+    """
+    nodes, _, cfg = graph_aliased_name_problem
+    run_out_of_ssa(cfg, SSAOptions.sreedhar)
+    assert(
+        len(nodes[0]) == 6
+        and
+        len(nodes[1]) == 1
+        and
+        len(nodes[2]) == 2
+        and
+        len(nodes[3]) == 1
+    )
+    var_1 = Variable("var_1", variable_x[2].type)
+    assert(
+            nodes[0].instructions[5].destination == var_1
+            and
+            nodes[2].instructions[1] ==
+            Assignment(
+                var_1,
+                BinaryOperation(
+                    OperationType.plus,
+                    [
+                        var_1,
+                        Constant(0x01)
+                    ]
+                )
+            )
+    ) 
+    var_2 = Variable("var_2", aliased_variable_y[0].type)
+    assert(
+       nodes[0].instructions[3].value == 
+       UnaryOperation(
+           OperationType.address, 
+           [
+               var_2
+            ]
+        )
+       and
+       nodes[2].instructions[0].destination == var_2
+    )
+    assert(
+            nodes[2].instructions[0].value ==
+            BinaryOperation(
+                OperationType.multiply,
+                [
+                    var_2,
+                    var_1
+                ]
+            )
+    )
+    var_3 = Variable("var_3", aliased_variable_z[0].type)
+    assert(
+            nodes[0].instructions[1].value ==
+            UnaryOperation(
+                OperationType.address,
+                [
+                    var_3
+                ]
+            )
+    )
+    assert(
+            nodes[1].instructions[0] ==
+            Branch(
+                Condition(
+                    OperationType.less_or_equal,
+                    [
+                        var_1,
+                        var_3
+                    ]
+                )
+            )
+    )
+    var_4 = Variable("var_4", var_2.type)
+    assert(
+        nodes[0].instructions[3].destination == var_4
+        and
+        nodes[0].instructions[4] ==
+        Assignment(
+            ListOperation([]),
+            Call(
+                imp_function_symbol("scanf"),
+                [
+                    Constant(0x804A025),
+                    var_4
+                ]
+            )
+        )
+    )
+    var_5 = Variable("var_5", var_3.type)
+    assert(
+        nodes[0].instructions[1].destination == var_5
+        and
+        nodes[0].instructions[2] ==
+        Assignment(
+            ListOperation([]),
+            Call(
+                imp_function_symbol("scanf"),
+                [
+                    Constant(0x804A025),
+                    var_5
+                ]
+            )
+        )
+    )
+    assert(
+        nodes[0].instructions[0] ==
+        Assignment(
+            ListOperation([]), 
+            Call(
+                imp_function_symbol("printf"), 
+                [
+                    Constant("Enter two numbers ")
+                ]
+            )
+        )
+        and
+        nodes[3].instructions[0] ==
+        Return(
+            [
+                Constant(0x00)
+            ]
+        )
+    )
 
+def test_copy_problem_sreedhar():
+    """
+    +------------------+                                                                                                                                                                            
+    |        0.        |                                                                                                                                                                            
+    |    x#1 = 0x1     |                                                                                                                                                                            
+    +------------------+                                                                                                                                                                            
+      |                                                                                                                                                                                             
+      |                                                                                                                                                                                             
+      v                                                                                                                                                                                             
+    +------------------+                                                                                                                                                                            
+    |        1.        | ---+                                                                                                                                                                       
+    | x#2 = ϕ(x#1,x#3) |    |                                                                                                                                                                       
+    | x#3 = x#2 + 0x1  | <--+                                                                                                                                                                       
+    +------------------+                                                                                                                                                                            
+      |
+      |
+      v
+    +------------------+
+    |        2.        |
+    |    x#4 = x#2     |
+    +------------------+
+    
+    
+    +---------------------+
+    |         0.          |
+    |     var_1 = 0x1     |
+    +---------------------+
+      |
+      |
+      v
+    +---------------------+
+    |         1.          | ---+
+    |    var_2 = var_1    |    |
+    | var_1 = var_2 + 0x1 | <--+
+    +---------------------+
+      |
+      |
+      v
+    +---------------------+
+    |         2.          |
+    +---------------------+
+    """
+
+    x_1 = Variable("x", Integer.int32_t(), ssa_label=1)
+    x_2 = Variable("x", Integer.int32_t(), ssa_label=2)
+    x_3 = Variable("x", Integer.int32_t(), ssa_label=3)
+    x_4 = Variable("x", Integer.int32_t(), ssa_label=4)
+
+    instructions = [
+            #node 0
+            Assignment(
+                x_1,
+                Constant(0x01)
+            ),
+            #node 1
+            Phi(
+                x_2,
+                [
+                    x_1,
+                    x_3
+                ]
+            ),
+            Assignment(
+                x_3,
+                BinaryOperation(
+                    OperationType.plus,
+                    [
+                        x_2,
+                        Constant(0x01)
+                    ]
+                )
+            ),
+            # node 2
+            Assignment(
+                x_4,
+                x_2
+            ),
+    ]
+    nodes = [BasicBlock(i) for i in range(3)]
+    nodes[0].instructions = instructions[0:1]
+    nodes[1].instructions = instructions[1:3]
+    nodes[2].instructions = [instructions[3]]
+
+    cfg = ControlFlowGraph()
+    cfg.add_edges_from(
+        [
+            UnconditionalEdge(nodes[0], nodes[1]),
+            UnconditionalEdge(nodes[1], nodes[1]),
+            UnconditionalEdge(nodes[1], nodes[2])
+        ]
+    )
+    run_out_of_ssa(cfg, SSAOptions.sreedhar)
+    assert(
+        len(nodes[0]) == 1
+        and
+        len(nodes[1]) == 2
+        and
+        len(nodes[2]) == 0
+    )
+    var_1 = Variable("var_1", x_1.type) 
+    assert(
+        nodes[0].instructions[0] == 
+        Assignment(
+            var_1,
+            Constant(0x01)
+        )
+        and
+        nodes[1].instructions[0].value == var_1
+        and
+        nodes[1].instructions[1].destination == var_1
+    )
+    var_2 = Variable("var_2", x_1.type) 
+    assert(
+        nodes[1].instructions[0].destination == var_2
+        and 
+        nodes[1].instructions[1].value ==
+        BinaryOperation(
+            OperationType.plus,
+            [
+                var_2,
+                Constant(0x01)
+            ]
+        )
+    )
