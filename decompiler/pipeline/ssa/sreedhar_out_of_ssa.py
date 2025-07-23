@@ -279,7 +279,7 @@ class SreedharOutOfSsa:
                             constList.append(par)
                     for i in range(0,len(constList)):
                         for j in self._get_orig_block(instr,constList[i]):
-                            var = Variable(f"ConstantPlaceholder{count}", ssa_label=count)
+                            var = Variable(f"ConstantPlaceholder{count}", instr.destination.type, ssa_label=count)
                             count += 1
                             self._insert_before_branch(j.instructions,Assignment(var,constList[i]))
                             self._phi_congruence_class[var] = set([var])
