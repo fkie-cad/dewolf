@@ -4,6 +4,7 @@ from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.structures.graphs.cfg import BasicBlockEdgeCondition
 from decompiler.structures.pseudo import  UnknownExpression
 
+from decompiler.util.decoration import DecoratedCFG
 from tests.pipeline.SSA.utils_out_of_ssa_tests import *
 
 
@@ -2543,7 +2544,7 @@ def test_make_sure_fct_parameters_interfere():
     assert vertices[11].instructions == []
 
 # sreedhar tests
-def test_no_dependency_conditional_edges_sreedhar(graph_no_dependency, variable_v, variable_u):
+def test_no_dependency_conditional_edges_sreedhar(graph_no_dependency):
     """Here we test whether Phi-functions, without dependency and where the ingoing edges are unconditional, are lifted correctly.
     +------------------------+  
     |           0.           |  
@@ -2601,7 +2602,7 @@ def test_no_dependency_conditional_edges_sreedhar(graph_no_dependency, variable_
             and 
             len(nodes[2]) == 1
     )
-    var_1 = Variable("var_1", variable_v[2].type) 
+    var_1 = Variable("var_1", Integer.int32_t()) 
     assert(
            nodes[1].instructions[0].destination == var_1
            and 
@@ -2617,7 +2618,7 @@ def test_no_dependency_conditional_edges_sreedhar(graph_no_dependency, variable_
                 )
             )
     )
-    var_2 = Variable("var_2", variable_u[3].type) 
+    var_2 = Variable("var_2", Integer.int32_t()) 
     assert(
         nodes[1].instructions[1].destination == var_2
         and 
@@ -2633,16 +2634,16 @@ def test_no_dependency_conditional_edges_sreedhar(graph_no_dependency, variable_
             )
         )
     )
-    var_3 = Variable("var_3", var_1.type) 
+    var_3_aliased = Variable("var_3", Integer.int32_t(), is_aliased=True) 
     assert(
-            nodes[1].instructions[1].value == var_3
+            nodes[1].instructions[1].value == var_3_aliased
     )
-    var_4 = Variable("var_4", var_2.type) 
+    var_4 = Variable("var_4", Integer.int32_t()) 
     assert(
             nodes[1].instructions[0].value == var_4
     )
 
-def test_no_dependency_unnecessary_phi_sreedhar(graph_no_dependency, variable_v, variable_u_new, variable_x, aliased_variable_y_new): 
+def test_no_dependency_unnecessary_phi_sreedhar(graph_no_dependency, variable_v): 
     """Here we test whether unnecessary Phi-function will be removed from the graph.
         +------------------------+  
         |           0.           |  
@@ -2701,7 +2702,7 @@ def test_no_dependency_unnecessary_phi_sreedhar(graph_no_dependency, variable_v,
             and 
             len(nodes[2]) == 2
     )
-    var_1 = Variable("var_1", variable_x[4].type) 
+    var_1 = Variable("var_1", Integer.int32_t()) 
     assert(
            nodes[2].instructions[0].destination == var_1
            and 
@@ -2717,15 +2718,15 @@ def test_no_dependency_unnecessary_phi_sreedhar(graph_no_dependency, variable_v,
                 )
             )
     )
-    var_2 = Variable("var_2", variable_u_new[3].type) 
+    var_2 = Variable("var_2", Integer.int32_t()) 
     assert(
            nodes[1].instructions[0].destination == var_2
     )
-    var_3 = Variable("var_3", aliased_variable_y_new[4].type) 
+    var_3_aliased = Variable("var_3", Integer.int32_t(), is_aliased=True) 
     assert(
-           nodes[1].instructions[0].value == var_3
+           nodes[1].instructions[0].value == var_3_aliased
     )
-    var_4 = Variable("var_4", variable_v[2].type) 
+    var_4 = Variable("var_4", Integer.int32_t()) 
     assert(
           nodes[2].instructions[0].value == var_4
     )
@@ -2755,7 +2756,7 @@ def test_no_dependency_unnecessary_phi_sreedhar(graph_no_dependency, variable_v,
     )
   
 
-def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular, aliased_variable_y_new, variable_v):
+def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular):
     """
                                    +--------------------------+          
                                    |            0.            |           
@@ -2828,6 +2829,7 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular, al
     """
     nodes, _, cfg = graph_dependency_but_not_circular
     run_out_of_ssa(cfg, SSAOptions.sreedhar)
+    DecoratedCFG.print_ascii(cfg)
     assert(
            len(nodes[0]) == 4 
            and 
@@ -2839,7 +2841,8 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular, al
            and 
            len(nodes[4]) == 2
     )
-    var_1 = Variable("var_1", aliased_variable_y_new[1].type)
+    var_1 = Variable("var_1", Integer.int32_t())
+    var_1_aliased = Variable("var_1", Integer.int32_t(), is_aliased=True)
     assert(
             nodes[0].instructions[1] == 
             Assignment(
@@ -2851,7 +2854,7 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular, al
                         UnaryOperation(
                             OperationType.address, 
                             [
-                                var_1
+                                var_1_aliased
                             ]
                         )
                     ]
@@ -2865,12 +2868,12 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular, al
                     imp_function_symbol("printf"), 
                     [
                         Constant(0x804A028), 
-                        var_1
+                        var_1_aliased                    
                     ]
                 )
             )
             and 
-            nodes[0].instructions[3].value == var_1
+            nodes[0].instructions[3].value == var_1_aliased
             and 
             nodes[2].instructions[0] == 
             Assignment(
@@ -2888,19 +2891,20 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular, al
             and 
             nodes[4].instructions[1].destination == var_1
     )
-    var_2 = Variable("var_2", aliased_variable_y_new[7].type)
+    var_2 = Variable("var_2", Integer.int32_t())
+    var_2_aliased = Variable("var_2", Integer.int32_t(), is_aliased=True)
     assert(
            nodes[0].instructions[3].destination == var_2
            and 
            nodes[1].instructions[0].value == var_2
            and 
-           nodes[3].instructions[1].destination == var_2
+           nodes[3].instructions[1].destination == var_2_aliased
            and 
            nodes[3].instructions[2].value == 
            Call(
                function_symbol("is_odd"), 
                [
-                   var_2
+                   var_2_aliased
                ]
             )
            and 
@@ -2910,21 +2914,21 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular, al
            BinaryOperation(
                OperationType.minus, 
                [
-                   var_2, 
+                   var_2_aliased, 
                    Constant(0x01)
                 ]
             )
     )
-    var_3 = Variable("var_3", aliased_variable_y_new[4].type)
+    var_3_aliased = Variable("var_3", Integer.int32_t(),is_aliased=True)
     assert(
-            nodes[1].instructions[0].destination == var_3
+            nodes[1].instructions[0].destination == var_3_aliased
             and 
             nodes[1].instructions[1] == 
             Branch(
                 Condition(
                     OperationType.less_or_equal, 
                     [
-                        var_3, 
+                        var_3_aliased, 
                         Constant(0x00)
                     ]
                 )
@@ -2937,7 +2941,7 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular, al
                     imp_function_symbol("printf"), 
                     [
                         Constant(0x804A045), 
-                        var_3
+                        var_3_aliased
                     ]
                 )
             )
@@ -2946,16 +2950,16 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular, al
             BinaryOperation(
                 OperationType.minus, 
                 [
-                    var_3, 
+                    var_3_aliased, 
                     Constant(0x02)
                 ]
             )
             and 
-            nodes[3].instructions[3].value == var_3 
+            nodes[3].instructions[3].value == var_3_aliased 
             and 
-            nodes[4].instructions[1].value == var_3
+            nodes[4].instructions[1].value == var_3_aliased
     )
-    var_4 = Variable("var_4", variable_v[2].type)
+    var_4 = Variable("var_4", Integer.int32_t())
     assert(
             nodes[3].instructions[2].destination == var_4
             and 
@@ -2981,7 +2985,7 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular, al
             and nodes[2].instructions[1] == Return([Constant(0x0)])
     )
 
-def test_circular_dependency_sreedhar(graph_circular_dependency, variable_u, variable_x, variable_v, aliased_variable_y, aliased_variable_z):
+def test_circular_dependency_sreedhar(graph_circular_dependency):
     """Here we test whether Phi-functions, with circular dependency and where all ingoing edges are unconditional, are lifted correctly.
                                    +-----------------------+     
                                    |          0.           |     
@@ -3081,7 +3085,7 @@ def test_circular_dependency_sreedhar(graph_circular_dependency, variable_u, var
            and 
            len(nodes[3]) == 1
     )
-    var_1 = Variable("var_1", variable_x[1].type)
+    var_1 = Variable("var_1", Integer.int32_t())
     assert(
 
             nodes[0].instructions[1].destination == var_1
@@ -3102,7 +3106,7 @@ def test_circular_dependency_sreedhar(graph_circular_dependency, variable_u, var
             and 
             nodes[2].instructions[1].destination == var_1
     )
-    var_2 = Variable("var_2", variable_v[1].type)
+    var_2 = Variable("var_2", Integer.int32_t())
     assert(
             nodes[0].instructions[4].destination == var_2
             and nodes[0].instructions[5] == 
@@ -3133,18 +3137,18 @@ def test_circular_dependency_sreedhar(graph_circular_dependency, variable_u, var
                 )
             )
     )
-    var_3 = Variable("var_3", aliased_variable_y[1].type)
+    var_3_aliased = Variable("var_3", Integer.int32_t(), is_aliased=True)
     assert(
         nodes[0].instructions[1].value == 
         UnaryOperation(
             OperationType.address, 
             [
-                var_3
+                var_3_aliased
             ], 
             Integer.int32_t()
         )
     )
-    var_4 = Variable("var_4", variable_u[1].type)
+    var_4 = Variable("var_4", Integer.int32_t())
     assert(
             nodes[0].instructions[6].destination == var_4
             and 
@@ -3170,13 +3174,13 @@ def test_circular_dependency_sreedhar(graph_circular_dependency, variable_u, var
                 ]
             )
     )
-    var_5 = Variable("var_5", aliased_variable_z[3].type)
+    var_5_aliased = Variable("var_5", Integer.int32_t(), is_aliased=True)
     assert(
         nodes[0].instructions[4].value == 
         UnaryOperation(
             OperationType.address, 
             [
-                var_5
+                var_5_aliased
             ], 
             Integer.int32_t()
         )
@@ -3200,9 +3204,7 @@ def test_circular_dependency_sreedhar(graph_circular_dependency, variable_u, var
         )
     )
 
-def test_graph_with_graph_with_edge_condition_sreedhar(
-    graph_with_edge_condition, aliased_variable_y, aliased_variable_z, aliased_variable_x, variable_v
-):
+def test_graph_with_graph_with_edge_condition_sreedhar(graph_with_edge_condition):
     """
                                               +-----------------------------------------------------------------+                                                                                                                                                                                                                                                                                
                                               v                                                                 |                                                                                                                                                                                                                                                                                
@@ -3306,7 +3308,7 @@ def test_graph_with_graph_with_edge_condition_sreedhar(
             and 
             len(nodes[8]) == 2
     )
-    var_1 = Variable("var_1", variable_v[1].type)
+    var_1 = Variable("var_1", Integer.int32_t())
     assert(
             nodes[2].instructions[1].destination == var_1
             and 
@@ -3332,7 +3334,7 @@ def test_graph_with_graph_with_edge_condition_sreedhar(
                 )
             )
     )
-    var_2 = Variable("var_2", aliased_variable_y[0].type)
+    var_2_aliased = Variable("var_2", Integer.int32_t(), is_aliased=True)
     assert(
             nodes[0].instructions[1] == 
             Assignment(
@@ -3344,7 +3346,7 @@ def test_graph_with_graph_with_edge_condition_sreedhar(
                         UnaryOperation(
                             OperationType.address, 
                             [
-                                var_2
+                                var_2_aliased
                             ]
                         )
                     ]
@@ -3355,14 +3357,14 @@ def test_graph_with_graph_with_edge_condition_sreedhar(
                 Condition(
                     OperationType.greater, 
                     [
-                        var_2, 
+                        var_2_aliased, 
                         Constant(0x5)
                     ]
                 )
             )
-            and nodes[1].instructions[0] == IndirectBranch(var_2)
+            and nodes[1].instructions[0] == IndirectBranch(var_2_aliased)
     )
-    var_3 = Variable("var_3", aliased_variable_z[0].type)
+    var_3_aliased = Variable("var_3", Integer.int32_t(), is_aliased=True)
     assert(
         nodes[0].instructions[3] == 
         Assignment(
@@ -3374,14 +3376,14 @@ def test_graph_with_graph_with_edge_condition_sreedhar(
                     UnaryOperation(
                         OperationType.address, 
                         [
-                            var_3
+                            var_3_aliased
                         ]
                     )
                 ]
             )
         )
     )
-    var_4 = Variable("var_4", aliased_variable_x[0].type)
+    var_4_aliased = Variable("var_4", Integer.int32_t(), is_aliased=True)
     assert(
         nodes[0].instructions[5] == 
         Assignment(
@@ -3393,7 +3395,7 @@ def test_graph_with_graph_with_edge_condition_sreedhar(
                     UnaryOperation(
                         OperationType.address, 
                         [
-                            var_4
+                            var_4_aliased
                         ]
                     )
                 ]
@@ -3408,11 +3410,11 @@ def test_graph_with_graph_with_edge_condition_sreedhar(
                     BinaryOperation(
                         OperationType.plus, 
                         [
-                            var_3, 
+                            var_3_aliased, 
                             Constant(0x1)
                         ]
                     ), 
-                    var_4
+                    var_4_aliased
                 ],
         )
         and
@@ -3423,11 +3425,11 @@ def test_graph_with_graph_with_edge_condition_sreedhar(
                 BinaryOperation(
                     OperationType.plus, 
                     [
-                        var_3, 
+                        var_3_aliased, 
                         Constant(0x2)
                     ]
                 ), 
-                var_4
+                var_4_aliased
             ],
         )
         and
@@ -3435,11 +3437,11 @@ def test_graph_with_graph_with_edge_condition_sreedhar(
         BinaryOperation(
             OperationType.minus,
             [
-                var_4, 
+                var_4_aliased, 
                 BinaryOperation(
                     OperationType.plus, 
                     [
-                        var_3, 
+                        var_3_aliased, 
                         Constant(0x3)
                     ]
                 )
@@ -3453,11 +3455,11 @@ def test_graph_with_graph_with_edge_condition_sreedhar(
                 BinaryOperation(
                     OperationType.plus, 
                     [
-                        var_3, 
+                        var_3_aliased, 
                         Constant(0x4)
                     ]
                 ), 
-                var_4
+                var_4_aliased
             ],
         )
         and
@@ -3472,10 +3474,10 @@ def test_graph_with_graph_with_edge_condition_sreedhar(
                         BinaryOperation(
                             OperationType.plus, 
                             [
-                                var_3, 
+                                var_3_aliased, 
                                 Constant(0x4)
                         ]), 
-                        var_4
+                        var_4_aliased
                     ],
                 ),
             ],
@@ -3528,7 +3530,7 @@ def test_graph_with_graph_with_edge_condition_sreedhar(
     )
 
 
-def test_graph_with_phi_fct_in_head_sreedhar(graph_phi_fct_in_head2, variable_u):
+def test_graph_with_phi_fct_in_head_sreedhar(graph_phi_fct_in_head2):
     """
         +------------------+                                                                                                                                                                            
         |        0.        |                                                                                                                                                                            
@@ -3548,18 +3550,18 @@ def test_graph_with_phi_fct_in_head_sreedhar(graph_phi_fct_in_head2, variable_u)
     """
     nodes, cfg = graph_phi_fct_in_head2 
     run_out_of_ssa(cfg, SSAOptions.sreedhar)
-    var_1 = Variable("var_1", variable_u[1].type)
+    var_1 = Variable("var_1", Integer.int32_t())
     assert(
             nodes[0].instructions[1].value == var_1 
             and
             nodes[0].instructions[2].destination == var_1
     )
-    var_2 = Variable("var_2", variable_u[1].type)
+    var_2 = Variable("var_2", Integer.int32_t())
     assert(
             nodes[0].instructions[0].value == var_2
 
     )
-    var_3 = Variable("var_3", variable_u[1].type)
+    var_3 = Variable("var_3", Integer.int32_t()) 
     assert(
             nodes[0].instructions[2].value == 
             BinaryOperation(
@@ -3571,7 +3573,7 @@ def test_graph_with_phi_fct_in_head_sreedhar(graph_phi_fct_in_head2, variable_u)
             )
     )
 
-def test_aliased_name_problem_sreedhar(graph_aliased_name_problem, aliased_variable_z, aliased_variable_y, variable_x):
+def test_aliased_name_problem_sreedhar(graph_aliased_name_problem):
     """
                        +------------------------------+                                                                                                                                                                
                        |              0.              |                                                                                                                                                                
@@ -3638,29 +3640,29 @@ def test_aliased_name_problem_sreedhar(graph_aliased_name_problem, aliased_varia
         and
         len(nodes[3]) == 1
     )
-    var_1 = Variable("var_1", aliased_variable_y[0].type)
+    var_1_aliased = Variable("var_1", Integer.int32_t(), is_aliased=True)
     assert(
        nodes[0].instructions[3].value == 
        UnaryOperation(
            OperationType.address, 
            [
-               var_1
+               var_1_aliased
             ]
         )
        and
-       nodes[2].instructions[0].destination == var_1
+       nodes[2].instructions[0].destination == var_1_aliased
     )
-    var_2 = Variable("var_2", aliased_variable_z[0].type)
+    var_2_aliased = Variable("var_2", Integer.int32_t(), is_aliased=True)
     assert(
             nodes[0].instructions[1].value ==
             UnaryOperation(
                 OperationType.address,
                 [
-                    var_2
+                    var_2_aliased
                 ]
             )
     )
-    var_3 = Variable("var_3", variable_x[2].type)
+    var_3 = Variable("var_3", Integer.int32_t())
     assert(
             nodes[0].instructions[5] == 
             Assignment(
@@ -3685,7 +3687,7 @@ def test_aliased_name_problem_sreedhar(graph_aliased_name_problem, aliased_varia
             BinaryOperation(
                 OperationType.multiply,
                 [
-                    var_1,
+                    var_1_aliased,
                     var_3
                 ]
             )
@@ -3697,12 +3699,12 @@ def test_aliased_name_problem_sreedhar(graph_aliased_name_problem, aliased_varia
                     OperationType.less_or_equal,
                     [
                         var_3,
-                        var_2
+                        var_2_aliased
                     ]
                 )
             )
     )
-    var_4 = Variable("var_4", var_1.type)
+    var_4 = Variable("var_4", Integer.int32_t())
     assert(
         nodes[0].instructions[3].destination == var_4
         and
@@ -3718,7 +3720,7 @@ def test_aliased_name_problem_sreedhar(graph_aliased_name_problem, aliased_varia
             )
         )
     )
-    var_5 = Variable("var_5", var_2.type)
+    var_5 = Variable("var_5", var_2_aliased.type)
     assert(
         nodes[0].instructions[1].destination == var_5
         and
