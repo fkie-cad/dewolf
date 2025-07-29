@@ -1,24 +1,24 @@
 import itertools
 
-from typing import List
+from typing import List, Dict
 from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
 from decompiler.structures.graphs import cfg
-from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.graphs.branches import UnconditionalEdge
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo import expressions
 from decompiler.structures.pseudo.expressions import Variable, Constant, GlobalVariable
-from decompiler.structures.pseudo.instructions import GenericBranch, Phi, Assignment, Comment, Relation, Return,Branch
-from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
-from decompiler.pipeline.ssa.variable_renaming import SimpleVariableRenamer, VariableRenamer
+from decompiler.structures.pseudo.instructions import GenericBranch, Phi, Assignment, Relation, Branch
+from decompiler.pipeline.ssa.variable_renaming import VariableRenamer
 from decompiler.task import DecompilerTask
+from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 from decompiler.util.decoration import DecoratedGraph, DecoratedCFG
-
+from time import time
 from copy import deepcopy
 
 class SreedharOutOfSsa:
+    placeholder = "ConstantPlaceHolder"
     def __init__(self, task :DecompilerTask):
         self.task = task
         self.cfg =  task.cfg
@@ -247,7 +247,6 @@ class SreedharOutOfSsa:
 
 
     def _handle_constants_in_Phi(self):
-        count = 0
         for bb in self.cfg:
             for instr in bb.instructions:
                 if type(instr) == Phi:
@@ -258,11 +257,11 @@ class SreedharOutOfSsa:
                             constList.append(par)
                     for i in range(0,len(constList)):
                         for j in self._get_orig_block(instr,constList[i]):
-                            var = Variable(f"ConstantPlaceHolder{count}", instr.destination.type, ssa_label=count)
-                            count += 1
+                            var = Variable(self.placeholder, instr.destination.type, ssa_label=int((time()%1000)*1000000))
                             self._insert_before_branch(j.instructions,Assignment(var,constList[i]))
                             self._phi_congruence_class[var] = set([var])
                             self._merge_phi_congruence_classes(var,instr.destination)
+                            self._interference_graph.add_node(var)
                         
         #self._interference_graph = InterferenceGraph(self.cfg)
 
@@ -314,11 +313,12 @@ class SreedharOutOfSsa:
                         if (not (self._phi_congruence_classes_interfere(leftpck,rightrem))) and (not (self._phi_congruence_classes_interfere(rightpck,leftrem))):
                             bb.replace_instruction(inst,[])
                             self._merge_phi_congruence_classes(leftv,rightv)
-                            
+        
+        self._interference_graph = InterferenceGraph(self.cfg)
         self._handle_constants_in_Phi()
 
     class SreedharVariableRenamer(VariableRenamer):
-        def __init__(self, task: DecompilerTask, interference_graph: InterferenceGraph, phi_congruence_class):
+        def __init__(self, task: DecompilerTask, interference_graph: InterferenceGraph, phi_congruence_class, placeholder):
 
             self.cfg = task.cfg
             self.interference_graph = interference_graph
@@ -327,6 +327,7 @@ class SreedharOutOfSsa:
             self.variable_for_function_arg: Dict[str, Variable] = self._get_function_argument_variables(task.function_parameters)
             self.function_arg_for_variable: Dict[Variable, str] = {v: k for k, v in self.variable_for_function_arg.items()}
             #self._add_interference_for_function_args()
+            self.placeholder = placeholder
 
             self.renaming_map: Dict[Variable, Variable] = dict()
             self._generate_renaming_map()
@@ -348,8 +349,12 @@ class SreedharOutOfSsa:
                 if isinstance(var, GlobalVariable):
                     self.renaming_map[var] = GlobalVariable(self.renaming_map[var].name, var.type, var.initial_value, None, var.is_aliased, var, var.is_constant, var.tags)
 
+            for pck in self._phi_congruence_class: #determinism
+                if isinstance(self._phi_congruence_class[pck],set):
+                    self._phi_congruence_class[pck] = sorted(self._phi_congruence_class[pck],key=lambda x: str("" + x.name + str(x.ssa_label)))
+
             for pck in self._phi_congruence_class:
-                if isinstance(self._phi_congruence_class[pck], set):
+                if isinstance(self._phi_congruence_class[pck], list):
                     glob: List[GlobalVariable] = [k for k in self._phi_congruence_class[pck] if isinstance(k,GlobalVariable)]
                     if len(glob) != 0:
                         globnames = list({j.name for j in glob})
@@ -366,12 +371,16 @@ class SreedharOutOfSsa:
                             if var in self.function_arg_for_variable:
                                 new_name = self.function_arg_for_variable[var]
                                 break
-                            
+
                         # else use first name of class
                         if new_name == None:
                             for var in self._phi_congruence_class[pck]:
                                 new_name = var.name
-                                break
+                                if new_name != self.placeholder:
+                                    break
+                        
+                        if new_name == None:
+                            raise Exception("Encountered a Phi-Fuction which only contains Constants!")
 
                         for var in self._phi_congruence_class[pck]:
                             self.renaming_map[var] = Variable(new_name, var.type, None, var.is_aliased, var, var.tags)
@@ -383,12 +392,11 @@ class SreedharOutOfSsa:
                 if isinstance(inst,Phi):
                     bb.replace_instruction(inst,[])                    
 
-        self._interference_graph = InterferenceGraph(self.cfg)
-        renamer = self.SreedharVariableRenamer(self.task, self._interference_graph, self._phi_congruence_class)
+        #self._interference_graph = InterferenceGraph(self.cfg)
+        renamer = self.SreedharVariableRenamer(self.task, self._interference_graph, self._phi_congruence_class, self.placeholder)
         renamer.rename()
 
     def perform(self):
-        #DecoratedCFG.print_ascii(self.cfg)
         self._eliminate_phi_resource_interference() #Step 1: Translation to CSSA
         self._remove_unnecessary_copies()           #Step 3: Eliminate redundant copies
         self._leave_CSSA()                          #Step 3: Eliminate phi instructions and use phi-congruence-property
