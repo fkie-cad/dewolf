@@ -1,9 +1,6 @@
 import itertools
-import logging
 
-from networkx import intersection
-from typing import DefaultDict, List, Set
-
+from typing import List
 from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
 from decompiler.structures.graphs import cfg
 from decompiler.structures.graphs.basicblock import BasicBlock
@@ -15,7 +12,7 @@ from decompiler.structures.pseudo import expressions
 from decompiler.structures.pseudo.expressions import Variable, Constant, GlobalVariable
 from decompiler.structures.pseudo.instructions import GenericBranch, Phi, Assignment, Comment, Relation, Return,Branch
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
-from decompiler.pipeline.ssa.variable_renaming import SimpleVariableRenamer
+from decompiler.pipeline.ssa.variable_renaming import SimpleVariableRenamer, VariableRenamer
 from decompiler.task import DecompilerTask
 from decompiler.util.decoration import DecoratedGraph, DecoratedCFG
 
@@ -39,7 +36,6 @@ class SreedharOutOfSsa:
         #TODO is this correct or should it be all vars
         self._live_out[None] = liveness.live_out_of(None) 
 
-    #TODO find a better way 
     def _get_orig_block(self, phi_instr: Phi, phi_arg):
         blocks = []
         for block, var in phi_instr.origin_block.items():
@@ -91,26 +87,6 @@ class SreedharOutOfSsa:
             self._phi_congruence_class[a] = rep
         self._phi_congruence_class[rep] = merged_set
         
-    def _init_phi_congruence_classes(self):
-        for instr in self.cfg.instructions:
-            if isinstance(instr, Phi):
-                self._phi_congruence_class[instr.definitions[0]] = set([instr.definitions[0]])
-                for x in instr.requirements:
-                    self._phi_congruence_class[x] = set([x])
-
-    def _phi_congruence_classes_interfere(self, i, j):
-        
-        if isinstance(i,set) and isinstance(j,set):
-            cc_i = i
-            cc_j = j
-        else:
-            cc_i = self._get_phi_congruence_class(i)
-            cc_j = self._get_phi_congruence_class(j)
-        for y_i, y_j in itertools.product(cc_i, cc_j, repeat=1):
-            if self._interference_graph.are_interfering(y_i, y_j): 
-                return True
-        return False
-    
     def _gen_new_name(self, x: Variable):
         t = x.name + (str(x.ssa_label) if x.ssa_label else "")
         c = self._new_name_map.get(t, 0) + 1
@@ -132,7 +108,6 @@ class SreedharOutOfSsa:
                 return
         instrs.append(new_inst)
 
-    #TODO is this now correct?
     def _used_in_phi(self, var, orig, j):
         for instr in j.instructions:
             if isinstance(instr, Phi):
@@ -141,7 +116,6 @@ class SreedharOutOfSsa:
                         return True
         return False
 
-    #TODO is this now correct?
     def _prune_dead_out(self, var, block):
         is_live_out = False
         for succ in self.cfg.get_successors(block):
@@ -284,7 +258,7 @@ class SreedharOutOfSsa:
                             constList.append(par)
                     for i in range(0,len(constList)):
                         for j in self._get_orig_block(instr,constList[i]):
-                            var = Variable(f"ConstantPlaceholder{count}", instr.destination.type, ssa_label=count)
+                            var = Variable(f"ConstantPlaceHolder{count}", instr.destination.type, ssa_label=count)
                             count += 1
                             self._insert_before_branch(j.instructions,Assignment(var,constList[i]))
                             self._phi_congruence_class[var] = set([var])
@@ -343,53 +317,78 @@ class SreedharOutOfSsa:
                             
         self._handle_constants_in_Phi()
 
+    class SreedharVariableRenamer(VariableRenamer):
+        def __init__(self, task: DecompilerTask, interference_graph: InterferenceGraph, phi_congruence_class):
+
+            self.cfg = task.cfg
+            self.interference_graph = interference_graph
+            self._phi_congruence_class = phi_congruence_class
+
+            self.variable_for_function_arg: Dict[str, Variable] = self._get_function_argument_variables(task.function_parameters)
+            self.function_arg_for_variable: Dict[Variable, str] = {v: k for k, v in self.variable_for_function_arg.items()}
+            #self._add_interference_for_function_args()
+
+            self.renaming_map: Dict[Variable, Variable] = dict()
+            self._generate_renaming_map()
+
+        def _generate_renaming_map(self):
+            for variable in self.interference_graph.nodes:
+                if variable not in self._phi_congruence_class:
+                    new_name = f"{variable.name}_{variable.ssa_label}"
+                    if isinstance(variable, GlobalVariable):
+                        self.renaming_map[variable] = GlobalVariable(new_name, variable.type, variable.initial_value, None, variable.is_aliased, variable, variable.is_constant, variable.tags)
+                    else:
+                        self.renaming_map[variable] = Variable(new_name, variable.type, None, variable.is_aliased, variable, variable.tags)
+
+            for argument, variable in self.variable_for_function_arg.items():
+                if variable not in self._phi_congruence_class:
+                    self.renaming_map[variable] = Variable(argument, variable.type, None, variable.is_aliased, variable, variable.tags)
+
+            for var in self.renaming_map:
+                if isinstance(var, GlobalVariable):
+                    self.renaming_map[var] = GlobalVariable(self.renaming_map[var].name, var.type, var.initial_value, None, var.is_aliased, var, var.is_constant, var.tags)
+
+            for pck in self._phi_congruence_class:
+                if isinstance(self._phi_congruence_class[pck], set):
+                    glob: List[GlobalVariable] = [k for k in self._phi_congruence_class[pck] if isinstance(k,GlobalVariable)]
+                    if len(glob) != 0:
+                        globnames = list({j.name for j in glob})
+                        if len(globnames) == 1:
+                            for var in self._phi_congruence_class[pck]:
+                                glob_var = glob[0]
+                                self.renaming_map[var] = GlobalVariable(glob_var.name, glob_var.type, glob_var.initial_value, None, glob_var.is_aliased, var, glob_var.is_constant, glob_var.tags)
+                        else: 
+                            raise Exception("detected more than one global variable in a phi congruence class")
+                    else:
+                        new_name = None
+                        # check if a function arg is in class
+                        for var in self._phi_congruence_class[pck]:
+                            if var in self.function_arg_for_variable:
+                                new_name = self.function_arg_for_variable[var]
+                                break
+                            
+                        # else use first name of class
+                        if new_name == None:
+                            for var in self._phi_congruence_class[pck]:
+                                new_name = var.name
+                                break
+
+                        for var in self._phi_congruence_class[pck]:
+                            self.renaming_map[var] = Variable(new_name, var.type, None, var.is_aliased, var, var.tags)
+
 
     def _leave_CSSA(self):
         for bb in self.cfg: #remove Phi-Instructions
             for inst in bb:
                 if isinstance(inst,Phi):
                     bb.replace_instruction(inst,[])                    
-    
-        renamer = SimpleVariableRenamer(self.task,self._interference_graph)
-        realocation = DefaultDict(lambda: -1)
-        newName = DefaultDict(lambda: -1)
-        count = 1
-        for pck in self._phi_congruence_class:
-            if isinstance(self._phi_congruence_class[pck],set):
-                glob = [k for k in self._phi_congruence_class[pck] if isinstance(k,GlobalVariable)]
-                glob: List[Variable]
-                if len(glob) != 0:
-                    globnames = list({j.name for j in glob})
-                    if len(globnames) == 1:
-                        for var in self._phi_congruence_class[pck]:
-                            newName[var] = f"{globnames[0]}"
-                    else: 
-                        raise Exception("detected more than one global variable in a phi congruence class")
-                else:
-                    for var in self._phi_congruence_class[pck]:
-                        newName[var] = f"{renamer.new_variable_name}{count}"
-                    count += 1
 
-        for var in renamer.renaming_map:
-            if (newName[var] != -1):  
-                renamer.renaming_map[var] = Variable(newName[var],var.type,None,var.is_aliased,var,var.tags)
-            elif renamer.renaming_map[var].name.count(renamer.new_variable_name) != 0 or ((renamer.renaming_map[var].name.count("_") != 0) and renamer.renaming_map[var].name.count("data") == 0):
-                if realocation[renamer.renaming_map[var].name] == -1:
-                    realocation[renamer.renaming_map[var].name] = f"{renamer.new_variable_name}{count}"
-                    renamer.renaming_map[var] = Variable(f"{renamer.new_variable_name}{count}",var.type,None,var.is_aliased,var,var.tags)
-                    count += 1
-                else:
-                    renamer.renaming_map[var] = Variable(realocation[renamer.renaming_map[var].name],var.type,None,var.is_aliased,var,var.tags)
-        
-        remaining = [k for k in newName if k not in renamer.renaming_map]
-        for x in remaining: #ConstantPlaceholder
-            x: Variable
-            renamer.renaming_map[x] = Variable(newName[x],x.type,None,x.is_aliased,x,x.tags)
-
+        self._interference_graph = InterferenceGraph(self.cfg)
+        renamer = self.SreedharVariableRenamer(self.task, self._interference_graph, self._phi_congruence_class)
         renamer.rename()
-        
 
     def perform(self):
+        #DecoratedCFG.print_ascii(self.cfg)
         self._eliminate_phi_resource_interference() #Step 1: Translation to CSSA
         self._remove_unnecessary_copies()           #Step 3: Eliminate redundant copies
         self._leave_CSSA()                          #Step 3: Eliminate phi instructions and use phi-congruence-property
