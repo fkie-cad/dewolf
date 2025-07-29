@@ -333,9 +333,15 @@ class SreedharOutOfSsa:
             self._generate_renaming_map()
 
         def _generate_renaming_map(self):
+            count = 0
+            assignedNames = []
             for variable in self.interference_graph.nodes:
                 if variable not in self._phi_congruence_class:
                     new_name = f"{variable.name}_{variable.ssa_label}"
+                    if new_name in assignedNames:
+                        new_name = f'{new_name}__{count}'
+                        count += 1
+                    assignedNames.append(new_name)
                     if isinstance(variable, GlobalVariable):
                         self.renaming_map[variable] = GlobalVariable(new_name, variable.type, variable.initial_value, None, variable.is_aliased, variable, variable.is_constant, variable.tags)
                     else:
@@ -343,11 +349,19 @@ class SreedharOutOfSsa:
 
             for argument, variable in self.variable_for_function_arg.items():
                 if variable not in self._phi_congruence_class:
+                    if argument in assignedNames:
+                        raise Exception("This argument name is already assigned")
+                    assignedNames.append(argument)
                     self.renaming_map[variable] = Variable(argument, variable.type, None, variable.is_aliased, variable, variable.tags)
 
             for var in self.renaming_map:
                 if isinstance(var, GlobalVariable):
-                    self.renaming_map[var] = GlobalVariable(self.renaming_map[var].name, var.type, var.initial_value, None, var.is_aliased, var, var.is_constant, var.tags)
+                    new_name = self.renaming_map[var].name
+                    if new_name in assignedNames:
+                        new_name = f"{new_name}__{count}"
+                        count += 1
+                    assignedNames.append(new_name)
+                    self.renaming_map[var] = GlobalVariable(new_name, var.type, var.initial_value, None, var.is_aliased, var, var.is_constant, var.tags)
 
             for pck in self._phi_congruence_class: #determinism
                 if isinstance(self._phi_congruence_class[pck],set):
@@ -381,6 +395,11 @@ class SreedharOutOfSsa:
                         
                         if new_name == None:
                             raise Exception("Encountered a Phi-Fuction which only contains Constants!")
+                        
+                        if new_name in assignedNames:
+                            new_name = f"{new_name}__{count}"
+                            count += 1
+                        assignedNames.append(new_name)
 
                         for var in self._phi_congruence_class[pck]:
                             self.renaming_map[var] = Variable(new_name, var.type, None, var.is_aliased, var, var.tags)

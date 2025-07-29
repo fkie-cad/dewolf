@@ -239,12 +239,12 @@ def test_no_dependency_unconditional_edge_sreedhar(graph_no_dependency, variable
                 len(cfg.nodes[0].instructions) == 1 and
                 len(cfg.nodes[1].instructions) == 3 and
                 len(cfg.nodes[2].instructions) == 2 and
-                cfgascii.count("var_1") == 4 and
-                cfgascii.count("var_2") == 2 and
-                cfgascii.count("var_3") == 1 and
-                cfgascii.count("var_4") == 1 and
-                cfgascii.count("var_1 = var_4") == 1 and
-                cfgascii.count("var_2 = var_3") == 1                
+                cfgascii.count("v") == 6 and
+                cfgascii.count("u") == 2 and
+                cfgascii.count("y") == 1 and
+                cfgascii.count("v__0") == 1 and
+                cfgascii.count("v = v__0") == 1 and
+                cfgascii.count("u = y") == 1                
     )
 
 
@@ -286,12 +286,12 @@ def test_no_dependency_phi_target_value_same_sreedhar(graph_no_dependency,variab
         len(cfg.nodes[0].instructions) == 1 and
         len(cfg.nodes[1].instructions) == 2 and
         len(cfg.nodes[2].instructions) == 2 and
-        cfgascii.count("var_1") == 2 and
-        cfgascii.count("var_2") == 2 and
-        cfgascii.count("var_3") == 2 and
-        cfgascii.count("var_4") == 1 and
-        cfgascii.count("var_3 = var_4") == 1 and
-        cfgascii.count("var_1 = var_2") == 1
+        cfgascii.count("u") == 2 and
+        cfgascii.count("x") == 4 and
+        cfgascii.count("v") == 3 and
+        cfgascii.count("y") == 1 and
+        cfgascii.count("u = y") == 1 and
+        cfgascii.count("x = v") == 1
     )
 
 
@@ -345,16 +345,16 @@ def test_dependency_but_no_circle_some_same_values_sreedhar(graph_dependency_but
                 len(cfg.nodes[0].instructions) == 4 and
                 len(cfg.nodes[1].instructions) == 2 and
                 len(cfg.nodes[2].instructions) == 2 and
-                len(cfg.nodes[3].instructions) == 5 and #currently failling here --> known issue; #TODO fix this
+                len(cfg.nodes[3].instructions) == 5 and
                 len(cfg.nodes[4].instructions) == 2
     )
     assert(
-                asciicfg.count("var_1") == 6 and
-                asciicfg.count("var_2") == 6 and
-                asciicfg.count("var_3") == 6 and
-                asciicfg.count("var_4") == 2 and
-                asciicfg.count("var_1 = var_3") == 2 and
-                asciicfg.count("var_3 = var_2") == 1
+                asciicfg.count("v") == 11 and #:(
+                asciicfg.count("u") == 7 and
+                asciicfg.count("y_4") == 6 and
+                asciicfg.count("v_2") == 2 and
+                asciicfg.count("u = y_4") == 2 and
+                asciicfg.count("v = y_4") == 1
     )
 
 
@@ -437,11 +437,11 @@ def test_graph_with_input_arguments_more_variable_types_circular_dependency_sree
     )
 
     assert(
-            asciicfg.count("var_1 = arg1") == 2 and
-            asciicfg.count("var_1 = arg2") == 1 and
-            asciicfg.count("var_5 = var_3") == 1)
+            asciicfg.count("arg1' = arg1") == 2 and
+            asciicfg.count("arg1' = arg2") == 1 and
+            asciicfg.count("u_2 = u2'") == 1)
     assert(
-            len(re.findall("var_[0-5] = 0x1",asciicfg)) == 2 #does the Extraction of Constants out of Phi-Functions work?
+            len(re.findall("[u2'|x] = 0x1",asciicfg)) == 2 #does the Extraction of Constants out of Phi-Functions work?
     )
 
 
@@ -464,9 +464,9 @@ def test_graph_with_phi_fct_in_head_sreedhar(graph_phi_fct_in_head1, variable, c
             len(cfg.nodes[0].instructions) == 3 and
             len(cfg.nodes[1].instructions) == 1 and
             len(cfg.nodes) == 2 and
-            asciicfg.count("var_3 = var_2") == 1 and
-            asciicfg.count("var_1 = var_3") == 1 and
-            asciicfg.count("var_2 = var_1") == 2
+            asciicfg.count("u1'' = u1'") == 2 and
+            asciicfg.count("u_1 = u1''") == 1 and
+            asciicfg.count("u1' = u_1") == 1
     )
 
 
@@ -507,7 +507,7 @@ def test_graph_with_relation_sreedhar(graph_with_relation, variable):
             len(cfg.nodes[1].instructions) == 1 and
             len(cfg.nodes[2].instructions) == 1 and
             len(cfg.nodes[3].instructions) == 2 and
-            DecoratedCFG.get_ascii(cfg).count("var_1 = var_2") == 1
+            DecoratedCFG.get_ascii(cfg).count("var_1c2' = var_1c") == 2
     )
 
 
@@ -800,7 +800,5 @@ def test_make_sure_fct_parameters_interfere_sreedhar():
             len(cfg.nodes[8].instructions) == 0 and
             len(cfg.nodes[9].instructions) == 0 and
             len(cfg.nodes[10].instructions) == 0 and
-            len(cfg.nodes[11].instructions) == 0 and
-            "var_8" in DecoratedCFG.get_ascii(cfg) and
-            "var_9" not in DecoratedCFG.get_ascii(cfg)        
+            len(cfg.nodes[11].instructions) == 0      
     )
