@@ -4,7 +4,6 @@ from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.structures.graphs.cfg import BasicBlockEdgeCondition
 from decompiler.structures.pseudo import  UnknownExpression
 
-from decompiler.util.decoration import DecoratedCFG
 from tests.pipeline.SSA.utils_out_of_ssa_tests import *
 
 
@@ -2571,27 +2570,26 @@ def test_no_dependency_conditional_edges_sreedhar(graph_no_dependency):
     | printf(0x804b045, x#4) |  
     +------------------------+  
 
-
-    +--------------------------+                                                                                                                                                                    
-    |            0.            |                                                                                                                                                                    
-    |    printf(0x804b00c)     |                                                                                                                                                                    
-    +--------------------------+                                                                                                                                                                    
+    +----------------------+                                                                                                                                                                        
+    |          0.          |                                                                                                                                                                        
+    |  printf(0x804b00c)   |                                                                                                                                                                        
+    +----------------------+                                                                                                                                                                        
       |                                                                                                                                                                                             
       |                                                                                                                                                                                             
       v                                                                                                                                                                                             
-    +--------------------------+                                                                                                                                                                    
-    |            1.            |                                                                                                                                                                    
-    |      var_1 = var_4       |                                                                                                                                                                    
-    |      var_2 = var_3       |                                                                                                                                                                    
-    |    if(var_1 <= var_2)    |                                                                                                                                                                    
-    +--------------------------+                                                                                                                                                                    
+    +----------------------+                                                                                                                                                                        
+    |          1.          |                                                                                                                                                                        
+    |       v = v__0       |                                                                                                                                                                        
+    |        u = y         |                                                                                                                                                                        
+    |      if(v <= u)      |                                                                                                                                                                        
+    +----------------------+                                                                                                                                                                        
       ^                                                                                                                                                                                             
       |                                                                                                                                                                                             
-      |                                                                                                                                                                                             
-    +--------------------------+                                                                                                                                                                    
-    |            2.            |                                                                                                                                                                    
-    | printf(0x804b045, var_1) |                                                                                                                                                                    
-    +--------------------------+
+      |
+    +----------------------+
+    |          2.          |
+    | printf(0x804b045, v) |
+    +----------------------+
     """
     nodes, _, cfg = graph_no_dependency
     run_out_of_ssa(cfg, SSAOptions.sreedhar)
@@ -2602,9 +2600,9 @@ def test_no_dependency_conditional_edges_sreedhar(graph_no_dependency):
             and 
             len(nodes[2]) == 1
     )
-    var_1 = Variable("var_1", Integer.int32_t()) 
+    var_v = Variable("v", Integer.int32_t()) 
     assert(
-           nodes[1].instructions[0].destination == var_1
+           nodes[1].instructions[0].destination == var_v
            and 
            nodes[2].instructions[0] == 
            Assignment(
@@ -2613,34 +2611,34 @@ def test_no_dependency_conditional_edges_sreedhar(graph_no_dependency):
                    imp_function_symbol("printf"), 
                    [
                        Constant(0x804B045), 
-                       var_1
+                       var_v
                     ]
                 )
             )
     )
-    var_2 = Variable("var_2", Integer.int32_t()) 
+    var_u = Variable("u", Integer.int32_t()) 
     assert(
-        nodes[1].instructions[1].destination == var_2
+        nodes[1].instructions[1].destination == var_u
         and 
         nodes[1].instructions[2] == 
         Branch(
             Condition(
                 OperationType.less_or_equal, 
                 [
-                    var_1, 
-                    var_2
+                    var_v, 
+                    var_u
                 ], 
                 CustomType("bool", 1)
             )
         )
     )
-    var_3_aliased = Variable("var_3", Integer.int32_t(), is_aliased=True) 
+    var_y_aliased = Variable("y", Integer.int32_t(), is_aliased=True) 
     assert(
-            nodes[1].instructions[1].value == var_3_aliased
+            nodes[1].instructions[1].value == var_y_aliased
     )
-    var_4 = Variable("var_4", Integer.int32_t()) 
+    var_v__0 = Variable("v__0", Integer.int32_t()) 
     assert(
-            nodes[1].instructions[0].value == var_4
+            nodes[1].instructions[0].value == var_v__0
     )
 
 def test_no_dependency_unnecessary_phi_sreedhar(graph_no_dependency, variable_v): 
@@ -2669,28 +2667,27 @@ def test_no_dependency_unnecessary_phi_sreedhar(graph_no_dependency, variable_v)
         | x#4 = v#2              |  
         | printf(0x804b045, x#4) |  
         +------------------------+  
-                                    
-                                    
-        +--------------------------+
-        |            0.            |
-        |    printf(0x804b00c)     |
-        +--------------------------+
-          |
-          |
-          v
-        +--------------------------+
-        |            1.            |
-        |      var_2 = var_3       |
-        |    if(var_4 <= var_2)    |
-        +--------------------------+
-          ^
-          |
-          |
-        +--------------------------+
-        |            2.            |
-        |      var_1 = var_4       |
-        | printf(0x804b045, var_1) |
-        +--------------------------+
+
+        +----------------------+                                                                                                                                                                        
+        |          0.          |                                                                                                                                                                        
+        |  printf(0x804b00c)   |                                                                                                                                                                        
+        +----------------------+                                                                                                                                                                        
+          |                                                                                                                                                                                             
+          |                                                                                                                                                                                             
+          v                                                                                                                                                                                             
+        +----------------------+                                                                                                                                                                        
+        |          1.          |                                                                                                                                                                        
+        |        u = y         |                                                                                                                                                                        
+        |      if(v <= u)      |                                                                                                                                                                        
+        +----------------------+                                                                                                                                                                        
+          ^                                                                                                                                                                                             
+          |                                                                                                                                                                                             
+          |                                                                                                                                                                                             
+        +----------------------+
+        |          2.          |
+        |        x = v         |
+        | printf(0x804b045, x) |
+        +----------------------+
     """
     nodes, _, cfg = graph_no_dependency
     nodes[1].instructions[1].substitute(variable_v[3], variable_v[1])
@@ -2702,9 +2699,9 @@ def test_no_dependency_unnecessary_phi_sreedhar(graph_no_dependency, variable_v)
             and 
             len(nodes[2]) == 2
     )
-    var_1 = Variable("var_1", Integer.int32_t()) 
+    var_x = Variable("x", Integer.int32_t()) 
     assert(
-           nodes[2].instructions[0].destination == var_1
+           nodes[2].instructions[0].destination == var_x
            and 
            nodes[2].instructions[1] == 
            Assignment(
@@ -2713,22 +2710,22 @@ def test_no_dependency_unnecessary_phi_sreedhar(graph_no_dependency, variable_v)
                    imp_function_symbol("printf"), 
                    [
                        Constant(0x804B045), 
-                       var_1
+                       var_x
                     ]
                 )
             )
     )
-    var_2 = Variable("var_2", Integer.int32_t()) 
+    var_u = Variable("u", Integer.int32_t()) 
     assert(
-           nodes[1].instructions[0].destination == var_2
+           nodes[1].instructions[0].destination == var_u
     )
-    var_3_aliased = Variable("var_3", Integer.int32_t(), is_aliased=True) 
+    var_y_aliased = Variable("y", Integer.int32_t(), is_aliased=True) 
     assert(
-           nodes[1].instructions[0].value == var_3_aliased
+           nodes[1].instructions[0].value == var_y_aliased
     )
-    var_4 = Variable("var_4", Integer.int32_t()) 
+    var_v = Variable("v", Integer.int32_t()) 
     assert(
-          nodes[2].instructions[0].value == var_4
+          nodes[2].instructions[0].value == var_v
     )
     assert(
            nodes[1].instructions[1] == 
@@ -2736,8 +2733,8 @@ def test_no_dependency_unnecessary_phi_sreedhar(graph_no_dependency, variable_v)
                Condition(
                    OperationType.less_or_equal, 
                    [
-                       var_4, 
-                        var_2
+                       var_v, 
+                       var_u
                    ]
                 )
             )
@@ -2790,46 +2787,45 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular):
                                    |            4.            |       |     
                                    | v#4 = y#7 - 0x1          | ------+     
                                    +--------------------------+             
-                                                                            
-                                                                            
-                                     +----------------------------+                                                                                                                                 
-                                     |             0.             |                                                                                                                                 
-                                     |     printf(0x804a00c)      |                                                                                                                                 
-                                     | scanf(0x804a025, &(var_1)) |                                                                                                                                 
-                                     |  printf(0x804a028, var_1)  |                                                                                                                                 
-                                     |       var_2 = var_1        |                                                                                                                                 
-                                     +----------------------------+                                                                                                                                 
-                                       |                                                                                                                                                            
-                                       |                                                                                                                                                            
-                                       v                                                                                                                                                            
-    +--------------------------+     +--------------------------------------+                                                                                                                       
-    |            2.            |     |                  1.                  |                                                                                                                       
-    | printf(0x804a049, var_1) |     |            var_3 = var_2             |                                                                                                                       
-    |        return 0x0        | <-- |           if(var_3 <= 0x0)           |                                                                                                                       
-    +--------------------------+     +--------------------------------------+                                                                                                                       
-                                       |                             ^    ^                                                                                                                         
-                                       |                             |    |                                                                                                                         
-                                       v                             |    |                                                                                                                         
-                                     +----------------------------+  |    |                                                                                                                         
-                                     |             3.             |  |    |                                                                                                                         
-                                     |  printf(0x804a045, var_3)  |  |    |                                                                                                                         
-                                     |    var_2 = var_3 - 0x2     |  |    |                                                                                                                         
-                                     |   var_4 = is_odd(var_2)    |  |    |                                                                                                                         
-                                     |       var_1 = var_3        |  |    |                                                                                                                         
-                                     | if((var_4 & 0xff) == 0x21) | -+    |                                                                                                                         
-                                     +----------------------------+       |                                                                                                                         
-                                       |                                  |                                                                                                                         
-                                       |                                  |                                                                                                                         
-                                       v                                  |                                                                                                                         
-                                     +----------------------------+       |                                                                                                                         
-                                     |             4.             |       |                                                                                                                         
-                                     |    var_2 = var_2 - 0x1     |       |                                                                                                                         
-                                     |       var_1 = var_3        | ------+
-                                     +----------------------------+
+
+                                  +-------------------------+                                                                                                                                                             
+                                  |           0.            |                                                                                                                                                             
+                                  |    printf(0x804a00c)    |                                                                                                                                                             
+                                  | scanf(0x804a025, &(u))  |                                                                                                                                                             
+                                  |  printf(0x804a028, u)   |                                                                                                                                                             
+                                  |          v = u          |                                                                                                                                                             
+                                  +-------------------------+                                                                                                                                                             
+                                    |                                                                                                                                                                                     
+                                    |                                                                                                                                                                                     
+                                    v                                                                                                                                                                                     
+     +----------------------+     +-----------------------------------+                                                                                                                                                   
+     |          2.          |     |                1.                 |                                                                                                                                                   
+     | printf(0x804a049, u) |     |              y_4 = v              |                                                                                                                                                   
+     |      return 0x0      | <-- |          if(y_4 <= 0x0)           |                                                                                                                                                   
+     +----------------------+     +-----------------------------------+                                                                                                                                                   
+                                    |                          ^    ^                                                                                                                                                     
+                                    |                          |    |                                                                                                                                                     
+                                    v                          |    |                                                                                                                                                     
+                                  +-------------------------+  |    |                                                                                                                                                     
+                                  |           3.            |  |    |                                                                                                                                                     
+                                  | printf(0x804a045, y_4)  |  |    |                                                                                                                                                     
+                                  |      v = y_4 - 0x2      |  |    |                                                                                                                                                     
+                                  |     v_2 = is_odd(v)     |  |    |                                                                                                                                                     
+                                  |         u = y_4         |  |    |                                                                                                                                                     
+                                  | if((v_2 & 0xff) == 0x0) | -+    |                                                                                                                                                     
+                                  +-------------------------+       |                                                                                                                                                     
+                                    |                               |                                                                                                                                                     
+                                    |                               |                                                                                                                                                     
+                                    v                               |                                                                                                                                                     
+                                  +-------------------------+       |                                                                                                                                
+                                  |           4.            |       |                                                                                                                                
+                                  |       v = v - 0x1       |       |                                                                                                                                
+                                  |         u = y_4         | ------+                                                                                                                                
+                                  +-------------------------+        
+                                                                             
     """
     nodes, _, cfg = graph_dependency_but_not_circular
     run_out_of_ssa(cfg, SSAOptions.sreedhar)
-    DecoratedCFG.print_ascii(cfg)
     assert(
            len(nodes[0]) == 4 
            and 
@@ -2841,8 +2837,8 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular):
            and 
            len(nodes[4]) == 2
     )
-    var_1 = Variable("var_1", Integer.int32_t())
-    var_1_aliased = Variable("var_1", Integer.int32_t(), is_aliased=True)
+    var_u = Variable("u", Integer.int32_t())
+    var_u_aliased = Variable("u", Integer.int32_t(), is_aliased=True)
     assert(
             nodes[0].instructions[1] == 
             Assignment(
@@ -2854,7 +2850,7 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular):
                         UnaryOperation(
                             OperationType.address, 
                             [
-                                var_1_aliased
+                                var_u_aliased
                             ]
                         )
                     ]
@@ -2868,12 +2864,12 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular):
                     imp_function_symbol("printf"), 
                     [
                         Constant(0x804A028), 
-                        var_1_aliased                    
+                        var_u_aliased                    
                     ]
                 )
             )
             and 
-            nodes[0].instructions[3].value == var_1_aliased
+            nodes[0].instructions[3].value == var_u_aliased
             and 
             nodes[2].instructions[0] == 
             Assignment(
@@ -2882,53 +2878,53 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular):
                     imp_function_symbol("printf"), 
                     [
                         Constant(0x804A049), 
-                        var_1
+                        var_u
                     ]
                 )
             )
             and 
-            nodes[3].instructions[3].destination == var_1
+            nodes[3].instructions[3].destination == var_u
             and 
-            nodes[4].instructions[1].destination == var_1
+            nodes[4].instructions[1].destination == var_u
     )
-    var_2 = Variable("var_2", Integer.int32_t())
-    var_2_aliased = Variable("var_2", Integer.int32_t(), is_aliased=True)
+    var_v = Variable("v", Integer.int32_t())
+    var_v_aliased = Variable("v", Integer.int32_t(), is_aliased=True)
     assert(
-           nodes[0].instructions[3].destination == var_2
+           nodes[0].instructions[3].destination == var_v
            and 
-           nodes[1].instructions[0].value == var_2
+           nodes[1].instructions[0].value == var_v
            and 
-           nodes[3].instructions[1].destination == var_2_aliased
+           nodes[3].instructions[1].destination == var_v_aliased
            and 
            nodes[3].instructions[2].value == 
            Call(
                function_symbol("is_odd"), 
                [
-                   var_2_aliased
+                   var_v_aliased
                ]
             )
            and 
-           nodes[4].instructions[0].destination == var_2 
+           nodes[4].instructions[0].destination == var_v 
            and 
            nodes[4].instructions[0].value == 
            BinaryOperation(
                OperationType.minus, 
                [
-                   var_2_aliased, 
+                   var_v_aliased, 
                    Constant(0x01)
                 ]
             )
     )
-    var_3_aliased = Variable("var_3", Integer.int32_t(),is_aliased=True)
+    var_y_4_aliased = Variable("y_4", Integer.int32_t(),is_aliased=True)
     assert(
-            nodes[1].instructions[0].destination == var_3_aliased
+            nodes[1].instructions[0].destination == var_y_4_aliased
             and 
             nodes[1].instructions[1] == 
             Branch(
                 Condition(
                     OperationType.less_or_equal, 
                     [
-                        var_3_aliased, 
+                        var_y_4_aliased, 
                         Constant(0x00)
                     ]
                 )
@@ -2941,7 +2937,7 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular):
                     imp_function_symbol("printf"), 
                     [
                         Constant(0x804A045), 
-                        var_3_aliased
+                        var_y_4_aliased
                     ]
                 )
             )
@@ -2950,18 +2946,18 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular):
             BinaryOperation(
                 OperationType.minus, 
                 [
-                    var_3_aliased, 
+                    var_y_4_aliased, 
                     Constant(0x02)
                 ]
             )
             and 
-            nodes[3].instructions[3].value == var_3_aliased 
+            nodes[3].instructions[3].value == var_y_4_aliased 
             and 
-            nodes[4].instructions[1].value == var_3_aliased
+            nodes[4].instructions[1].value == var_y_4_aliased
     )
-    var_4 = Variable("var_4", Integer.int32_t())
+    var_v_2 = Variable("v_2", Integer.int32_t())
     assert(
-            nodes[3].instructions[2].destination == var_4
+            nodes[3].instructions[2].destination == var_v_2
             and 
             nodes[3].instructions[4] == 
             Branch(
@@ -2971,7 +2967,7 @@ def test_dependency_but_no_circle_sreedhar(graph_dependency_but_not_circular):
                         BinaryOperation(
                             OperationType.bitwise_and, 
                             [
-                                var_4, 
+                                var_v_2, 
                                 Constant(0xFF)
                             ]
                         ), 
@@ -3014,64 +3010,34 @@ def test_circular_dependency_sreedhar(graph_circular_dependency):
                                    |          2.           |  |  
                                    | u#1 = u#2 + 0x1       | -+  
                                    +-----------------------+     
-                                                                 
-                                                                 
 
-                                     +-------------------------+                                                                                                                                  
-                                     |           0.            |                                                                                                                                  
-                                     |    printf(0x804b00c)    |                                                                                                                                  
-                                     |    var_2 = &(var_4)     |                                                                                                                                  
-                                     | scanf(0x804b01f, var_2) |                                                                                                                                  
-                                     |    printf(0x804bb0c)    |                                                                                                                                  
-                                     |    var_3 = &(var_5)     |                                                                                                                                  
-                                     | scanf(0x804bb1f, var_3) |                                                                                                                                  
-                                     |       var_1 = 0x1       |                                                                                                                                  
-                                     +-------------------------+                                                                                                                                  
-                                       |                                                                                                                                                          
-                                       |                                                                                                                                                          
-                                       v                                                                                                                                                          
-    +--------------------------+     +-------------------------+                                                                                                                                  
-    |                          |     |           1.            |                                                                                                                                  
-    |            3.            |     |      var_6 = var_3      |                                                                                                                                  
-    | printf(0x804bb0c, var_3) |     |      var_3 = var_2      |                                                                                                                                  
-    |                          | <-- |    if(var_1 <= 0x14)    | <+                                                                                                                               
-    +--------------------------+     +-------------------------+  |                                                                                                                               
-                                       |                          |                                                                                                                               
-                                       |                          |                                                                                                                               
-                                       v                          |                                                                                                                               
-                                     +-------------------------+  |                                                                                                                               
-                                     |           2.            |  |                                                                                                                               
-                                     |   var_1 = var_1 + 0x1   |  |                                                                                                                               
-                                     |      var_2 = var_6      | -+
-                                     +-------------------------+
-
-                                     +-------------------------+                                                                                                                                    
-                                     |           0.            |                                                                                                                                    
-                                     |    printf(0x804b00c)    |                                                                                                                                    
-                                     |    var_1 = &(var_3)     |                                                                                                                                    
-                                     | scanf(0x804b01f, var_1) |                                                                                                                                    
-                                     |    printf(0x804bb0c)    |                                                                                                                                    
-                                     |    var_2 = &(var_5)     |                                                                                                                                    
-                                     | scanf(0x804bb1f, var_2) |                                                                                                                                    
-                                     |       var_4 = 0x1       |                                                                                                                                    
-                                     +-------------------------+                                                                                                                                    
-                                       |                                                                                                                                                            
-                                       |                                                                                                                                                            
-                                       v                                                                                                                                                            
-    +--------------------------+     +-------------------------+                                                                                                                                    
-    |                          |     |           1.            |                                                                                                                                    
-    |            3.            |     |      var_6 = var_2      |                                                                                                                                    
-    | printf(0x804bb0c, var_2) |     |      var_2 = var_1      |                                                                                                                                    
-    |                          | <-- |    if(var_4 <= 0x14)    | <+                                                                                                                                 
-    +--------------------------+     +-------------------------+  |                                                                                                                                 
-                                       |                          |                                                                                                                                 
-                                       |                          |                                                                                                                                 
-                                       v                          |                                                                                                                                 
-                                     +-------------------------+  |
-                                     |           2.            |  |
-                                     |   var_4 = var_4 + 0x1   |  |
-                                     |      var_1 = var_6      | -+
-                                     +-------------------------+
+                                   +-----------------------+                                                                                                                                                               
+                                   |          0.           |                                                                                                                                                               
+                                   |   printf(0x804b00c)   |                                                                                                                                                               
+                                   |      v2' = &(y)       |                                                                                                                                                               
+                                   | scanf(0x804b01f, v2') |                                                                                                                                                               
+                                   |   printf(0x804bb0c)   |                                                                                                                                                               
+                                   |      v = &(z_3)       |                                                                                                                                                               
+                                   |  scanf(0x804bb1f, v)  |                                                                                                                                                               
+                                   |        u = 0x1        |                                                                                                                                                               
+                                   +-----------------------+                                                                                                                                                               
+                                     |                                                                                                                                                                                     
+                                     |                                                                                                                                                                                     
+                                     v                                                                                                                                                                                     
+      +----------------------+     +-----------------------+                                                                                                                                                               
+      |                      |     |          1.           |                                                                                                                                                               
+      |          3.          |     |        v_2 = v        |                                                                                                                                                               
+      | printf(0x804bb0c, v) |     |        v = v2'        |                                                                                                                                                               
+      |                      | <-- |     if(u <= 0x14)     | <+                                                                                                                                                            
+      +----------------------+     +-----------------------+  |                                                                                                                                                            
+                                     |                        |                                                                                                                                                            
+                                     |                        |                                                                                                                                                            
+                                     v                        |                                                                                                                                                            
+                                   +-----------------------+  |
+                                   |          2.           |  |
+                                   |      u = u + 0x1      |  |
+                                   |       v2' = v_2       | -+
+                                   +-----------------------+
 
     """
     nodes, _, cfg = graph_circular_dependency
@@ -3085,10 +3051,10 @@ def test_circular_dependency_sreedhar(graph_circular_dependency):
            and 
            len(nodes[3]) == 1
     )
-    var_1 = Variable("var_1", Integer.int32_t())
+    var_v2_ = Variable("v2'", Integer.int32_t())
     assert(
 
-            nodes[0].instructions[1].destination == var_1
+            nodes[0].instructions[1].destination == var_v2_
             and
             nodes[0].instructions[2] == 
             Assignment(
@@ -3097,18 +3063,18 @@ def test_circular_dependency_sreedhar(graph_circular_dependency):
                     imp_function_symbol("scanf"), 
                     [
                         Constant(0x804B01F), 
-                        var_1
+                        var_v2_
                     ]
                 )
             )
             and 
-            nodes[1].instructions[1].value == var_1 
+            nodes[1].instructions[1].value == var_v2_ 
             and 
-            nodes[2].instructions[1].destination == var_1
+            nodes[2].instructions[1].destination == var_v2_
     )
-    var_2 = Variable("var_2", Integer.int32_t())
+    var_v = Variable("v", Integer.int32_t())
     assert(
-            nodes[0].instructions[4].destination == var_2
+            nodes[0].instructions[4].destination == var_v
             and nodes[0].instructions[5] == 
             Assignment(
                 ListOperation([]), 
@@ -3116,14 +3082,14 @@ def test_circular_dependency_sreedhar(graph_circular_dependency):
                     imp_function_symbol("scanf"), 
                     [
                         Constant(0x804BB1F), 
-                        var_2
+                        var_v
                     ]
                 )
             )
             and 
-            nodes[1].instructions[0].value == var_2
+            nodes[1].instructions[0].value == var_v
             and 
-            nodes[1].instructions[1].destination == var_2
+            nodes[1].instructions[1].destination == var_v
             and 
             nodes[3].instructions[0] == 
             Assignment(
@@ -3132,64 +3098,64 @@ def test_circular_dependency_sreedhar(graph_circular_dependency):
                     imp_function_symbol("printf"), 
                     [
                         Constant(0x804BB0C), 
-                        var_2
+                        var_v
                     ]
                 )
             )
     )
-    var_3_aliased = Variable("var_3", Integer.int32_t(), is_aliased=True)
+    var_y_aliased = Variable("y", Integer.int32_t(), is_aliased=True)
     assert(
         nodes[0].instructions[1].value == 
         UnaryOperation(
             OperationType.address, 
             [
-                var_3_aliased
+                var_y_aliased
             ], 
             Integer.int32_t()
         )
     )
-    var_4 = Variable("var_4", Integer.int32_t())
+    var_u = Variable("u", Integer.int32_t())
     assert(
-            nodes[0].instructions[6].destination == var_4
+            nodes[0].instructions[6].destination == var_u
             and 
             nodes[1].instructions[2] == 
             Branch(
                 Condition(
                     OperationType.less_or_equal, 
                     [
-                        var_4, 
+                        var_u, 
                         Constant(20)
                     ]
                 )
             )
             and 
-            nodes[2].instructions[0].destination == var_4
+            nodes[2].instructions[0].destination == var_u
             and 
             nodes[2].instructions[0].value == 
             BinaryOperation(
                 OperationType.plus, 
                 [
-                    var_4, 
+                    var_u, 
                     Constant(1)
                 ]
             )
     )
-    var_5_aliased = Variable("var_5", Integer.int32_t(), is_aliased=True)
+    var_z_3_aliased = Variable("z_3", Integer.int32_t(), is_aliased=True)
     assert(
         nodes[0].instructions[4].value == 
         UnaryOperation(
             OperationType.address, 
             [
-                var_5_aliased
+                var_z_3_aliased
             ], 
             Integer.int32_t()
         )
     )
-    var_6 = Variable("var_6", var_2.type)
+    var_v_2 = Variable("v_2", var_v.type)
     assert(
-        nodes[1].instructions[0].destination == var_6
+        nodes[1].instructions[0].destination == var_v_2
         and 
-        nodes[2].instructions[1].value == var_6
+        nodes[2].instructions[1].value == var_v_2
     )
     assert(
         nodes[0].instructions[0] == 
@@ -3244,48 +3210,46 @@ def test_graph_with_graph_with_edge_condition_sreedhar(graph_with_edge_condition
       |                                                                     |                     printf("a = %d ", v#6)                     |                                  |                                      
       +-------------------------------------------------------------------> |                             return                             | <--------------------------------+                                      
                                                                             +----------------------------------------------------------------+                                                                         
-                                                                                                                                                                                                                       
-                                                                                                                                                                                                                       
-                                                                                                                                                                                                                       
-                                                    +-----------------------------------------------------------------------+                                                                                          
-                                                    v                                                                       |                                                                                          
-                                                  +-------------------------------+     +--------------------------------+  |  +-------------------------------+                                                       
-                                                  |                               |     |               0.               |  |  |                               |                                                       
-                                                  |                               |     | printf("Enter your choice = ") |  |  |                               |                                                       
-                                                  |                               |     |   scanf(0x804a025, &(var_2))   |  |  |                               |                                                       
-                                                  |              3.               |     |    puts("Enter a number ")     |  |  |              6.               |                                                       
-                                                  | var_1 = (var_3 + 0x1) * var_4 |     |   scanf(0x804a025, &(var_3))   |  |  | var_1 = (var_3 + 0x4) - var_4 |                                                       
-                                                  |                               |     | puts("Enter a second number ") |  |  |                               |                                                       
-                                                  |                               |     |   scanf(0x804a025, &(var_4))   |  |  |                               |                                                       
-                                                  |                               | <-- |        if(var_2 > 0x5)         |  |  |                               | ---------------------------------------+              
-                                                  +-------------------------------+     +--------------------------------+  |  +-------------------------------+                                        |
-                                                    |                                     |                                 |    ^                                                                      |
-                                                    |                                     |                                 |    |                                                                      |
-                                                    |                                     v                                 |    |                                                                      |
-    +---------------------------------------+       |                                   +----------------------------------------------------------------------+     +-------------------------------+  |
-    |                  7.                   |       |                                   |                                                                      |     |              5.               |  |
-    | var_1 = 0x2 * ((var_3 + 0x4) + var_4) | <-----+---------------------------------- |                                  1.                                  | --> | var_1 = var_4 - (var_3 + 0x3) |  |                                         
-    +---------------------------------------+       |                                   |                              jmp var_2                               |     +-------------------------------+  |                                         
-      |                                             |                                   |                                                                      |       |                                |                                         
-      |                                             |                                   |                                                                      |       |                                |                                         
-      |                                             |                                   +----------------------------------------------------------------------+       |                                |                                         
-      |                                             |                                     |                                      |                                     |                                |                                         
-      |                                             |                                     |                                      |                                     |                                |                                                                           
-      |                                             |                                     v                                      v                                     |                                |                                                                           
-      |                                             |                                   +--------------------------------+     +-------------------------------+       |                                |                                                                           
-      |                                             |                                   |               2.               |     |              4.               |       |                                |                                                                           
-      |                                             |                                   |       puts("default !")        |     | var_1 = (var_3 + 0x2) + var_4 |       |                                |                                                                                                                        
-      |                                             |                                   |          var_1 = 0x0           |     |                               |       |                                |                                                                                                                        
-      |                                             |                                   +--------------------------------+     +-------------------------------+       |                                |                                                                                                                        
-      |                                             |                                     |                                      |                                     |                                |                                                                                                                        
-      |                                             |                                     |                                      |                                     |                                |                                                                                                                        
-      |                                             |                                     v                                      v                                     |                                |                                                                                                                        
-      |                                             |                                   +----------------------------------------------------------------------+       |                                |                                                                                                                        
-      |                                             +---------------------------------> |                                  8.                                  | <-----+                                |                                                                                                                        
-      |                                                                                 |                       printf("a = %d ", var_1)                       |                                        |                                                                                                                        
-      |                                                                                 |                                return                                |                                        |                                                                                                                        
-      +-------------------------------------------------------------------------------> |                                                                      | <--------------------------------------+                                                                                                                        
-                                                                                        +----------------------------------------------------------------------+
+
+                                            +---------------------------------------------------------------+                                                                                                            
+                                            v                                                               |                                                                                                            
+                                          +-----------------------+     +--------------------------------+  |  +-----------------------+                                                                                 
+                                          |                       |     |               0.               |  |  |                       |                                                                                 
+                                          |                       |     | printf("Enter your choice = ") |  |  |                       |                                                                                 
+                                          |                       |     |    scanf(0x804a025, &(y_0))    |  |  |                       |                                                                                 
+                                          |          3.           |     |    puts("Enter a number ")     |  |  |          6.           |                                                                                 
+                                          | v = (z_0 + 0x1) * x_0 |     |    scanf(0x804a025, &(z_0))    |  |  | v = (z_0 + 0x4) - x_0 |                                                                                 
+                                          |                       |     | puts("Enter a second number ") |  |  |                       |                                                                                 
+                                          |                       |     |    scanf(0x804a025, &(x_0))    |  |  |                       |                                                                                 
+                                          |                       | <-- |         if(y_0 > 0x5)          |  |  |                       | -------------------------------+                                                
+                                          +-----------------------+     +--------------------------------+  |  +-----------------------+                                |                                                
+                                            |                             |                                 |    ^                                                      |                                                
+                                            |                             |                                 |    |                                                      |                                                
+                                            |                             v                                 |    |                                                      |                                                
+    +-------------------------------+       |                           +--------------------------------------------------------------+     +-----------------------+  |                                                
+    |              7.               |       |                           |                                                              |     |          5.           |  |                                                
+    | v = 0x2 * ((z_0 + 0x4) + x_0) | <-----+-------------------------- |                              1.                              | --> | v = x_0 - (z_0 + 0x3) |  |                                                
+    +-------------------------------+       |                           |                           jmp y_0                            |     +-----------------------+  |                                                
+      |                                     |                           |                                                              |       |                        |                                                
+      |                                     |                           |                                                              |       |                        |                                                
+      |                                     |                           +--------------------------------------------------------------+       |                        |                                                
+      |                                     |                             |                                      |                             |                        |                                                
+      |                                     |                             |                                      |                             |                        |                                                
+      |                                     |                             v                                      v                             |                        |                                                
+      |                                     |                           +--------------------------------+     +-----------------------+       |                        |                                                
+      |                                     |                           |               2.               |     |          4.           |       |                        |                                                
+      |                                     |                           |       puts("default !")        |     | v = (z_0 + 0x2) + x_0 |       |                        |                                                
+      |                                     |                           |            v = 0x0             |     |                       |       |                        |                                                
+      |                                     |                           +--------------------------------+     +-----------------------+       |                        |                                                
+      |                                     |                             |                                      |                             |                        |                                                
+      |                                     |                             |                                      |                             |                        |                                                
+      |                                     |                             v                                      v                             |                        |                                                
+      |                                     |                           +--------------------------------------------------------------+       |                        |                                                
+      |                                     +-------------------------> |                              8.                              | <-----+                        |                                                
+      |                                                                 |                     printf("a = %d ", v)                     |                                |                                                
+      |                                                                 |                            return                            |                                |                                                
+      +---------------------------------------------------------------> |                                                              | <------------------------------+                                                
+                                                                        +--------------------------------------------------------------+
     """
     nodes, cfg = graph_with_edge_condition
     run_out_of_ssa(cfg, SSAOptions.sreedhar)
@@ -3308,19 +3272,19 @@ def test_graph_with_graph_with_edge_condition_sreedhar(graph_with_edge_condition
             and 
             len(nodes[8]) == 2
     )
-    var_1 = Variable("var_1", Integer.int32_t())
+    var_v = Variable("v", Integer.int32_t())
     assert(
-            nodes[2].instructions[1].destination == var_1
+            nodes[2].instructions[1].destination == var_v
             and 
-            nodes[3].instructions[0].destination == var_1
+            nodes[3].instructions[0].destination == var_v
             and 
-            nodes[4].instructions[0].destination == var_1
+            nodes[4].instructions[0].destination == var_v
             and 
-            nodes[5].instructions[0].destination == var_1
+            nodes[5].instructions[0].destination == var_v
             and 
-            nodes[6].instructions[0].destination == var_1
+            nodes[6].instructions[0].destination == var_v
             and 
-            nodes[7].instructions[0].destination == var_1
+            nodes[7].instructions[0].destination == var_v
             and 
             nodes[8].instructions[0] == 
             Assignment(
@@ -3329,12 +3293,12 @@ def test_graph_with_graph_with_edge_condition_sreedhar(graph_with_edge_condition
                     imp_function_symbol("printf"), 
                     [
                         Constant("a = %d "), 
-                        var_1
+                        var_v
                     ]
                 )
             )
     )
-    var_2_aliased = Variable("var_2", Integer.int32_t(), is_aliased=True)
+    var_y_0_aliased = Variable("y_0", Integer.int32_t(), is_aliased=True)
     assert(
             nodes[0].instructions[1] == 
             Assignment(
@@ -3346,7 +3310,7 @@ def test_graph_with_graph_with_edge_condition_sreedhar(graph_with_edge_condition
                         UnaryOperation(
                             OperationType.address, 
                             [
-                                var_2_aliased
+                                var_y_0_aliased
                             ]
                         )
                     ]
@@ -3357,14 +3321,14 @@ def test_graph_with_graph_with_edge_condition_sreedhar(graph_with_edge_condition
                 Condition(
                     OperationType.greater, 
                     [
-                        var_2_aliased, 
+                        var_y_0_aliased, 
                         Constant(0x5)
                     ]
                 )
             )
-            and nodes[1].instructions[0] == IndirectBranch(var_2_aliased)
+            and nodes[1].instructions[0] == IndirectBranch(var_y_0_aliased)
     )
-    var_3_aliased = Variable("var_3", Integer.int32_t(), is_aliased=True)
+    var_z_0_aliased = Variable("z_0", Integer.int32_t(), is_aliased=True)
     assert(
         nodes[0].instructions[3] == 
         Assignment(
@@ -3376,14 +3340,14 @@ def test_graph_with_graph_with_edge_condition_sreedhar(graph_with_edge_condition
                     UnaryOperation(
                         OperationType.address, 
                         [
-                            var_3_aliased
+                            var_z_0_aliased
                         ]
                     )
                 ]
             )
         )
     )
-    var_4_aliased = Variable("var_4", Integer.int32_t(), is_aliased=True)
+    var_x_0_aliased = Variable("x_0", Integer.int32_t(), is_aliased=True)
     assert(
         nodes[0].instructions[5] == 
         Assignment(
@@ -3395,7 +3359,7 @@ def test_graph_with_graph_with_edge_condition_sreedhar(graph_with_edge_condition
                     UnaryOperation(
                         OperationType.address, 
                         [
-                            var_4_aliased
+                            var_x_0_aliased
                         ]
                     )
                 ]
@@ -3410,11 +3374,11 @@ def test_graph_with_graph_with_edge_condition_sreedhar(graph_with_edge_condition
                     BinaryOperation(
                         OperationType.plus, 
                         [
-                            var_3_aliased, 
+                            var_z_0_aliased, 
                             Constant(0x1)
                         ]
                     ), 
-                    var_4_aliased
+                    var_x_0_aliased
                 ],
         )
         and
@@ -3425,11 +3389,11 @@ def test_graph_with_graph_with_edge_condition_sreedhar(graph_with_edge_condition
                 BinaryOperation(
                     OperationType.plus, 
                     [
-                        var_3_aliased, 
+                        var_z_0_aliased, 
                         Constant(0x2)
                     ]
                 ), 
-                var_4_aliased
+                var_x_0_aliased
             ],
         )
         and
@@ -3437,11 +3401,11 @@ def test_graph_with_graph_with_edge_condition_sreedhar(graph_with_edge_condition
         BinaryOperation(
             OperationType.minus,
             [
-                var_4_aliased, 
+                var_x_0_aliased, 
                 BinaryOperation(
                     OperationType.plus, 
                     [
-                        var_3_aliased, 
+                        var_z_0_aliased, 
                         Constant(0x3)
                     ]
                 )
@@ -3455,11 +3419,11 @@ def test_graph_with_graph_with_edge_condition_sreedhar(graph_with_edge_condition
                 BinaryOperation(
                     OperationType.plus, 
                     [
-                        var_3_aliased, 
+                        var_z_0_aliased, 
                         Constant(0x4)
                     ]
                 ), 
-                var_4_aliased
+                var_x_0_aliased
             ],
         )
         and
@@ -3474,10 +3438,10 @@ def test_graph_with_graph_with_edge_condition_sreedhar(graph_with_edge_condition
                         BinaryOperation(
                             OperationType.plus, 
                             [
-                                var_3_aliased, 
+                                var_z_0_aliased, 
                                 Constant(0x4)
                         ]), 
-                        var_4_aliased
+                        var_x_0_aliased
                     ],
                 ),
             ],
@@ -3538,37 +3502,34 @@ def test_graph_with_phi_fct_in_head_sreedhar(graph_phi_fct_in_head2):
         | u#2 = ϕ(v#1,u#1) |    |                                                                                                                                                                       
         | u#3 = u#1 + u#2  | <--+                                                                                                                                                                       
         +------------------+
-
-        +-----------------------+
-        |          0.           |
-        |     var_3 = var_2     | ---+
-        |     var_2 = var_1     |    |
-        | var_1 = var_2 + var_3 | <--+
-        +-----------------------+
-
-
+        +---------------+
+        |      0.       |
+        |    u_2 = u    | ---+
+        |    u = u1'    |    |
+        | u1' = u + u_2 | <--+
+        +---------------+
     """
     nodes, cfg = graph_phi_fct_in_head2 
     run_out_of_ssa(cfg, SSAOptions.sreedhar)
-    var_1 = Variable("var_1", Integer.int32_t())
+    var_u1_ = Variable("u1'", Integer.int32_t())
     assert(
-            nodes[0].instructions[1].value == var_1 
+            nodes[0].instructions[1].value == var_u1_ 
             and
-            nodes[0].instructions[2].destination == var_1
+            nodes[0].instructions[2].destination == var_u1_
     )
-    var_2 = Variable("var_2", Integer.int32_t())
+    var_u = Variable("u", Integer.int32_t())
     assert(
-            nodes[0].instructions[0].value == var_2
+            nodes[0].instructions[0].value == var_u
 
     )
-    var_3 = Variable("var_3", Integer.int32_t()) 
+    var_u_2 = Variable("u_2", Integer.int32_t()) 
     assert(
             nodes[0].instructions[2].value == 
             BinaryOperation(
                 OperationType.plus, 
                 [
-                    var_2, 
-                    var_3
+                    var_u, 
+                    var_u_2
                 ]
             )
     )
@@ -3603,30 +3564,30 @@ def test_aliased_name_problem_sreedhar(graph_aliased_name_problem):
                        |       y#6 = y#5 * x#2        |  |                                                                                                                                                             
                        |       x#3 = x#2 + 0x1        | -+                                                                                                                                                             
                        +------------------------------+                                                                                                                                                                
-                                                                                                                                                                                                                       
-                       +------------------------------+                                                                                                                                             
-                       |              0.              |                                                                                                                                             
-                       | printf("Enter two numbers ") |                                                                                                                                             
-                       |       var_5 = &(var_2)       |                                                                                                                                             
-                       |   scanf(0x804a025, var_5)    |                                                                                                                                             
-                       |       var_4 = &(var_1)       |                                                                                                                                             
-                       |   scanf(0x804a025, var_4)    |                                                                                                                                             
-                       |         var_3 = 0x1          |                                                                                                                                             
-                       +------------------------------+                                                                                                                                             
-                         |                                                                                                                                                                          
-                         |                                                                                                                                                                          
-                         v                                                                                                                                                                          
-    +------------+     +------------------------------+                                                                                                                                             
-    |     3.     |     |              1.              |                                                                                                                                             
-    | return 0x0 | <-- |      if(var_3 <= var_2)      | <+                                                                                                                                          
-    +------------+     +------------------------------+  |                                                                                                                                          
-                         |                               |                                                                                                                                          
-                         |                               |                                                                                                                                          
-                         v                               |                                                                                                                                          
+
+                       +------------------------------+
+                       |              0.              |
+                       | printf("Enter two numbers ") |
+                       |          v_1 = &(z)          |
+                       |    scanf(0x804a025, v_1)     |
+                       |          u_2 = &(y)          |
+                       |    scanf(0x804a025, u_2)     |
+                       |           x = 0x1            |
+                       +------------------------------+
+                         |
+                         |
+                         v
+    +------------+     +------------------------------+
+    |     3.     |     |              1.              |
+    | return 0x0 | <-- |          if(x <= z)          | <+
+    +------------+     +------------------------------+  |
+                         |                               |
+                         |                               |
+                         v                               |
                        +------------------------------+  |
                        |              2.              |  |
-                       |    var_1 = var_1 * var_3     |  |
-                       |     var_3 = var_3 + 0x1      | -+
+                       |          y = y * x           |  |
+                       |         x = x + 0x1          | -+
                        +------------------------------+
     """
     nodes, _, cfg = graph_aliased_name_problem
@@ -3640,43 +3601,43 @@ def test_aliased_name_problem_sreedhar(graph_aliased_name_problem):
         and
         len(nodes[3]) == 1
     )
-    var_1_aliased = Variable("var_1", Integer.int32_t(), is_aliased=True)
+    var_y_aliased = Variable("y", Integer.int32_t(), is_aliased=True)
     assert(
        nodes[0].instructions[3].value == 
        UnaryOperation(
            OperationType.address, 
            [
-               var_1_aliased
+               var_y_aliased
             ]
         )
        and
-       nodes[2].instructions[0].destination == var_1_aliased
+       nodes[2].instructions[0].destination == var_y_aliased
     )
-    var_2_aliased = Variable("var_2", Integer.int32_t(), is_aliased=True)
+    var_z_aliased = Variable("z", Integer.int32_t(), is_aliased=True)
     assert(
             nodes[0].instructions[1].value ==
             UnaryOperation(
                 OperationType.address,
                 [
-                    var_2_aliased
+                    var_z_aliased
                 ]
             )
     )
-    var_3 = Variable("var_3", Integer.int32_t())
+    var_x = Variable("x", Integer.int32_t())
     assert(
             nodes[0].instructions[5] == 
             Assignment(
-                var_3,
+                var_x,
                 Constant(0x01)
             )
             and
             nodes[2].instructions[1] ==
             Assignment(
-                var_3,
+                var_x,
                 BinaryOperation(
                     OperationType.plus,
                     [
-                        var_3,
+                        var_x,
                         Constant(0x01)
                     ]
                 )
@@ -3687,8 +3648,8 @@ def test_aliased_name_problem_sreedhar(graph_aliased_name_problem):
             BinaryOperation(
                 OperationType.multiply,
                 [
-                    var_1_aliased,
-                    var_3
+                    var_y_aliased,
+                    var_x
                 ]
             )
     )
@@ -3698,15 +3659,15 @@ def test_aliased_name_problem_sreedhar(graph_aliased_name_problem):
                 Condition(
                     OperationType.less_or_equal,
                     [
-                        var_3,
-                        var_2_aliased
+                        var_x,
+                        var_z_aliased
                     ]
                 )
             )
     )
-    var_4 = Variable("var_4", Integer.int32_t())
+    var_u_2 = Variable("u_2", Integer.int32_t())
     assert(
-        nodes[0].instructions[3].destination == var_4
+        nodes[0].instructions[3].destination == var_u_2
         and
         nodes[0].instructions[4] ==
         Assignment(
@@ -3715,14 +3676,14 @@ def test_aliased_name_problem_sreedhar(graph_aliased_name_problem):
                 imp_function_symbol("scanf"),
                 [
                     Constant(0x804A025),
-                    var_4
+                    var_u_2
                 ]
             )
         )
     )
-    var_5 = Variable("var_5", var_2_aliased.type)
+    var_v_1 = Variable("v_1", var_z_aliased.type)
     assert(
-        nodes[0].instructions[1].destination == var_5
+        nodes[0].instructions[1].destination == var_v_1
         and
         nodes[0].instructions[2] ==
         Assignment(
@@ -3731,7 +3692,7 @@ def test_aliased_name_problem_sreedhar(graph_aliased_name_problem):
                 imp_function_symbol("scanf"),
                 [
                     Constant(0x804A025),
-                    var_5
+                    var_v_1
                 ]
             )
         )
@@ -3777,26 +3738,25 @@ def test_copy_problem_sreedhar():
     |        2.        |
     |    x#4 = x#2     |
     +------------------+
-    
-    
-    +---------------------+
-    |         0.          |
-    |     var_1 = 0x1     |
-    +---------------------+
-      |
-      |
-      v
-    +---------------------+
-    |         1.          | ---+
-    |    var_2 = var_1    |    |
-    | var_1 = var_2 + 0x1 | <--+
-    +---------------------+
-      |
-      |
-      v
-    +---------------------+
-    |         2.          |
-    +---------------------+
+
+    +----------------+                                                                                                                                                                                                 
+    |       0.       |                                                                                                                                                                                                 
+    |    x = 0x1     |                                                                                                                                                                                                 
+    +----------------+                                                                                                                                                                                                 
+      |                                                                                                                                                                                                                
+      |                                                                                                                                                                                                                
+      v                                                                                                                                                                                                                
+    +----------------+                                                                                                                                                                                                 
+    |       1.       | ---+                                                                                                                                                                                            
+    |    x__0 = x    |    |                                                                                                                                                                                            
+    | x = x__0 + 0x1 | <--+                                                                                                                                                                                            
+    +----------------+                                                                                                                                                                                                 
+      |                                                                                                                                                                                                                
+      |                                                                                                                                                                                                                
+      v                                                                                                                                                                                                                
+    +----------------+                                                                                                                                                                                                 
+    |       2.       |
+    +----------------+
     """
 
     x_1 = Variable("x", Integer.int32_t(), ssa_label=1)
@@ -3855,27 +3815,27 @@ def test_copy_problem_sreedhar():
         and
         len(nodes[2]) == 0
     )
-    var_1 = Variable("var_1", x_1.type) 
+    var_x = Variable("x", x_1.type) 
     assert(
         nodes[0].instructions[0] == 
         Assignment(
-            var_1,
+            var_x,
             Constant(0x01)
         )
         and
-        nodes[1].instructions[0].value == var_1
+        nodes[1].instructions[0].value == var_x
         and
-        nodes[1].instructions[1].destination == var_1
+        nodes[1].instructions[1].destination == var_x
     )
-    var_2 = Variable("var_2", x_1.type) 
+    var_x__0 = Variable("x__0", x_1.type) 
     assert(
-        nodes[1].instructions[0].destination == var_2
+        nodes[1].instructions[0].destination == var_x__0
         and 
         nodes[1].instructions[1].value ==
         BinaryOperation(
             OperationType.plus,
             [
-                var_2,
+                var_x__0,
                 Constant(0x01)
             ]
         )
