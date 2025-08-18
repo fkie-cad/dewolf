@@ -15,6 +15,7 @@ from decompiler.structures.graphs.cfg import BasicBlock
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo.instructions import Phi
 from decompiler.task import DecompilerTask
+from decompiler.pipeline.ssa.conditional_out_of_SSA import ConditionalOutOfSSA
 
 
 class SSAOptions(Enum):
@@ -161,10 +162,9 @@ class OutOfSsaTranslation(PipelineStage):
             - Then, we remove the Phi-functions by lifting them to their predecessor basic blocks.
             - Afterwards, we rename the variables by considering their dependency on each other.
         """
-        PhiDependencyResolver(self._phi_functions_of).resolve()
-        self.interference_graph = InterferenceGraph(self.task.graph)
-        PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift()
-        ConditionalVariableRenamer(self.task, self.interference_graph).rename()
+
+        ConditionalOutOfSSA(self.task,self._phi_functions_of,1,0.5,0.1,-1).perform()
+        
 
     # This translator maps the optimization levels to the functions.
     out_of_ssa_strategy: dict[SSAOptions, Callable[["OutOfSsaTranslation"], None]] = {

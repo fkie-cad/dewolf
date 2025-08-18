@@ -1,14 +1,16 @@
 """Module for renaming variables in Out of SSA."""
 
+from copy import deepcopy
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
 from itertools import combinations
 from operator import attrgetter
 from typing import DefaultDict, Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union
-
+from itertools import combinations
 import networkx
-from decompiler.pipeline.ssa.dependency_graph import dependency_graph_from_cfg
+import networkx as nx
+from decompiler.pipeline.ssa.dependency_graph import dependency_graph_from_cfg, decorate_dependency_graph, _collect_variables
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
@@ -17,7 +19,8 @@ from decompiler.structures.pseudo.typing import Type
 from decompiler.task import DecompilerTask
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 from decompiler.util.lexicographical_bfs import LexicographicalBFS
-from networkx import Graph, MultiDiGraph, connected_components
+from networkx import Graph, MultiDiGraph, connected_components, MultiGraph
+from decompiler.util.decoration import DecoratedCFG
 
 
 @dataclass
@@ -347,13 +350,31 @@ class ConditionalVariableRenamer(VariableRenamer):
     copy-assignments are more likely to be identically than complicated computations.
     """
 
-    def __init__(self, task, interference_graph: InterferenceGraph):
+    class StCutStorage:
+        def __init__(self,s : Tuple[Variable], t : Tuple[Variable], cut :set, weight :int):
+            self.s = s
+            self.t = t
+            self.cut = cut
+            self.weight = weight
+            
+
+    def __init__(self, task: DecompilerTask, interference_graph: InterferenceGraph, strong : float, mid: float, weak: float, func :float, strat :int = 1):
         """
         self._color_classes is a dictionary where the set of keys is the set of colors
         and to each color we assign the set of variables of this color.
         """
+
         super().__init__(task, interference_graph.copy())
+        self.strongDep = strong
+        self.midDep = mid
+        self.weakDep = weak
+        self.funcDep = func
+        self.strat = strat
+        self.interference_graph = InterferenceGraph(self.cfg)
+        self.task = task
         self._generate_renaming_map(task.graph)
+        
+
 
     def _generate_renaming_map(self, cfg: ControlFlowGraph):
         """
@@ -366,63 +387,185 @@ class ConditionalVariableRenamer(VariableRenamer):
 
         :param cfg: The control flow graph from which the dependency graph is derived.
         """
-        dependency_graph = dependency_graph_from_cfg(cfg)
+        dependency_graph = dependency_graph_from_cfg(cfg,self.strongDep,self.midDep,self.weakDep,self.funcDep)
+        dependency_graph = networkx.MultiGraph(dependency_graph)
         dependency_graph = self.merge_contracted_variables(dependency_graph)
 
-        self.create_variable_classes(dependency_graph)
-        self.compute_new_name_for_each_variable()
+        dependency_graph = self.create_variable_classes(dependency_graph)
 
-    def merge_contracted_variables(self, dependency_graph: MultiDiGraph):
-        """Merge nodes which need to be contracted from self._variables_contracted_to"""
+        #self.checkResult(dependency_graph)
+
+        classes = self.extractClasses(dependency_graph)
+        self.createRenamingMap(classes)
+
+    def extractClasses(self,dependency_graph : Graph) -> List[List[Variable]]:
+        res = []
+        for comp in nx.connected_components(dependency_graph):
+            compList = []
+            for varTup in comp:
+                for var in varTup:
+                    compList.append(var)
+            res.append(compList)
+        
+        return res
+    
+    def checkResult(self, dependency_graph : MultiGraph ):
+        self.interference_graph = InterferenceGraph(self.cfg)
+        for node in dependency_graph.nodes():
+            if len(node) >= 2:
+                for x,y in combinations(node,2):
+                    if self.interference_graph.are_interfering(x,y):
+                        raise Exception("Merging of contracted Variables went wrong!")
+        for comp in nx.connected_components(dependency_graph):
+            compVars = []
+            mapping = {}
+            for tup in comp:
+                for var in tup:
+                    compVars.append(var)
+                    mapping[var] = tup
+            for x,y in combinations(compVars,2):
+                if self.interference_graph.are_interfering(x,y):
+                    raise Exception(f"Two Variables in one cc are interfering: {str(x)}, {str(y)}")
+
+
+    def merge_contracted_variables(self, dependency_graph: MultiGraph):
+        """Here we handle variables, which have get the same. This is so blown up, because we have transitive 
+        relation dependencies and we can't access them as easy as in the Shreedhar algorithm."""
         mapping: dict[tuple[Variable], tuple[Variable, ...]] = {}
-        for variable in self.interference_graph.nodes():
-            contracted = tuple(self._variables_contracted_to[variable])
-            for var in contracted:
-                mapping[(var,)] = contracted
+
+        relList = []
+        relPairs :List[Set[Variable]] = []
+        for instr in self.cfg.instructions:
+            if isinstance(instr,Relation) and (instr.destination != instr.value):
+                relList.append(instr.destination)
+                relList.append(instr.value)
+                relPairs.append({instr.destination,instr.value})
+        relList = sorted(relList,key=lambda x : f"{x.name}{x.ssa_label}{x._type}")
+        duplicates = set()
+        for x in range(0,len(relList)-1):
+            if relList[x] == relList[x+1]:
+                duplicates.add(relList[x])
+        
+        for x in duplicates:
+            matches = set()
+            for y in relPairs:
+                    if x in y:
+                        matches = matches.union(y)
+            relPairs = [pair for pair in relPairs if x not in pair]
+            relPairs.append(matches)
+            
+        for relSet in relPairs:
+            for var in relSet:
+                mapping[(var,)] = tuple(relSet)        
 
         return networkx.relabel_nodes(dependency_graph, mapping)
-
-    def create_variable_classes(self, dependency_graph: MultiDiGraph):
-        """Create the variable classes based on the given dependency graph."""
-        while True:
-            merged_edges: dict[frozenset[tuple[Variable, ...]], float] = defaultdict(lambda: 0)
-            for u, v, score in dependency_graph.edges(data="score"):
-                if u != v:
-                    merged_edges[frozenset([u, v])] += score
-
-            for (u, v), _ in sorted(merged_edges.items(), key=lambda edge: edge[1], reverse=True):
-                if u == v:  # self loop
-                    continue
-                if not self._variables_can_have_same_name(u, v):
-                    continue
-
-                break
+    
+    def multiGraphToGraph(self, dependency_graph: MultiGraph) -> Graph:
+        res = Graph()
+        for node in dependency_graph.nodes():
+            res.add_node(node)
+        res.remove_edges_from(dependency_graph.edges())
+        for u,v,d in dependency_graph.edges(data=True):
+            if res.has_edge(u,v):
+                val = res.get_edge_data(u,v)["score"]
+                res.remove_edge(u,v)
+                val += d["score"]
+                res.add_edge(u,v,score=val)
             else:
-                # We didn't find any remaining nodes to contract, break outer loop
-                break
+                res.add_edge(u,v,score=d["score"])
+        return res
 
-            networkx.relabel_nodes(dependency_graph, {u: (*u, *v), v: (*u, *v)}, copy=False)
 
-        self._variable_classes_handler = VariableClassesHandler(defaultdict(set))
-        for i, vars in enumerate(dependency_graph.nodes):
-            for var in vars:
-                self._variable_classes_handler.add_variable_to_class(var, i)
+    def create_variable_classes(self, dependency_graph: MultiGraph):
+        """Create the variable classes based on the given dependency graph."""
 
-    def _variables_can_have_same_name(self, source: tuple[Variable, ...], sink: tuple[Variable, ...]) -> bool:
-        """
-        Two sets of variables can have the same name, if they have the same type, are both aliased or both non-aliased variables, and if they
-        do not interfere.
+        interferingPairs = set()
+        for var1, var2 in combinations(dependency_graph.nodes(),2):
+            if (self.interference_graph.are_interfering(*var1,*var2)) and (nx.has_path(dependency_graph,var1,var2)):
+                interferingPairs.add((var1,var2))
 
-        :param source: The potential source vertex.
-        :param sink: The potential sink vertex
-        :return: True, if the given sets of variables can have the same name, and false otherwise.
-        """
-        if (
-            self.interference_graph.are_interfering(*(source + sink))
-            or source[0].type != sink[0].type
-            or source[0].is_aliased != sink[0].is_aliased
-        ):
-            return False
-        if source[0].is_aliased and sink[0].is_aliased and source[0].name != sink[0].name:
-            return False
-        return True
+        lenght = len(list(interferingPairs))
+        counter = 0
+
+        if self.strat == 0: #Greedy Multicut through s-t-Cuts
+            cuts = []
+            dependency_graph.remove_edges_from(list(networkx.selfloop_edges(dependency_graph))) #remove loops, as they cause problems but don't add any value in our situation
+            dependency_graph = self.multiGraphToGraph(dependency_graph)
+
+            for pair in interferingPairs:
+                weight, (part1, part2) = networkx.minimum_cut(dependency_graph,pair[0],pair[1],capacity="score")
+                
+                edges = {(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2}
+                #edges = {edge for edge in dependency_graph.edges() if (((edge[0] in part1) and (edge[1] in part2)) or ((edge[0] in part2) and (edge[1] in part1)))}
+                cuts.append(self.StCutStorage(pair[0],pair[1],edges,weight))
+                counter += 1
+                print(f"\033[0K{counter}/{lenght}", end="\r")
+            cuts = sorted(cuts,key=lambda x: x.weight)
+            for x in cuts:
+                x : ConditionalVariableRenamer.StCutStorage
+                if networkx.has_path(dependency_graph,x.s,x.t):
+                    dependency_graph.remove_edges_from(x.cut)
+                #assert not nx.has_path(dependency_graph,x.s,x.t)
+
+            return dependency_graph
+        
+        elif self.strat == 1: #simple combination of mulitcuts; lower runtime than 0 but approximation factor is worse
+
+            cuts = []
+            dependency_graph.remove_edges_from(list(networkx.selfloop_edges(dependency_graph))) #remove loops, as they cause problems but don't add any value in our situation
+            dependency_graph = self.multiGraphToGraph(dependency_graph)
+
+            for pair in interferingPairs:
+                if nx.has_path(dependency_graph,pair[0],pair[1]):
+                    weight, (part1, part2) = networkx.minimum_cut(dependency_graph,pair[0],pair[1],capacity="score")
+                
+                    edges = {(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2}
+                    dependency_graph.remove_edges_from(edges)
+
+                counter += 1
+                print(f"\033[0K{counter}/{lenght}", end="\r")
+
+            return dependency_graph            
+            
+        else: raise Exception("This Multicut Algorithm is currently not implemented")
+
+    def createRenamingMap(self,classes : List[List[Variable]]):
+        count = 0
+        assignedNames = []
+        variable_for_function_arg: Dict[str, Variable] = self._get_function_argument_variables(self.task.function_parameters)
+        function_arg_for_variable: Dict[Variable, str] = {v: k for k, v in variable_for_function_arg.items()}
+
+        for varclass in classes:
+                glob: List[GlobalVariable] = [k for k in varclass if isinstance(k,GlobalVariable)]
+                if len(glob) != 0:
+                    #globnames = list({j.name for j in glob})
+                    #if len(globnames) == 1:
+                        for var in varclass:
+                            glob_var = glob[0]
+                            self.renaming_map[var] = GlobalVariable(glob_var.name, glob_var.type, glob_var.initial_value, None, glob_var.is_aliased, var, glob_var.is_constant, glob_var.tags)
+                    #else: 
+                        #raise Exception("detected more than one global variable in a phi congruence class")
+                else:
+                    new_name = None
+                    # check if a function arg is in class
+                    for var in varclass:
+                        if var in function_arg_for_variable:
+                            new_name = function_arg_for_variable[var]
+                            break
+
+                    # else use first name of class
+                    if new_name == None:
+                        for var in varclass:
+                            new_name = var.name
+                            break
+                    
+                    if new_name == None:
+                        raise Exception("Found no suitable name for connected component")
+                    
+                    if new_name in assignedNames:
+                        new_name = f"{new_name}__{count}"
+                        count += 1
+                    assignedNames.append(new_name)
+
+                    for var in varclass:
+                        self.renaming_map[var] = Variable(new_name, var.type, None, var.is_aliased, var, var.tags)
