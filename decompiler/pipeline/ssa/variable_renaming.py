@@ -490,7 +490,7 @@ class ConditionalVariableRenamer(VariableRenamer):
                 #edges = {(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2}
                 cuts.append(self.StCutStorage(pair[0],pair[1],part1,part2,weight))
                 counter += 1
-                print(f"\033[0K{counter}/{lenght}", end="\r")
+                #print(f"\033[0K{counter}/{lenght}", end="\r")
             cuts = sorted(cuts,key=lambda x: x.weight)
             for x in cuts:
                 x : ConditionalVariableRenamer.StCutStorage
@@ -514,7 +514,7 @@ class ConditionalVariableRenamer(VariableRenamer):
                     dependency_graph.remove_edges_from(edges)
 
                 counter += 1
-                print(f"\033[0K{counter}/{lenght}", end="\r")
+                #print(f"\033[0K{counter}/{lenght}", end="\r")
 
             return dependency_graph            
             
