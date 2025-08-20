@@ -16,8 +16,7 @@ class ConditionalOutOfSSA():
         '''
         strong/ weak/ mid: Values for the corresponding edges
         func : Value for edges between assignee and parameters of functions e.g. between a and b in a = foo(b)
-            -1 deactivates those edges
-             0 same value as weak dependency  
+            -1  same value as weak dependency  
         '''
         self.task = task
         self.cfg = task.cfg
@@ -25,8 +24,7 @@ class ConditionalOutOfSSA():
         self.midDep = mid
         self.weakDep = weak
         self._phi_functions_of: DefaultDict[BasicBlock, List[Phi]] = _phi_fuctions_of
-        if func == -1: self.funcDep = 0
-        elif func == 0: self.funcDep = self.weakDep
+        if func == -1: self.funcDep = self.weakDep 
         else: self.funcDep = func
         self.strategy = strategy
 
