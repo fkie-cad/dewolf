@@ -2,6 +2,7 @@ import itertools
 from itertools import combinations
 from typing import Iterator
 
+import networkx as nx
 import networkx
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
@@ -49,7 +50,6 @@ def dependency_graph_from_cfg(cfg: ControlFlowGraph, strong: float, mid :float, 
         for used_variable, score in _expression_dependencies(instruction.value,strong,mid,weak,func).items():
             if score > 0:
                 dependency_graph.add_edges_from((((dvar,), (used_variable,)) for dvar in defined_variables), score=score)
-
     return dependency_graph
 
 
@@ -123,4 +123,4 @@ def _expression_dependencies(expression: Expression, strong : float, mid: float,
         else: 
             return {}
     else:
-        return {var : func for var in operands_dependencies}
+        return {var : func for var in operands_dependencies if isinstance(var,Variable)}

@@ -3,7 +3,7 @@
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
-from itertools import combinations
+from itertools import combinations, chain
 from operator import attrgetter
 from typing import DefaultDict, Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union
 from itertools import combinations
@@ -17,7 +17,7 @@ from decompiler.structures.pseudo.typing import Type
 from decompiler.task import DecompilerTask
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 from decompiler.util.lexicographical_bfs import LexicographicalBFS
-from networkx import Graph, MultiDiGraph, connected_components, MultiGraph, has_path, minimum_cut, relabel_nodes, selfloop_edges
+from networkx import Graph, MultiDiGraph, connected_components, MultiGraph, has_path, minimum_cut, relabel_nodes, selfloop_edges, subgraph
 from decompiler.util.decoration import DecoratedCFG
 
 
@@ -400,12 +400,7 @@ class ConditionalVariableRenamer(VariableRenamer):
         """Extracts variables, which can have the same name out of the dependency graph"""
         res = []
         for comp in connected_components(dependency_graph):
-            compList = []
-            for varTup in comp:
-                for var in varTup:
-                    compList.append(var)
-            res.append(compList)
-        
+            res.append(list(chain(*comp)))
         return res
     
     def checkResult(self, dependency_graph : MultiGraph ):
@@ -424,38 +419,26 @@ class ConditionalVariableRenamer(VariableRenamer):
 
 
     def merge_contracted_variables(self, dependency_graph: MultiGraph):
-        """Here we handle variables, which have get the same. This is so blown up, because we have transitive 
-        relation dependencies and we can't access them as easy as in the Shreedhar algorithm."""
+        """Here we handle variables, which have get the same."""
         mapping: dict[tuple[Variable], tuple[Variable, ...]] = {}
 
-        relList :List[Variable] = []
-        relPairs :List[Set[Variable]] = []
+        relGraph = Graph()
         for instr in self.cfg.instructions:
             if isinstance(instr,Relation) and (instr.destination != instr.value):
-                relList.extend([instr.destination,instr.value])
-                relPairs.append({instr.destination,instr.value})
-        relList = sorted(relList,key=lambda x : f"{x.name}{x.ssa_label}{x._type}")
-        duplicates = {relList[i] for i in range(0,len(relList)-1) if relList[i] == relList[i+1]}
-        
-        for x in duplicates:
-            matches = set()
-            for y in relPairs:
-                    if x in y:
-                        matches = matches.union(y)
-            relPairs = [pair for pair in relPairs if x not in pair]
-            relPairs.append(matches)
-            
-        for relSet in relPairs:
-            for var in relSet:
-                mapping[(var,)] = tuple(relSet)        
+                relGraph.add_node(instr.destination)
+                relGraph.add_node(instr.value)
+                relGraph.add_edge(instr.destination,instr.value)
 
+        conComp = list(connected_components(relGraph))
+        for comp in conComp:
+            mapping.update({(var,) : tuple(comp) for var in comp})
+        
         return relabel_nodes(dependency_graph, mapping)
     
     def multiGraphToGraph(self, dependency_graph: MultiGraph) -> Graph:
         res = Graph()
         for node in dependency_graph.nodes():
             res.add_node(node)
-        res.remove_edges_from(dependency_graph.edges())
         for u,v,d in dependency_graph.edges(data=True):
             if res.has_edge(u,v):
                 val = res.get_edge_data(u,v)["score"]
@@ -465,56 +448,57 @@ class ConditionalVariableRenamer(VariableRenamer):
             else:
                 res.add_edge(u,v,score=d["score"])
         return res
-
+    
+    def getInterferingPairs(self,dependency_graph: Graph):
+        interferingPairs = set()
+        for zhk in connected_components(dependency_graph):
+            for var1, var2 in combinations(zhk,2):
+                if self.interference_graph.are_interfering(*var1,*var2):
+                    interferingPairs.add((var1,var2))
+        return interferingPairs
 
     def create_variable_classes(self, dependency_graph: MultiGraph):
         """Create the variable classes based on the given dependency graph."""
 
-        interferingPairs = set()
-        deg = dependency_graph.degree()
-        for var1, var2 in combinations([node for node in dependency_graph.nodes() if deg[node] > 0],2):
-            if (self.interference_graph.are_interfering(*var1,*var2)) and (has_path(dependency_graph,var1,var2)):
-                interferingPairs.add((var1,var2))
-
-        lenght = len(list(interferingPairs))
-        counter = 0
-
         if self.strat == 0: #Greedy Multicut through s-t-Cuts
-            cuts = []
+            
             dependency_graph.remove_edges_from(list(selfloop_edges(dependency_graph))) #remove loops, as they cause problems but don't add any value in our situation
             dependency_graph = self.multiGraphToGraph(dependency_graph)
-    
-            for pair in interferingPairs:
-                weight, (part1, part2) = minimum_cut(dependency_graph,pair[0],pair[1],capacity="score")
+
+            zhkList = list(connected_components(dependency_graph))
+            for zhk in zhkList:
+                cuts = []
+                interferingPairs = self.getInterferingPairs(dependency_graph.subgraph(zhk))
+                for pair in interferingPairs:
+                    weight, (part1, part2) = minimum_cut(dependency_graph.subgraph(zhk),pair[0],pair[1],capacity="score")
                 
-                #edges = {(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2}
-                cuts.append(self.StCutStorage(pair[0],pair[1],part1,part2,weight))
-                counter += 1
-                #print(f"\033[0K{counter}/{lenght}", end="\r")
-            cuts = sorted(cuts,key=lambda x: x.weight)
-            for x in cuts:
-                x : ConditionalVariableRenamer.StCutStorage
-                if has_path(dependency_graph,x.s,x.t):
-                    dependency_graph.remove_edges_from({(u, v) for u in x.part1 for v in dependency_graph.neighbors(u) if v in x.part2}) #remove the edges of the cut
-                #assert not has_path(dependency_graph,x.s,x.t)
+                    #edges = {(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2}
+                    cuts.append(self.StCutStorage(pair[0],pair[1],part1,part2,weight))
+                    cuts.sort(key=attrgetter("weight"))
+                for x in cuts:
+                    x : ConditionalVariableRenamer.StCutStorage
+                    if has_path(dependency_graph.subgraph(zhk),x.s,x.t):
+                        dependency_graph.remove_edges_from({(u, v) for u in x.part1 for v in dependency_graph.neighbors(u) if v in x.part2}) #remove the edges of the cut
+                    #assert not has_path(dependency_graph,x.s,x.t)
 
             return dependency_graph
         
         elif self.strat == 1: #simple combination of mulitcuts; lower runtime than 0 but approximation factor is worse
 
-            cuts = []
             dependency_graph.remove_edges_from(list(selfloop_edges(dependency_graph))) #remove loops, as they cause problems but don't add any value in our situation
             dependency_graph = self.multiGraphToGraph(dependency_graph)
 
-            for pair in interferingPairs:
-                if has_path(dependency_graph,pair[0],pair[1]):
-                    weight, (part1, part2) = minimum_cut(dependency_graph,pair[0],pair[1],capacity="score")
+            zhkList = list(connected_components(dependency_graph))
+            for zhk in zhkList:
+                cuts = []
+                interferingPairs = self.getInterferingPairs(dependency_graph.subgraph(zhk))
+                for pair in interferingPairs:
+                    if has_path(dependency_graph.subgraph(zhk),pair[0],pair[1]):
+                        _, (part1, part2) = minimum_cut(dependency_graph.subgraph(zhk),pair[0],pair[1],capacity="score")
                 
-                    edges = {(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2}
-                    dependency_graph.remove_edges_from(edges)
+                        edges = {(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2}
+                        dependency_graph.remove_edges_from(edges)
 
-                counter += 1
-                #print(f"\033[0K{counter}/{lenght}", end="\r")
 
             return dependency_graph            
             
@@ -529,13 +513,8 @@ class ConditionalVariableRenamer(VariableRenamer):
         for varclass in classes:
                 glob: List[GlobalVariable] = [k for k in varclass if isinstance(k,GlobalVariable)]
                 if len(glob) != 0:
-                    #globnames = list({j.name for j in glob})
-                    #if len(globnames) == 1:
                         for var in varclass:
-                            glob_var = glob[0]
-                            self.renaming_map[var] = GlobalVariable(glob_var.name, glob_var.type, glob_var.initial_value, None, glob_var.is_aliased, var, glob_var.is_constant, glob_var.tags)
-                    #else: 
-                        #raise Exception("Error")
+                            self.renaming_map[var] = GlobalVariable(glob[0].name, glob[0].type, glob[0].initial_value, None, glob[0].is_aliased, var, glob[0].is_constant, glob[0].tags)
                 else:
                     new_name = None
                     # check if a function arg is in class
