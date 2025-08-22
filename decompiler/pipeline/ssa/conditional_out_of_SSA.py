@@ -12,7 +12,7 @@ from decompiler.pipeline.ssa.variable_renaming import ConditionalVariableRenamer
 
 class ConditionalOutOfSSA():
     
-    def __init__(self, task :DecompilerTask, _phi_fuctions_of ,strong:float  = 1, mid: float = 0.5, weak:float = 0.1,func :float = -2, strategy : int = 1):
+    def __init__(self, task :DecompilerTask, _phi_fuctions_of ,strong:float  = 1, mid: float = 0.5, weak:float = 0.1,func :float = -2, strategy : int = 2):
         '''
         strong/ weak/ mid: Values for the corresponding edges
         func : Value for edges between assignee and parameters of functions e.g. between a and b in a = foo(b)

@@ -4,10 +4,11 @@ import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
 from itertools import combinations, chain
-from operator import attrgetter
+from operator import attrgetter, itemgetter
 from typing import DefaultDict, Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union
-from itertools import combinations
 import networkx as nx
+import numpy as np
+from scipy.optimize import milp, Bounds, LinearConstraint
 from decompiler.pipeline.ssa.dependency_graph import dependency_graph_from_cfg, decorate_dependency_graph, _collect_variables
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
@@ -19,7 +20,6 @@ from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 from decompiler.util.lexicographical_bfs import LexicographicalBFS
 from networkx import Graph, MultiDiGraph, connected_components, MultiGraph, has_path, minimum_cut, relabel_nodes, selfloop_edges, subgraph
 from decompiler.util.decoration import DecoratedCFG
-
 
 @dataclass
 class LabelCounter:
@@ -369,6 +369,7 @@ class ConditionalVariableRenamer(VariableRenamer):
         self.weakDep = weak
         self.funcDep = func
         self.strat = strat
+        self.correctedInterferencePairs = 0
         self.interference_graph = InterferenceGraph(self.cfg)
         self.task = task
         self._generate_renaming_map(task.graph)
@@ -460,49 +461,105 @@ class ConditionalVariableRenamer(VariableRenamer):
     def create_variable_classes(self, dependency_graph: MultiGraph):
         """Create the variable classes based on the given dependency graph."""
 
-        if self.strat == 0: #Greedy Multicut through s-t-Cuts
+        match self.strat:
+
+            case 0: #Greedy Multicut through s-t-Cuts
             
-            dependency_graph.remove_edges_from(list(selfloop_edges(dependency_graph))) #remove loops, as they cause problems but don't add any value in our situation
-            dependency_graph = self.multiGraphToGraph(dependency_graph)
+                dependency_graph.remove_edges_from(list(selfloop_edges(dependency_graph))) #remove loops, as they cause problems but don't add any value in our situation
+                dependency_graph = self.multiGraphToGraph(dependency_graph)
 
-            zhkList = list(connected_components(dependency_graph))
-            for zhk in zhkList:
-                cuts = []
-                interferingPairs = self.getInterferingPairs(dependency_graph.subgraph(zhk))
-                for pair in interferingPairs:
-                    weight, (part1, part2) = minimum_cut(dependency_graph.subgraph(zhk),pair[0],pair[1],capacity="score")
-                
-                    #edges = {(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2}
-                    cuts.append(self.StCutStorage(pair[0],pair[1],part1,part2,weight))
-                    cuts.sort(key=attrgetter("weight"))
-                for x in cuts:
-                    x : ConditionalVariableRenamer.StCutStorage
-                    if has_path(dependency_graph.subgraph(zhk),x.s,x.t):
-                        dependency_graph.remove_edges_from({(u, v) for u in x.part1 for v in dependency_graph.neighbors(u) if v in x.part2}) #remove the edges of the cut
-                    #assert not has_path(dependency_graph,x.s,x.t)
+                zhkList = list(connected_components(dependency_graph))
+                for zhk in zhkList:
+                    cuts = []
+                    interferingPairs = self.getInterferingPairs(dependency_graph.subgraph(zhk))
+                    for pair in interferingPairs:
+                        weight, (part1, part2) = minimum_cut(dependency_graph.subgraph(zhk),pair[0],pair[1],capacity="score")
+                    
+                        #edges = {(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2}
+                        cuts.append(self.StCutStorage(pair[0],pair[1],part1,part2,weight))
+                        cuts.sort(key=attrgetter("weight"))
+                    for x in cuts:
+                        x : ConditionalVariableRenamer.StCutStorage
+                        if has_path(dependency_graph.subgraph(zhk),x.s,x.t):
+                            dependency_graph.remove_edges_from({(u, v) for u in x.part1 for v in dependency_graph.neighbors(u) if v in x.part2}) #remove the edges of the cut
+                        #assert not has_path(dependency_graph,x.s,x.t)
 
-            return dependency_graph
-        
-        elif self.strat == 1: #simple combination of mulitcuts; lower runtime than 0 but approximation factor is worse
+                return dependency_graph
+            
+            case 1: #simple combination of mulitcuts; lower runtime than 0 but approximation factor is worse
 
-            dependency_graph.remove_edges_from(list(selfloop_edges(dependency_graph))) #remove loops, as they cause problems but don't add any value in our situation
-            dependency_graph = self.multiGraphToGraph(dependency_graph)
+                dependency_graph.remove_edges_from(list(selfloop_edges(dependency_graph))) #remove loops, as they cause problems but don't add any value in our situation
+                dependency_graph = self.multiGraphToGraph(dependency_graph)
 
-            zhkList = list(connected_components(dependency_graph))
-            for zhk in zhkList:
-                cuts = []
-                interferingPairs = self.getInterferingPairs(dependency_graph.subgraph(zhk))
-                for pair in interferingPairs:
-                    if has_path(dependency_graph.subgraph(zhk),pair[0],pair[1]):
-                        _, (part1, part2) = minimum_cut(dependency_graph.subgraph(zhk),pair[0],pair[1],capacity="score")
-                
+                zhkList = list(connected_components(dependency_graph))
+                for zhk in zhkList:
+                    cuts = []
+                    interferingPairs = self.getInterferingPairs(dependency_graph.subgraph(zhk))
+                    for pair in interferingPairs:
+                        if has_path(dependency_graph.subgraph(zhk),pair[0],pair[1]):
+                            _, (part1, part2) = minimum_cut(dependency_graph.subgraph(zhk),pair[0],pair[1],capacity="score")
+                    
+                            edges = {(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2}
+                            dependency_graph.remove_edges_from(edges)
+
+
+                return dependency_graph
+
+            case 2: #use LP-Solver to calculate Quasi-optimal solution for MultiCut; because we want to keep the runtime in bounds the solution is only quasi-optimal with a few pairs of interfering variables being not seperated optimally
+                    #runtime simmilar to strategy one and lift_minimal
+                dependency_graph.remove_edges_from(list(selfloop_edges(dependency_graph))) #remove loops, as they cause problems but don't add any value in our situation
+                dependency_graph = self.multiGraphToGraph(dependency_graph)
+
+                zhkList = list(connected_components(dependency_graph))
+                zhkList = [x for x in zhkList if len(x) > 0]
+                for zhk in zhkList:
+                    mapping = {}
+                    revmapping = {}
+                    edges = list(dependency_graph.subgraph(zhk).edges(data=True))
+                    if len(edges) == 0: continue
+                    interferingPairs = self.getInterferingPairs(dependency_graph.subgraph(zhk))
+                    weights = [edge[2]["score"] for edge in edges]
+                    edges = list(dependency_graph.subgraph(zhk).edges())
+                    for i in range(len(edges)):
+                        mapping.update({edges[i]:i,(edges[i][1],edges[i][0]) : i})
+                        revmapping.update({i : edges[i]})
+                    paths = []
+                    dia = nx.diameter(dependency_graph.subgraph(zhk))
+                    for x in interferingPairs:
+                        paths.extend(list(nx.all_simple_edge_paths(dependency_graph.subgraph(zhk),x[0],x[1],0.1*dia)))
+                    
+                    if len(paths) == 0:
+                        continue
+                    pathsEncoded = []
+                    for path in paths:
+                        entry = np.zeros(len(edges)).tolist()
+                        for edge in path:
+                            entry[mapping[edge]] = 1
+                        pathsEncoded.append(entry)
+                    
+                    lc = LinearConstraint(pathsEncoded,np.ones((len(paths),)),np.inf)
+                    res = milp(c = weights,integrality=np.ones(len(weights)),bounds=Bounds(0,1),constraints=lc)
+                    remedges = []
+                    if (res.success):
+                        for i in range(len(res.x)):
+                            if res.x[i] == 1:
+                                remedges.append(edges[i])
+                        dependency_graph.remove_edges_from(remedges)
+                    else:
+                        raise Exception("Something went wrong while solving the LP")
+                ifp = self.getInterferingPairs(dependency_graph)
+                for pair in ifp:
+                    if has_path(dependency_graph,pair[0],pair[1]):
+                        self.correctedInterferencePairs += 1
+                        _, (part1, part2) = minimum_cut(dependency_graph,pair[0],pair[1],capacity="score")
+                    
                         edges = {(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2}
                         dependency_graph.remove_edges_from(edges)
+                    
+                return dependency_graph
 
-
-            return dependency_graph            
-            
-        else: raise Exception("This Multicut Algorithm is currently not implemented")
+            case _: 
+                raise Exception("This Multicut Algorithm is currently not implemented")
 
     def createRenamingMap(self,classes : List[List[Variable]]):
         count = 0
