@@ -526,7 +526,7 @@ class ConditionalVariableRenamer(VariableRenamer):
                     paths = []
                     dia = nx.diameter(dependency_graph.subgraph(zhk))
                     for x in interferingPairs:
-                        paths.extend(list(nx.all_simple_edge_paths(dependency_graph.subgraph(zhk),x[0],x[1],0.1*dia)))
+                        paths.extend(list(nx.all_simple_edge_paths(dependency_graph.subgraph(zhk),x[0],x[1],0.15*dia)))
                     
                     if len(paths) == 0:
                         continue
