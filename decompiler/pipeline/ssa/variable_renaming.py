@@ -8,6 +8,9 @@ from operator import attrgetter, itemgetter
 from typing import DefaultDict, Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union
 import networkx as nx
 import numpy as np
+import secrets
+from copy import deepcopy
+from logging import debug
 from scipy.optimize import milp, Bounds, LinearConstraint
 from decompiler.pipeline.ssa.dependency_graph import dependency_graph_from_cfg, decorate_dependency_graph, _collect_variables
 from decompiler.structures.graphs.cfg import ControlFlowGraph
@@ -18,7 +21,7 @@ from decompiler.structures.pseudo.typing import Type
 from decompiler.task import DecompilerTask
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 from decompiler.util.lexicographical_bfs import LexicographicalBFS
-from networkx import Graph, MultiDiGraph, connected_components, MultiGraph, has_path, minimum_cut, relabel_nodes, selfloop_edges, subgraph
+from networkx import Graph, MultiDiGraph, connected_components, shortest_path_length ,MultiGraph, has_path, minimum_cut, relabel_nodes, selfloop_edges, subgraph
 from decompiler.util.decoration import DecoratedCFG
 
 @dataclass
@@ -340,6 +343,13 @@ class MinimalVariableRenamer(VariableRenamer):
             if neighbor in self._variable_classes_handler.color_class_of:
                 yield self._variable_classes_handler.color_class_of[neighbor]
 
+class StCutStorage:
+        def __init__(self,s : Tuple[Variable], t : Tuple[Variable], part1 : set[tuple[Variable]], part2 :set[tuple[Variable]], weight :int):
+            self.s = s
+            self.t = t
+            self.part1 = part1
+            self.part2 = part2
+            self.weight = weight
 
 class ConditionalVariableRenamer(VariableRenamer):
     """
@@ -348,15 +358,7 @@ class ConditionalVariableRenamer(VariableRenamer):
     copy-assignments are more likely to be identically than complicated computations.
     """
 
-    class StCutStorage:
-        def __init__(self,s : Tuple[Variable], t : Tuple[Variable], part1 : set[tuple[Variable]], part2 :set[tuple[Variable]], weight :int):
-            self.s = s
-            self.t = t
-            self.part1 = part1
-            self.part2 = part2
-            self.weight = weight
-            
-
+    
     def __init__(self, task: DecompilerTask, interference_graph: InterferenceGraph, strong : float, mid: float, weak: float, func :float, strat :int = 1):
         """
         self._color_classes is a dictionary where the set of keys is the set of colors
@@ -387,7 +389,7 @@ class ConditionalVariableRenamer(VariableRenamer):
 
         :param cfg: The control flow graph from which the dependency graph is derived.
         """
-        dependency_graph = dependency_graph_from_cfg(cfg,self.strongDep,self.midDep,self.weakDep,self.funcDep)
+        dependency_graph = dependency_graph_from_cfg(cfg,self.strongDep,self.midDep,self.weakDep,self.funcDep,self.interference_graph)
         dependency_graph = MultiGraph(dependency_graph)
         dependency_graph = self.merge_contracted_variables(dependency_graph)
 
@@ -460,7 +462,6 @@ class ConditionalVariableRenamer(VariableRenamer):
 
     def create_variable_classes(self, dependency_graph: MultiGraph):
         """Create the variable classes based on the given dependency graph."""
-
         match self.strat:
 
             case 0: #Greedy Multicut through s-t-Cuts
@@ -476,7 +477,7 @@ class ConditionalVariableRenamer(VariableRenamer):
                         weight, (part1, part2) = minimum_cut(dependency_graph.subgraph(zhk),pair[0],pair[1],capacity="score")
                     
                         #edges = {(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2}
-                        cuts.append(self.StCutStorage(pair[0],pair[1],part1,part2,weight))
+                        cuts.append(StCutStorage(pair[0],pair[1],part1,part2,weight))
                         cuts.sort(key=attrgetter("weight"))
                     for x in cuts:
                         x : ConditionalVariableRenamer.StCutStorage
@@ -506,7 +507,6 @@ class ConditionalVariableRenamer(VariableRenamer):
                 return dependency_graph
 
             case 2: #use LP-Solver to calculate Quasi-optimal solution for MultiCut; because we want to keep the runtime in bounds the solution is only quasi-optimal with a few pairs of interfering variables being not seperated optimally
-                    #runtime simmilar to strategy one and lift_minimal
                 dependency_graph.remove_edges_from(list(selfloop_edges(dependency_graph))) #remove loops, as they cause problems but don't add any value in our situation
                 dependency_graph = self.multiGraphToGraph(dependency_graph)
 
@@ -524,10 +524,10 @@ class ConditionalVariableRenamer(VariableRenamer):
                         mapping.update({edges[i]:i,(edges[i][1],edges[i][0]) : i})
                         revmapping.update({i : edges[i]})
                     paths = []
-                    dia = nx.diameter(dependency_graph.subgraph(zhk))
+
+                    dia = self.getDiameterApproximation(dependency_graph.subgraph(zhk))
                     for x in interferingPairs:
-                        paths.extend(list(nx.all_simple_edge_paths(dependency_graph.subgraph(zhk),x[0],x[1],0.15*dia)))
-                    
+                        paths.extend(list(nx.all_simple_edge_paths(dependency_graph.subgraph(zhk),x[0],x[1],0.075*dia)))
                     if len(paths) == 0:
                         continue
                     pathsEncoded = []
@@ -541,6 +541,8 @@ class ConditionalVariableRenamer(VariableRenamer):
                     res = milp(c = weights,integrality=np.ones(len(weights)),bounds=Bounds(0,1),constraints=lc)
                     remedges = []
                     if (res.success):
+                        if res.status != 0:
+                            debug(f"LP-Solver: Status: {res.status}; Bound: {res.mip_dual_bound}")
                         for i in range(len(res.x)):
                             if res.x[i] == 1:
                                 remedges.append(edges[i])
@@ -555,11 +557,131 @@ class ConditionalVariableRenamer(VariableRenamer):
                     
                         edges = {(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2}
                         dependency_graph.remove_edges_from(edges)
+                return dependency_graph
+
+            case 3: 
+                """mergeGraph = Graph()
+                mergeDict = {}
+                for node in dependency_graph.nodes():
+                    edgeData = list(dependency_graph.edges(node,data=True))
+                    if (len(edgeData) > 0) and (min([x[2]["score"] for x in edgeData]) >= self.strongDep):
+                        mergeGraph.add_edges_from(dependency_graph.edges(node))
+                    elif True:
+                        pass
+        
+
+                conComp = list(connected_components(mergeGraph))
+                for comp in conComp:
+                    if not self.interference_graph.are_interfering(list(chain(*comp))):
+                        mergeDict.update({(var,) : tuple(list(chain(*comp))) for var in comp})
+                    else:
+                        infPairs = [x for x in combinations(comp,2) if self.interference_graph.are_interfering(*x)]
+                        corrList :List = deepcopy(comp)
+                        for remNode in infPairs:
+                            corrList.remove(remNode[0])
+                            corrList.remove(remNode[1])
+                        mergeDict.update({(var,) : tuple(list(chain(*corrList))) for var in corrList})
+     
+                dependency_graph = relabel_nodes(dependency_graph, mergeDict)
+                """
+                
+                dependency_graph.remove_edges_from(list(selfloop_edges(dependency_graph))) #remove loops, as they cause problems but don't add any value in our situation
+                dependency_graph = self.multiGraphToGraph(dependency_graph)
+
+                zhkList = list(connected_components(dependency_graph))
+                zhkList = [x for x in zhkList if len(x) > 0]
+                for zhk in zhkList:
                     
+
+                    mapping = {}
+                    revmapping = {}
+                    edges = list(dependency_graph.subgraph(zhk).edges(data=True))
+                    if len(edges) == 0: continue
+                    interferingPairs = list(self.getInterferingPairs(dependency_graph.subgraph(zhk)))
+                    if len(interferingPairs) == 0: continue
+
+                    weights = [edge[2]["score"] for edge in edges]
+                    edges = list(dependency_graph.subgraph(zhk).edges())
+                    for i in range(len(edges)):
+                        mapping.update({edges[i]:i,(edges[i][1],edges[i][0]) : i})
+                        revmapping.update({i : edges[i]})
+
+
+                    pathsEncoded = []
+                    colisionIndex = 0
+                    newRoundNeeded = True
+                    dia = self.getDiameterApproximation(dependency_graph.subgraph(zhk))
+                    while newRoundNeeded:
+                        currentPaths = []
+                        for _ in range(min(10,len(interferingPairs))):
+                            ifP = interferingPairs.pop(colisionIndex)
+                            currentPaths.extend(list(nx.all_simple_edge_paths(dependency_graph.subgraph(zhk),ifP[0],ifP[1],0.075*dia)))
+                            colisionIndex = secrets.randbelow(len(interferingPairs))
+                        
+                        while (len(currentPaths) == 0) and (len(interferingPairs) != 0):
+                            ifP = interferingPairs.pop(secrets.randbelow(len(interferingPairs)))
+                        
+                        if len(currentPaths) == 0:
+                            newRoundNeeded = False
+                        
+                        
+                        for path in currentPaths:
+                            entry = np.zeros(len(edges)).tolist()
+                            for edge in path:
+                                entry[mapping[edge]] = 1
+                            pathsEncoded.append(entry)
+                        
+                        if newRoundNeeded:
+                            lc = LinearConstraint(pathsEncoded,np.ones((len(pathsEncoded))),np.inf)
+                            res = milp(c = weights,integrality=np.ones(len(weights)),bounds=Bounds(0,1),constraints=lc)
+
+                            testGraph = Graph(dependency_graph.subgraph(zhk))
+                            remedges = []
+                            if (res.success):
+                                for i in range(len(res.x)):
+                                    if res.x[i] == 1:
+                                        remedges.append(edges[i])
+                                testGraph.remove_edges_from(remedges)
+                                                      
+                                index = self.checkIfPathExists(testGraph,interferingPairs)
+                                if index == -1:
+                                    dependency_graph.remove_edges_from(remedges)
+                                    newRoundNeeded = False
+                                else:
+                                    colisionIndex = index
+
+                            else:
+                                raise Exception("Something went wrong while solving the LP")
+                    
+
+                for pair in self.getInterferingPairs(dependency_graph):
+                    if has_path(dependency_graph,pair[0],pair[1]):
+                        self.correctedInterferencePairs += 1
+                        _, (part1, part2) = minimum_cut(dependency_graph,pair[0],pair[1],capacity="score")
+                    
+                        edges = {(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2}
+                        dependency_graph.remove_edges_from(edges)
                 return dependency_graph
 
             case _: 
                 raise Exception("This Multicut Algorithm is currently not implemented")
+                
+    def getDiameterApproximation(self,dependencyGraph : Graph):
+        if (len(list(dependencyGraph.edges())) == 0) or (len(list(dependencyGraph.nodes())) == 0):
+            return 0
+        else:
+            nodes = list(dependencyGraph.nodes())
+            maximum = 0
+            for _ in range(10):
+                sssp = shortest_path_length(dependencyGraph,nodes[secrets.randbelow(len(nodes))])
+                maximum = max([max(sssp.values()),maximum])
+            return maximum
+
+    def checkIfPathExists(self, dependencyGraph : Graph, pairs : List[Tuple[Tuple[Variable]]]):
+        for pair in pairs:
+            if has_path(dependencyGraph,pair[0],pair[1]):
+                return pairs.index(pair)
+        return -1
 
     def createRenamingMap(self,classes : List[List[Variable]]):
         count = 0

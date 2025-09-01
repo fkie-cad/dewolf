@@ -7,12 +7,12 @@ from typing import DefaultDict, List
 from decompiler.structures.graphs.cfg import BasicBlock
 from decompiler.structures.pseudo.instructions import Phi
 from decompiler.pipeline.ssa.variable_renaming import ConditionalVariableRenamer
-
+import gc
 
 
 class ConditionalOutOfSSA():
     
-    def __init__(self, task :DecompilerTask, _phi_fuctions_of ,strong:float  = 1, mid: float = 0.5, weak:float = 0.1,func :float = -2, strategy : int = 2):
+    def __init__(self, task :DecompilerTask, _phi_fuctions_of : DefaultDict[BasicBlock, List[Phi]] ,strong:float  = 1, mid: float = 0.5, weak:float = 0.1,func :float = -2, strategy : int = 3):
         '''
         strong/ weak/ mid: Values for the corresponding edges
         func : Value for edges between assignee and parameters of functions e.g. between a and b in a = foo(b)
@@ -24,7 +24,7 @@ class ConditionalOutOfSSA():
         self.strongDep = strong
         self.midDep = mid
         self.weakDep = weak
-        self._phi_functions_of: DefaultDict[BasicBlock, List[Phi]] = _phi_fuctions_of
+        self._phi_functions_of = _phi_fuctions_of
         if func == -2: self.funcDep = 0
         elif func == -1: self.funcDep = self.weakDep
         else: self.funcDep = func
@@ -32,7 +32,9 @@ class ConditionalOutOfSSA():
 
 
     def perform(self):
+        gc.enable()
         PhiDependencyResolver(self._phi_functions_of).resolve()
         self.interference_graph = InterferenceGraph(self.task.cfg)
         PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift()
         ConditionalVariableRenamer(self.task, self.interference_graph,self.strongDep,self.midDep,self.weakDep,self.funcDep,self.strategy).rename()
+        gc.collect()
