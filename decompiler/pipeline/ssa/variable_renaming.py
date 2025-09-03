@@ -409,6 +409,7 @@ class ConditionalVariableRenamer(VariableRenamer):
                     edge[2]["score"] = mid
                 case self.weakDep:
                     edge[2]["score"] = weak
+        return dependency_graph
     
     def extractClasses(self,dependency_graph : Graph) -> List[List[Variable]]:
         """Extracts variables, which can have the same name out of the dependency graph"""
