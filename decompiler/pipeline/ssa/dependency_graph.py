@@ -34,7 +34,7 @@ def decorate_dependency_graph(dependency_graph: MultiDiGraph, interference_graph
 
     return DecoratedGraph(decorated_graph)
 
-def dependency_graph_from_cfg(cfg: ControlFlowGraph, strong: float, mid :float, weak: float, func : float, ifg : InterferenceGraph) -> MultiGraph:
+def dependency_graph_from_cfg(cfg: ControlFlowGraph, strong: float, mid :float, weak: float, ifg : InterferenceGraph) -> MultiGraph:
     """
     Construct the dependency graph of the given CFG, i.e. adds an edge between two variables if they depend on each other.
         - Add an edge the definition to at most one requirement for each instruction.
@@ -46,9 +46,10 @@ def dependency_graph_from_cfg(cfg: ControlFlowGraph, strong: float, mid :float, 
         dependency_graph.add_node((variable,))
     for instruction in _assignments_in_cfg(cfg):
         defined_variables = instruction.definitions
-        for used_variable, score in _expression_dependencies(instruction.value,strong,mid,weak,func).items():
+        for used_variable, score in _expression_dependencies(instruction.value,strong,mid,weak).items():
             if (score > 0) and  not (ifg.are_interfering(*defined_variables,used_variable)):
-                dependency_graph.add_edges_from((((dvar,), (used_variable,)) for dvar in defined_variables), score=score)
+                dependency_graph.add_edges_from((((dvar,), (used_variable,),"a",score) #if not foo(dvar,used_variable) else ((dvar,), (used_variable,),"a",mid)
+                                                    for dvar in defined_variables ))
     return dependency_graph
 
 
@@ -94,7 +95,7 @@ def _get_base_operands(expression :list [Expression]) -> list:
     return list(set(parts)), islow
 
 
-def _expression_dependencies(expression: Expression, strong : float, mid: float, weak : float, func : float) -> dict[Variable, float]:
+def _expression_dependencies(expression: Expression, strong : float, mid: float, weak : float) -> dict[Variable, float]:
     """
     Calculate the dependencies of an expression in terms of its constituent variables.
 
@@ -102,24 +103,17 @@ def _expression_dependencies(expression: Expression, strong : float, mid: float,
     `Variable` to a float score representing its contribution or dependency weight within
     the expression.
     """
-    if isinstance(expression,Call):
-        operands_dependencies, low = _get_base_operands(expression.parameters)
-    else:
-        operands_dependencies, low = _get_base_operands([expression])
-    if not isinstance(expression,Call):
-        if (len(operands_dependencies) == 1) and (isinstance(operands_dependencies[0],Variable)):
-            if not low:
-                return {operands_dependencies[0] : strong}
-            else: 
-                 return {operands_dependencies[0] : weak}
-        elif (len(operands_dependencies) > 1):
-            vars = [var for var in operands_dependencies if isinstance(var,Variable)]
-            if (len(vars) == 1) and (not low):
-                return {vars[0] : mid}
-            else: 
-                return {x : weak for x in vars}
-
+    operands_dependencies, low = _get_base_operands([expression])
+    if (len(operands_dependencies) == 1) and (isinstance(operands_dependencies[0],Variable)):
+        if not low:
+            return {operands_dependencies[0] : strong}
         else: 
-            return {}
-    else:
-        return {var : func for var in operands_dependencies if isinstance(var,Variable)}
+                return {operands_dependencies[0] : weak}
+    elif (len(operands_dependencies) > 1):
+        vars = [var for var in operands_dependencies if isinstance(var,Variable)]
+        if (len(vars) == 1) and (not low):
+            return {vars[0] : mid}
+        else: 
+            return {x : weak for x in vars}
+    else: 
+        return {}

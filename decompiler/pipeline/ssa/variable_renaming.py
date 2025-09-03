@@ -359,7 +359,7 @@ class ConditionalVariableRenamer(VariableRenamer):
     """
 
     
-    def __init__(self, task: DecompilerTask, interference_graph: InterferenceGraph, strong : float, mid: float, weak: float, func :float, strat :int = 1):
+    def __init__(self, task: DecompilerTask, interference_graph: InterferenceGraph, strong : float, mid: float, weak: float, strat :int = 1):
         """
         self._color_classes is a dictionary where the set of keys is the set of colors
         and to each color we assign the set of variables of this color.
@@ -369,7 +369,6 @@ class ConditionalVariableRenamer(VariableRenamer):
         self.strongDep = strong
         self.midDep = mid
         self.weakDep = weak
-        self.funcDep = func
         self.strat = strat
         self.correctedInterferencePairs = 0
         self.interference_graph = InterferenceGraph(self.cfg)
@@ -389,9 +388,11 @@ class ConditionalVariableRenamer(VariableRenamer):
 
         :param cfg: The control flow graph from which the dependency graph is derived.
         """
-        dependency_graph = dependency_graph_from_cfg(cfg,self.strongDep,self.midDep,self.weakDep,self.funcDep,self.interference_graph)
+        dependency_graph = dependency_graph_from_cfg(cfg,self.strongDep,self.midDep,self.weakDep,self.interference_graph)
         dependency_graph = MultiGraph(dependency_graph)
         dependency_graph = self.merge_contracted_variables(dependency_graph)
+
+        dependency_graph = self.replaceSymbolicValuesWithConcreteDependencyNumbers(dependency_graph,self.strongDep,self.midDep, self.weakDep)
 
         dependency_graph = self.create_variable_classes(dependency_graph)
 
@@ -399,6 +400,16 @@ class ConditionalVariableRenamer(VariableRenamer):
  
         self.createRenamingMap(self.extractClasses(dependency_graph))
 
+    def replaceSymbolicValuesWithConcreteDependencyNumbers(self, dependency_graph : Graph, strong : float, mid : float, weak : float):
+        for edge in dependency_graph.edges(data=True):
+            match edge[2]["a"]:
+                case self.strongDep:
+                    edge[2]["score"] = strong
+                case self.midDep:
+                    edge[2]["score"] = mid
+                case self.weakDep:
+                    edge[2]["score"] = weak
+    
     def extractClasses(self,dependency_graph : Graph) -> List[List[Variable]]:
         """Extracts variables, which can have the same name out of the dependency graph"""
         res = []

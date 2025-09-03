@@ -12,12 +12,9 @@ import gc
 
 class ConditionalOutOfSSA():
     
-    def __init__(self, task :DecompilerTask, _phi_fuctions_of : DefaultDict[BasicBlock, List[Phi]] ,strong:float  = 1, mid: float = 0.5, weak:float = 0.1,func :float = -2, strategy : int = 3):
+    def __init__(self, task :DecompilerTask, _phi_fuctions_of : DefaultDict[BasicBlock, List[Phi]] ,strong:float  = 1, mid: float = 0.5, weak:float = 0.1, strategy : int = 3):
         '''
-        strong/ weak/ mid: Values for the corresponding edges
-        func : Value for edges between assignee and parameters of functions e.g. between a and b in a = foo(b)
-            -2 deactivates those edges
-            -1 same value as weak dependency  
+        strong/ weak/ mid: Values for the corresponding edges 
         '''
         self.task = task
         self.cfg = task.cfg
@@ -25,16 +22,11 @@ class ConditionalOutOfSSA():
         self.midDep = mid
         self.weakDep = weak
         self._phi_functions_of = _phi_fuctions_of
-        if func == -2: self.funcDep = 0
-        elif func == -1: self.funcDep = self.weakDep
-        else: self.funcDep = func
         self.strategy = strategy
 
 
     def perform(self):
-        gc.enable()
         PhiDependencyResolver(self._phi_functions_of).resolve()
         self.interference_graph = InterferenceGraph(self.task.cfg)
         PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift()
-        ConditionalVariableRenamer(self.task, self.interference_graph,self.strongDep,self.midDep,self.weakDep,self.funcDep,self.strategy).rename()
-        gc.collect()
+        ConditionalVariableRenamer(self.task, self.interference_graph,self.strongDep,self.midDep,self.weakDep,self.strategy).rename()
