@@ -163,7 +163,7 @@ class OutOfSsaTranslation(PipelineStage):
             - Afterwards, we rename the variables by considering their dependency on each other.
         """
 
-        ConditionalOutOfSSA(self.task,self._phi_functions_of,1,0.5,0.1,-1).perform()
+        ConditionalOutOfSSA(self.task,self._phi_functions_of,1,0.5,0.1,3).perform()
         
 
     # This translator maps the optimization levels to the functions.

@@ -48,9 +48,16 @@ def dependency_graph_from_cfg(cfg: ControlFlowGraph, strong: float, mid :float, 
         defined_variables = instruction.definitions
         for used_variable, score in _expression_dependencies(instruction.value,strong,mid,weak).items():
             if (score > 0) and  not (ifg.are_interfering(*defined_variables,used_variable)):
-                dependency_graph.add_edges_from((((dvar,), (used_variable,),"a",score) #if not foo(dvar,used_variable) else ((dvar,), (used_variable,),"a",mid)
-                                                    for dvar in defined_variables ))
+                for dvar in defined_variables:
+                    if (score != weak) or (not foo(dvar,used_variable)):
+                        dependency_graph.add_edge((dvar,),(used_variable,),a=score)
+                    else:
+                        dependency_graph.add_edge((dvar,),(used_variable,),a=mid)
+                #dependency_graph.add_edges_from((((dvar,), (used_variable,),"a",score) if  else ((dvar,), (used_variable,),"a",mid) for dvar in defined_variables ))
     return dependency_graph
+
+def foo(a,b):
+    return False
 
 
 def _collect_variables(cfg: ControlFlowGraph) -> Iterator[Variable]:

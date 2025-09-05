@@ -344,7 +344,7 @@ class MinimalVariableRenamer(VariableRenamer):
                 yield self._variable_classes_handler.color_class_of[neighbor]
 
 class StCutStorage:
-        def __init__(self,s : Tuple[Variable], t : Tuple[Variable], part1 : set[tuple[Variable]], part2 :set[tuple[Variable]], weight :int):
+        def __init__(self,s : Tuple[Variable], t : Tuple[Variable], part1 : list[tuple[Variable]], part2 :list[tuple[Variable]], weight :int):
             self.s = s
             self.t = t
             self.part1 = part1
@@ -371,8 +371,9 @@ class ConditionalVariableRenamer(VariableRenamer):
         self.weakDep = weak
         self.strat = strat
         self.correctedInterferencePairs = 0
-        self.interference_graph = InterferenceGraph(self.cfg)
+        self.interference_graph = interference_graph
         self.task = task
+        self.helpvalue = pow(2,40)
         self._generate_renaming_map(task.graph)
         
 
@@ -389,7 +390,7 @@ class ConditionalVariableRenamer(VariableRenamer):
         :param cfg: The control flow graph from which the dependency graph is derived.
         """
         dependency_graph = dependency_graph_from_cfg(cfg,self.strongDep,self.midDep,self.weakDep,self.interference_graph)
-        dependency_graph = MultiGraph(dependency_graph)
+        #dependency_graph = MultiGraph(dependency_graph)
         dependency_graph = self.merge_contracted_variables(dependency_graph)
 
         dependency_graph = self.replaceSymbolicValuesWithConcreteDependencyNumbers(dependency_graph,self.strongDep,self.midDep, self.weakDep)
@@ -409,6 +410,8 @@ class ConditionalVariableRenamer(VariableRenamer):
                     edge[2]["score"] = mid
                 case self.weakDep:
                     edge[2]["score"] = weak
+                case self.helpvalue:
+                    edge[2]["score"] = self.helpvalue
         return dependency_graph
     
     def extractClasses(self,dependency_graph : Graph) -> List[List[Variable]]:
@@ -419,10 +422,6 @@ class ConditionalVariableRenamer(VariableRenamer):
         return res
     
     def checkResult(self, dependency_graph : MultiGraph ):
-        #self.interference_graph = InterferenceGraph(self.cfg)
-        for node in dependency_graph.nodes():
-            if self.interference_graph.are_interfering(*node):
-                raise Exception("Merging of contracted Variables went wrong!")
         for comp in connected_components(dependency_graph):
             compVars = []
             for tup in comp:
@@ -435,21 +434,12 @@ class ConditionalVariableRenamer(VariableRenamer):
 
     def merge_contracted_variables(self, dependency_graph: MultiGraph):
         """Here we handle variables, which have get the same."""
-        mapping: dict[tuple[Variable], tuple[Variable, ...]] = {}
-
-        relGraph = Graph()
         for instr in self.cfg.instructions:
             if isinstance(instr,Relation) and (instr.destination != instr.value):
-                relGraph.add_node(instr.destination)
-                relGraph.add_node(instr.value)
-                relGraph.add_edge(instr.destination,instr.value)
+                dependency_graph.add_edge((instr.destination,),(instr.value,),a=self.helpvalue)
 
-        conComp = list(connected_components(relGraph))
-        for comp in conComp:
-            mapping.update({(var,) : tuple(comp) for var in comp})
-        
-        return relabel_nodes(dependency_graph, mapping)
-    
+        return dependency_graph    
+
     def multiGraphToGraph(self, dependency_graph: MultiGraph) -> Graph:
         res = Graph()
         for node in dependency_graph.nodes():
@@ -465,11 +455,11 @@ class ConditionalVariableRenamer(VariableRenamer):
         return res
     
     def getInterferingPairs(self,dependency_graph: Graph):
-        interferingPairs = set()
+        interferingPairs = list()
         for zhk in connected_components(dependency_graph):
             for var1, var2 in combinations(zhk,2):
                 if self.interference_graph.are_interfering(*var1,*var2):
-                    interferingPairs.add((var1,var2))
+                    interferingPairs.append((var1,var2))
         return interferingPairs
 
     def create_variable_classes(self, dependency_graph: MultiGraph):
@@ -494,7 +484,7 @@ class ConditionalVariableRenamer(VariableRenamer):
                     for x in cuts:
                         x : ConditionalVariableRenamer.StCutStorage
                         if has_path(dependency_graph.subgraph(zhk),x.s,x.t):
-                            dependency_graph.remove_edges_from({(u, v) for u in x.part1 for v in dependency_graph.neighbors(u) if v in x.part2}) #remove the edges of the cut
+                            dependency_graph.remove_edges_from([(u, v) for u in x.part1 for v in dependency_graph.neighbors(u) if v in x.part2]) #remove the edges of the cut
                         #assert not has_path(dependency_graph,x.s,x.t)
 
                 return dependency_graph
@@ -512,7 +502,7 @@ class ConditionalVariableRenamer(VariableRenamer):
                         if has_path(dependency_graph.subgraph(zhk),pair[0],pair[1]):
                             _, (part1, part2) = minimum_cut(dependency_graph.subgraph(zhk),pair[0],pair[1],capacity="score")
                     
-                            edges = {(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2}
+                            edges = [(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2]
                             dependency_graph.remove_edges_from(edges)
 
 
@@ -525,16 +515,13 @@ class ConditionalVariableRenamer(VariableRenamer):
                 zhkList = list(connected_components(dependency_graph))
                 zhkList = [x for x in zhkList if len(x) > 0]
                 for zhk in zhkList:
-                    mapping = {}
-                    revmapping = {}
+
                     edges = list(dependency_graph.subgraph(zhk).edges(data=True))
                     if len(edges) == 0: continue
                     interferingPairs = self.getInterferingPairs(dependency_graph.subgraph(zhk))
                     weights = [edge[2]["score"] for edge in edges]
                     edges = list(dependency_graph.subgraph(zhk).edges())
-                    for i in range(len(edges)):
-                        mapping.update({edges[i]:i,(edges[i][1],edges[i][0]) : i})
-                        revmapping.update({i : edges[i]})
+
                     paths = []
 
                     dia = self.getDiameterApproximation(dependency_graph.subgraph(zhk))
@@ -546,7 +533,11 @@ class ConditionalVariableRenamer(VariableRenamer):
                     for path in paths:
                         entry = np.zeros(len(edges)).tolist()
                         for edge in path:
-                            entry[mapping[edge]] = 1
+                            if edge in edges:
+                                entry[edges.index(edge)] = 1
+                            else:
+                                entry[edges.index((edge[1],edge[0]))] = 1
+
                         pathsEncoded.append(entry)
                     
                     lc = LinearConstraint(pathsEncoded,np.ones((len(paths),)),np.inf)
@@ -567,35 +558,11 @@ class ConditionalVariableRenamer(VariableRenamer):
                         self.correctedInterferencePairs += 1
                         _, (part1, part2) = minimum_cut(dependency_graph,pair[0],pair[1],capacity="score")
                     
-                        edges = {(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2}
+                        edges = [(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2]
                         dependency_graph.remove_edges_from(edges)
                 return dependency_graph
 
             case 3: 
-                """mergeGraph = Graph()
-                mergeDict = {}
-                for node in dependency_graph.nodes():
-                    edgeData = list(dependency_graph.edges(node,data=True))
-                    if (len(edgeData) > 0) and (min([x[2]["score"] for x in edgeData]) >= self.strongDep):
-                        mergeGraph.add_edges_from(dependency_graph.edges(node))
-                    elif True:
-                        pass
-        
-
-                conComp = list(connected_components(mergeGraph))
-                for comp in conComp:
-                    if not self.interference_graph.are_interfering(list(chain(*comp))):
-                        mergeDict.update({(var,) : tuple(list(chain(*comp))) for var in comp})
-                    else:
-                        infPairs = [x for x in combinations(comp,2) if self.interference_graph.are_interfering(*x)]
-                        corrList :List = deepcopy(comp)
-                        for remNode in infPairs:
-                            corrList.remove(remNode[0])
-                            corrList.remove(remNode[1])
-                        mergeDict.update({(var,) : tuple(list(chain(*corrList))) for var in corrList})
-     
-                dependency_graph = relabel_nodes(dependency_graph, mergeDict)
-                """
                 
                 dependency_graph.remove_edges_from(list(selfloop_edges(dependency_graph))) #remove loops, as they cause problems but don't add any value in our situation
                 dependency_graph = self.multiGraphToGraph(dependency_graph)
@@ -604,9 +571,6 @@ class ConditionalVariableRenamer(VariableRenamer):
                 zhkList = [x for x in zhkList if len(x) > 0]
                 for zhk in zhkList:
                     
-
-                    mapping = {}
-                    revmapping = {}
                     edges = list(dependency_graph.subgraph(zhk).edges(data=True))
                     if len(edges) == 0: continue
                     interferingPairs = list(self.getInterferingPairs(dependency_graph.subgraph(zhk)))
@@ -614,10 +578,6 @@ class ConditionalVariableRenamer(VariableRenamer):
 
                     weights = [edge[2]["score"] for edge in edges]
                     edges = list(dependency_graph.subgraph(zhk).edges())
-                    for i in range(len(edges)):
-                        mapping.update({edges[i]:i,(edges[i][1],edges[i][0]) : i})
-                        revmapping.update({i : edges[i]})
-
 
                     pathsEncoded = []
                     colisionIndex = 0
@@ -628,10 +588,12 @@ class ConditionalVariableRenamer(VariableRenamer):
                         for _ in range(min(10,len(interferingPairs))):
                             ifP = interferingPairs.pop(colisionIndex)
                             currentPaths.extend(list(nx.all_simple_edge_paths(dependency_graph.subgraph(zhk),ifP[0],ifP[1],0.075*dia)))
-                            colisionIndex = secrets.randbelow(len(interferingPairs))
+                            if len(interferingPairs) > 0:
+                                colisionIndex = secrets.randbelow(len(interferingPairs))
                         
                         while (len(currentPaths) == 0) and (len(interferingPairs) != 0):
                             ifP = interferingPairs.pop(secrets.randbelow(len(interferingPairs)))
+                            currentPaths.extend(list(nx.all_simple_edge_paths(dependency_graph.subgraph(zhk),ifP[0],ifP[1],0.075*dia)))
                         
                         if len(currentPaths) == 0:
                             newRoundNeeded = False
@@ -640,7 +602,10 @@ class ConditionalVariableRenamer(VariableRenamer):
                         for path in currentPaths:
                             entry = np.zeros(len(edges)).tolist()
                             for edge in path:
-                                entry[mapping[edge]] = 1
+                                if edge in edges:
+                                    entry[edges.index(edge)] = 1
+                                else:
+                                    entry[edges.index((edge[1],edge[0]))] = 1
                             pathsEncoded.append(entry)
                         
                         if newRoundNeeded:
@@ -668,10 +633,10 @@ class ConditionalVariableRenamer(VariableRenamer):
 
                 for pair in self.getInterferingPairs(dependency_graph):
                     if has_path(dependency_graph,pair[0],pair[1]):
-                        self.correctedInterferencePairs += 1
+                        self.correctedInpyinstrumentterferencePairs += 1
                         _, (part1, part2) = minimum_cut(dependency_graph,pair[0],pair[1],capacity="score")
                     
-                        edges = {(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2}
+                        edges = [(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2]
                         dependency_graph.remove_edges_from(edges)
                 return dependency_graph
 
@@ -684,7 +649,7 @@ class ConditionalVariableRenamer(VariableRenamer):
         else:
             nodes = list(dependencyGraph.nodes())
             maximum = 0
-            for _ in range(10):
+            for _ in range(5):
                 sssp = shortest_path_length(dependencyGraph,nodes[secrets.randbelow(len(nodes))])
                 maximum = max([max(sssp.values()),maximum])
             return maximum
