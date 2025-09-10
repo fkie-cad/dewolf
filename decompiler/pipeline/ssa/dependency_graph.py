@@ -4,6 +4,7 @@ from typing import Iterator
 
 import networkx as nx
 import networkx
+from decompiler.pipeline.ssa.metric_dependency_graph import MetricDependencyGraph
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo import Expression, Operation, OperationType,ListOperation,UnaryOperation,Call,TernaryExpression
@@ -34,7 +35,7 @@ def decorate_dependency_graph(dependency_graph: MultiDiGraph, interference_graph
 
     return DecoratedGraph(decorated_graph)
 
-def dependency_graph_from_cfg(cfg: ControlFlowGraph, strong: float, mid :float, weak: float, ifg : InterferenceGraph) -> MultiGraph:
+def dependency_graph_from_cfg(cfg: ControlFlowGraph, strong: float, mid :float, weak: float, ifg : InterferenceGraph, metric_graph: MetricDependencyGraph) -> MultiGraph:
     """
     Construct the dependency graph of the given CFG, i.e. adds an edge between two variables if they depend on each other.
         - Add an edge the definition to at most one requirement for each instruction.
@@ -49,15 +50,15 @@ def dependency_graph_from_cfg(cfg: ControlFlowGraph, strong: float, mid :float, 
         for used_variable, score in _expression_dependencies(instruction.value,strong,mid,weak).items():
             if (score > 0) and  not (ifg.are_interfering(*defined_variables,used_variable)):
                 for dvar in defined_variables:
-                    if (score != weak) or (not foo(dvar,used_variable)):
+                    if (score != weak) or (not foo(dvar,used_variable, metric_graph)):
                         dependency_graph.add_edge((dvar,),(used_variable,),a=score)
                     else:
                         dependency_graph.add_edge((dvar,),(used_variable,),a=mid)
                 #dependency_graph.add_edges_from((((dvar,), (used_variable,),"a",score) if  else ((dvar,), (used_variable,),"a",mid) for dvar in defined_variables ))
     return dependency_graph
 
-def foo(a,b):
-    return False
+def foo(a,b, graph: MetricDependencyGraph):
+    return graph.test(a,b)
 
 
 def _collect_variables(cfg: ControlFlowGraph) -> Iterator[Variable]:
