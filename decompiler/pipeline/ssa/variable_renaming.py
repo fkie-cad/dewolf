@@ -634,7 +634,7 @@ class ConditionalVariableRenamer(VariableRenamer):
 
                 for pair in self.getInterferingPairs(dependency_graph):
                     if has_path(dependency_graph,pair[0],pair[1]):
-                        self.correctedInpyinstrumentterferencePairs += 1
+                        self.correctedInterferencePairs += 1
                         _, (part1, part2) = minimum_cut(dependency_graph,pair[0],pair[1],capacity="score")
                     
                         edges = [(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2]

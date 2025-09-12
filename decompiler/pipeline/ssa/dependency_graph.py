@@ -53,12 +53,12 @@ def dependency_graph_from_cfg(cfg: ControlFlowGraph, strong: float, mid :float, 
                     if (score != weak) or (not foo(dvar,used_variable, metric_graph)):
                         dependency_graph.add_edge((dvar,),(used_variable,),a=score)
                     else:
-                        dependency_graph.add_edge((dvar,),(used_variable,),a=mid)
+                        dependency_graph.add_edge((dvar,),(used_variable,),a=strong)
                 #dependency_graph.add_edges_from((((dvar,), (used_variable,),"a",score) if  else ((dvar,), (used_variable,),"a",mid) for dvar in defined_variables ))
     return dependency_graph
 
 def foo(a,b, graph: MetricDependencyGraph):
-    return graph.test(a,b)
+    return graph.vars_are_connected_strongly(a,b)
 
 
 def _collect_variables(cfg: ControlFlowGraph) -> Iterator[Variable]:
