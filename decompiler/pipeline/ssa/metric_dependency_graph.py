@@ -8,6 +8,17 @@ from decompiler.structures.pseudo.expressions import Variable
 from decompiler.structures.pseudo.instructions import Assignment
 from decompiler.structures.pseudo.operations import UnaryOperation
 from decompiler.util.decoration import DecoratedGraph
+"""
+TODO move this inside dependency_graph_from_cfg of decompiler/pipeline/ssa/dependency_graph.py
+See
+    commit  893c51aa9f6f62d94c36fd86e7b529aee2081317
+    commit  bbe4e70d17c31f8dcea18a17bd6c2e002e25ca09
+    file    decompiler/pipeline/ssa/conditional_out_of_SSA.py
+    file    decompiler/pipeline/ssa/dependency_graph.py
+    file    decompiler/pipeline/ssa/metric_dependency_graph.py
+    file    decompiler/pipeline/ssa/variable_renaming.py
+
+"""
 
 class MetricDependencyGraph:
     """
