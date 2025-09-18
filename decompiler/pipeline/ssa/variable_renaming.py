@@ -365,7 +365,6 @@ class ConditionalVariableRenamer(VariableRenamer):
         self._color_classes is a dictionary where the set of keys is the set of colors
         and to each color we assign the set of variables of this color.
         """
-
         super().__init__(task, interference_graph.copy())
         self.strongDep = strong
         self.midDep = mid
@@ -482,6 +481,7 @@ class ConditionalVariableRenamer(VariableRenamer):
                         #edges = {(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2}
                         cuts.append(StCutStorage(pair[0],pair[1],part1,part2,weight))
                         cuts.sort(key=attrgetter("weight"))
+                    del interferingPairs
                     for x in cuts:
                         x : ConditionalVariableRenamer.StCutStorage
                         if has_path(dependency_graph.subgraph(zhk),x.s,x.t):
@@ -497,7 +497,6 @@ class ConditionalVariableRenamer(VariableRenamer):
 
                 zhkList = list(connected_components(dependency_graph))
                 for zhk in zhkList:
-                    cuts = []
                     interferingPairs = self.getInterferingPairs(dependency_graph.subgraph(zhk))
                     for pair in interferingPairs:
                         if has_path(dependency_graph.subgraph(zhk),pair[0],pair[1]):
@@ -689,7 +688,7 @@ class ConditionalVariableRenamer(VariableRenamer):
                     if new_name == None:
                         raise Exception("Found no suitable name for connected component")
                     
-                    if new_name in assignedNames:
+                    while new_name in assignedNames:
                         new_name = f"{new_name}__{count}"
                         count += 1
                     assignedNames.append(new_name)
