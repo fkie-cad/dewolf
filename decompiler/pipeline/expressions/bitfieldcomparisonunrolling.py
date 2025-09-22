@@ -139,13 +139,17 @@ class BitFieldComparisonUnrolling(PipelineStage):
                     right=Constant(),
                 ),
                 right=Constant() as bit_field,
-            ) if bit_field.value != 0xFFFFFFFF:
+            ) if (
+                bit_field.value != 0xFFFFFFFF
+            ):
                 return switch_var, bit_field
             case BinaryOperation(
                 operation=OperationType.bitwise_and,
                 left=BinaryOperation(operation=OperationType.left_shift, left=Constant(value=1), right=switch_var),
                 right=Constant() as bit_field,
-            ) if bit_field.value != 0xFFFFFFFF:
+            ) if (
+                bit_field.value != 0xFFFFFFFF
+            ):
                 return switch_var, bit_field
             case _:
                 debug(f"no match for {subexpr}")
