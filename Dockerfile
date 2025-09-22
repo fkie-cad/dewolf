@@ -28,7 +28,9 @@ RUN apt -y update && apt -y upgrade && apt install -y --no-install-recommends \
     z3
 
 # set up binaryninja
-COPY BinaryNinja.zip /tmp/BinaryNinja.zip
+COPY complete_repo.zip /tmp/complete_repo.zip
+RUN unzip /tmp/complete_repo.zip -d /tmp/repo/ && rm /tmp/complete_repo.zip
+RUN cp /tmp/repo/`ls /tmp/repo/ | grep dewolf-binja`/BinaryNinja.zip /tmp/BinaryNinja.zip
 RUN unzip /tmp/BinaryNinja.zip -d /opt/ && rm /tmp/BinaryNinja.zip && mkdir -p /root/.binaryninja/
 # set up binaryninja license
 COPY license.txt /root/.binaryninja/license.dat
