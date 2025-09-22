@@ -1,4 +1,4 @@
-""" Tests for the PatternIndependentRestructuring pipeline stage"""
+"""Tests for the PatternIndependentRestructuring pipeline stage"""
 
 import pytest
 from decompiler.pipeline.controlflowanalysis.restructuring import PatternIndependentRestructuring

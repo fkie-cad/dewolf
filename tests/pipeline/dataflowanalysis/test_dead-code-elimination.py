@@ -1,4 +1,4 @@
-""" Tests for the DeadCodeElimination pipeline stage"""
+"""Tests for the DeadCodeElimination pipeline stage"""
 
 from abc import ABC, abstractmethod
 
