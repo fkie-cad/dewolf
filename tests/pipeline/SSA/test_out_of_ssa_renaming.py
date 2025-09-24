@@ -798,11 +798,12 @@ def test_minimal_renaming_relation(graph_with_relation, variable):
         var_1c[4]: variable[1],
     }
 
-#TODO fix this test
+
+# TODO fix this test
 """
 def test_conditional_renaming_relation(graph_with_relation, variable):
 """
-    #Test for relations with simple renaming
+# Test for relations with simple renaming
 """
     task, interference_graph = graph_with_relation
     conditional_variable_renamer = ConditionalVariableRenamer(task, interference_graph)
@@ -826,11 +827,11 @@ def test_conditional_renaming_relation(graph_with_relation, variable):
     }
 """
 
-#TODO fix this test
+# TODO fix this test
 """
 def test_conditional_renaming():
 """
-    #Test that conditional renaming only combines related variables
+# Test that conditional renaming only combines related variables
 """
     orig_variables = [Variable(letter, Integer.int32_t()) for letter in string.ascii_lowercase]
     new_variables = [Variable(f"var_{index}", Integer.int32_t()) for index in range(10)]
@@ -864,11 +865,11 @@ def test_conditional_renaming():
     }
 """
 
-#TODO fix this Test
+# TODO fix this Test
 """def test_conditional_parallel_edges():
 """
-    #Test that conditional renaming prioritizes paralles edges of single edges, whose sum of
-    #weights is bigger than the weight of the single edge
+# Test that conditional renaming prioritizes paralles edges of single edges, whose sum of
+# weights is bigger than the weight of the single edge
 """
 
     def _v(name: str) -> Variable:
