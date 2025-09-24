@@ -7,7 +7,7 @@ from itertools import combinations, chain
 from operator import attrgetter, itemgetter
 from typing import DefaultDict, Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union
 import networkx as nx
-from decompiler.pipeline.ssa.metric_dependency_graph import MetricDependencyGraph
+from decompiler.pipeline.ssa.metric_helper import MetricHelper
 import numpy as np
 import secrets
 from copy import deepcopy
@@ -360,7 +360,7 @@ class ConditionalVariableRenamer(VariableRenamer):
     """
 
     
-    def __init__(self, task: DecompilerTask, interference_graph: InterferenceGraph, metric_graph: MetricDependencyGraph, strong : float, mid: float, weak: float, strat :int = 1):
+    def __init__(self, task: DecompilerTask, interference_graph: InterferenceGraph, metric_helper: MetricHelper, strong : float, mid: float, weak: float, strat :int = 1):
         """
         self._color_classes is a dictionary where the set of keys is the set of colors
         and to each color we assign the set of variables of this color.
@@ -374,11 +374,11 @@ class ConditionalVariableRenamer(VariableRenamer):
         self.interference_graph = interference_graph
         self.task = task
         self.helpvalue = pow(2,40)
-        self._generate_renaming_map(task.graph, metric_graph)
+        self._generate_renaming_map(task.graph, metric_helper)
         
 
 
-    def _generate_renaming_map(self, cfg: ControlFlowGraph, metric_graph: MetricDependencyGraph):
+    def _generate_renaming_map(self, cfg: ControlFlowGraph, metric_helper: MetricHelper):
         """
         Generate the renaming map for SSA variables.
 
@@ -389,7 +389,7 @@ class ConditionalVariableRenamer(VariableRenamer):
 
         :param cfg: The control flow graph from which the dependency graph is derived.
         """
-        dependency_graph = dependency_graph_from_cfg(cfg,self.strongDep,self.midDep,self.weakDep,self.interference_graph, metric_graph)
+        dependency_graph = dependency_graph_from_cfg(cfg,self.strongDep,self.midDep,self.weakDep,self.interference_graph, metric_helper)
         #dependency_graph = MultiGraph(dependency_graph)
         dependency_graph = self.merge_contracted_variables(dependency_graph)
 

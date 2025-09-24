@@ -1,4 +1,4 @@
-from decompiler.pipeline.ssa.metric_dependency_graph import MetricDependencyGraph
+from decompiler.pipeline.ssa.metric_helper import MetricHelper
 from decompiler.task import DecompilerTask
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
@@ -26,8 +26,8 @@ class ConditionalOutOfSSA():
 
 
     def perform(self):
-        self._metric_graph = MetricDependencyGraph(self.task.cfg)
+        self._metric_helper = MetricHelper(self.task.cfg)
         PhiDependencyResolver(self._phi_functions_of).resolve()
         self.interference_graph = InterferenceGraph(self.task.cfg)
         PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift()
-        ConditionalVariableRenamer(self.task, self.interference_graph, self._metric_graph, self.strongDep,self.midDep,self.weakDep,self.strategy).rename()
+        ConditionalVariableRenamer(self.task, self.interference_graph, self._metric_helper, self.strongDep,self.midDep,self.weakDep,self.strategy).rename()
