@@ -6,6 +6,7 @@ from configparser import NoOptionError
 from enum import Enum
 from typing import Callable, DefaultDict, List
 
+from decompiler.pipeline.ssa.conditional_out_of_SSA import ConditionalOutOfSSA
 from decompiler.pipeline.ssa.phi_cleaner import PhiFunctionCleaner
 from decompiler.pipeline.ssa.phi_dependency_resolver import PhiDependencyResolver
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
@@ -161,10 +162,8 @@ class OutOfSsaTranslation(PipelineStage):
             - Then, we remove the Phi-functions by lifting them to their predecessor basic blocks.
             - Afterwards, we rename the variables by considering their dependency on each other.
         """
-        PhiDependencyResolver(self._phi_functions_of).resolve()
-        self.interference_graph = InterferenceGraph(self.task.graph)
-        PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift()
-        ConditionalVariableRenamer(self.task, self.interference_graph).rename()
+
+        ConditionalOutOfSSA(self.task, self._phi_functions_of, 1, 0.5, 0.1, 3).perform()
 
     # This translator maps the optimization levels to the functions.
     out_of_ssa_strategy: dict[SSAOptions, Callable[["OutOfSsaTranslation"], None]] = {
