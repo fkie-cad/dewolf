@@ -2,16 +2,16 @@ import itertools
 from itertools import combinations
 from typing import Iterator
 
-import networkx as nx
 import networkx
+import networkx as nx
 from decompiler.pipeline.ssa.metric_helper import MetricHelper
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
-from decompiler.structures.pseudo import Expression, Operation, OperationType,ListOperation,UnaryOperation,Call,TernaryExpression
-from decompiler.structures.pseudo.expressions import Variable, Constant, GlobalVariable,Symbol,NotUseableConstant
+from decompiler.structures.pseudo import Call, Expression, ListOperation, Operation, OperationType, TernaryExpression, UnaryOperation
+from decompiler.structures.pseudo.expressions import Constant, GlobalVariable, NotUseableConstant, Symbol, Variable
 from decompiler.structures.pseudo.instructions import Assignment
 from decompiler.util.decoration import DecoratedGraph
-from networkx import MultiDiGraph, to_undirected, MultiGraph
+from networkx import MultiDiGraph, MultiGraph, to_undirected
 
 
 def decorate_dependency_graph(dependency_graph: MultiDiGraph, interference_graph: InterferenceGraph) -> DecoratedGraph:
@@ -35,7 +35,10 @@ def decorate_dependency_graph(dependency_graph: MultiDiGraph, interference_graph
 
     return DecoratedGraph(decorated_graph)
 
-def dependency_graph_from_cfg(cfg: ControlFlowGraph, strong: float, mid :float, weak: float, ifg : InterferenceGraph, metric_helper: MetricHelper) -> MultiGraph:
+
+def dependency_graph_from_cfg(
+    cfg: ControlFlowGraph, strong: float, mid: float, weak: float, ifg: InterferenceGraph, metric_helper: MetricHelper
+) -> MultiGraph:
     """
     Construct the dependency graph of the given CFG, i.e. adds an edge between two variables if they depend on each other.
         - Add an edge the definition to at most one requirement for each instruction.
@@ -47,18 +50,19 @@ def dependency_graph_from_cfg(cfg: ControlFlowGraph, strong: float, mid :float, 
         dependency_graph.add_node((variable,))
     for instruction in _assignments_in_cfg(cfg):
         defined_variables = instruction.definitions
-        for used_variable, score in _expression_dependencies(instruction.value,strong,mid,weak).items():
-            if (score > 0) and  not (ifg.are_interfering(*defined_variables,used_variable)):
+        for used_variable, score in _expression_dependencies(instruction.value, strong, mid, weak).items():
+            if (score > 0) and not (ifg.are_interfering(*defined_variables, used_variable)):
                 for dvar in defined_variables:
-                    if (score != weak) or (not foo(dvar,used_variable, metric_helper)):
-                        dependency_graph.add_edge((dvar,),(used_variable,),a=score)
+                    if (score != weak) or (not foo(dvar, used_variable, metric_helper)):
+                        dependency_graph.add_edge((dvar,), (used_variable,), a=score)
                     else:
-                        dependency_graph.add_edge((dvar,),(used_variable,),a=strong)
-                #dependency_graph.add_edges_from((((dvar,), (used_variable,),"a",score) if  else ((dvar,), (used_variable,),"a",mid) for dvar in defined_variables ))
+                        dependency_graph.add_edge((dvar,), (used_variable,), a=strong)
+                # dependency_graph.add_edges_from((((dvar,), (used_variable,),"a",score) if  else ((dvar,), (used_variable,),"a",mid) for dvar in defined_variables ))
     return dependency_graph
 
-def foo(a,b, graph: MetricHelper):
-    return graph.vars_are_connected_strongly(a,b)
+
+def foo(a, b, graph: MetricHelper):
+    return graph.vars_are_connected_strongly(a, b)
 
 
 def _collect_variables(cfg: ControlFlowGraph) -> Iterator[Variable]:
@@ -67,7 +71,7 @@ def _collect_variables(cfg: ControlFlowGraph) -> Iterator[Variable]:
     """
     for instruction in cfg.instructions:
         for subexpression in instruction.subexpressions():
-            if (isinstance(subexpression, Variable)) and (not isinstance(subexpression,UnaryOperation)):
+            if (isinstance(subexpression, Variable)) and (not isinstance(subexpression, UnaryOperation)):
                 yield subexpression
 
 
@@ -77,7 +81,8 @@ def _assignments_in_cfg(cfg: ControlFlowGraph) -> Iterator[Assignment]:
         if isinstance(instr, Assignment):
             yield instr
 
-def _get_base_operands(expression :list [Expression]) -> list:
+
+def _get_base_operands(expression: list[Expression]) -> list:
     islow = False
     parts = list()
     remains = list()
@@ -85,25 +90,38 @@ def _get_base_operands(expression :list [Expression]) -> list:
 
     while len(remains) != 0:
         exp = remains.pop()
-        
-        if isinstance(exp,GlobalVariable):
-                parts.append(exp)
-        elif isinstance(exp,Variable):
-                parts.append(exp)
-        elif (isinstance(exp, Constant)) and (not isinstance(exp,(Symbol,NotUseableConstant,GlobalVariable))):
-                parts.append(exp)
-        elif isinstance(exp, Operation) and ((not isinstance(exp,(ListOperation,UnaryOperation,Call,TernaryExpression))) or (isinstance(exp,UnaryOperation) and ((exp.operation == OperationType.cast )))):
-                remains += exp.operands
-        elif isinstance(exp, Operation) and ((not isinstance(exp,(ListOperation,Call,TernaryExpression))) or (isinstance(exp,UnaryOperation) and ((exp.operation == OperationType.dereference ) or (exp.operation == OperationType.address) or (exp.operation == OperationType.pointer)))):
-                remains += exp.operands
-                islow = True
-        elif isinstance(exp,Call):
-                remains += exp.parameters
-                islow = True
+
+        if isinstance(exp, GlobalVariable):
+            parts.append(exp)
+        elif isinstance(exp, Variable):
+            parts.append(exp)
+        elif (isinstance(exp, Constant)) and (not isinstance(exp, (Symbol, NotUseableConstant, GlobalVariable))):
+            parts.append(exp)
+        elif isinstance(exp, Operation) and (
+            (not isinstance(exp, (ListOperation, UnaryOperation, Call, TernaryExpression)))
+            or (isinstance(exp, UnaryOperation) and ((exp.operation == OperationType.cast)))
+        ):
+            remains += exp.operands
+        elif isinstance(exp, Operation) and (
+            (not isinstance(exp, (ListOperation, Call, TernaryExpression)))
+            or (
+                isinstance(exp, UnaryOperation)
+                and (
+                    (exp.operation == OperationType.dereference)
+                    or (exp.operation == OperationType.address)
+                    or (exp.operation == OperationType.pointer)
+                )
+            )
+        ):
+            remains += exp.operands
+            islow = True
+        elif isinstance(exp, Call):
+            remains += exp.parameters
+            islow = True
     return list(set(parts)), islow
 
 
-def _expression_dependencies(expression: Expression, strong : float, mid: float, weak : float) -> dict[Variable, float]:
+def _expression_dependencies(expression: Expression, strong: float, mid: float, weak: float) -> dict[Variable, float]:
     """
     Calculate the dependencies of an expression in terms of its constituent variables.
 
@@ -112,16 +130,16 @@ def _expression_dependencies(expression: Expression, strong : float, mid: float,
     the expression.
     """
     operands_dependencies, low = _get_base_operands([expression])
-    if (len(operands_dependencies) == 1) and (isinstance(operands_dependencies[0],Variable)):
+    if (len(operands_dependencies) == 1) and (isinstance(operands_dependencies[0], Variable)):
         if not low:
-            return {operands_dependencies[0] : strong}
-        else: 
-                return {operands_dependencies[0] : weak}
-    elif (len(operands_dependencies) > 1):
-        vars = [var for var in operands_dependencies if isinstance(var,Variable)]
+            return {operands_dependencies[0]: strong}
+        else:
+            return {operands_dependencies[0]: weak}
+    elif len(operands_dependencies) > 1:
+        vars = [var for var in operands_dependencies if isinstance(var, Variable)]
         if (len(vars) == 1) and (not low):
-            return {vars[0] : mid}
-        else: 
-            return {x : weak for x in vars}
-    else: 
+            return {vars[0]: mid}
+        else:
+            return {x: weak for x in vars}
+    else:
         return {}

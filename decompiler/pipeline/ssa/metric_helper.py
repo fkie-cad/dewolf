@@ -1,16 +1,17 @@
 from collections import defaultdict
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, Iterator, List, Optional, Set, Tuple
 
 import networkx as nx
-from networkx import DiGraph, is_directed_acyclic_graph
-from pathlib import Path
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.pseudo import Expression, Operation, OperationType
 from decompiler.structures.pseudo.expressions import Variable
 from decompiler.structures.pseudo.instructions import Assignment, Phi
 from decompiler.structures.pseudo.operations import UnaryOperation
 from decompiler.util.decoration import DecoratedGraph
+from networkx import DiGraph, is_directed_acyclic_graph
+
 """
 TODO move this inside dependency_graph_from_cfg of decompiler/pipeline/ssa/dependency_graph.py
 See
@@ -23,6 +24,7 @@ See
 
 """
 
+
 class MetricHelper:
 
     @dataclass
@@ -30,9 +32,9 @@ class MetricHelper:
         id: Optional[int]
         ref: Optional[Variable] = None
 
-    def __init__(self, cfg:ControlFlowGraph, build_decorated_cfgs: bool = False) -> None:
+    def __init__(self, cfg: ControlFlowGraph, build_decorated_cfgs: bool = False) -> None:
         self._decorated_dep: Optional[DecoratedGraph] = None
-        self._decorated_dep_after: Optional[DecoratedGraph] = None 
+        self._decorated_dep_after: Optional[DecoratedGraph] = None
 
         self._build_decorated_cfgs = build_decorated_cfgs
         self._placeholder: Dict[Variable, MetricHelper._PlaceHolderEntry] = dict()
@@ -49,22 +51,20 @@ class MetricHelper:
         dependency_graph = self._build_dependency_graph(asigns)
 
         if self._build_decorated_cfgs:
-            self._decorated_dep = self._build_decorated_cfg(dependency_graph) 
+            self._decorated_dep = self._build_decorated_cfg(dependency_graph)
 
-        #self._process_phi_vars(dependency_graph, phi_vars)
+        # self._process_phi_vars(dependency_graph, phi_vars)
         self._process_sccs(dependency_graph)
         self._process_sinks(dependency_graph, phi_vars)
 
         if self._build_decorated_cfgs:
             self._decorated_dep_after = self._build_decorated_cfg(dependency_graph)
 
-
     def _init_placeholder(self, vars: Set[Variable]):
         for i, var in enumerate(vars):
             self._placeholder[var] = self._PlaceHolderEntry(i)
 
-
-    def _find_root(self, var: Variable) -> Variable: 
+    def _find_root(self, var: Variable) -> Variable:
         entry = self._placeholder[var]
         path = []
         while entry.ref:
@@ -75,9 +75,9 @@ class MetricHelper:
         for v in path:
             self._placeholder[v].ref = var
 
-        return var 
+        return var
 
-    def _get_placeholder_id(self, var: Variable) -> Optional[int]: 
+    def _get_placeholder_id(self, var: Variable) -> Optional[int]:
         entry = self._placeholder.get(self._find_root(var))
         if entry:
             return entry.id
@@ -97,12 +97,11 @@ class MetricHelper:
 
     def _phi_vars(self, asigns: List[Assignment]) -> List[Variable]:
         ret = []
-        for asign in asigns: 
+        for asign in asigns:
             if isinstance(asign, Phi):
                 ret.append(asign.destination)
 
         return ret
-
 
     def _build_dependency_graph(self, asigns: List[Assignment]) -> DiGraph:
         """
@@ -127,7 +126,6 @@ class MetricHelper:
                 for suc in dependency_graph.successors(var):
                     self._merge_placeholder(var, suc)
 
-
     def _process_sccs(self, dependency_graph: DiGraph) -> None:
         for scc in list(nx.strongly_connected_components(dependency_graph)):
             if len(scc) > 1:
@@ -136,19 +134,21 @@ class MetricHelper:
 
     def _calc_descendants_topo(self, dag: DiGraph) -> Tuple[Dict[Variable, Set[Variable]], Dict[Variable, int]]:
         topo = list(nx.topological_sort(dag))
-        topo_index = {n:i for i,n in enumerate(topo)}
+        topo_index = {n: i for i, n in enumerate(topo)}
 
-        descendants = dict() 
+        descendants = dict()
         for u in reversed(topo):
             descendants_u = set()
             for succ in dag.successors(u):
                 descendants_u |= {succ}
                 descendants_u |= descendants[succ]
 
-            descendants[u] = descendants_u 
+            descendants[u] = descendants_u
         return descendants, topo_index
 
-    def _find_sink_for_var(self,var_successors: List[Variable], descendants: Dict[Variable, Set[Variable]], topo_index: Dict[Variable, int]) -> Optional[Variable]:
+    def _find_sink_for_var(
+        self, var_successors: List[Variable], descendants: Dict[Variable, Set[Variable]], topo_index: Dict[Variable, int]
+    ) -> Optional[Variable]:
         inter = set()
         for succ in var_successors:
             inter &= descendants[succ]
@@ -158,7 +158,7 @@ class MetricHelper:
 
         return None
 
-    def _extract_nodes(self, dag: DiGraph, phi_var: Variable, sink_var:Variable) -> Set[Variable]:
+    def _extract_nodes(self, dag: DiGraph, phi_var: Variable, sink_var: Variable) -> Set[Variable]:
         reachable_from_phi_var = set(nx.descendants(dag, phi_var))
         reachable_from_phi_var.add(phi_var)
 
@@ -166,23 +166,23 @@ class MetricHelper:
         can_reach_sink_var.add(sink_var)
 
         return reachable_from_phi_var & can_reach_sink_var
-    
+
     def _process_sinks(self, dependency_graph: DiGraph, phi_vars: List[Variable]):
         dependency_graph.remove_edges_from(nx.selfloop_edges(dependency_graph))
-        wwc_graphs= [dependency_graph.subgraph(c) for c in nx.weakly_connected_components(dependency_graph)] #type: ignore
-        wwc_descendants_topo = dict() 
+        wwc_graphs = [dependency_graph.subgraph(c) for c in nx.weakly_connected_components(dependency_graph)]  # type: ignore
+        wwc_descendants_topo = dict()
 
         for phi_var in phi_vars:
             for i, wwc_graph in enumerate(wwc_graphs):
                 if phi_var in wwc_graph.nodes:
                     descendants_topo = wwc_descendants_topo.get(i)
                     if not descendants_topo:
-                        descendants_topo = self._calc_descendants_topo(wwc_graph) #type: ignore
+                        descendants_topo = self._calc_descendants_topo(wwc_graph)  # type: ignore
                         wwc_descendants_topo[i] = descendants_topo
 
-                    sink = self._find_sink_for_var(list(wwc_graph.successors(phi_var)), *descendants_topo) #type: ignore
+                    sink = self._find_sink_for_var(list(wwc_graph.successors(phi_var)), *descendants_topo)  # type: ignore
                     if sink:
-                        nodes = self._extract_nodes(wwc_graph, phi_var, sink) #type: ignore
+                        nodes = self._extract_nodes(wwc_graph, phi_var, sink)  # type: ignore
                         if nodes:
                             self._merge_placeholder(*nodes)
                     break
@@ -202,7 +202,6 @@ class MetricHelper:
             d.add_edge(mapping[u], mapping[v])
 
         return DecoratedGraph(d)
-
 
     def vars_are_connected_strongly(self, a: Variable, b: Variable) -> bool:
         """
@@ -259,34 +258,32 @@ class MetricHelper:
 
     def _placeholder_to_str(self) -> str:
         placeholder_to_var = defaultdict(list)
-        
+
         # Build mapping
         for var in self._placeholder.keys():
             pid = self._get_placeholder_id(var)
             placeholder_to_var[pid].append(var)
-    
+
         lines = []
         for pid, vars_list in placeholder_to_var.items():
-            grouped = [", ".join(f"{k.name}#{k.ssa_label}" for k in vars_list[i:i+20])
-                for i in range(0, len(vars_list), 20)]
+            grouped = [", ".join(f"{k.name}#{k.ssa_label}" for k in vars_list[i : i + 20]) for i in range(0, len(vars_list), 20)]
             formatted = "\n\t".join(grouped)
             lines.append(f"{pid}:\n\t{formatted}")
-    
-        return "\n".join(lines)
 
+        return "\n".join(lines)
 
     def print(self) -> None:
         if not (self._decorated_dep_after and self._decorated_dep):
             raise RuntimeError("DecoratedGraph not build.")
 
-        print('-'*100)
+        print("-" * 100)
         print("Dependency Graph before:")
         print(self._decorated_dep.export_ascii())
         print("Dependency Graph after:")
         print(self._decorated_dep_after.export_ascii())
         print("PlaceHolder:")
         print(self._placeholder_to_str())
-        print('-'*100)
+        print("-" * 100)
 
     def export_plot(self, path: str) -> None:
         if not (self._decorated_dep_after and self._decorated_dep):
@@ -298,5 +295,5 @@ class MetricHelper:
 
         self._decorated_dep.export_plot(str(_path / "dep_graph.png"))
         self._decorated_dep_after.export_plot(str(_path / "dep_graph_afer.png"))
-        with open(_path / "placeholder.txt", 'w') as f:
+        with open(_path / "placeholder.txt", "w") as f:
             f.write(self._placeholder_to_str())
