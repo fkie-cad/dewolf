@@ -2,14 +2,17 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, DefaultDict, Iterator, List, Optional, Dict
+from copy import deepcopy
+import networkx as nx
 
 from decompiler.pipeline.ssa.value_interferencegraph import ValueInterferenceGraph
 from decompiler.structures.graphs.branches import UnconditionalEdge
 from decompiler.task import DecompilerTask
-from decompiler.structures.pseudo.expressions import Constant, Variable
+from decompiler.structures.pseudo.expressions import Constant, Variable, GlobalVariable
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
-from decompiler.structures.pseudo.instructions import Assignment, Phi, Instruction
+from decompiler.structures.pseudo.instructions import Assignment, Phi, Instruction, Relation
 from decompiler.util.decoration import DecoratedCFG, DecoratedGraph 
+from decompiler.pipeline.ssa.variable_renaming import VariableRenamer
 
 
 class RevistingOutOfSSa:
@@ -130,7 +133,143 @@ class RevistingOutOfSSa:
             parallel_space.end_end_idx = len(basic_block.instructions) + len(instructions)
             basic_block.instructions.extend(instructions)
 
+    def step3(self):
+        self.ifgColoring = deepcopy(self._interference_graph)
+        self.handle_Relations()
+        for bb in self._cfg:
+            for instr in bb:
+                if isinstance(instr,Phi):
+                    bb.replace_instruction(instr,[])
+        self.fsetFix()
+        self.doColoring()
+        self.renamer = self.BoissinotVariableRenamer(self._task,self._interference_graph,self.vars)
+        self.renamer.rename()
+
+
+    def handle_Relations(self):
+        map = {}
+        for bb in self._cfg:
+            for instr in bb.instructions:
+                if isinstance(instr,Relation) and isinstance(instr.value,Variable) and isinstance(instr.destination,Variable):
+                    varList = []
+                    if instr.value in map.keys():
+                        varList.extend(list(map[instr.value]))
+                    else:
+                        varList.append(instr.value)
+                    if instr.destination in map.keys():
+                        varList.extend(list(map[instr.destination]))
+                    else:
+                        varList.append(instr.destination)
+                    for var in varList:
+                        map[var] = frozenset(varList)
+                elif isinstance(instr,Phi):
+                    all = []
+                    for var in [*instr.requirements,instr.destination]:
+                        if var in map.keys():
+                            all.extend(list(map[var]))
+                        else:
+                            all.extend(list([var]))
+
+                    for var in all:
+                        map[var] = frozenset(all)
+
+        nx.relabel_nodes(self.ifgColoring,map,False)
+
+    def fsetFix(self):
+        map = {}
+        for var in self.ifgColoring.nodes():
+            if isinstance(var,Variable):
+                map[var] = frozenset([var])
+            elif not isinstance(var,frozenset):
+                raise Exception("Found a 'Variable' that's neither a Variable nor a List.")
+        nx.relabel_nodes(self.ifgColoring,map,False)
+
+    def doColoring(self):
+        colors = nx.greedy_color(self.ifgColoring,"largest_first",True)
+        colors : Dict
+        nums = [x + 1 for x in colors.values()]
+        nums.append(0)
+        num = max(nums)
+        vars = [[] for _ in range(num)]
+        for var, col in colors.items():
+            if isinstance(var,frozenset):
+                vars[col].extend(var)
+            else:
+                raise Exception(f"{var} is a {str(type(var))} instead of a frozenset!")
+            
+        self.vars = vars
+
+    class BoissinotVariableRenamer(VariableRenamer):
+        def __init__(self, task: DecompilerTask, interference_graph,varClasses):
+            super().__init__(task,interference_graph)
+
+            self.cfg = task.cfg
+            self.interference_graph = interference_graph
+            self.varClases = varClasses
+
+            self.variable_for_function_arg: Dict[str, Variable] = self._get_function_argument_variables(task.function_parameters)
+            self.function_arg_for_variable: Dict[Variable, str] = {v: k for k, v in self.variable_for_function_arg.items()}
+            #self._add_interference_for_function_args()
+
+            self.renaming_map: Dict[Variable, Variable] = dict()
+            self._generate_renaming_map()
+
+        def _generate_renaming_map(self):
+            count = 0
+            assignedNames = []
+
+            for varClass in self.varClases:
+                new_name = ""
+                argcount = 0
+                for varin in varClass:
+                    if isinstance(varin,GlobalVariable):
+                        if len(varClass) > 1:
+                            raise Exception("Lenght of Class containing Global Variable greater than 1")  
+                        new_name = varin.name
+                        if new_name in assignedNames:
+                            new_name = f'{new_name}__{count}'
+                            count += 1
+                        assignedNames.append(new_name)
+                        self.renaming_map[varin] = GlobalVariable(new_name,varin.type,varin.initial_value,None,varin.is_aliased,varin,varin.is_constant,varin.tags)
+                    elif varin in self.function_arg_for_variable.keys():
+                        varin : Variable
+                        argcount += 1
+                        if argcount > 1:
+                            raise Exception("We have more than one Argument in a PCK!")
+                        new_name = self.function_arg_for_variable[varin]
+                        assignedNames.append(new_name)
+                        self.renaming_map[varin] = Variable(new_name,varin.type,None,varin.is_aliased,varin,varin.tags)
+
+                    elif isinstance(varin,Variable):
+                        if new_name == "":
+                            new_name = varin.name
+                            if new_name in assignedNames:
+                                new_name = f"{new_name}__{count}"
+                                count += 1
+                            assignedNames.append(new_name)
+
+                        self.renaming_map[varin] = Variable(new_name,varin.type,None,varin.is_aliased,varin,varin.tags)
+
+                    else:
+                        raise Exception(f"Unexpected Type: {str(type(varin))} instead of Variable or Globalvariable")
+
+        def rename(self):
+            """
+            This function replaces in each instruction a variable by the variable in replacement_for_variable[variable].
+            The fuction is overridden here bc we do not want to remove redundant assignments at the end. We need them for Step 4
+            """
+            for instruction in self.cfg.instructions:
+                for variable in instruction.requirements + instruction.definitions:
+                    self._replace_variable_in_instruction(variable, instruction)
+
+            
 
     def perform(self) -> None:
         self._to_cssa()
         self._interference_graph = ValueInterferenceGraph(self._cfg)
+        #Note: before this step is executed Constants have to be moved out of the Phi-Functions
+        self.step3()
+        #insert Step4 beneath ▼
+
+        #insert Step4 above ▲
+        self.renamer._remove_redundant_assignments()

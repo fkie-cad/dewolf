@@ -79,7 +79,8 @@
                     "min",
                     "lift_minimal",
                     "conditional",
-                    "sreedhar"
+                    "sreedhar",
+                    "Boissinot2009"
                 ],
                 "enumDescriptions": [
                     "renames a SSA-variable to a non SSA-variable by adding the label to the name",
