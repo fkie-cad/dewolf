@@ -1,32 +1,109 @@
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, DefaultDict, Iterator, List, Optional, Dict
-from copy import deepcopy
+from typing import Any, DefaultDict, Iterator, List, Mapping, Optional, Dict
+from copy import copy, deepcopy
 import networkx as nx
+import traceback
 
-from decompiler.pipeline.ssa.value_interferencegraph import ValueInterferenceGraph
+from decompiler.pipeline.ssa.value_interferencegraph import ValueInterferenceGraph, decorated_cfg_from_interference_graph
 from decompiler.structures.graphs.branches import UnconditionalEdge
+from decompiler.structures.interferencegraph import InterferenceGraph
+from decompiler.structures.pseudo.instructions import Assignment, Phi, Relation
 from decompiler.task import DecompilerTask
 from decompiler.structures.pseudo.expressions import Constant, Variable, GlobalVariable
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
-from decompiler.structures.pseudo.instructions import Assignment, Phi, Instruction, Relation
 from decompiler.util.decoration import DecoratedCFG, DecoratedGraph 
 from decompiler.pipeline.ssa.variable_renaming import VariableRenamer
 
-
-class RevistingOutOfSSa:
-    # TODO: these names are stupid
+class ParallelSpaces:
     @dataclass
-    class _ParellSpace:
-        begin_start_idx: Optional[int] = None
-        begin_end_idx: Optional[int] = None
+    class _Block_Space:
+        after_phi_assigns: List[Assignment] = field(default_factory=list) 
+        end_of_block_assigns: List[Assignment] = field(default_factory=list) 
 
-        end_start_idx: Optional[int] = None
-        end_end_idx: Optional[int] = None
+    def __init__(self, phi_functions: Mapping[BasicBlock, List[Phi]]):
 
-    class _CongruenceClassHelper:
-        pass
+        self._parallel_spaces_map: DefaultDict[int, ParallelSpaces._Block_Space] =\
+                defaultdict(lambda: ParallelSpaces._Block_Space())
+        
+        self._phi_bb_len_map: DefaultDict[int, int] = defaultdict(lambda: int(0))
+        for basic_block, phi_instrs in phi_functions.items():
+            self._phi_bb_len_map[basic_block.address] = len(phi_instrs)
+
+    def add_after_phi_assign(self, basic_block_addr: int, assign: Assignment) -> None:
+        self._parallel_spaces_map[basic_block_addr].after_phi_assigns.append(assign)
+
+    def add_end_of_block_assign(self, basic_block_addr: int, assign: Assignment) -> None:
+        self._parallel_spaces_map[basic_block_addr].end_of_block_assigns.append(assign)
+
+    def instert_into_cfg(self, cfg: ControlFlowGraph) -> None:
+        for basic_block in cfg:
+            phi_count = self._phi_bb_len_map[basic_block.address] 
+            block_space = self._parallel_spaces_map[basic_block.address]
+
+            basic_block.instructions \
+                    = basic_block.instructions[:phi_count] \
+                    + block_space.after_phi_assigns \
+                    + basic_block.instructions[phi_count:]
+
+            basic_block.instructions.extend(block_space.end_of_block_assigns)
+
+
+    def _sequentialize_space(self, assignments: List[Assignment]) -> List[Assignment]:
+        loc = dict()
+        pred = dict()
+        to_do = list() 
+        ready = list()
+        ret = []
+
+        for assign in assignments:
+            loc[assign.definitions[0]] = None
+            pred[assign.requirements[0]] = None
+
+        for assign in assignments:
+            loc[assign.requirements[0]] = assign.requirements[0]
+            pred[assign.definitions[0]] = assign.requirements[0]
+            to_do.append(assign.definitions[0])
+
+        for assign in assignments:
+            if loc[assign.definitions[0]] == None:
+                ready.append(assign.definitions[0])
+
+        while to_do:
+            while ready:
+                b = ready.pop()
+                a = pred[b]
+                c = loc[a]
+                ret.append(Assignment(b,c))
+                loc[a] = b
+                if a == c and pred[a] != None:
+                    ready.append(a)
+
+            b: Variable = to_do.pop()
+            if b != loc[pred[b]]:
+                n = Variable(
+                    #TODO find a reliable way to avoid collisions 
+                    b.name + "__copy__",
+                    b.type,
+                    None,
+                    b.is_aliased,
+                    None,
+                    b.tags
+
+                )
+                ret.append(Assignment(n,b))
+                loc[b] = n
+                ready.append(b)
+
+        return ret
+
+    def sequentialize(self) -> None:
+        for space in self._parallel_spaces_map.values():
+            space.after_phi_assigns = self._sequentialize_space(space.after_phi_assigns)
+            space.end_of_block_assigns= self._sequentialize_space(space.end_of_block_assigns)
+
+
 
     def __init__(self, task: DecompilerTask, phi_functions: DefaultDict[BasicBlock, List[Phi]]):
         self._task: DecompilerTask = task
@@ -35,10 +112,10 @@ class RevistingOutOfSSa:
 
         self.lifted_costant_var_name = "__lifted_constat__"
         self._label_count:DefaultDict[str, int] = defaultdict(int)
-        self._parell_space_map: DefaultDict[Any[None,BasicBlock], RevistingOutOfSSa._ParellSpace] = defaultdict(RevistingOutOfSSa._ParellSpace)
+        self._parallel_spaces = ParallelSpaces(phi_functions)
 
 
-        self._interference_graph: ValueInterferenceGraph
+        #self._interference_graph#: ValueInterferenceGraph
 
     def _compute_label_count(self) -> None:
         for var in self._cfg.get_variables():
@@ -80,17 +157,43 @@ class RevistingOutOfSSa:
         self._cfg.add_edge(UnconditionalEdge(new_basic_block, basic_block))
         return new_basic_block
 
+
+    def _clone_cfg(self) -> ControlFlowGraph:
+        """
+        Clone `cfg` so:
+          - each BasicBlock in the clone has a *new list* of instructions (so you may insert/remove
+            instructions in the clone without affecting the original),
+          - but the Instruction and Variable objects inside the lists are the *same* objects
+            (so renaming a Variable in either graph is visible in the other).
+        """
+        copy_cfg = ControlFlowGraph()
+        block_map: Dict[BasicBlock, BasicBlock] = dict() 
+    
+        for bb in self._cfg:
+            new_bb = BasicBlock(bb.address, instructions=list(bb))
+            copy_cfg.add_node(new_bb)
+            block_map[bb] = new_bb
+    
+        for edge in self._cfg.edges:
+            src = block_map[edge.source]
+            dst = block_map[edge.sink]
+            new_edge = edge.copy(source=src, sink=dst)
+            copy_cfg.add_edge(new_edge)
+    
+        if self._cfg.root is not None:
+            copy_cfg.root = block_map[self._cfg.root]
+    
+        return copy_cfg
+
     def _to_cssa(self) -> None:
         self._compute_label_count()
 
-        end_instructions_for_bb: DefaultDict[BasicBlock, List[Instruction]] = defaultdict(list)
         for basic_block in self._phi_functions_of:
-            instructions_beginning = list()
             for phi_inst in self._phi_functions_of[basic_block]:
                 req = phi_inst.definitions[0]
                 copy_var = self._compute_copy_var(req)
                 copy_assign = Assignment(req, copy_var)
-                instructions_beginning.append(copy_assign)
+                self._parallel_spaces.add_after_phi_assign(basic_block.address, copy_assign)
                 phi_inst.substitute(req, copy_var)
 
                 predecessor: BasicBlock
@@ -117,21 +220,14 @@ class RevistingOutOfSSa:
                             self._cfg.root = block 
 
                     copy_assign = Assignment(copy_var, req)
-                    end_instructions_for_bb[predecessor].append(copy_assign) 
+                    self._parallel_spaces.add_end_of_block_assign(predecessor.address, copy_assign)
                     phi_inst.substitute(req, copy_var)
 
+    def _build_interference_graph(self):
+        cfg_copy = self._clone_cfg()
+        self._parallel_spaces.instert_into_cfg(cfg_copy)
+        self._interference_graph = ValueInterferenceGraph(cfg_copy)
 
-            phi_count = len(self._phi_functions_of[basic_block])
-            parallel_space = self._parell_space_map[basic_block]
-            parallel_space.begin_start_idx = phi_count
-            parallel_space.begin_end_idx = phi_count + len(instructions_beginning) 
-            basic_block.instructions = basic_block.instructions[:phi_count] + instructions_beginning + basic_block.instructions[phi_count:]
-
-        for basic_block, instructions in end_instructions_for_bb.items():
-            parallel_space = self._parell_space_map[basic_block]
-            parallel_space.end_start_idx = len(basic_block.instructions)
-            parallel_space.end_end_idx = len(basic_block.instructions) + len(instructions)
-            basic_block.instructions.extend(instructions)
 
     def step3(self):
         self.ifgColoring = deepcopy(self._interference_graph)
@@ -265,11 +361,17 @@ class RevistingOutOfSSa:
             
 
     def perform(self) -> None:
-        self._to_cssa()
-        self._interference_graph = ValueInterferenceGraph(self._cfg)
-        #Note: before this step is executed Constants have to be moved out of the Phi-Functions
-        self.step3()
-        #insert Step4 beneath ▼
+        try:
+            self._to_cssa()
+            self._build_interference_graph()
+            self.step3()
+            self.renamer._remove_redundant_assignments()
 
-        #insert Step4 above ▲
-        self.renamer._remove_redundant_assignments()
+            #insert Step4 beneath ▼
+            self._parallel_spaces.sequentialize()
+            self._parallel_spaces.instert_into_cfg(self._cfg)
+            #insert Step4 above ▲
+        except Exception as e:
+            traceback.print_exception(e)
+
+
