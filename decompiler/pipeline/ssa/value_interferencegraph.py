@@ -89,7 +89,7 @@ class ValueInterferenceGraph(Graph):
             self._value_classes[var] = var
 
         basic_block: BasicBlock
-        for basic_block in topological_sort(cfg._dominator_tree._graph): #type: ignore
+        for basic_block in topological_sort(cfg.dominator_tree._graph): #type: ignore
             for instr in basic_block:
                 if self._is_copy_assignment(instr):
                     self._value_classes[instr.definitions[0]] = self._value_classes[instr.requirements[0]]
