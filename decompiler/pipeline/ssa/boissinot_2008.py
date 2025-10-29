@@ -1,110 +1,19 @@
 from collections import defaultdict
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, DefaultDict, Iterator, List, Mapping, Optional, Dict
-from copy import copy, deepcopy
+from typing import DefaultDict, Iterator, List, Optional, Dict
+from copy import deepcopy
 import networkx as nx
 import traceback
 
-from decompiler.pipeline.ssa.value_interferencegraph import ValueInterferenceGraph, decorated_cfg_from_interference_graph
+from decompiler.pipeline.ssa.value_interferencegraph import ValueInterferenceGraph
+from decompiler.pipeline.ssa.parallel_spaces import ParallelSpaces 
 from decompiler.structures.graphs.branches import UnconditionalEdge
-from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo.instructions import Assignment, Phi, Relation
 from decompiler.task import DecompilerTask
 from decompiler.structures.pseudo.expressions import Constant, Variable, GlobalVariable
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
-from decompiler.util.decoration import DecoratedCFG, DecoratedGraph 
 from decompiler.pipeline.ssa.variable_renaming import VariableRenamer
 
-class ParallelSpaces:
-    @dataclass
-    class _Block_Space:
-        after_phi_assigns: List[Assignment] = field(default_factory=list) 
-        end_of_block_assigns: List[Assignment] = field(default_factory=list) 
-
-    def __init__(self, phi_functions: Mapping[BasicBlock, List[Phi]]):
-
-        self._parallel_spaces_map: DefaultDict[int, ParallelSpaces._Block_Space] =\
-                defaultdict(lambda: ParallelSpaces._Block_Space())
-        
-        self._phi_bb_len_map: DefaultDict[int, int] = defaultdict(lambda: int(0))
-        for basic_block, phi_instrs in phi_functions.items():
-            self._phi_bb_len_map[basic_block.address] = len(phi_instrs)
-
-    def add_after_phi_assign(self, basic_block_addr: int, assign: Assignment) -> None:
-        self._parallel_spaces_map[basic_block_addr].after_phi_assigns.append(assign)
-
-    def add_end_of_block_assign(self, basic_block_addr: int, assign: Assignment) -> None:
-        self._parallel_spaces_map[basic_block_addr].end_of_block_assigns.append(assign)
-
-    def instert_into_cfg(self, cfg: ControlFlowGraph) -> None:
-        for basic_block in cfg:
-            phi_count = self._phi_bb_len_map[basic_block.address] 
-            block_space = self._parallel_spaces_map[basic_block.address]
-
-            basic_block.instructions \
-                    = basic_block.instructions[:phi_count] \
-                    + block_space.after_phi_assigns \
-                    + basic_block.instructions[phi_count:]
-
-            basic_block.instructions.extend(block_space.end_of_block_assigns)
-
-
-    def _sequentialize_space(self, assignments: List[Assignment]) -> List[Assignment]:
-        loc = dict()
-        pred = dict()
-        to_do = list() 
-        ready = list()
-        ret = []
-
-        for assign in assignments:
-            loc[assign.definitions[0]] = None
-            pred[assign.requirements[0]] = None
-
-        for assign in assignments:
-            loc[assign.requirements[0]] = assign.requirements[0]
-            pred[assign.definitions[0]] = assign.requirements[0]
-            to_do.append(assign.definitions[0])
-
-        for assign in assignments:
-            if loc[assign.definitions[0]] == None:
-                ready.append(assign.definitions[0])
-
-        while to_do:
-            while ready:
-                b = ready.pop()
-                a = pred[b]
-                c = loc[a]
-                ret.append(Assignment(b,c))
-                loc[a] = b
-                if a == c and pred[a] != None:
-                    ready.append(a)
-
-            b: Variable = to_do.pop()
-            if b != loc[pred[b]]:
-                n = Variable(
-                    #TODO find a reliable way to avoid collisions 
-                    b.name + "__copy__",
-                    b.type,
-                    None,
-                    b.is_aliased,
-                    None,
-                    b.tags
-
-                )
-                ret.append(Assignment(n,b))
-                loc[b] = n
-                ready.append(b)
-
-        return ret
-
-    def sequentialize(self) -> None:
-        for space in self._parallel_spaces_map.values():
-            space.after_phi_assigns = self._sequentialize_space(space.after_phi_assigns)
-            space.end_of_block_assigns= self._sequentialize_space(space.end_of_block_assigns)
-
-
-
+class Boissinot2008:
     def __init__(self, task: DecompilerTask, phi_functions: DefaultDict[BasicBlock, List[Phi]]):
         self._task: DecompilerTask = task
         self._cfg: ControlFlowGraph = self._task.cfg #type: ignore
@@ -113,9 +22,6 @@ class ParallelSpaces:
         self.lifted_costant_var_name = "__lifted_constat__"
         self._label_count:DefaultDict[str, int] = defaultdict(int)
         self._parallel_spaces = ParallelSpaces(phi_functions)
-
-
-        #self._interference_graph#: ValueInterferenceGraph
 
     def _compute_label_count(self) -> None:
         for var in self._cfg.get_variables():
