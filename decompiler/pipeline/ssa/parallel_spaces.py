@@ -47,17 +47,17 @@ class ParallelSpaces:
         ret = []
 
         for assign in assignments:
-            loc[assign.definitions[0]] = None
-            pred[assign.requirements[0]] = None
+            loc[assign.destination] = None
+            pred[assign.value] = None
 
         for assign in assignments:
-            loc[assign.requirements[0]] = assign.requirements[0]
-            pred[assign.definitions[0]] = assign.requirements[0]
-            to_do.append(assign.definitions[0])
+            loc[assign.value] = assign.value
+            pred[assign.destination] = assign.value
+            to_do.append(assign.destination)
 
         for assign in assignments:
-            if loc[assign.definitions[0]] == None:
-                ready.append(assign.definitions[0])
+            if loc[assign.destination] == None:
+                ready.append(assign.destination)
 
         while to_do:
             while ready:

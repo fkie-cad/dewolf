@@ -25,9 +25,8 @@ class ValueInterferenceGraph(InterferenceGraph):
 
     def _is_copy_assignment(self, instr: Instruction) -> bool:
         if isinstance(instr, Assignment):
-            if len(instr.definitions) == 1 and len(instr.requirements) == 1:
-                if isinstance(instr.definitions[0], Variable) and isinstance(instr.requirements[0], Variable):
-                    return True
+            if isinstance(instr.value, Variable) and isinstance(instr.destination, Variable): 
+                return True
         return False
 
     def _collect_variables(self, cfg: ControlFlowGraph) -> Iterator[Variable]:
@@ -44,7 +43,7 @@ class ValueInterferenceGraph(InterferenceGraph):
         for basic_block in topological_sort(cfg.dominator_tree._graph): #type: ignore
             for instr in basic_block:
                 if self._is_copy_assignment(instr):
-                    self._value_classes[instr.definitions[0]] = self._value_classes[instr.requirements[0]]
+                    self._value_classes[instr.destination] = self._value_classes[instr.value] #type:ignore
 
     def _create_interference(self, variables: InsertionOrderedSet[Variable]) -> None:
         """
