@@ -12,6 +12,7 @@ from decompiler.task import DecompilerTask
 from decompiler.structures.pseudo.expressions import Constant, Variable, GlobalVariable
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.pipeline.ssa.variable_renaming import VariableRenamer
+from decompiler.util.decoration import DecoratedCFG
 
 class Boissinot2008:
     def __init__(self, task: DecompilerTask, phi_functions: DefaultDict[BasicBlock, List[Phi]]):
@@ -143,10 +144,31 @@ class Boissinot2008:
                 if isinstance(instr,Phi):
                     bb.replace_instruction(instr,[])
         self.fsetFix()
+        self.getGlobals()
+        
         self.doColoring()
-        self.renamer = self.BoissinotVariableRenamer(self._task,self._interference_graph,self.vars)
-        self.renamer.rename()
+        for x in self.gvars:
+            assert not self._interference_graph.are_interfering(*x)
+        for x in self.nvars:
+            assert not self._interference_graph.are_interfering(*x)
 
+        self.BoissinotVariableRenamer(self._task,self._interference_graph,self.nvars,self.gvars).rename()
+
+
+    def getGlobals(self):
+        globs = []
+        norms = []
+        for node in self.ifgColoring.nodes():
+            if isinstance(node,frozenset):
+                if len([x for x in node if isinstance(x, GlobalVariable)]) >= 1:
+                    globs.append(node)
+                else: 
+                    norms.append(node)
+            else:
+                raise Exception("Found an object which is not a frozenset while renaming!")
+
+        self.globs = globs
+        self.norms = norms
 
     def handle_Relations(self):
         map = {}
@@ -174,8 +196,10 @@ class Boissinot2008:
 
                     for var in all:
                         map[var] = frozenset(all)
-
+                elif isinstance(instr,Relation):
+                    raise Exception("Found a suspicious relation, where the operands are not variables")
         nx.relabel_nodes(self.ifgColoring,map,False)
+
 
     def fsetFix(self):
         map = {}
@@ -187,27 +211,57 @@ class Boissinot2008:
         nx.relabel_nodes(self.ifgColoring,map,False)
 
     def doColoring(self):
-        colors = nx.greedy_color(self.ifgColoring,"largest_first",True)
-        colors : Dict
-        nums = [x + 1 for x in colors.values()]
-        nums.append(0)
-        num = max(nums)
-        vars = [[] for _ in range(num)]
-        for var, col in colors.items():
-            if isinstance(var,frozenset):
-                vars[col].extend(var)
-            else:
-                raise Exception(f"{var} is a {str(type(var))} instead of a frozenset!")
-            
-        self.vars = vars
+        if len(self.globs) > 0:
+            gs = nx.Graph()
+            gs.add_nodes_from(self.globs)
+            for edge in self.ifgColoring.edges:
+                if (edge[0] in self.globs) and (edge[1] in self.globs):
+                    gs.add_edges_from([edge])
+            colors = nx.greedy_color(gs,"largest_first",True)
+            colors : Dict
+            nums = [x + 1 for x in colors.values()]
+            nums.append(0)
+            num = max(nums)
+            gvars = [[] for _ in range(num)]
+            for var, col in colors.items():
+                if isinstance(var,frozenset):
+                    gvars[col].extend(var)
+                else:
+                    raise Exception(f"{var} is a {str(type(var))} instead of a frozenset!")
+                
+            self.gvars = gvars
+        else:
+            self.gvars = []
+
+        if len(self.norms) > 0:
+            gs = nx.Graph()
+            gs.add_nodes_from(self.norms)
+            for edge in self.ifgColoring.edges:
+                if (edge[0] in self.norms) and (edge[1] in self.norms):
+                    gs.add_edges_from([edge])
+            colors = nx.greedy_color(gs,"largest_first",True)
+            colors : Dict
+            nums = [x + 1 for x in colors.values()]
+            nums.append(0)
+            num = max(nums)
+            nvars = [[] for _ in range(num)]
+            for var, col in colors.items():
+                if isinstance(var,frozenset):
+                    nvars[col].extend(var)
+                else:
+                    raise Exception(f"{var} is a {str(type(var))} instead of a frozenset!")
+                
+            self.nvars = nvars
+        else:
+            self.nvars = []
 
     class BoissinotVariableRenamer(VariableRenamer):
-        def __init__(self, task: DecompilerTask, interference_graph,varClasses):
+        def __init__(self, task: DecompilerTask, interference_graph,varClassesn:list,varClassesg:list):
             super().__init__(task,interference_graph)
 
             self.cfg = task.cfg
             self.interference_graph = interference_graph
-            self.varClases = varClasses
+            self.varClasses = varClassesn + varClassesg
 
             self.variable_for_function_arg: Dict[str, Variable] = self._get_function_argument_variables(task.function_parameters)
             self.function_arg_for_variable: Dict[Variable, str] = {v: k for k, v in self.variable_for_function_arg.items()}
@@ -220,63 +274,63 @@ class Boissinot2008:
             count = 0
             assignedNames = []
 
-            for varClass in self.varClases:
+            for varClass in self.varClasses:
                 new_name = ""
-                argcount = 0
-                for varin in varClass:
-                    if isinstance(varin,GlobalVariable):
-                        if len(varClass) > 1:
-                            raise Exception("Lenght of Class containing Global Variable greater than 1")  
-                        new_name = varin.name
+                areGlobs = [var for var in varClass if isinstance(var,GlobalVariable)]
+                if len(areGlobs) == 0: #no globals
+                    fargs = [fa for fa in varClass if fa in self.function_arg_for_variable]
+                    if len(fargs) > 1:
+                        raise Exception("Found more than one argument in a PCK")
+                    elif len(fargs) == 1: #function argument in PCK
+                        new_name = self.function_arg_for_variable[fargs[0]]
                         if new_name in assignedNames:
-                            new_name = f'{new_name}__{count}'
+                            new_name = f"{new_name}__{count}"
                             count += 1
                         assignedNames.append(new_name)
-                        self.renaming_map[varin] = GlobalVariable(new_name,varin.type,varin.initial_value,None,varin.is_aliased,varin,varin.is_constant,varin.tags)
-                    elif varin in self.function_arg_for_variable.keys():
-                        varin : Variable
-                        argcount += 1
-                        if argcount > 1:
-                            raise Exception("We have more than one Argument in a PCK!")
-                        new_name = self.function_arg_for_variable[varin]
+                        for vv in varClass:
+                            self.renaming_map[vv] = Variable(new_name,vv.type,None,vv.is_aliased,vv,vv.tags)
+                    else: #only ordinary variables
+                        new_name = varClass[0].name
+                        if new_name in assignedNames:
+                            new_name = f"{new_name}__{count}"
+                            count += 1
                         assignedNames.append(new_name)
-                        self.renaming_map[varin] = Variable(new_name,varin.type,None,varin.is_aliased,varin,varin.tags)
+                        for vv in varClass:
+                            self.renaming_map[vv] = Variable(new_name,vv.type,None,vv.is_aliased,vv,vv.tags)
 
-                    elif isinstance(varin,Variable):
-                        if new_name == "":
-                            new_name = varin.name
-                            if new_name in assignedNames:
-                                new_name = f"{new_name}__{count}"
-                                count += 1
-                            assignedNames.append(new_name)
 
-                        self.renaming_map[varin] = Variable(new_name,varin.type,None,varin.is_aliased,varin,varin.tags)
+                elif len(areGlobs) == len(varClass): #only globals
+                    new_name = varClass[0].name
+                    if new_name in assignedNames:
+                        new_name = f'{new_name}__{count}'
+                        count += 1
+                    assignedNames.append(new_name)
+                    for vv in varClass:
+                        self.renaming_map[vv] = GlobalVariable(new_name,vv.type,vv.initial_value,None,vv.is_aliased,vv,vv.is_constant,vv.tags)
+                else: #let's hope this case does not occur
+                    raise Exception("Found a class containing globals and ordinary variables")
+                    new_name = varClass[0].name
+                    if new_name in assignedNames:
+                        new_name = f'{new_name}__{count}'
+                        count += 1
+                    assignedNames.append(new_name)
+                    for vv in varClass:
+                        if isinstance(vv,GlobalVariable):
+                            self.renaming_map[vv] = GlobalVariable(new_name,vv.type,vv.initial_value,None,vv.is_aliased,vv,vv.is_constant,vv.tags)
+                        else:
+                            self.renaming_map[vv] = GlobalVariable(new_name,vv.type,areGlobs[0].initial_value,None,vv.is_aliased,vv,areGlobs[0].is_constant,vv.tags)
+                            #Variable(new_name,vv.type,None,vv.is_aliased,vv,vv.tags)
 
-                    else:
-                        raise Exception(f"Unexpected Type: {str(type(varin))} instead of Variable or Globalvariable")
-
-        def rename(self):
-            """
-            This function replaces in each instruction a variable by the variable in replacement_for_variable[variable].
-            The fuction is overridden here bc we do not want to remove redundant assignments at the end. We need them for Step 4
-            """
-            for instruction in self.cfg.instructions:
-                for variable in instruction.requirements + instruction.definitions:
-                    self._replace_variable_in_instruction(variable, instruction)
-
-            
+            print(self.renaming_map,flush=True)
 
     def perform(self) -> None:
         try:
             self._to_cssa()
             self._build_interference_graph()
             self.step3()
-            self.renamer._remove_redundant_assignments()
 
-            #insert Step4 beneath ▼
             self._parallel_spaces.sequentialize()
             self._parallel_spaces.instert_into_cfg(self._cfg)
-            #insert Step4 above ▲
         except Exception as e:
             traceback.print_exception(e)
 
