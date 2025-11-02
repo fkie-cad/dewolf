@@ -321,8 +321,6 @@ class Boissinot2008:
                             self.renaming_map[vv] = GlobalVariable(new_name,vv.type,areGlobs[0].initial_value,None,vv.is_aliased,vv,areGlobs[0].is_constant,vv.tags)
                             #Variable(new_name,vv.type,None,vv.is_aliased,vv,vv.tags)
 
-            print(self.renaming_map,flush=True)
-
     def perform(self) -> None:
         try:
             self._to_cssa()
