@@ -12,7 +12,6 @@ from decompiler.task import DecompilerTask
 from decompiler.structures.pseudo.expressions import Constant, Variable, GlobalVariable
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.pipeline.ssa.variable_renaming import VariableRenamer
-from decompiler.util.decoration import DecoratedCFG
 
 class Boissinot2008:
     def __init__(self, task: DecompilerTask, phi_functions: DefaultDict[BasicBlock, List[Phi]]):
@@ -20,7 +19,7 @@ class Boissinot2008:
         self._cfg: ControlFlowGraph = self._task.cfg #type: ignore
         self._phi_functions_of: DefaultDict[BasicBlock, List[Phi]] = phi_functions
 
-        self.lifted_costant_var_name = "__lifted_constat__"
+        self.lifted_costant_var_name = "__lifted_constant__"
         self._label_count:DefaultDict[str, int] = defaultdict(int)
         self._parallel_spaces = ParallelSpaces(phi_functions)
 
@@ -128,6 +127,8 @@ class Boissinot2008:
             for phi_inst in self._phi_functions_of[basic_block]:
                 dest = phi_inst.definitions[0]
                 copy_var = self._compute_copy_var(dest)
+                phi_inst.substitute(dest, copy_var)
+
                 copy_assign = Assignment(dest, copy_var)
                 self._parallel_spaces.add_after_phi_assign(basic_block.address, copy_assign)
 
