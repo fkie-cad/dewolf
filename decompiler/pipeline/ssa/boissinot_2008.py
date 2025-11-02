@@ -96,15 +96,19 @@ class Boissinot2008:
         self._compute_label_count()
 
         for basic_block in self._phi_functions_of:
-            for phi_inst in self._phi_functions_of[basic_block]:
-                req = phi_inst.definitions[0]
-                copy_var = self._compute_copy_var(req)
-                copy_assign = Assignment(req, copy_var)
-                self._parallel_spaces.add_after_phi_assign(basic_block.address, copy_assign)
-                phi_inst.substitute(req, copy_var)
+            for predecessor in self._get_predecessors(basic_block): #type: ignore
+                block: BasicBlock
+                edge = self._cfg.get_edge(predecessor, basic_block) #type: ignore 
+                if predecessor is not None and isinstance(edge, UnconditionalEdge):
+                    block = predecessor
+                else:
+                    block = self._insert_basic_block_before(basic_block)
+                    if predecessor:
+                        self._cfg.substitute_edge(edge, edge.copy(sink=block)) #type: ignore
+                    else:
+                        self._cfg.root = block 
 
-                predecessor: BasicBlock
-                for predecessor in self._get_predecessors(basic_block): #type: ignore
+                for phi_inst in self._phi_functions_of[basic_block]:
                     req = phi_inst.origin_block[predecessor]
 
                     copy_var: Variable
@@ -115,20 +119,18 @@ class Boissinot2008:
                     else:
                         raise RuntimeError("Unexpected Phi requirement!")
 
-                    block: BasicBlock
-                    edge = self._cfg.get_edge(predecessor, basic_block) #type: ignore 
-                    if predecessor is not None and isinstance(edge, UnconditionalEdge):
-                        block = predecessor
-                    else:
-                        block = self._insert_basic_block_before(basic_block)
-                        if predecessor:
-                            self._cfg.substitute_edge(edge, edge.copy(sink=block)) #type: ignore
-                        else:
-                            self._cfg.root = block 
+                    phi_inst.substitute(req, copy_var)
 
                     copy_assign = Assignment(copy_var, req)
-                    self._parallel_spaces.add_end_of_block_assign(predecessor.address, copy_assign)
-                    phi_inst.substitute(req, copy_var)
+                    self._parallel_spaces.add_end_of_block_assign(block.address, copy_assign)
+
+
+            for phi_inst in self._phi_functions_of[basic_block]:
+                dest = phi_inst.definitions[0]
+                copy_var = self._compute_copy_var(dest)
+                copy_assign = Assignment(dest, copy_var)
+                self._parallel_spaces.add_after_phi_assign(basic_block.address, copy_assign)
+
 
     def _build_interference_graph(self):
         cfg_copy = self._clone_cfg()
