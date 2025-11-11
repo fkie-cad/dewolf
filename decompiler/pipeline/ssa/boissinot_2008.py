@@ -4,6 +4,7 @@ from copy import deepcopy
 import networkx as nx
 import traceback
 import itertools
+from itertools import combinations
 
 from decompiler.pipeline.ssa.value_interferencegraph import ValueInterferenceGraph
 from decompiler.pipeline.ssa.parallel_spaces import ParallelSpaces 
@@ -176,22 +177,46 @@ class Boissinot2008:
 
 
     def step3(self):
-        self.ifgColoring = deepcopy(self._interference_graph)
-        self.handle_Relations()
+        self._build_interference_graph()
+        infG = self._interference_graph
+        infGsave = deepcopy(infG)
+        self.ifgColoring = deepcopy(infG)
         for bb in self._cfg:
-            for instr in bb:
+            for instr in bb.instructions:
                 if isinstance(instr,Phi):
-                    bb.replace_instruction(instr,[])
+                    instr: Phi
+                    try:
+                        assert not self._interference_graph.are_interfering(*instr.requirements,*instr.definitions)
+                    except:
+                        print(instr.requirements,"\n",instr.definitions)
+        return
+
+        self.handle_Relations()
+        #for bb in self._cfg:
+        #    for instr in bb:
+        #        if isinstance(instr,Phi):
+        #            bb.replace_instruction(instr,[])
         self.fsetFix()
         self.getGlobals()
         
         self.doColoring()
         for x in self.gvars:
-            assert not self._interference_graph.are_interfering(*x)
+            assert not infGsave.are_interfering(*x)
         for x in self.nvars:
-            assert not self._interference_graph.are_interfering(*x)
+            try:
+                assert not infGsave.are_interfering(*x)
+            except:
+                print(x)
+                for a,b in combinations(x,2):
+                    if infGsave.are_interfering(a,b):
+                        print(a,type(a),b,type(b))
+                print("\n\n\n\n")
+                continue
 
-        self.BoissinotVariableRenamer(self._task,self._interference_graph,self.nvars,self.gvars).rename()
+        ttask = deepcopy(self._task)
+        ttask.cfg = self.cfg_copy
+
+        self.BoissinotVariableRenamer(ttask,self._interference_graph,self.nvars,self.gvars).rename()
 
 
     def getGlobals(self):
@@ -214,6 +239,8 @@ class Boissinot2008:
         for bb in self._cfg:
             for instr in bb.instructions:
                 if isinstance(instr,Relation) and isinstance(instr.value,Variable) and isinstance(instr.destination,Variable):
+                    if (isinstance(instr.value,GlobalVariable) and not isinstance(instr.destination,GlobalVariable)) or (not isinstance(instr.value,GlobalVariable) and isinstance(instr.destination,GlobalVariable)):
+                        print(instr.value,type(instr.value),instr.destination,type(instr.destination),flush=True)
                     varList = []
                     if instr.value in map.keys():
                         varList.extend(list(map[instr.value]))
@@ -225,7 +252,11 @@ class Boissinot2008:
                         varList.append(instr.destination)
                     for var in varList:
                         map[var] = frozenset(varList)
+                    if self.ifgColoring.are_interfering(*varList):
+                        print("Einfach NEIN:", varList)
                 elif isinstance(instr,Phi):
+                    if self.ifgColoring.are_interfering(*instr.requirements,instr.destination):
+                        print("NOOOOOO: ",instr)
                     all = []
                     for var in [*instr.requirements,instr.destination]:
                         if var in map.keys():
@@ -236,7 +267,11 @@ class Boissinot2008:
                     for var in all:
                         map[var] = frozenset(all)
                 elif isinstance(instr,Relation):
-                    raise Exception("Found a suspicious relation, where the operands are not variables")
+                    raise Exception("Found a suspicious relation, where at least one of the operands is not a variable")
+        for x in map.values():
+            if self.ifgColoring.are_interfering(*x):
+                #print("Hilfe: ",x)
+                pass
         nx.relabel_nodes(self.ifgColoring,map,False)
 
 
@@ -273,6 +308,7 @@ class Boissinot2008:
             self.gvars = []
 
         if len(self.norms) > 0:
+            #gs = nx.subgraph(self.ifgColoring,self.norms)
             gs = nx.Graph()
             gs.add_nodes_from(self.norms)
             for edge in self.ifgColoring.edges:
@@ -280,10 +316,8 @@ class Boissinot2008:
                     gs.add_edges_from([edge])
             colors = nx.greedy_color(gs,"largest_first",True)
             colors : Dict
-            nums = [x + 1 for x in colors.values()]
-            nums.append(0)
-            num = max(nums)
-            nvars = [[] for _ in range(num)]
+            num = max(colors.values())
+            nvars = [[] for _ in range(0,num+1)]
             for var, col in colors.items():
                 if isinstance(var,frozenset):
                     nvars[col].extend(var)
@@ -347,6 +381,8 @@ class Boissinot2008:
                     for vv in varClass:
                         self.renaming_map[vv] = GlobalVariable(new_name,vv.type,vv.initial_value,None,vv.is_aliased,vv,vv.is_constant,vv.tags)
                 else: #let's hope this case does not occur
+                    print(varClass)
+                    print("\n",areGlobs)
                     raise Exception("Found a class containing globals and ordinary variables")
                     new_name = varClass[0].name
                     if new_name in assignedNames:
