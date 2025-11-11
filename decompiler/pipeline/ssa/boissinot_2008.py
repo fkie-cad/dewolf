@@ -3,13 +3,14 @@ from typing import DefaultDict, Iterator, List, Optional, Dict
 from copy import deepcopy
 import networkx as nx
 import traceback
+import itertools
 
 from decompiler.pipeline.ssa.value_interferencegraph import ValueInterferenceGraph
 from decompiler.pipeline.ssa.parallel_spaces import ParallelSpaces 
 from decompiler.structures.graphs.branches import UnconditionalEdge
 from decompiler.structures.pseudo.instructions import Assignment, Phi, Relation
 from decompiler.task import DecompilerTask
-from decompiler.structures.pseudo.expressions import Constant, Variable, GlobalVariable
+from decompiler.structures.pseudo.expressions import Constant, Expression, Variable, GlobalVariable
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.pipeline.ssa.variable_renaming import VariableRenamer
 
@@ -91,6 +92,17 @@ class Boissinot2008:
     
         return copy_cfg
 
+    #TODO prob. move this inside the phi class
+    def _substitute_phi_value(self, phi: Phi, predecessor: Optional[BasicBlock], replacee: Expression, replacement: Expression) -> None:
+        l: List[Expression] = phi.value.operands #type: ignore 
+        if replacee in l:
+            l[l.index(replacee)] = replacement
+            phi.origin_block[predecessor] = replacement #type: ignore
+
+    #TODO prob. move this inside the phi class
+    def _substitute_phi_def(self, phi: Phi, replacee: Expression) -> None:
+        phi._destination = replacee
+
     def _to_cssa(self) -> None:
         self._compute_label_count()
 
@@ -118,7 +130,7 @@ class Boissinot2008:
                     else:
                         raise RuntimeError("Unexpected Phi requirement!")
 
-                    phi_inst.substitute(req, copy_var)
+                    self._substitute_phi_value(phi_inst, predecessor, req, copy_var)
 
                     copy_assign = Assignment(copy_var, req)
                     self._parallel_spaces.add_end_of_block_assign(block.address, copy_assign)
@@ -127,16 +139,40 @@ class Boissinot2008:
             for phi_inst in self._phi_functions_of[basic_block]:
                 dest = phi_inst.definitions[0]
                 copy_var = self._compute_copy_var(dest)
-                phi_inst.substitute(dest, copy_var)
+                self._substitute_phi_def(phi_inst, copy_var)
 
                 copy_assign = Assignment(dest, copy_var)
                 self._parallel_spaces.add_after_phi_assign(basic_block.address, copy_assign)
 
 
     def _build_interference_graph(self):
-        cfg_copy = self._clone_cfg()
-        self._parallel_spaces.instert_into_cfg(cfg_copy)
-        self._interference_graph = ValueInterferenceGraph(cfg_copy)
+        self._cfg_copy = self._clone_cfg()
+        self._parallel_spaces.instert_into_cfg(self._cfg_copy)
+        self._interference_graph = ValueInterferenceGraph(self._cfg_copy)
+
+    def _test_inter(self) -> None:
+        for bb in self._cfg_copy:
+            for instr in bb:
+                if isinstance(instr, Phi):
+                    vars = {*instr.requirements, *instr.definitions}
+                    if self._interference_graph.are_interfering(*vars):
+                        print(instr, bb)
+                        for v in itertools.combinations(vars, 2): 
+                            if self._interference_graph.are_interfering(v[0], v[1]):
+                                print("INTER", v, "interfers")
+                                for block, var in instr.origin_block.items():
+                                    if var == v[0]:
+                                        print("\t (v[0])", var, block) 
+                                    elif var == v[1]:
+                                        print("\t (v[1])", var, block) 
+                        exit(1)
+
+
+    def _test_none(self) -> None:
+        for instr in self._cfg_copy.instructions:
+            for subexpression in instr.subexpressions():
+                if isinstance(subexpression, Variable) and not subexpression.type:
+                    print("NONE", instr,":", subexpression, "is None")
 
 
     def step3(self):
@@ -328,6 +364,8 @@ class Boissinot2008:
         try:
             self._to_cssa()
             self._build_interference_graph()
+            self._test_inter()
+            self._test_none()
             self.step3()
 
             self._parallel_spaces.sequentialize()
