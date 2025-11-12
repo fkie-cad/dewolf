@@ -4,7 +4,6 @@ from copy import deepcopy
 import networkx as nx
 import traceback
 import itertools
-import numpy as np
 
 from decompiler.pipeline.ssa.value_interferencegraph import ValueInterferenceGraph
 from decompiler.pipeline.ssa.parallel_spaces import ParallelSpaces 
@@ -374,6 +373,7 @@ class Boissinot2008:
             
             self.step3() #Step 3
 
+            self._parallel_spaces.remove_nop_copies()
             self._parallel_spaces.sequentialize() #Step 4
             self._parallel_spaces.instert_into_cfg(self._cfg) #Step 4
 
@@ -381,7 +381,6 @@ class Boissinot2008:
                 for instr in bb.instructions:
                     if isinstance(instr,Phi):
                         bb.replace_instruction(instr,[])
-
 
             self.renamer = self.BoissinotVariableRenamer(self._task,self._interference_graph,self.nvars,self.gvars,False)
             self.renamer.renaming_map = self.rnm

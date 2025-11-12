@@ -39,6 +39,19 @@ class ParallelSpaces:
             basic_block.instructions.extend(block_space.end_of_block_assigns)
 
 
+    def _remove_nop_copies_space(self, assignments: List[Assignment]) -> List[Assignment]: 
+        ret = []
+        for assign in assignments:
+            if assign.destination != assign.value:
+                ret.append(assign)
+        return ret
+
+    def remove_nop_copies(self) -> None:
+        for space in self._parallel_spaces_map.values():
+            space.after_phi_assigns = self._remove_nop_copies_space(space.after_phi_assigns)
+            space.end_of_block_assigns = self._remove_nop_copies_space(space.end_of_block_assigns)
+
+
     def _sequentialize_space(self, assignments: List[Assignment]) -> List[Assignment]:
         loc = dict()
         pred = dict()
@@ -59,6 +72,7 @@ class ParallelSpaces:
             if loc[assign.destination] == None:
                 ready.append(assign.destination)
 
+        visited = set() 
         while to_do:
             while ready:
                 b = ready.pop()
@@ -69,8 +83,10 @@ class ParallelSpaces:
                 if a == c and pred[a] != None:
                     ready.append(a)
 
+                visited |= {b}
+
             b: Variable = to_do.pop()
-            if b != loc[pred[b]]:
+            if b not in visited:
                 n = Variable(
                     #TODO find a reliable way to avoid collisions 
                     b.name + "__copy__",
@@ -86,6 +102,9 @@ class ParallelSpaces:
                 ready.append(b)
 
         return ret
+
+    def _test_space(self) -> None:
+        pass
 
     def sequentialize(self) -> None:
         for space in self._parallel_spaces_map.values():
