@@ -6,7 +6,7 @@ from typing import Dict, Iterator, Set
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
-from decompiler.structures.pseudo.expressions import Variable
+from decompiler.structures.pseudo.expressions import Variable, GlobalVariable
 from decompiler.structures.pseudo.instructions import Assignment, Instruction
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 from networkx import topological_sort
@@ -43,8 +43,12 @@ class ValueInterferenceGraph(InterferenceGraph):
         for basic_block in topological_sort(cfg.dominator_tree._graph): #type: ignore
             for instr in basic_block:
                 if self._is_copy_assignment(instr):
-                    self._value_classes[instr.destination] = self._value_classes[instr.value] #type:ignore
+                    if (not isinstance(instr.value,GlobalVariable) and (not isinstance(instr.destination,GlobalVariable))):
+                        self._value_classes[instr.destination] = self._value_classes[instr.value] #type:ignore
+                    elif isinstance(instr.value,GlobalVariable) and isinstance(instr.destination,GlobalVariable) and (instr.value.name == instr.destination.name):
+                        self._value_classes[instr.destination] = self._value_classes[instr.value] #type:ignore
 
+        
     def _create_interference(self, variables: InsertionOrderedSet[Variable]) -> None:
         """
         Adds an edge between every pair of variables in the set 'variables' to the interference graph.

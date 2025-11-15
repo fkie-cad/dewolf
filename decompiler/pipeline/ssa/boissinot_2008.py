@@ -8,11 +8,12 @@ import itertools
 from decompiler.pipeline.ssa.value_interferencegraph import ValueInterferenceGraph
 from decompiler.pipeline.ssa.parallel_spaces import ParallelSpaces 
 from decompiler.structures.graphs.branches import UnconditionalEdge
-from decompiler.structures.pseudo.instructions import Assignment, Phi, Relation
+from decompiler.structures.pseudo.instructions import Assignment, Phi, Relation,Return
 from decompiler.task import DecompilerTask
 from decompiler.structures.pseudo.expressions import Constant, Expression, Variable, GlobalVariable
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.pipeline.ssa.variable_renaming import VariableRenamer
+from decompiler.util.decoration import DecoratedCFG,DecoratedGraph
 
 class Boissinot2008:
     def __init__(self, task: DecompilerTask, phi_functions: DefaultDict[BasicBlock, List[Phi]]):
@@ -31,17 +32,31 @@ class Boissinot2008:
             if not c_var_count or c_var_count < var.ssa_label:
                 self._label_count[var.name] = var.ssa_label
 
-    def _compute_copy_var(self, var: Variable) -> Variable:
+    def _compute_copy_var(self, var: Variable|GlobalVariable) -> Variable:
         self._label_count[var.name] += 1
-        copy_var = Variable(
-            var.name,  
-            var.type,
-            ssa_label=self._label_count[var.name],
-            is_aliased=var.is_aliased,
-            ssa_name = None,
-            tags = var.tags
-        ) 
-        return copy_var
+        if not isinstance(var,GlobalVariable):
+            copy_var = Variable(
+                var.name,  
+                var.type,
+                ssa_label=self._label_count[var.name],
+                is_aliased=var.is_aliased,
+                ssa_name = None,
+                tags = var.tags
+            ) 
+            return copy_var
+        elif isinstance(var,GlobalVariable):
+            var : GlobalVariable
+            copy_var = GlobalVariable(
+                var.name,
+                var.type,
+                var.initial_value,
+                var.ssa_label,
+                var.is_aliased,
+                None,
+                var.is_constant,
+                var.tags
+            )
+            return copy_var
 
     def _compute_lifted_constant_var(self, const : Constant) -> Variable:
         self._label_count[self.lifted_costant_var_name] += 1
@@ -64,6 +79,11 @@ class Boissinot2008:
     def _insert_basic_block_before(self, basic_block: BasicBlock) -> BasicBlock:
         new_basic_block = self._cfg.create_block()
         self._cfg.add_edge(UnconditionalEdge(new_basic_block, basic_block))
+        return new_basic_block
+    
+    def _insert_basic_block_after(self, basic_block: BasicBlock) -> BasicBlock:
+        new_basic_block = self._cfg.create_block()
+        self._cfg.add_edge(UnconditionalEdge(basic_block,new_basic_block))
         return new_basic_block
 
 
@@ -176,10 +196,19 @@ class Boissinot2008:
                 if isinstance(subexpression, Variable) and not subexpression.type:
                     print("NONE", instr,":", subexpression, "is None")
 
+    def fixreturn(self):
+        bbb = list(self._cfg.nodes)
+        for bb in bbb:
+            if len(bb.instructions) > 0 and isinstance(bb.instructions[-1],Return):
+                ret = bb.instructions[-1]
+                bret = self._insert_basic_block_after(bb)
+                bret.add_instruction(ret)
+                bb.remove_instruction(-1)
+                
 
     def step3(self):
+        self._build_interference_graph()    
         self.ifgColoring = deepcopy(self._interference_graph)
-
         self.handle_Relations()
 
         self.fsetFix()
@@ -197,6 +226,7 @@ class Boissinot2008:
         self.renamer = self.BoissinotVariableRenamer(ttask,self._interference_graph,self.nvars,self.gvars,True)
         self.rnm = deepcopy(self.renamer.renaming_map)
         self.renamer.rename()
+
         
 
     def getGlobals(self):
@@ -340,9 +370,15 @@ class Boissinot2008:
                         assignedNames.append(new_name)
                         for vv in varClass:
                             self.renaming_map[vv] = Variable(new_name,vv.type,None,vv.is_aliased,vv,vv.tags)
-                            #print(vv.type)
                     else: #only ordinary variables
                         new_name = varClass[0].name
+                        i = 1
+                        while (new_name.find("__lifted_constant__") != -1) & (i < len(varClass)):
+                            new_name = varClass[i].name
+                            i += 1
+                        else:
+                            if new_name.find("__lifted_constant__") != -1:
+                                new_name = "var" 
                         if new_name in assignedNames:
                             new_name = f"{new_name}__{count}"
                             count += 1
@@ -353,6 +389,9 @@ class Boissinot2008:
 
                 elif len(areGlobs) == len(varClass): #only globals
                     new_name = varClass[0].name
+                    new_name :str
+                    if new_name.find("data_") != -1:
+                        new_name = "global"
                     if new_name in assignedNames:
                         new_name = f'{new_name}__{count}'
                         count += 1
@@ -365,26 +404,37 @@ class Boissinot2008:
 
     def perform(self) -> None:
         try:
+            self.fixreturn()
             self._to_cssa() #Step 1
             self._build_interference_graph() #Step 2
 
             self._test_inter()
             self._test_none()
             
-            self.step3() #Step 3
-
+            DecoratedCFG.from_cfg(self._cfg).export_plot("./beforebefore.png")
             self._parallel_spaces.remove_nop_copies()
             self._parallel_spaces.sequentialize() #Step 4
             self._parallel_spaces.instert_into_cfg(self._cfg) #Step 4
 
+            DecoratedCFG.from_cfg(self._cfg).export_plot("./before.png")
+            self._build_interference_graph()
+            self.step3() #Step 3
+            DecoratedCFG.from_cfg(self._cfg).export_plot("./after.png")
+
+            DecoratedCFG.from_cfg(self._cfg).export_plot("./after_all.png")
             for bb in self._cfg:
                 for instr in bb.instructions:
                     if isinstance(instr,Phi):
                         bb.replace_instruction(instr,[])
+                    elif isinstance(instr,Assignment) and isinstance(instr.value,GlobalVariable) and isinstance(instr.destination,GlobalVariable):
+                        if instr.value == instr.destination:
+                            bb.replace_instruction(instr,[])
 
-            self.renamer = self.BoissinotVariableRenamer(self._task,self._interference_graph,self.nvars,self.gvars,False)
-            self.renamer.renaming_map = self.rnm
+            self._build_interference_graph()
+            self.renamer = self.BoissinotVariableRenamer(self._task,self._interference_graph,self.nvars,self.gvars,True)
+            self.renamer.renaming_map = {} #
             self.renamer.rename()
+            
         except Exception as e:
             traceback.print_exception(e)
 
