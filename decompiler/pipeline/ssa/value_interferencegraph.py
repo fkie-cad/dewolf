@@ -45,7 +45,7 @@ class ValueInterferenceGraph(InterferenceGraph):
                 if self._is_copy_assignment(instr):
                     if (not isinstance(instr.value,GlobalVariable) and (not isinstance(instr.destination,GlobalVariable))):
                         self._value_classes[instr.destination] = self._value_classes[instr.value] #type:ignore
-                    elif isinstance(instr.value,GlobalVariable) and isinstance(instr.destination,GlobalVariable) and (instr.value.name == instr.destination.name):
+                    elif isinstance(instr.value,GlobalVariable) and isinstance(instr.destination,GlobalVariable):
                         self._value_classes[instr.destination] = self._value_classes[instr.value] #type:ignore
 
         

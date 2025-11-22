@@ -44,7 +44,7 @@ class Boissinot2008:
                 tags = var.tags
             ) 
             return copy_var
-        elif isinstance(var,GlobalVariable):
+        elif isinstance(var,GlobalVariable): #Global variables stay globals, so they don't get mixed up with normal variables
             var : GlobalVariable
             copy_var = GlobalVariable(
                 var.name,
@@ -195,17 +195,7 @@ class Boissinot2008:
             for subexpression in instr.subexpressions():
                 if isinstance(subexpression, Variable) and not subexpression.type:
                     print("NONE", instr,":", subexpression, "is None")
-
-    def fixreturn(self):
-        bbb = list(self._cfg.nodes)
-        for bb in bbb:
-            if len(bb.instructions) > 0 and isinstance(bb.instructions[-1],Return):
-                ret = bb.instructions[-1]
-                bret = self._insert_basic_block_after(bb)
-                bret.add_instruction(ret)
-                bb.remove_instruction(-1)
-                
-
+           
     def step3(self):
         self._build_interference_graph()    
         self.ifgColoring = deepcopy(self._interference_graph)
@@ -224,7 +214,6 @@ class Boissinot2008:
         ttask.cfg = self._cfg_copy
 
         self.renamer = self.BoissinotVariableRenamer(ttask,self._interference_graph,self.nvars,self.gvars,True)
-        self.rnm = deepcopy(self.renamer.renaming_map)
         self.renamer.rename()
 
         
@@ -404,35 +393,31 @@ class Boissinot2008:
 
     def perform(self) -> None:
         try:
-            self.fixreturn()
             self._to_cssa() #Step 1
             self._build_interference_graph() #Step 2
 
             self._test_inter()
             self._test_none()
             
-            DecoratedCFG.from_cfg(self._cfg).export_plot("./beforebefore.png")
+            self._build_interference_graph()
+            self.step3() #Step 3
+
             self._parallel_spaces.remove_nop_copies()
             self._parallel_spaces.sequentialize() #Step 4
             self._parallel_spaces.instert_into_cfg(self._cfg) #Step 4
-
-            DecoratedCFG.from_cfg(self._cfg).export_plot("./before.png")
-            self._build_interference_graph()
-            self.step3() #Step 3
-            DecoratedCFG.from_cfg(self._cfg).export_plot("./after.png")
-
-            DecoratedCFG.from_cfg(self._cfg).export_plot("./after_all.png")
-            for bb in self._cfg:
+            
+            for bb in self._cfg: #Phi-functions are not getting removed earlier, so we are doing it here
                 for instr in bb.instructions:
                     if isinstance(instr,Phi):
                         bb.replace_instruction(instr,[])
-                    elif isinstance(instr,Assignment) and isinstance(instr.value,GlobalVariable) and isinstance(instr.destination,GlobalVariable):
-                        if instr.value == instr.destination:
-                            bb.replace_instruction(instr,[])
+                    #To the best of my knowledge this part is not necessary:
+                    #elif isinstance(instr,Assignment) and isinstance(instr.value,GlobalVariable) and isinstance(instr.destination,GlobalVariable):
+                    #    if instr.value == instr.destination:
+                    #        bb.replace_instruction(instr,[])
 
-            self._build_interference_graph()
-            self.renamer = self.BoissinotVariableRenamer(self._task,self._interference_graph,self.nvars,self.gvars,True)
-            self.renamer.renaming_map = {} #
+            #self._build_interference_graph() #renaming with an empty renaming maps cleans the code of None instructions :)
+            self.renamer = self.BoissinotVariableRenamer(self._task,self._interference_graph,self.nvars,self.gvars,False)
+            self.renamer.renaming_map = {}
             self.renamer.rename()
             
         except Exception as e:
