@@ -230,8 +230,8 @@ class Boissinot2008:
             else:
                 raise Exception("Found an object which is not a frozenset while renaming!")
 
-        self.globs = globs
-        self.norms = norms
+        self.globs = sorted(globs, key = lambda x : ''.join([f"{x.name}{x.ssa_label}" for x in tuple(sorted(x,key = lambda x : f"{x.name}{x.ssa_label}"))]))
+        self.norms = sorted(norms, key = lambda x : ''.join([f"{x.name}{x.ssa_label}" for x in tuple(sorted(x,key = lambda x : f"{x.name}{x.ssa_label}"))]))
 
     def areinstances(self, objs : List,classToCheck):
         for obj in objs:
@@ -285,10 +285,11 @@ class Boissinot2008:
         nx.relabel_nodes(self.ifgColoring,map,False)
 
     def doColoring(self):
+        order = sorted(self.ifgColoring.edges,key = lambda x : f"{tuple(sorted(x[0],key = lambda a : f"{a.name}{a.ssa_label}"))}{tuple(sorted(x[1],key = lambda a : f"{a.name}{a.ssa_label}"))}")
         if len(self.globs) > 0:
             gs = nx.Graph()
             gs.add_nodes_from(self.globs)
-            for edge in self.ifgColoring.edges:
+            for edge in order :
                 if (edge[0] in self.globs) and (edge[1] in self.globs):
                     gs.add_edges_from([edge])
             colors = nx.greedy_color(gs,"largest_first",True)
@@ -308,7 +309,7 @@ class Boissinot2008:
         if len(self.norms) > 0:
             gs = nx.Graph()
             gs.add_nodes_from(self.norms)
-            for edge in self.ifgColoring.edges:
+            for edge in order:
                 if (edge[0] in self.norms) and (edge[1] in self.norms):
                     gs.add_edges_from([edge])
             colors = nx.greedy_color(gs,"largest_first",True)
@@ -324,6 +325,8 @@ class Boissinot2008:
             self.nvars = nvars
         else:
             self.nvars = []
+
+        
 
     class BoissinotVariableRenamer(VariableRenamer):
         def __init__(self, task: DecompilerTask, interference_graph,varClassesn:list,varClassesg:list, calcRNM :bool = True):
@@ -345,6 +348,7 @@ class Boissinot2008:
             assignedNames = []
 
             for varClass in self.varClasses:
+                varClass = sorted(varClass,key = lambda x : f"{x.name}{x.ssa_label}")
                 new_name = ""
                 areGlobs = [var for var in varClass if isinstance(var,GlobalVariable)]
                 if len(areGlobs) == 0: #no globals
