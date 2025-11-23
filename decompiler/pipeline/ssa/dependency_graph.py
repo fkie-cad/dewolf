@@ -4,7 +4,7 @@ from typing import Iterator
 
 import networkx
 import networkx as nx
-#from decompiler.pipeline.ssa.metric_helper import MetricHelper
+from decompiler.pipeline.ssa.metric_helper import MetricHelper
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo import Call, Expression, ListOperation, Operation, OperationType, TernaryExpression, UnaryOperation

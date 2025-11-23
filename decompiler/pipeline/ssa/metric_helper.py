@@ -4,25 +4,13 @@ from pathlib import Path
 from typing import Dict, Iterator, List, Optional, Set, Tuple
 
 import networkx as nx
+from networkx.classes import DiGraph
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.pseudo import Expression, Operation, OperationType
 from decompiler.structures.pseudo.expressions import Variable
-from decompiler.structures.pseudo.instructions import Assignment, Phi
+from decompiler.structures.pseudo.instructions import Assignment, BaseAssignment, Phi, Relation
 from decompiler.structures.pseudo.operations import UnaryOperation
 from decompiler.util.decoration import DecoratedGraph
-from networkx import DiGraph, is_directed_acyclic_graph
-
-"""
-TODO move this inside dependency_graph_from_cfg of decompiler/pipeline/ssa/dependency_graph.py
-See
-    commit  893c51aa9f6f62d94c36fd86e7b529aee2081317
-    commit  bbe4e70d17c31f8dcea18a17bd6c2e002e25ca09
-    file    decompiler/pipeline/ssa/conditional_out_of_SSA.py
-    file    decompiler/pipeline/ssa/dependency_graph.py
-    file    decompiler/pipeline/ssa/metric_dependency_graph.py
-    file    decompiler/pipeline/ssa/variable_renaming.py
-
-"""
 
 
 class MetricHelper:
@@ -33,27 +21,28 @@ class MetricHelper:
         ref: Optional[Variable] = None
 
     def __init__(self, cfg: ControlFlowGraph, build_decorated_cfgs: bool = False) -> None:
+        self._metric_multiplier: int
         self._decorated_dep: Optional[DecoratedGraph] = None
         self._decorated_dep_after: Optional[DecoratedGraph] = None
 
         self._build_decorated_cfgs = build_decorated_cfgs
         self._placeholder: Dict[Variable, MetricHelper._PlaceHolderEntry] = dict()
 
+        # init properties
+        self._compute_metric_instr_count(cfg)
+
         vars = set(self.variables_in_cfg(cfg))
         asigns = list(self.assignments_in_cfg(cfg))
+        relations = list(self.relations_in_cfg(cfg))
         phi_vars = self._phi_vars(asigns)
-
-        # set properties
-        self._ssa_variable_count = len(vars)
 
         # build placeholders
         self._init_placeholder(vars)
-        dependency_graph = self._build_dependency_graph(asigns)
+        dependency_graph = self._build_dependency_graph(asigns + relations) #type: ignore
 
         if self._build_decorated_cfgs:
             self._decorated_dep = self._build_decorated_cfg(dependency_graph)
 
-        # self._process_phi_vars(dependency_graph, phi_vars)
         self._process_sccs(dependency_graph)
         self._process_sinks(dependency_graph, phi_vars)
 
@@ -103,7 +92,7 @@ class MetricHelper:
 
         return ret
 
-    def _build_dependency_graph(self, asigns: List[Assignment]) -> DiGraph:
+    def _build_dependency_graph(self, asigns: List[BaseAssignment]) -> DiGraph:
         """
         Build variable dependency edges: for assignment d := expr, add edges (d -> used_var)
         """
@@ -120,17 +109,32 @@ class MetricHelper:
         dependency_graph.add_edges_from(edges)
         return dependency_graph
 
-    def _process_phi_vars(self, dependency_graph: DiGraph, phi_vars: List[Variable]):
-        for var in phi_vars:
-            if var in dependency_graph.nodes:
-                for suc in dependency_graph.successors(var):
-                    self._merge_placeholder(var, suc)
-
     def _process_sccs(self, dependency_graph: DiGraph) -> None:
         for scc in list(nx.strongly_connected_components(dependency_graph)):
-            if len(scc) > 1:
-                dependency_graph.remove_nodes_from(scc)
-                self._merge_placeholder(*scc)
+            if len(scc) <= 1:
+                continue
+
+            self._merge_placeholder(*scc)
+
+            nodes = list(scc)
+            representative = self._find_root(nodes[0])
+            to_remove = [n for n in nodes if n != representative]
+
+            edges_to_add = []
+            for node in to_remove:
+                for pred in dependency_graph.predecessors(node):
+                    if pred not in scc: 
+                        edges_to_add.append((pred, representative))
+                
+                for succ in dependency_graph.successors(node):
+                    if succ not in scc: 
+                        edges_to_add.append((representative, succ))
+
+            dependency_graph.add_edges_from(edges_to_add)
+            dependency_graph.remove_nodes_from(to_remove)
+
+            if dependency_graph.has_edge(representative, representative):
+                dependency_graph.remove_edge(representative, representative)
 
     def _calc_descendants_topo(self, dag: DiGraph) -> Tuple[Dict[Variable, Set[Variable]], Dict[Variable, int]]:
         topo = list(nx.topological_sort(dag))
@@ -149,8 +153,11 @@ class MetricHelper:
     def _find_sink_for_var(
         self, var_successors: List[Variable], descendants: Dict[Variable, Set[Variable]], topo_index: Dict[Variable, int]
     ) -> Optional[Variable]:
-        inter = set()
-        for succ in var_successors:
+        if not var_successors:
+            return None
+
+        inter = set(descendants[var_successors[0]])
+        for succ in var_successors[1:]:
             inter &= descendants[succ]
 
         if inter:
@@ -171,21 +178,33 @@ class MetricHelper:
         dependency_graph.remove_edges_from(nx.selfloop_edges(dependency_graph))
         wwc_graphs = [dependency_graph.subgraph(c) for c in nx.weakly_connected_components(dependency_graph)]  # type: ignore
         wwc_descendants_topo = dict()
-
+        
+        nodes_to_merge = []
         for phi_var in phi_vars:
+            active_node = self._find_root(phi_var)
             for i, wwc_graph in enumerate(wwc_graphs):
-                if phi_var in wwc_graph.nodes:
+                if active_node in wwc_graph.nodes:
                     descendants_topo = wwc_descendants_topo.get(i)
                     if not descendants_topo:
                         descendants_topo = self._calc_descendants_topo(wwc_graph)  # type: ignore
                         wwc_descendants_topo[i] = descendants_topo
 
-                    sink = self._find_sink_for_var(list(wwc_graph.successors(phi_var)), *descendants_topo)  # type: ignore
+                    sink = self._find_sink_for_var(list(wwc_graph.successors(active_node)), *descendants_topo)  # type: ignore
                     if sink:
-                        nodes = self._extract_nodes(wwc_graph, phi_var, sink)  # type: ignore
+                        nodes = self._extract_nodes(wwc_graph, active_node, sink)  # type: ignore
                         if nodes:
-                            self._merge_placeholder(*nodes)
+                            nodes_to_merge.append(nodes)
                     break
+
+        for nodes in nodes_to_merge:
+            self._merge_placeholder(*nodes)
+
+
+    def _compute_metric_instr_count(self, cfg: ControlFlowGraph) -> None:
+        self._metric_multiplier = 0
+        for instr in cfg.instructions:
+            if not isinstance(instr, (Assignment, Relation)):
+                self._metric_multiplier += 1
 
     def _build_decorated_cfg(self, dependency_graph: DiGraph) -> DecoratedGraph:
         """
@@ -214,9 +233,18 @@ class MetricHelper:
 
         return ref == self._get_placeholder_id(b)
 
+
     @property
-    def ssa_variable_count(self):
-        return self._ssa_variable_count
+    def metric_multiplier(self):
+        """The pname property."""
+        return self._metric_multiplier 
+
+
+    @staticmethod 
+    def relations_in_cfg(cfg: ControlFlowGraph) -> Iterator[Relation]:
+        for instr in cfg.instructions:
+            if isinstance(instr, Relation):
+                yield instr
 
     @staticmethod
     def variables_in_cfg(cfg: ControlFlowGraph) -> Iterator[Variable]:
@@ -227,7 +255,6 @@ class MetricHelper:
             for subexpression in instruction.subexpressions():
                 if isinstance(subexpression, Variable) and not isinstance(subexpression, UnaryOperation):
                     yield subexpression
-
     @staticmethod
     def assignments_in_cfg(cfg: ControlFlowGraph) -> Iterator[Assignment]:
         for instr in cfg.instructions:

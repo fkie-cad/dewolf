@@ -1,4 +1,3 @@
-import gc
 from typing import DefaultDict, List
 
 from decompiler.pipeline.ssa.metric_helper import MetricHelper
