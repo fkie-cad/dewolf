@@ -4,7 +4,7 @@ from typing import Iterator
 
 import networkx
 import networkx as nx
-from decompiler.pipeline.ssa.metric_helper import MetricHelper
+#from decompiler.pipeline.ssa.metric_helper import MetricHelper
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo import Call, Expression, ListOperation, Operation, OperationType, TernaryExpression, UnaryOperation
@@ -53,16 +53,16 @@ def dependency_graph_from_cfg(
         for used_variable, score in _expression_dependencies(instruction.value, strong, mid, weak).items():
             if (score > 0) and not (ifg.are_interfering(*defined_variables, used_variable)):
                 for dvar in defined_variables:
-                    if (score != weak) or (not foo(dvar, used_variable, metric_helper)):
+                    #if (score != weak) or (not foo(dvar, used_variable, metric_helper)):
                         dependency_graph.add_edge((dvar,), (used_variable,), a=score)
-                    else:
-                        dependency_graph.add_edge((dvar,), (used_variable,), a=strong)
+                    #else:
+                    #    dependency_graph.add_edge((dvar,), (used_variable,), a=strong)
                 # dependency_graph.add_edges_from((((dvar,), (used_variable,),"a",score) if  else ((dvar,), (used_variable,),"a",mid) for dvar in defined_variables ))
     return dependency_graph
 
 
-def foo(a, b, graph: MetricHelper):
-    return graph.vars_are_connected_strongly(a, b)
+#def foo(a, b, graph: MetricHelper):
+#    return graph.vars_are_connected_strongly(a, b)
 
 
 def _collect_variables(cfg: ControlFlowGraph) -> Iterator[Variable]:
