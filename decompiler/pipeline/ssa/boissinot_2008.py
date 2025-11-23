@@ -411,29 +411,29 @@ class Boissinot2008:
 
     def perform(self) -> None:
         try:
-            DecoratedCFG.from_cfg(self._cfg).export_plot("./voralles")
+            #DecoratedCFG.from_cfg(self._cfg).export_plot("./voralles")
             self.eliminateDeadAssignments()
-            DecoratedCFG.from_cfg(self._cfg).export_plot("./vor1")
+            #DecoratedCFG.from_cfg(self._cfg).export_plot("./vor1")
             self._to_cssa() #Step 1
             self._build_interference_graph() #Step 2
 
-            for x in self._interference_graph.edges():
-                print(x)
+            #for x in self._interference_graph.edges():
+            #    print(x)
 
             self._test_inter()
             self._test_none()
-            DecoratedCFG.from_cfg(self._cfg).export_plot("./nach2norm")
-            DecoratedCFG.from_cfg(self._cfg_copy).export_plot("./nach2")
+            #DecoratedCFG.from_cfg(self._cfg).export_plot("./nach2norm")
+            #DecoratedCFG.from_cfg(self._cfg_copy).export_plot("./nach2")
             self._build_interference_graph()
             self.step3() #Step 3
-            print(self.gvars)
-            print(self.nvars)
-            DecoratedCFG.from_cfg(self._cfg).export_plot("./nach3")
+            #print(self.gvars)
+            #print(self.nvars)
+            #DecoratedCFG.from_cfg(self._cfg).export_plot("./nach3")
 
             self._parallel_spaces.remove_nop_copies()
             self._parallel_spaces.sequentialize() #Step 4
             self._parallel_spaces.instert_into_cfg(self._cfg) #Step 4
-            DecoratedCFG.from_cfg(self._cfg).export_plot("./nach4")
+            #DecoratedCFG.from_cfg(self._cfg).export_plot("./nach4")
             
             for bb in self._cfg: #Phi-functions are not getting removed earlier, so we are doing it here
                 for instr in bb.instructions:
