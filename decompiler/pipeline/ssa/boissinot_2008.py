@@ -14,6 +14,7 @@ from decompiler.structures.pseudo.expressions import Constant, Expression, Varia
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.pipeline.ssa.variable_renaming import VariableRenamer
 from decompiler.util.decoration import DecoratedCFG,DecoratedGraph
+from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
 
 class Boissinot2008:
     def __init__(self, task: DecompilerTask, phi_functions: DefaultDict[BasicBlock, List[Phi]]):
@@ -46,11 +47,12 @@ class Boissinot2008:
             return copy_var
         elif isinstance(var,GlobalVariable): #Global variables stay globals, so they don't get mixed up with normal variables
             var : GlobalVariable
+            self._label_count[var.name] += 1
             copy_var = GlobalVariable(
                 var.name,
                 var.type,
                 var.initial_value,
-                var.ssa_label,
+                self._label_count[var.name],
                 var.is_aliased,
                 None,
                 var.is_constant,
@@ -393,22 +395,45 @@ class Boissinot2008:
                         self.renaming_map[vv] = GlobalVariable(new_name,vv.type,vv.initial_value,None,vv.is_aliased,vv,vv.is_constant,vv.tags)
                 else: #mixed PCK with globals and non-globals - Shouldn't occur!!
                     raise Exception("Found a class containing globals and ordinary variables")
-
+                
+    def eliminateDeadAssignments(self):
+        allVars = self._cfg.get_variables()
+        for bb in self._cfg:
+            for instr in bb.instructions:
+                for x in instr.requirements:
+                    if x in allVars:
+                        allVars.remove(x)
+        for bb in self._cfg:
+            for instr in bb.instructions:
+                instr: Assignment
+                if isinstance(instr, Assignment) and (instr.destination in allVars):
+                    bb.replace_instruction(instr,[])
 
     def perform(self) -> None:
         try:
+            DecoratedCFG.from_cfg(self._cfg).export_plot("./voralles")
+            self.eliminateDeadAssignments()
+            DecoratedCFG.from_cfg(self._cfg).export_plot("./vor1")
             self._to_cssa() #Step 1
             self._build_interference_graph() #Step 2
 
+            for x in self._interference_graph.edges():
+                print(x)
+
             self._test_inter()
             self._test_none()
-            
+            DecoratedCFG.from_cfg(self._cfg).export_plot("./nach2norm")
+            DecoratedCFG.from_cfg(self._cfg_copy).export_plot("./nach2")
             self._build_interference_graph()
             self.step3() #Step 3
+            print(self.gvars)
+            print(self.nvars)
+            DecoratedCFG.from_cfg(self._cfg).export_plot("./nach3")
 
             self._parallel_spaces.remove_nop_copies()
             self._parallel_spaces.sequentialize() #Step 4
             self._parallel_spaces.instert_into_cfg(self._cfg) #Step 4
+            DecoratedCFG.from_cfg(self._cfg).export_plot("./nach4")
             
             for bb in self._cfg: #Phi-functions are not getting removed earlier, so we are doing it here
                 for instr in bb.instructions:
