@@ -28,13 +28,14 @@ class MetricHelper:
         self._build_decorated_cfgs = build_decorated_cfgs
         self._placeholder: Dict[Variable, MetricHelper._PlaceHolderEntry] = dict()
 
-        # init properties
-        self._compute_metric_instr_count(cfg)
 
         vars = set(self.variables_in_cfg(cfg))
         asigns = list(self.assignments_in_cfg(cfg))
         relations = list(self.relations_in_cfg(cfg))
         phi_vars = self._phi_vars(asigns)
+
+        # set properties
+        self._metric_multiplier = len(vars)
 
         # build placeholders
         self._init_placeholder(vars)
@@ -198,13 +199,6 @@ class MetricHelper:
 
         for nodes in nodes_to_merge:
             self._merge_placeholder(*nodes)
-
-
-    def _compute_metric_instr_count(self, cfg: ControlFlowGraph) -> None:
-        self._metric_multiplier = 0
-        for instr in cfg.instructions:
-            if not isinstance(instr, (Assignment, Relation)):
-                self._metric_multiplier += 1
 
     def _build_decorated_cfg(self, dependency_graph: DiGraph) -> DecoratedGraph:
         """
