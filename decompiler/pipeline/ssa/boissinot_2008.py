@@ -71,6 +71,20 @@ class Boissinot2008:
             tags = None 
         ) 
         return lifted_costant_var 
+    
+    def _compute_lifted_global_constant_var(self, const : Constant, glob :GlobalVariable) -> Variable:
+        self._label_count[self.lifted_costant_var_name] += 1
+        lifted_costant_var = GlobalVariable(
+            self.lifted_costant_var_name,
+            const.type,
+            ssa_label=self._label_count[self.lifted_costant_var_name],
+            is_aliased=False,
+            ssa_name = None,
+            tags = None,
+            initial_value=glob.initial_value,
+            is_constant=glob.is_constant
+        ) 
+        return lifted_costant_var 
 
 
     def _get_predecessors(self, basic_block: BasicBlock) -> Iterator[Optional[BasicBlock]]:
@@ -150,7 +164,11 @@ class Boissinot2008:
                     if isinstance(req, Variable): 
                         copy_var = self._compute_copy_var(req)
                     elif isinstance(req, Constant):
-                        copy_var = self._compute_lifted_constant_var(req)
+                        if not isinstance(phi_inst.destination,GlobalVariable):
+                            copy_var = self._compute_lifted_constant_var(req)
+                        else:
+                            copy_var = self._compute_lifted_global_constant_var(req,phi_inst.destination)
+
                     else:
                         raise RuntimeError("Unexpected Phi requirement!")
 
@@ -218,7 +236,6 @@ class Boissinot2008:
         self.renamer = self.BoissinotVariableRenamer(ttask,self._interference_graph,self.nvars,self.gvars,True)
         self.renamer.rename()
 
-        
 
     def getGlobals(self):
         globs = []
@@ -289,20 +306,20 @@ class Boissinot2008:
     def doColoring(self):
         order = sorted(self.ifgColoring.edges,key = lambda x : f"{tuple(sorted(x[0],key = lambda a : f"{a.name}{a.ssa_label}"))}{tuple(sorted(x[1],key = lambda a : f"{a.name}{a.ssa_label}"))}")
         if len(self.globs) > 0:
-            gs = nx.Graph()
-            gs.add_nodes_from(self.globs)
-            for edge in order :
-                if (edge[0] in self.globs) and (edge[1] in self.globs):
-                    gs.add_edges_from([edge])
-            colors = nx.greedy_color(gs,"largest_first",True)
-            colors : Dict
-            num = max(list(colors.values())) + 1
-            gvars = [[] for _ in range(num)]
-            for var, col in colors.items():
-                if isinstance(var,frozenset):
-                    gvars[col].extend(var)
-                else:
-                    raise Exception(f"{var} is a {str(type(var))} instead of a frozenset!")
+            gvars = []
+            globdict = DefaultDict(list)
+            for glob in self.globs:
+                for globv in glob:
+                    if globdict[globv.name] != []:
+                        if not self._interference_graph.are_interfering(globv,*globdict[globv.name]):
+                            globdict[globv.name].append(globv)
+                        else:
+                            raise Exception("Found interfering variables with the same name!")
+                    else:
+                        globdict[globv.name].append(globv)
+            
+            for pck in globdict.values():
+                gvars.append(pck)
                 
             self.gvars = gvars
         else:
@@ -385,8 +402,6 @@ class Boissinot2008:
                 elif len(areGlobs) == len(varClass): #only globals
                     new_name = varClass[0].name
                     new_name :str
-                    if new_name.find("data_") != -1:
-                        new_name = "global"
                     if new_name in assignedNames:
                         new_name = f'{new_name}__{count}'
                         count += 1
@@ -428,24 +443,14 @@ class Boissinot2008:
 
     def perform(self) -> None:
         try:
-            #DecoratedCFG.from_cfg(self._cfg).export_plot("./voralles")
-            self.eliminateDeadAssignments()
-            #DecoratedCFG.from_cfg(self._cfg).export_plot("./vor1")
+            #self.eliminateDeadAssignments()
             self._to_cssa() #Step 1
             self._build_interference_graph() #Step 2
 
-            #for x in self._interference_graph.edges():
-            #    print(x)
-
-            self._test_inter()
-            self._test_none()
-            #DecoratedCFG.from_cfg(self._cfg).export_plot("./nach2norm")
-            #DecoratedCFG.from_cfg(self._cfg_copy).export_plot("./nach2")
+            #self._test_inter()
+            #self._test_none()
             self._build_interference_graph()
             self.step3() #Step 3
-            #print(self.gvars)
-            #print(self.nvars)
-            #DecoratedCFG.from_cfg(self._cfg).export_plot("./nach3")
 
             self._remove_nop_instr(self._cfg)
 
@@ -453,19 +458,6 @@ class Boissinot2008:
             self._parallel_spaces.sequentialize() #Step 4
             self._parallel_spaces.instert_into_cfg(self._cfg) #Step 4
             self._remove_phis(self._cfg)
-            #DecoratedCFG.from_cfg(self._cfg).export_plot("./nach4")
-            
-                    #To the best of my knowledge this part is not necessary:
-                    #elif isinstance(instr,Assignment) and isinstance(instr.value,GlobalVariable) and isinstance(instr.destination,GlobalVariable):
-                    #    if instr.value == instr.destination:
-                    #        bb.replace_instruction(instr,[])
 
-            #self._build_interference_graph() #renaming with an empty renaming maps cleans the code of None instructions :)
-            #self.renamer = self.BoissinotVariableRenamer(self._task,self._interference_graph,self.nvars,self.gvars,False)
-            #self.renamer.renaming_map = {}
-            #self.renamer.rename()
-            
         except Exception as e:
             traceback.print_exception(e)
-
-

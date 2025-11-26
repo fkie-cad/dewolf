@@ -43,10 +43,10 @@ class ValueInterferenceGraph(InterferenceGraph):
         for basic_block in topological_sort(cfg.dominator_tree._graph): #type: ignore
             for instr in basic_block:
                 if self._is_copy_assignment(instr):
-                    #if (not isinstance(instr.value,GlobalVariable) and (not isinstance(instr.destination,GlobalVariable))):
-                    self._value_classes[instr.destination] = self._value_classes[instr.value] #type:ignore
-                    #elif isinstance(instr.value,GlobalVariable) and isinstance(instr.destination,GlobalVariable):
-                        #self._value_classes[instr.destination] = self._value_classes[instr.value] #type:ignore
+                    if (not isinstance(instr.value,GlobalVariable) and (not isinstance(instr.destination,GlobalVariable))):
+                        self._value_classes[instr.destination] = self._value_classes[instr.value] #type:ignore
+                    elif isinstance(instr.value,GlobalVariable) and isinstance(instr.destination,GlobalVariable) and (instr.destination.name == instr.value.name):
+                        self._value_classes[instr.destination] = self._value_classes[instr.value] #type:ignore
 
         
     def _create_interference(self, variables: InsertionOrderedSet[Variable]) -> None:
