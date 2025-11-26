@@ -415,7 +415,7 @@ class Boissinot2008:
                 if isinstance(instr,Phi):
                     bb.replace_instruction(instr,[])
 
-    def _remove_nop_copies(self, cfg: ControlFlowGraph):
+    def _remove_nop_instr(self, cfg: ControlFlowGraph):
         for bb in cfg:
             for instr in bb.instructions:
                 if (
@@ -423,7 +423,7 @@ class Boissinot2008:
                     isinstance(instr.destination, Variable) and 
                     isinstance(instr.value, Variable) and 
                     instr.destination == instr.value
-                ):
+                ) or isinstance(instr, Relation):
                        bb.replace_instruction(instr,[])
 
     def perform(self) -> None:
@@ -447,7 +447,7 @@ class Boissinot2008:
             #print(self.nvars)
             #DecoratedCFG.from_cfg(self._cfg).export_plot("./nach3")
 
-            self._remove_nop_copies(self._cfg)
+            self._remove_nop_instr(self._cfg)
 
             self._parallel_spaces.remove_nop_copies()
             self._parallel_spaces.sequentialize() #Step 4
