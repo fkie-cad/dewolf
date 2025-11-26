@@ -409,6 +409,23 @@ class Boissinot2008:
                 if isinstance(instr, Assignment) and (instr.destination in allVars):
                     bb.replace_instruction(instr,[])
 
+    def _remove_phis(self, cfg: ControlFlowGraph):
+        for bb in cfg: 
+            for instr in bb.instructions:
+                if isinstance(instr,Phi):
+                    bb.replace_instruction(instr,[])
+
+    def _remove_nop_copies(self, cfg: ControlFlowGraph):
+        for bb in cfg:
+            for instr in bb.instructions:
+                if (
+                    isinstance(instr, Assignment) and 
+                    isinstance(instr.destination, Variable) and 
+                    isinstance(instr.value, Variable) and 
+                    instr.destination == instr.value
+                ):
+                       bb.replace_instruction(instr,[])
+
     def perform(self) -> None:
         try:
             #DecoratedCFG.from_cfg(self._cfg).export_plot("./voralles")
@@ -430,24 +447,23 @@ class Boissinot2008:
             #print(self.nvars)
             #DecoratedCFG.from_cfg(self._cfg).export_plot("./nach3")
 
+            self._remove_nop_copies(self._cfg)
+
             self._parallel_spaces.remove_nop_copies()
             self._parallel_spaces.sequentialize() #Step 4
             self._parallel_spaces.instert_into_cfg(self._cfg) #Step 4
+            self._remove_phis(self._cfg)
             #DecoratedCFG.from_cfg(self._cfg).export_plot("./nach4")
             
-            for bb in self._cfg: #Phi-functions are not getting removed earlier, so we are doing it here
-                for instr in bb.instructions:
-                    if isinstance(instr,Phi):
-                        bb.replace_instruction(instr,[])
                     #To the best of my knowledge this part is not necessary:
                     #elif isinstance(instr,Assignment) and isinstance(instr.value,GlobalVariable) and isinstance(instr.destination,GlobalVariable):
                     #    if instr.value == instr.destination:
                     #        bb.replace_instruction(instr,[])
 
             #self._build_interference_graph() #renaming with an empty renaming maps cleans the code of None instructions :)
-            self.renamer = self.BoissinotVariableRenamer(self._task,self._interference_graph,self.nvars,self.gvars,False)
-            self.renamer.renaming_map = {}
-            self.renamer.rename()
+            #self.renamer = self.BoissinotVariableRenamer(self._task,self._interference_graph,self.nvars,self.gvars,False)
+            #self.renamer.renaming_map = {}
+            #self.renamer.rename()
             
         except Exception as e:
             traceback.print_exception(e)

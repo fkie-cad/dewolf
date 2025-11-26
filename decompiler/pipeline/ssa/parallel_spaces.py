@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import DefaultDict, List, Mapping 
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.graphs.cfg import ControlFlowGraph
-from decompiler.structures.pseudo.expressions import Variable
+from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Phi 
 class ParallelSpaces:
     @dataclass
@@ -87,16 +87,29 @@ class ParallelSpaces:
 
             b: Variable = to_do.pop()
             if b not in visited:
-                n = Variable(
-                    #TODO find a reliable way to avoid collisions 
-                    b.name + "__copy__",
-                    b.type,
-                    None,
-                    b.is_aliased,
-                    None,
-                    b.tags
+                n: Variable
+                cp_suffix = "__copy__" #TODO find a reliable way to avoid collisions 
+                if isinstance(b, GlobalVariable):
+                    n = GlobalVariable(
+                        b.name + cp_suffix,
+                        b.type,
+                        b.initial_value,
+                        None,
+                        b.is_aliased,
+                        None,
+                        b.is_constant,
+                        b.tags
+                    )
+                else:
+                    n = Variable(
+                        b.name + cp_suffix,
+                        b.type,
+                        None,
+                        b.is_aliased,
+                        None,
+                        b.tags
 
-                )
+                    )
                 ret.append(Assignment(n,b))
                 loc[b] = n
                 ready.append(b)
