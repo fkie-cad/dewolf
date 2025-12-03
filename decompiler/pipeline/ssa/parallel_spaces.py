@@ -89,27 +89,15 @@ class ParallelSpaces:
             if b not in visited:
                 n: Variable
                 cp_suffix = "__copy__" #TODO find a reliable way to avoid collisions 
-                if isinstance(b, GlobalVariable):
-                    n = GlobalVariable(
-                        b.name + cp_suffix,
-                        b.type,
-                        b.initial_value,
-                        None,
-                        b.is_aliased,
-                        None,
-                        b.is_constant,
-                        b.tags
-                    )
-                else:
-                    n = Variable(
-                        b.name + cp_suffix,
-                        b.type,
-                        None,
-                        b.is_aliased,
-                        None,
-                        b.tags
+                n = Variable(
+                    b.name + cp_suffix,
+                    b.type,
+                    None,
+                    b.is_aliased,
+                    None,
+                    b.tags
 
-                    )
+                )
                 ret.append(Assignment(n,b))
                 loc[b] = n
                 ready.append(b)

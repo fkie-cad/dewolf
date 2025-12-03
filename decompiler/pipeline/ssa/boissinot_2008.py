@@ -192,30 +192,6 @@ class Boissinot2008:
         self._parallel_spaces.instert_into_cfg(self._cfg_copy)
         self._interference_graph = ValueInterferenceGraph(self._cfg_copy)
 
-    def _test_inter(self) -> None:
-        for bb in self._cfg_copy:
-            for instr in bb:
-                if isinstance(instr, Phi):
-                    vars = {*instr.requirements, *instr.definitions}
-                    if self._interference_graph.are_interfering(*vars):
-                        print(instr, bb)
-                        for v in itertools.combinations(vars, 2): 
-                            if self._interference_graph.are_interfering(v[0], v[1]):
-                                print("INTER", v, "interfers")
-                                for block, var in instr.origin_block.items():
-                                    if var == v[0]:
-                                        print("\t (v[0])", var, block) 
-                                    elif var == v[1]:
-                                        print("\t (v[1])", var, block) 
-                        exit(1)
-
-
-    def _test_none(self) -> None:
-        for instr in self._cfg_copy.instructions:
-            for subexpression in instr.subexpressions():
-                if isinstance(subexpression, Variable) and not subexpression.type:
-                    print("NONE", instr,":", subexpression, "is None")
-           
     def step3(self):
         self._build_interference_graph()    
         self.ifgColoring = deepcopy(self._interference_graph)
@@ -411,18 +387,6 @@ class Boissinot2008:
                 else: #mixed PCK with globals and non-globals - Shouldn't occur!!
                     raise Exception("Found a class containing globals and ordinary variables")
                 
-    def eliminateDeadAssignments(self):
-        allVars = self._cfg.get_variables()
-        for bb in self._cfg:
-            for instr in bb.instructions:
-                for x in instr.requirements:
-                    if x in allVars:
-                        allVars.remove(x)
-        for bb in self._cfg:
-            for instr in bb.instructions:
-                instr: Assignment
-                if isinstance(instr, Assignment) and (instr.destination in allVars):
-                    bb.replace_instruction(instr,[])
 
     def _remove_phis(self, cfg: ControlFlowGraph):
         for bb in cfg: 
@@ -443,12 +407,9 @@ class Boissinot2008:
 
     def perform(self) -> None:
         try:
-            #self.eliminateDeadAssignments()
             self._to_cssa() #Step 1
             self._build_interference_graph() #Step 2
 
-            #self._test_inter()
-            #self._test_none()
             self._build_interference_graph()
             self.step3() #Step 3
 
