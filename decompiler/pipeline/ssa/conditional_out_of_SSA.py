@@ -16,9 +16,9 @@ class ConditionalOutOfSSA:
         self,
         task: DecompilerTask,
         _phi_fuctions_of: DefaultDict[BasicBlock, List[Phi]],
-        strong: float = 1,
-        mid: float = 0.5,
-        weak: float = 0.1,
+        strong: float = 0.94606,
+        mid: float = 0.332811,
+        weak: float = 0.410742,
         strategy: int = 3,
     ):
         """
