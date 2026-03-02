@@ -280,7 +280,13 @@ class Boissinot2008:
         nx.relabel_nodes(self.ifgColoring,map,False)
 
     def doColoring(self):
-        order = sorted(self.ifgColoring.edges,key = lambda x : f"{tuple(sorted(x[0],key = lambda a : f"{a.name}{a.ssa_label}"))}{tuple(sorted(x[1],key = lambda a : f"{a.name}{a.ssa_label}"))}")
+        order = sorted(
+            self.ifgColoring.edges,
+            key=lambda x: (
+                f"{tuple(sorted(x[0], key=lambda a: f'{a.name}{a.ssa_label}'))}"
+                f"{tuple(sorted(x[1], key=lambda a: f'{a.name}{a.ssa_label}'))}"
+            )
+        )
         if len(self.globs) > 0:
             gvars = []
             globdict = DefaultDict(list)
