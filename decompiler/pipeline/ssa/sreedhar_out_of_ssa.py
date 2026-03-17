@@ -91,7 +91,10 @@ class SreedharOutOfSsa:
         t = x.name + (str(x.ssa_label) if x.ssa_label else "")
         c = self._new_name_map.get(t, 0) + 1
         self._new_name_map[t] = c
-        return t + "\'" * c
+        if c == 0:
+            return t + ""
+        else:
+            return t + "#" + f"{c}"
 
     def _insert_before_branch(self, instrs, instr):
         for i in range(len(instrs)-1, -1, -1):
