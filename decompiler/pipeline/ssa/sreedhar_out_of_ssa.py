@@ -254,14 +254,15 @@ class SreedharOutOfSsa:
             for instr in bb.instructions:
                 if type(instr) == Phi:
                     instr : Phi
-                    constList = []
+                    constSet = set()
                     for par in instr.value:
                         if type(par) == Constant:
-                            constList.append(par)
-                    for i in range(0,len(constList)):
-                        for j in self._get_orig_block(instr,constList[i]):
+                            constSet |= {par}
+
+                    for con in constSet:
+                        for j in self._get_orig_block(instr,con):
                             var = Variable(self.placeholder, instr.destination.type, ssa_label=int((time()%1000)*1000000))
-                            self._insert_before_branch(j.instructions,Assignment(var,constList[i]))
+                            self._insert_before_branch(j.instructions,Assignment(var,con))
                             self._phi_congruence_class[var] = set([var])
                             self._merge_phi_congruence_classes(var,instr.destination)
                             self._interference_graph.add_node(var)
