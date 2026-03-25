@@ -343,8 +343,6 @@ class Boissinot2008:
             self.renaming_map: Dict[Variable, Variable] = dict()
             if calcRNM:
                 self._generate_renaming_map()
-                print(self.renaming_map)
-                print(task.name)
 
         def _generate_renaming_map(self):
             
