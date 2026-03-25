@@ -382,7 +382,7 @@ class ConditionalVariableRenamer(VariableRenamer):
         strong: float,
         mid: float,
         weak: float,
-        strat: int = 1,
+        strat: int = 3,
     ):
         """
         self._color_classes is a dictionary where the set of keys is the set of colors
@@ -441,7 +441,17 @@ class ConditionalVariableRenamer(VariableRenamer):
         """Extracts variables, which can have the same name out of the dependency graph"""
         res = []
         for comp in connected_components(dependency_graph):
-            res.append(list(chain(*comp)))
+            conComp = list(chain(*comp))
+            types = set([x.type for x in conComp])
+            if len(types) <= 1:
+                res.append(list(chain(*comp)))
+            else:
+                if self.strat == 3:
+                    raise Exception("Encountered variables of different types in one variable class!")
+                for x in types:
+                    typeX = [y for y in conComp if y.type == x]
+                    res.append(typeX)
+
         return res
 
     def checkResult(self, dependency_graph: MultiGraph):
@@ -482,6 +492,14 @@ class ConditionalVariableRenamer(VariableRenamer):
             for var1, var2 in combinations(zhk, 2):
                 if self.interference_graph.are_interfering(*var1, *var2):
                     interferingPairs.append((var1, var2))
+        
+        for x in combinations(dependency_graph.nodes,2):
+            if x[0][0].type != x[1][0].type:
+                interferingPairs.append((x[0],x[1]))
+
+            if(x[0][0].type == None) or (x[1][0].type == None):
+                raise Exception("Encountered a None type variable in the SSA-Stage!")
+
         return interferingPairs
 
     def create_variable_classes(self, dependency_graph: MultiGraph):
@@ -535,9 +553,7 @@ class ConditionalVariableRenamer(VariableRenamer):
 
                 return dependency_graph
 
-            case (
-                2
-            ):  # use LP-Solver to calculate Quasi-optimal solution for MultiCut; because we want to keep the runtime in bounds the solution is only quasi-optimal with a few pairs of interfering variables being not seperated optimally
+            case 2:  # use LP-Solver to calculate Quasi-optimal solution for MultiCut; because we want to keep the runtime in bounds the solution is only quasi-optimal with a few pairs of interfering variables being not seperated optimally
                 dependency_graph.remove_edges_from(
                     list(selfloop_edges(dependency_graph))
                 )  # remove loops, as they cause problems but don't add any value in our situation
@@ -623,13 +639,13 @@ class ConditionalVariableRenamer(VariableRenamer):
                         currentPaths = []
                         for _ in range(min(10, len(interferingPairs))):
                             ifP = interferingPairs.pop(colisionIndex)
-                            currentPaths.extend(list(nx.all_simple_edge_paths(dependency_graph.subgraph(zhk), ifP[0], ifP[1], 0.075 * dia)))
+                            currentPaths.extend(list(nx.all_simple_edge_paths(dependency_graph.subgraph(zhk), ifP[0], ifP[1], 0.08 * dia)))
                             if len(interferingPairs) > 0:
                                 colisionIndex = secrets.randbelow(len(interferingPairs))
 
                         while (len(currentPaths) == 0) and (len(interferingPairs) != 0):
                             ifP = interferingPairs.pop(secrets.randbelow(len(interferingPairs)))
-                            currentPaths.extend(list(nx.all_simple_edge_paths(dependency_graph.subgraph(zhk), ifP[0], ifP[1], 0.075 * dia)))
+                            currentPaths.extend(list(nx.all_simple_edge_paths(dependency_graph.subgraph(zhk), ifP[0], ifP[1], 0.08 * dia)))
 
                         if len(currentPaths) == 0:
                             newRoundNeeded = False
@@ -664,14 +680,15 @@ class ConditionalVariableRenamer(VariableRenamer):
 
                             else:
                                 raise Exception("Something went wrong while solving the LP")
-
+                failCount = 0
                 for pair in self.getInterferingPairs(dependency_graph):
                     if has_path(dependency_graph, pair[0], pair[1]):
                         self.correctedInterferencePairs += 1
                         _, (part1, part2) = minimum_cut(dependency_graph, pair[0], pair[1], capacity="score")
-
+                        failCount += 1
                         edges = [(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2]
                         dependency_graph.remove_edges_from(edges)
+                #print("FailCount:",failCount)
                 return dependency_graph
 
             case _:
@@ -681,9 +698,9 @@ class ConditionalVariableRenamer(VariableRenamer):
         if (len(list(dependencyGraph.edges())) == 0) or (len(list(dependencyGraph.nodes())) == 0):
             return 0
         else:
-            nodes = list(dependencyGraph.nodes())
+            nodes = sorted(list(dependencyGraph.nodes()),key=lambda y: y[0].name)
             maximum = 0
-            for _ in range(5):
+            for _ in range(8):
                 sssp = shortest_path_length(dependencyGraph, nodes[secrets.randbelow(len(nodes))])
                 maximum = max([max(sssp.values()), maximum])
             return maximum

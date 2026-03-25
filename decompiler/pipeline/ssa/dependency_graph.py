@@ -92,7 +92,8 @@ def _get_base_operands(expression: list[Expression]) -> list:
         exp = remains.pop()
 
         if isinstance(exp, GlobalVariable):
-            parts.append(exp)
+            pass #We do not want dependencys form or to global variables, but we need them as a node otherwise the are merged into a class of non interfering variables
+            #parts.append(exp)
         elif isinstance(exp, Variable):
             parts.append(exp)
         elif (isinstance(exp, Constant)) and (not isinstance(exp, (Symbol, NotUseableConstant, GlobalVariable))):
