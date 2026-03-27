@@ -3,18 +3,15 @@ from typing import DefaultDict, Iterator, List, Optional, Dict
 from copy import deepcopy
 import networkx as nx
 import traceback
-import itertools
 
 from decompiler.pipeline.ssa.value_interferencegraph import ValueInterferenceGraph
 from decompiler.pipeline.ssa.parallel_spaces import ParallelSpaces 
 from decompiler.structures.graphs.branches import UnconditionalEdge
-from decompiler.structures.pseudo.instructions import Assignment, Phi, Relation,Return
+from decompiler.structures.pseudo.instructions import Assignment, Phi, Relation
 from decompiler.task import DecompilerTask
 from decompiler.structures.pseudo.expressions import Constant, Expression, Variable, GlobalVariable
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.pipeline.ssa.variable_renaming import VariableRenamer
-from decompiler.util.decoration import DecoratedCFG,DecoratedGraph
-from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
 
 class Boissinot2008:
     def __init__(self, task: DecompilerTask, phi_functions: DefaultDict[BasicBlock, List[Phi]]):
@@ -33,7 +30,8 @@ class Boissinot2008:
             if not c_var_count or c_var_count < var.ssa_label:
                 self._label_count[var.name] = var.ssa_label
 
-    def _compute_copy_var(self, var: Variable|GlobalVariable) -> Variable:
+
+    def _compute_copy_var(self, var: Variable) -> Variable:
         self._label_count[var.name] += 1
         if not isinstance(var,GlobalVariable):
             copy_var = Variable(
@@ -46,7 +44,6 @@ class Boissinot2008:
             ) 
             return copy_var
         elif isinstance(var,GlobalVariable): #Global variables stay globals, so they don't get mixed up with normal variables
-            var : GlobalVariable
             self._label_count[var.name] += 1
             copy_var = GlobalVariable(
                 var.name,
@@ -60,32 +57,31 @@ class Boissinot2008:
             )
             return copy_var
 
-    def _compute_lifted_constant_var(self, const : Constant) -> Variable:
+    def _compute_lifted_constant_var(self, dest: Variable) -> Variable:
+        lifted_costant_var: Variable
         self._label_count[self.lifted_costant_var_name] += 1
-        lifted_costant_var = Variable(
-            self.lifted_costant_var_name,
-            const.type,
-            ssa_label=self._label_count[self.lifted_costant_var_name],
-            is_aliased=False,
-            ssa_name = None,
-            tags = None 
-        ) 
-        return lifted_costant_var 
-    
-    def _compute_lifted_global_constant_var(self, const : Constant, glob :GlobalVariable) -> Variable:
-        self._label_count[self.lifted_costant_var_name] += 1
-        lifted_costant_var = GlobalVariable(
-            self.lifted_costant_var_name,
-            const.type,
-            ssa_label=self._label_count[self.lifted_costant_var_name],
-            is_aliased=False,
-            ssa_name = None,
-            tags = None,
-            initial_value=glob.initial_value,
-            is_constant=glob.is_constant
-        ) 
-        return lifted_costant_var 
+        if not isinstance(dest, GlobalVariable):
+            lifted_costant_var = Variable(
+                self.lifted_costant_var_name,
+                dest.type,
+                ssa_label=self._label_count[self.lifted_costant_var_name],
+                is_aliased=False,
+                ssa_name = None,
+                tags = None 
+            ) 
+        else:
+            lifted_costant_var = GlobalVariable(
+                self.lifted_costant_var_name,
+                dest.type,
+                ssa_label=self._label_count[self.lifted_costant_var_name],
+                is_aliased=False,
+                ssa_name = None,
+                tags = None,
+                initial_value=dest.initial_value,
+                is_constant=dest.is_constant
+            ) 
 
+        return lifted_costant_var 
 
     def _get_predecessors(self, basic_block: BasicBlock) -> Iterator[Optional[BasicBlock]]:
         yield from list(self._cfg.get_predecessors(basic_block))
@@ -158,16 +154,14 @@ class Boissinot2008:
                         self._cfg.root = block 
 
                 for phi_inst in self._phi_functions_of[basic_block]:
+                    dest = phi_inst.definitions[0]
                     req = phi_inst.origin_block[predecessor]
 
                     copy_var: Variable
                     if isinstance(req, Variable): 
                         copy_var = self._compute_copy_var(req)
                     elif isinstance(req, Constant):
-                        if not isinstance(phi_inst.destination,GlobalVariable):
-                            copy_var = self._compute_lifted_constant_var(req)
-                        else:
-                            copy_var = self._compute_lifted_global_constant_var(req,phi_inst.destination)
+                        copy_var = self._compute_lifted_constant_var(dest)
 
                     else:
                         raise RuntimeError("Unexpected Phi requirement!")
