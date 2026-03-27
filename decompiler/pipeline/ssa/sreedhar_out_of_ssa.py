@@ -94,7 +94,7 @@ class SreedharOutOfSsa:
         if c == 0:
             return t + ""
         else:
-            return t + "#" + f"{c}"
+            return t + "__" + f"{c}"
 
     def _insert_before_branch(self, instrs, instr):
         for i in range(len(instrs)-1, -1, -1):
