@@ -747,4 +747,4 @@ class ConditionalVariableRenamer(VariableRenamer):
                 assignedNames.append(new_name)
 
                 for var in varclass:
-                    self.renaming_map[var] = Variable(new_name, var.type, None, var.is_aliased, var, var.tags)
+                    self.renaming_map[var] = Variable(new_name, var.type, None, False, var, var.tags)
