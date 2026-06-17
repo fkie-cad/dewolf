@@ -496,9 +496,11 @@ class ConditionalVariableRenamer(VariableRenamer):
         for x in combinations(dependency_graph.nodes,2):
             if x[0][0].type != x[1][0].type:
                 interferingPairs.append((x[0],x[1]))
-            elif x[0][0].is_aliased != x[1][0].is_aliased:
+            elif (x[0][0].is_aliased != x[1][0].is_aliased) or (x[0][0].is_aliased and x[1][0].is_aliased and (x[0][0].name != x[1][0].name)):
                 interferingPairs.append((x[0],x[1]))
-            elif isinstance(x[0][0], GlobalVariable) or isinstance(x[1][0], GlobalVariable):
+            elif isinstance(x[0][0], GlobalVariable) != isinstance(x[1][0], GlobalVariable):
+                interferingPairs.append((x[0],x[1]))
+            elif (isinstance(x[0][0],GlobalVariable) and isinstance(x[1][0],GlobalVariable) and (x[0][0].name != x[1][0].name)):
                 interferingPairs.append((x[0],x[1]))
 
             if(x[0][0].type == None) or (x[1][0].type == None):
