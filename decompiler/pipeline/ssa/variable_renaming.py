@@ -1,7 +1,7 @@
 """Module for renaming variables in Out of SSA."""
 
 import logging
-import secrets
+import random
 from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -641,17 +641,18 @@ class ConditionalVariableRenamer(VariableRenamer):
                     colisionIndex = 0
                     newRoundNeeded = True
                     dia = self.getDiameterApproximation(dependency_graph.subgraph(zhk))
+                    random.seed(hash(tuple(sorted(weights))))
                     while newRoundNeeded:
                         currentPaths = []
                         for _ in range(min(10, len(interferingPairs))):
                             ifP = interferingPairs.pop(colisionIndex)
-                            currentPaths.extend(list(nx.all_simple_edge_paths(dependency_graph.subgraph(zhk), ifP[0], ifP[1], 0.08 * dia)))
+                            currentPaths.extend(list(nx.all_simple_edge_paths(dependency_graph.subgraph(zhk), ifP[0], ifP[1],0.1 * dia+4)))
                             if len(interferingPairs) > 0:
-                                colisionIndex = secrets.randbelow(len(interferingPairs))
+                                colisionIndex = random.randint(0, len(interferingPairs) - 1)
 
                         while (len(currentPaths) == 0) and (len(interferingPairs) != 0):
-                            ifP = interferingPairs.pop(secrets.randbelow(len(interferingPairs)))
-                            currentPaths.extend(list(nx.all_simple_edge_paths(dependency_graph.subgraph(zhk), ifP[0], ifP[1], 0.08 * dia)))
+                            ifP = interferingPairs.pop(random.randint(0, len(interferingPairs) - 1))
+                            currentPaths.extend(list(nx.all_simple_edge_paths(dependency_graph.subgraph(zhk), ifP[0], ifP[1], 0.1 * dia+4)))
 
                         if len(currentPaths) == 0:
                             newRoundNeeded = False
@@ -704,10 +705,11 @@ class ConditionalVariableRenamer(VariableRenamer):
         if (len(list(dependencyGraph.edges())) == 0) or (len(list(dependencyGraph.nodes())) == 0):
             return 0
         else:
-            nodes = sorted(list(dependencyGraph.nodes()),key=lambda y: y[0].name)
+            nodes = sorted(list(dependencyGraph.nodes()),key=lambda y: f"{y[0].name}{y[0].ssa_label}")
+            random.seed(hash(tuple(nodes)))
             maximum = 0
             for _ in range(8):
-                sssp = shortest_path_length(dependencyGraph, nodes[secrets.randbelow(len(nodes))])
+                sssp = shortest_path_length(dependencyGraph, nodes[random.randint(0, len(nodes) - 1)])
                 maximum = max([max(sssp.values()), maximum])
             return maximum
 
