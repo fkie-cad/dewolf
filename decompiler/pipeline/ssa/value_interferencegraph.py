@@ -23,6 +23,18 @@ class ValueInterferenceGraph(InterferenceGraph):
         self._build_variable_classes(cfg)
         super().__init__(cfg)
 
+        neededEdges = []
+        for var1, var2 in combinations(self._collect_variables(cfg), 2):
+            var1Glob = isinstance(var1, GlobalVariable)
+            var2Glob = isinstance(var2, GlobalVariable)
+            if (var1Glob and var2Glob and (var1.name != var2.name)) or \
+            (var1Glob != var2Glob) or \
+            (var1.type != var2.type) or \
+            (var1.is_aliased != var2.is_aliased) or \
+            (var1.is_aliased and var2.is_aliased and (var1.name != var2.name)):
+                neededEdges.append((var1, var2))
+        self.add_edges_from(neededEdges)
+
     def _is_copy_assignment(self, instr: Instruction) -> bool:
         if isinstance(instr, Assignment):
             if isinstance(instr.value, Variable) and isinstance(instr.destination, Variable): 
@@ -35,6 +47,19 @@ class ValueInterferenceGraph(InterferenceGraph):
                 if isinstance(subexpression, Variable):
                     yield subexpression
 
+    def doVarCheckClassToghetherPossible(self, var1: Variable, var2: Variable) -> bool:
+            if isinstance(var1, GlobalVariable) and isinstance(var2, GlobalVariable) and (var1.name != var2.name):
+                return False
+            elif isinstance(var1, GlobalVariable) != isinstance(var2, GlobalVariable):
+                return False
+            elif var1.type != var2.type:
+                return False
+            elif var1.is_aliased != var2.is_aliased:
+                return False
+            elif var1.is_aliased and var2.is_aliased and (var1.name != var2.name):
+                return False
+            return True
+
     def _build_variable_classes(self, cfg:ControlFlowGraph) -> None:
         for var in self._collect_variables(cfg):
             self._value_classes[var] = var
@@ -42,7 +67,7 @@ class ValueInterferenceGraph(InterferenceGraph):
         basic_block: BasicBlock
         for basic_block in topological_sort(cfg.dominator_tree._graph): #type: ignore
             for instr in basic_block:
-                if self._is_copy_assignment(instr):
+                if self._is_copy_assignment(instr) and self.doVarCheckClassToghetherPossible(instr.value, instr.destination):
                     #if (not isinstance(instr.value,GlobalVariable) and (not isinstance(instr.destination,GlobalVariable))):
                     self._value_classes[instr.destination] = self._value_classes[instr.value] #type:ignore
                     #elif isinstance(instr.value,GlobalVariable) and isinstance(instr.destination,GlobalVariable) and (instr.destination.name == instr.value.name):

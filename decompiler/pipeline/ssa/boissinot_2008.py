@@ -3,15 +3,18 @@ from typing import DefaultDict, Iterator, List, Optional, Dict
 from copy import deepcopy
 import networkx as nx
 import traceback
+import itertools
 
 from decompiler.pipeline.ssa.value_interferencegraph import ValueInterferenceGraph
 from decompiler.pipeline.ssa.parallel_spaces import ParallelSpaces 
 from decompiler.structures.graphs.branches import UnconditionalEdge
-from decompiler.structures.pseudo.instructions import Assignment, Phi, Relation
+from decompiler.structures.pseudo.instructions import Assignment, Phi, Relation,Return
 from decompiler.task import DecompilerTask
 from decompiler.structures.pseudo.expressions import Constant, Expression, Variable, GlobalVariable
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.pipeline.ssa.variable_renaming import VariableRenamer
+from decompiler.util.decoration import DecoratedCFG,DecoratedGraph
+from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
 
 class Boissinot2008:
     def __init__(self, task: DecompilerTask, phi_functions: DefaultDict[BasicBlock, List[Phi]]):
@@ -30,8 +33,34 @@ class Boissinot2008:
             if not c_var_count or c_var_count < var.ssa_label:
                 self._label_count[var.name] = var.ssa_label
 
+    def _compute_copy_var(self, var: Variable|GlobalVariable, LeftDest: Variable|GlobalVariable) -> Variable:
+        self._label_count[LeftDest.name] += 1
+        if (not isinstance(LeftDest,GlobalVariable)) and isinstance(var,Variable):
+            copy_var = Variable(
+                LeftDest.name,  
+                LeftDest.type,
+                ssa_label=self._label_count[LeftDest.name],
+                is_aliased=LeftDest.is_aliased,
+                ssa_name = None,
+                tags = LeftDest.tags
+            ) 
+            return copy_var
+        elif isinstance(LeftDest,GlobalVariable) and isinstance(var,Variable): #Global variables stay globals, so they don't get mixed up with normal variables
+            LeftDest : GlobalVariable
+            #self._label_count[LeftDest.name] += 1
+            copy_var = GlobalVariable(
+                LeftDest.name,
+                LeftDest.type,
+                LeftDest.initial_value,
+                self._label_count[LeftDest.name],
+                LeftDest.is_aliased,
+                None,
+                LeftDest.is_constant,
+                LeftDest.tags
+            )
+            return copy_var
 
-    def _compute_copy_var(self, var: Variable) -> Variable:
+    def _compute_copy_var_Left(self, var: Variable|GlobalVariable) -> Variable:
         self._label_count[var.name] += 1
         if not isinstance(var,GlobalVariable):
             copy_var = Variable(
@@ -44,6 +73,7 @@ class Boissinot2008:
             ) 
             return copy_var
         elif isinstance(var,GlobalVariable): #Global variables stay globals, so they don't get mixed up with normal variables
+            var : GlobalVariable
             self._label_count[var.name] += 1
             copy_var = GlobalVariable(
                 var.name,
@@ -57,31 +87,32 @@ class Boissinot2008:
             )
             return copy_var
 
-    def _compute_lifted_constant_var(self, dest: Variable) -> Variable:
-        lifted_costant_var: Variable
-        self._label_count[self.lifted_costant_var_name] += 1
-        if not isinstance(dest, GlobalVariable):
-            lifted_costant_var = Variable(
-                self.lifted_costant_var_name,
-                dest.type,
-                ssa_label=self._label_count[self.lifted_costant_var_name],
-                is_aliased=False,
-                ssa_name = None,
-                tags = None 
-            ) 
-        else:
+    def _compute_lifted_constant_var(self, const : Constant,dest : Variable) -> Variable | GlobalVariable:
+        if isinstance(dest,GlobalVariable):
+            self._label_count[dest.name] += 1
             lifted_costant_var = GlobalVariable(
-                self.lifted_costant_var_name,
+                dest.name,
                 dest.type,
-                ssa_label=self._label_count[self.lifted_costant_var_name],
-                is_aliased=False,
+                ssa_label=self._label_count[dest.name],
+                is_aliased=dest.is_aliased,
                 ssa_name = None,
-                tags = None,
+                tags = dest.tags,
                 initial_value=dest.initial_value,
                 is_constant=dest.is_constant
             ) 
-
-        return lifted_costant_var 
+            return lifted_costant_var 
+            
+        else:
+            self._label_count[dest.name] += 1
+            lifted_costant_var = Variable(
+                dest.name,
+                dest.type,
+                ssa_label=self._label_count[dest.name],
+                is_aliased=dest.is_aliased,
+                ssa_name = None,
+                tags = dest.tags 
+            ) 
+            return lifted_costant_var         
 
     def _get_predecessors(self, basic_block: BasicBlock) -> Iterator[Optional[BasicBlock]]:
         yield from list(self._cfg.get_predecessors(basic_block))
@@ -154,15 +185,15 @@ class Boissinot2008:
                         self._cfg.root = block 
 
                 for phi_inst in self._phi_functions_of[basic_block]:
-                    dest = phi_inst.definitions[0]
                     req = phi_inst.origin_block[predecessor]
 
                     copy_var: Variable
-                    if isinstance(req, Variable): 
-                        copy_var = self._compute_copy_var(req)
-                    elif isinstance(req, Constant):
-                        copy_var = self._compute_lifted_constant_var(dest)
+                    leftDest = phi_inst.destination
 
+                    if isinstance(req, Variable): 
+                        copy_var = self._compute_copy_var(req,leftDest)
+                    elif isinstance(req, Constant):
+                        copy_var = self._compute_lifted_constant_var(req,leftDest)
                     else:
                         raise RuntimeError("Unexpected Phi requirement!")
 
@@ -174,7 +205,7 @@ class Boissinot2008:
 
             for phi_inst in self._phi_functions_of[basic_block]:
                 dest = phi_inst.definitions[0]
-                copy_var = self._compute_copy_var(dest)
+                copy_var = self._compute_copy_var_Left(dest)
                 self._substitute_phi_def(phi_inst, copy_var)
 
                 copy_assign = Assignment(dest, copy_var)
@@ -186,8 +217,9 @@ class Boissinot2008:
         self._parallel_spaces.instert_into_cfg(self._cfg_copy)
         self._interference_graph = ValueInterferenceGraph(self._cfg_copy)
 
+
     def step3(self):
-        self._build_interference_graph()    
+        self._build_interference_graph() #Step 2
         self.ifgColoring = deepcopy(self._interference_graph)
         self.handle_Relations()
 
@@ -195,10 +227,8 @@ class Boissinot2008:
         self.getGlobals()
         
         self.doColoring()
-        for x in self.gvars:
-            assert not self._interference_graph.are_interfering(*x) and (self.areinstances(x,Variable))
-        for x in self.nvars:
-            assert not self._interference_graph.are_interfering(*x) and (self.areinstances(x,Variable))
+        assert all(not self._interference_graph.are_interfering(*x) for x in self.gvars)
+        assert all(not self._interference_graph.are_interfering(*x) for x in self.nvars)
 
         ttask = deepcopy(self._task)
         ttask.cfg = self._cfg_copy
@@ -248,19 +278,18 @@ class Boissinot2008:
                         map[var] = frozenset(varList)
 
                 elif isinstance(instr,Phi):
-                    all = []
+                    alle = []
                     for var in [*instr.requirements,*instr.definitions]:
                         if var in map.keys():
-                            all.extend(list(map[var]))
+                            alle.extend(list(map[var]))
                         else:
-                            all.extend(list([var]))
+                            alle.extend(list([var]))
 
-                    for var in all:
-                        map[var] = frozenset(all)
+                    for var in alle:
+                        map[var] = frozenset(alle)
+                    
                 elif isinstance(instr,Relation):
                     raise Exception("Found a suspicious relation, where at least one of the operands is not a variable")
-                
-        assert (not self.ifgColoring.are_interfering(*x) for x in map.values())
         nx.relabel_nodes(self.ifgColoring,map,False)
 
 
@@ -274,13 +303,6 @@ class Boissinot2008:
         nx.relabel_nodes(self.ifgColoring,map,False)
 
     def doColoring(self):
-        order = sorted(
-            self.ifgColoring.edges,
-            key=lambda x: (
-                f"{tuple(sorted(x[0], key=lambda a: f'{a.name}{a.ssa_label}'))}"
-                f"{tuple(sorted(x[1], key=lambda a: f'{a.name}{a.ssa_label}'))}"
-            )
-        )
         if len(self.globs) > 0:
             gvars = []
             globdict = DefaultDict(list)
@@ -304,23 +326,32 @@ class Boissinot2008:
         if len(self.norms) > 0:
             gs = nx.Graph()
             gs.add_nodes_from(self.norms)
-            for edge in order:
-                if (edge[0] in self.norms) and (edge[1] in self.norms):
-                    gs.add_edges_from([edge])
-            colors = nx.greedy_color(gs,"largest_first",True)
+            colors = nx.greedy_color(self.ifgColoring,"largest_first",True)
             colors : Dict
             num = max(colors.values()) + 1
             nvars = [[] for _ in range(0,num)]
-            for var, col in colors.items():
-                if isinstance(var,frozenset):
-                    nvars[col].extend(var)
-                else:
-                    raise Exception(f"{var} is a {str(type(var))} instead of a frozenset!")
+            for varSet in colors.keys():
+                if isinstance(varSet,frozenset):
+                    for var in varSet:
+                        if not isinstance(var,GlobalVariable):
+                            nvars[int(colors[varSet])].append(var)
                 
             self.nvars = nvars
         else:
             self.nvars = []
 
+    def doVarCheckClassToghetherPossible(self, var1: Variable, var2: Variable) -> bool:
+        if isinstance(var1, GlobalVariable) and isinstance(var2, GlobalVariable) and (var1.name != var2.name):
+            return False
+        elif isinstance(var1, GlobalVariable) != isinstance(var2, GlobalVariable):
+            return False
+        elif var1.type != var2.type:
+            return False
+        elif var1.is_aliased != var2.is_aliased:
+            return False
+        elif var1.is_aliased and var2.is_aliased and (var1.name != var2.name):
+            return False
+        return True
         
 
     class BoissinotVariableRenamer(VariableRenamer):
@@ -372,22 +403,25 @@ class Boissinot2008:
                             count += 1
                         assignedNames.append(new_name)
                         for vv in varClass:
-                            self.renaming_map[vv] = Variable(new_name,vv.type,None,False,vv,vv.tags)
+                            vv: Variable
+                            self.renaming_map[vv] = Variable(new_name,vv.type,None,vv.is_aliased,vv,vv.tags)
                     else: #only ordinary variables
-                        new_name = varClass[0].name
-                        i = 1
-                        while (new_name.find("__lifted_constant__") != -1) & (i < len(varClass)):
-                            new_name = varClass[i].name
-                            i += 1
-                        else:
-                            if new_name.find("__lifted_constant__") != -1:
-                                new_name = "var" 
-                        if new_name in assignedNames:
-                            new_name = f"{new_name}__{count}"
-                            count += 1
-                        assignedNames.append(new_name)
-                        for vv in varClass:
-                            self.renaming_map[vv] = Variable(new_name,vv.type,None,False,vv,vv.tags)
+                        if len(varClass) >= 1:
+                            new_name = varClass[0].name
+                            i = 1
+                            while (new_name.find("__lifted_constant__") != -1) & (i < len(varClass)):
+                                new_name = varClass[i].name
+                                i += 1
+                            else:
+                                if new_name.find("__lifted_constant__") != -1:
+                                    new_name = "var" 
+                            if new_name in assignedNames:
+                                new_name = f"{new_name}__{count}"
+                                count += 1
+                            assignedNames.append(new_name)
+                            for vv in varClass:
+                                vv: Variable
+                                self.renaming_map[vv] = Variable(new_name,vv.type,None,vv.is_aliased,vv,vv.tags)
 
 
                 elif len(areGlobs) == len(varClass): #only globals
@@ -398,7 +432,8 @@ class Boissinot2008:
                         count += 1
                     assignedNames.append(new_name)
                     for vv in varClass:
-                        self.renaming_map[vv] = GlobalVariable(new_name,vv.type,vv.initial_value,None,False,vv,vv.is_constant,vv.tags)
+                        vv: GlobalVariable
+                        self.renaming_map[vv] = GlobalVariable(new_name,vv.type,vv.initial_value,None,vv.is_aliased,vv,vv.is_constant,vv.tags)
                 else: #mixed PCK with globals and non-globals - Shouldn't occur!!
                     raise Exception("Found a class containing globals and ordinary variables")
                 
@@ -423,9 +458,6 @@ class Boissinot2008:
     def perform(self) -> None:
         try:
             self._to_cssa() #Step 1
-            self._build_interference_graph() #Step 2
-
-            self._build_interference_graph()
             self.step3() #Step 3
 
             self._remove_nop_instr(self._cfg)
