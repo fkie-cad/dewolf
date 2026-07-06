@@ -33,10 +33,9 @@ class ConditionalOutOfSSA:
         self.strategy = strategy
 
     def perform(self):
-        self._metric_helper = MetricHelper(self.task.cfg)
         PhiDependencyResolver(self._phi_functions_of).resolve()
         self.interference_graph = InterferenceGraph(self.task.cfg)
-        PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift()
+        PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift() #no more phi functions from this point on
         ConditionalVariableRenamer(
-            self.task, self.interference_graph, self._metric_helper, self.strongDep, self.midDep, self.weakDep, self.strategy
+            self.task, self.interference_graph, self.strongDep, self.midDep, self.weakDep, self.strategy
         ).rename()
