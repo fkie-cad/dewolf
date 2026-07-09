@@ -27,6 +27,7 @@ class ParallelSpaces:
         self._parallel_spaces_map[basic_block_addr].end_of_block_assigns.append(assign)
 
     def instert_into_cfg(self, cfg: ControlFlowGraph) -> None:
+        """Insert the assignments from the parallel space into the CFG"""
         for basic_block in cfg:
             phi_count = self._phi_bb_len_map[basic_block.address] 
             block_space = self._parallel_spaces_map[basic_block.address]
@@ -39,7 +40,8 @@ class ParallelSpaces:
             basic_block.instructions.extend(block_space.end_of_block_assigns)
 
 
-    def _remove_nop_copies_space(self, assignments: List[Assignment]) -> List[Assignment]: 
+    def _remove_nop_copies_space(self, assignments: List[Assignment]) -> List[Assignment]:
+        """Returns a subset of all assignments in assignments that are NOT of the form x = x. """
         ret = []
         for assign in assignments:
             if assign.destination != assign.value:
@@ -47,12 +49,14 @@ class ParallelSpaces:
         return ret
 
     def remove_nop_copies(self) -> None:
+        """Save all assignments which are NOT of the form x = x in the parallel space."""
         for space in self._parallel_spaces_map.values():
             space.after_phi_assigns = self._remove_nop_copies_space(space.after_phi_assigns)
             space.end_of_block_assigns = self._remove_nop_copies_space(space.end_of_block_assigns)
 
 
     def _sequentialize_space(self, assignments: List[Assignment]) -> List[Assignment]:
+        """Insert copys from the parallel space into a sequential order as described in the paper form Boissinot et al. 2008."""
         loc = dict()
         pred = dict()
         to_do = list() 

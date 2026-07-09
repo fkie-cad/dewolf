@@ -15,7 +15,7 @@ from networkx import topological_sort
 class ValueInterferenceGraph(InterferenceGraph):
     def __init__(self, cfg: ControlFlowGraph = None): #type: ignore
         """
-        Initialize the Interference Graph given a control flow graph.
+        Initialize the Interference Graph given a control flow graph. Inserts edges between all variables interfering by our 'newly' found definition of interference. (see function doVarCheckClassToghetherPossible)
 
         :param cfg: The control flow graph whose interference graph we want to construct.
         """
@@ -36,18 +36,27 @@ class ValueInterferenceGraph(InterferenceGraph):
         self.add_edges_from(neededEdges)
 
     def _is_copy_assignment(self, instr: Instruction) -> bool:
+        """Returns true if instr is an assignment between two VARIABLES"""
         if isinstance(instr, Assignment):
             if isinstance(instr.value, Variable) and isinstance(instr.destination, Variable): 
                 return True
         return False
 
     def _collect_variables(self, cfg: ControlFlowGraph) -> Iterator[Variable]:
+        """Yields all variables present in the given control flow graph."""
         for instruction in cfg.instructions:
             for subexpression in instruction.subexpressions():
                 if isinstance(subexpression, Variable):
                     yield subexpression
 
     def doVarCheckClassToghetherPossible(self, var1: Variable, var2: Variable) -> bool:
+            """Returns true, if var1 and var2 do not interfere based on our 'newly' found criteria:
+                Global Variable and normal variables do not get mixed.
+                Global variables in one class have to have the same name.
+                The type of all variables in one class has to be identical.
+                The variables either have to be all aliased or all non-aliased.
+                If both variables are aliased they have to have the same name.
+                """
             if isinstance(var1, GlobalVariable) and isinstance(var2, GlobalVariable) and (var1.name != var2.name):
                 return False
             elif isinstance(var1, GlobalVariable) != isinstance(var2, GlobalVariable):
@@ -61,6 +70,9 @@ class ValueInterferenceGraph(InterferenceGraph):
             return True
 
     def _build_variable_classes(self, cfg:ControlFlowGraph) -> None:
+        """We build a class for every variable. If there's a copy assignment then the variables have the same value at that point and therefore do not interfere,
+        despite possible live range interferance.
+        For two variables to not inferbere because of the aforementioned criterion doVarCheckClassTogetherPossible has to return true."""
         for var in self._collect_variables(cfg):
             self._value_classes[var] = var
 
@@ -68,6 +80,7 @@ class ValueInterferenceGraph(InterferenceGraph):
         for basic_block in topological_sort(cfg.dominator_tree._graph): #type: ignore
             for instr in basic_block:
                 if self._is_copy_assignment(instr) and self.doVarCheckClassToghetherPossible(instr.value, instr.destination):
+                    instr: Assignment
                     #if (not isinstance(instr.value,GlobalVariable) and (not isinstance(instr.destination,GlobalVariable))):
                     self._value_classes[instr.destination] = self._value_classes[instr.value] #type:ignore
                     #elif isinstance(instr.value,GlobalVariable) and isinstance(instr.destination,GlobalVariable) and (instr.destination.name == instr.value.name):
