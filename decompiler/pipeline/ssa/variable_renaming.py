@@ -12,7 +12,7 @@ from typing import DefaultDict, Dict, Iterable, Iterator, List, Optional, Set, T
 
 import networkx as nx
 import numpy as np
-from decompiler.pipeline.ssa.dependency_graph import _collect_variables, decorate_dependency_graph, dependency_graph_from_cfg
+from decompiler.pipeline.ssa.dependency_graph import _collect_variables, dependency_graph_from_cfg
 from decompiler.pipeline.ssa.metric_helper import MetricHelper
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
