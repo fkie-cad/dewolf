@@ -1,425 +1,462 @@
-import itertools
+from __future__ import annotations
 
-from typing import List, Dict
+import itertools
+from collections import defaultdict
+from dataclasses import dataclass, field
+from typing import Generator, Iterable, cast
+
 from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
-from decompiler.structures.graphs import cfg
+from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.graphs.branches import UnconditionalEdge
 from decompiler.structures.graphs.cfg import ControlFlowGraph
-from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.interferencegraph import InterferenceGraph
-from decompiler.structures.pseudo import expressions
-from decompiler.structures.pseudo.expressions import Variable, Constant, GlobalVariable
-from decompiler.structures.pseudo.instructions import GenericBranch, Phi, Assignment, Relation, Branch
-from decompiler.pipeline.ssa.variable_renaming import VariableRenamer
+from decompiler.structures.pseudo.expressions import Constant, Expression, GlobalVariable, Tag, Variable
+from decompiler.structures.pseudo.instructions import Assignment, GenericBranch, Instruction, Phi, Relation
 from decompiler.task import DecompilerTask
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
-from decompiler.util.decoration import DecoratedGraph, DecoratedCFG
-from time import time
-from copy import deepcopy
 
-class SreedharOutOfSsa:
-    placeholder = "ConstantPlaceHolder"
-    def __init__(self, task :DecompilerTask):
-        self.task = task
-        self.cfg =  task.cfg
-        self._phi_congruence_class = {}
-        self._live_in = {} 
-        self._live_out = {} 
-        self._new_name_map = {}
-        self._interference_graph = InterferenceGraph(self.cfg) 
+"""Sreedhar et. al. "Translating Out Of Static Single Assignment Form"""
 
-        liveness = LivenessAnalysis(self.cfg)
-        for bb in self.cfg:
-            self._live_in[bb] = liveness.live_in_of(bb)
-            self._live_out[bb] = liveness.live_out_of(bb)
+@dataclass(slots=True)
+class VarGroup:
+    """Aggregates variable properties to generate mapped Out-of-SSA names and structures."""
+    is_global: bool = False
+    is_aliased: bool = False
+    type: type | None = None
+    name: str | None = None
+    vars: list[Variable] = field(default_factory=list)
+    initial_value: Expression | None = None
+    tags: tuple[Tag, ...] | None = None 
+    is_constant: bool | None = None
 
-        #TODO is this correct or should it be all vars
+
+class NameHandler:
+    """Manages the generation of unique names and SSA labels for variables."""
+    def __init__(self):
+        self._name_map: dict[str, int] = defaultdict(int)
+        self._ssa_names: dict[str, int] = defaultdict(int)
+
+    def register_ssa_var(self, v: Variable) -> None:
+        if v.ssa_label and v.ssa_label > self._ssa_names[v.name]:
+            self._ssa_names[v.name] = v.ssa_label
+
+    def get_name(self, req_name: str) -> str:
+        c = self._name_map[req_name]
+        self._name_map[req_name] = c + 1
+        return req_name if c == 0 else f"{req_name}_{c}"
+
+    def get_ssa_label(self, name: str) -> int:
+        self._ssa_names[name] += 1
+        return self._ssa_names[name]
+
+
+class ConstantLifter:
+    """Pre-processing pass that lifts Constants out of Phi instructions into dedicated assignments."""
+    def __init__(self, task: DecompilerTask):
+        self._task = task
+        self._cfg: ControlFlowGraph = cast(ControlFlowGraph, self._task.cfg)
+        self._name_handler = NameHandler()
+
+        for instr in self._cfg.instructions:
+            for var in instr.definitions + instr.requirements:
+                self._name_handler.register_ssa_var(var)
+
+    def _insert_before_branch(self, instrs: list[Instruction], instr: Instruction) -> None:
+        """Inserts an instruction right before the terminating branch, if one exists."""
+        if instrs and isinstance(instrs[-1], GenericBranch):
+            instrs.insert(-1, instr)
+        else:
+            instrs.append(instr)
+
+    def perform(self) -> None:
+        for bb in self._cfg:
+            for phi in [i for i in bb.instructions if isinstance(i, Phi)]:
+                self._lift_constants_from_phi(phi)
+
+    def _lift_constants_from_phi(self, phi: Phi) -> None:
+        for pred_bb, con in list(phi.origin_block.items()):
+            if not isinstance(con, Constant):
+                continue
+            
+            n_var = Variable(
+                name="const",
+                vartype=phi.destination.type,
+                ssa_label=self._name_handler.get_ssa_label("const")
+            )
+            self._insert_before_branch(pred_bb.instructions, Assignment(n_var, con.copy()))
+            phi.substitute(con, n_var)
+
+
+class SreedharOutOfSSA:
+    """Implements Sreedhar's Out-of-SSA algorithm to translate SSA form back to normal form."""
+
+    class PhiCongruenceClass(InsertionOrderedSet[Variable]):
+        pass
+
+    class PhiCongruenceMap:
+        def __init__(self):
+            self._element_to_class: dict[Variable, SreedharOutOfSSA.PhiCongruenceClass] = {}
+
+        def get_elements(self) -> Iterable[Variable]:
+            return self._element_to_class.keys()
+
+        def get_class(self, element: Variable) -> SreedharOutOfSSA.PhiCongruenceClass:
+            return self._element_to_class[element]
+
+        def create_class(self, representative: Variable) -> None:
+            if representative not in self._element_to_class:
+                self._element_to_class[representative] = SreedharOutOfSSA.PhiCongruenceClass([representative])
+
+        def merge_classes(self, elements: Iterable[Variable]) -> SreedharOutOfSSA.PhiCongruenceClass | None:
+            elements_list = list(elements)
+            if not elements_list:
+                return None
+
+            master_class = self.get_class(elements_list[0])
+            class_generator = (self.get_class(e) for e in elements_list)
+            
+            for current_class, e in zip(class_generator, elements_list, strict=True):
+                if current_class is not master_class:
+                    for member in current_class:
+                        self._element_to_class[member] = master_class
+                    master_class.update(current_class)
+                
+                self._element_to_class[e] = master_class
+                master_class.add(e)
+
+            return master_class
+
+        def nullify_singletons(self) -> None:
+            for v in self._element_to_class.values():
+                if len(v) == 1:
+                    v.clear()
+
+        def generate_renaming_map(self, function_arg_names: set[str], name_handler: NameHandler) -> dict[Variable, Variable]:
+            groups: dict[int, VarGroup] = defaultdict(VarGroup)
+            
+            for k, v in self._element_to_class.items():
+                group = groups[id(v)]
+                group.vars.append(k)
+                group.is_aliased |= k.is_aliased
+
+                if isinstance(k, GlobalVariable):
+                    group.name, group.type = k.name, k.type
+                    group.initial_value, group.is_global = k.initial_value, True
+                    group.tags, group.is_constant = k.tags, k.is_constant
+                elif not group.name and k.name in function_arg_names:
+                    group.name = k.name
+
+            renaming_map: dict[Variable, Variable] = {}
+            for group in groups.values():
+                group.name = group.name or group.vars[0].name
+                group.type = group.type or group.vars[0].type
+                base_name = group.name if group.is_global else name_handler.get_name(group.name)
+                    
+                for v in group.vars:
+                    if group.is_global:
+                        new_var = GlobalVariable(
+                            name=base_name, vartype=group.type, initial_value=group.initial_value, 
+                            is_aliased=group.is_aliased, ssa_name=v, is_constant=group.is_constant, tags=group.tags 
+                        )
+                    else:
+                        new_var = Variable(
+                            name=base_name, vartype=group.type, is_aliased=group.is_aliased, ssa_name=v, tags=v.tags
+                        )
+                    renaming_map[v] = new_var
+
+            return renaming_map
+
+    class AssignmentHelper:
+        def __init__(self):
+            self.after_phis: InsertionOrderedSet[Assignment] = InsertionOrderedSet()
+            self.block_assigns: InsertionOrderedSet[Assignment] = InsertionOrderedSet()
+            self.before_branch: InsertionOrderedSet[Assignment] = InsertionOrderedSet()
+
+        def get_all_assigns(self) -> Generator[Assignment, None, None]:
+            yield from self.after_phis
+            yield from self.block_assigns
+            yield from self.before_branch
+
+    class OriginMap:
+        def __init__(self):
+            self.dest_bb: BasicBlock | None = None
+            self.req_map: dict[Variable | Constant, list[BasicBlock | None]] = defaultdict(list)
+
+        def substitute_req(self, old_req: Variable | Constant, req: Variable | Constant) -> None:
+            if old_req != req and old_req in self.req_map:
+                self.req_map[req] = self.req_map.pop(old_req)
+
+    def __init__(self, task: DecompilerTask):
+        self._task = task
+        self._cfg: ControlFlowGraph = cast(ControlFlowGraph, task.cfg)
+        self._phi_congruence_map = self.PhiCongruenceMap()
+        self._interference_graph = InterferenceGraph(self._cfg)
+        self._live_in: dict[BasicBlock | None, set[Variable]] = {}
+        self._live_out: dict[BasicBlock | None, set[Variable]] = {}
+        
+        self._phi_to_orig_map: dict[int, SreedharOutOfSSA.OriginMap] = {}
+        self._assignment_helpers: dict[BasicBlock, SreedharOutOfSSA.AssignmentHelper] = defaultdict(self.AssignmentHelper)
+        self._block_to_phi: dict[BasicBlock, list[Phi]] = defaultdict(list)
+        
+        self._name_handler = NameHandler()
+        self._function_arg_names = {var.name for var in self._task.function_parameters}
+
+        self._initialize_liveness()
+        self._initialize_instructions_and_maps()
+
+    def perform(self) -> None:
+        self._init_interference_graph()
+        self._merge_same_globals()
+        self._eliminate_phi_resource_interference()
+        self._copy_removal()
+        self._variable_rename()
+
+    def _initialize_liveness(self) -> None:
+        liveness = LivenessAnalysis(self._cfg)
         self._live_out[None] = liveness.live_out_of(None) 
+        for block in self._cfg:
+            self._live_in[block] = liveness.live_in_of(block)
+            self._live_out[block] = liveness.live_out_of(block)
 
-    def _get_orig_block(self, phi_instr: Phi, phi_arg):
-        blocks = []
-        for block, var in phi_instr.origin_block.items():
-            if var == phi_arg:
-                blocks.append(block)
+    def _initialize_instructions_and_maps(self) -> None:
+        for block in self._cfg:
+            for instr in block.instructions:
+                for v in instr.definitions + instr.requirements:
+                    self._name_handler.register_ssa_var(v)
+                    self._phi_congruence_map.create_class(v)
 
-        if len(blocks) != 0: 
-            return blocks
+                match instr:
+                    case Relation(destination=dest, value=val):
+                        self._phi_congruence_map.merge_classes([dest, val])
+                    case Phi() as phi:
+                        self._block_to_phi[block].append(phi)
+                        origin_map = self.OriginMap()
+                        origin_map.dest_bb = block
+                        for o_block, req in phi.origin_block.items():
+                            if req:
+                                origin_map.req_map[req].append(o_block)
+                        self._phi_to_orig_map[id(phi)] = origin_map
+                    case Assignment(destination=Variable(), value=Variable()):
+                        self._assignment_helpers[block].block_assigns.add(instr)
+
+    def _classes_interfere(self, a: PhiCongruenceClass, b: PhiCongruenceClass) -> bool:
+        if a is b:
+            return False
+        return any(self._interference_graph.are_interfering(y_i, y_j) for y_i, y_j in itertools.product(a, b))
+
+    def _init_interference_graph(self) -> None:
+        all_vars = list(self._interference_graph.nodes)
+        global_vars = [v for v in all_vars if isinstance(v, GlobalVariable)]
+        local_vars = [v for v in all_vars if not isinstance(v, GlobalVariable)]
         
-        for bb in self.cfg:
-            for instr in bb:
-                if instr is phi_instr:
-                    return [bb]
+        lhs_of_assignments = {
+            i.destination for i in self._cfg.instructions 
+            if isinstance(i, (Assignment, Phi, Relation)) and isinstance(i.destination, Variable)
+        }
 
-    def _init_phi_congruence_classes(self):
-        for instr in self.cfg.instructions:
-            if isinstance(instr, Phi):
-                self._phi_congruence_class[instr.destination] = set([instr.destination])
-                for x in instr.requirements:
-                    self._phi_congruence_class[x] = set([x])
+        # Find latest SSA version of function arguments
+        func_args: dict[str, Variable] = {}
+        for var in all_vars:
+            if var.name in self._function_arg_names:
+                if var.name not in func_args or var.ssa_label < func_args[var.name].ssa_label:
+                    func_args[var.name] = var
 
-    def _get_phi_congruence_class(self,a): #returns the Set
-        try:
-            if isinstance((self._phi_congruence_class[a]),set):
-                return self._phi_congruence_class[a]
-            else: return self._phi_congruence_class[self._phi_congruence_class[a]]
-        except KeyError:
-            return -1
-
-    def _phi_congruence_classes_interfere(self, i, j):
-        if isinstance(i, Variable) and isinstance(j, Variable):
-            i, j = self._get_phi_congruence_class(i), self._get_phi_congruence_class(j)
-        for y_i, y_j in itertools.product(i, j):
-            if self._interference_graph.are_interfering(y_i, y_j):
-                return True
-        return False
-
-    def _merge_phi_congruence_classes(self, *phi_resources):
-        merged_set = set()
-        for a in phi_resources:
-            x = self._get_phi_congruence_class(a)
-            if x == -1:
-                self._phi_congruence_class[a] = set([a])
-                x = self._get_phi_congruence_class(a)
-            merged_set.update(x)
-
-        rep = phi_resources[0]
-        for a in merged_set:
-            self._phi_congruence_class[a] = rep
-        self._phi_congruence_class[rep] = merged_set
+        edges = list(itertools.combinations(func_args.values(), 2))
+        edges.extend(itertools.product(func_args.values(), global_vars))
         
-    def _gen_new_name(self, x: Variable):
-        t = x.name + (str(x.ssa_label) if x.ssa_label else "")
-        c = self._new_name_map.get(t, 0) + 1
-        self._new_name_map[t] = c
-        if c == 0:
-            return t + ""
-        else:
-            return t + "__" + f"{c}"
+        non_lhs_globals = [gv for gv in global_vars if gv not in lhs_of_assignments]
+        edges.extend(itertools.product(non_lhs_globals, local_vars))
+        edges.extend((g1, g2) for g1, g2 in itertools.product(non_lhs_globals, global_vars) if g1 is not g2 and g1.name != g2.name)
 
-    def _insert_before_branch(self, instrs, instr):
-        for i in range(len(instrs)-1, -1, -1):
-            if isinstance(instrs[i], GenericBranch):
-                instrs.insert(i, instr)
-                return
-        instrs.append(instr)
+        aliased_vars = [v for v in all_vars if v.is_aliased]
+        non_aliased_vars = [v for v in all_vars if not v.is_aliased]
+        non_lhs_aliased = [a for a in aliased_vars if a not in lhs_of_assignments]
+        
+        edges.extend(itertools.product(non_lhs_aliased, non_aliased_vars))
+        edges.extend((a1, a2) for a1, a2 in itertools.product(non_lhs_aliased, aliased_vars) if a1 is not a2 and a1.name != a2.name)
 
-    def _insert_after_phis(self, instrs, new_inst):
-        # find first non-Phi
-        for idx, ins in enumerate(instrs):
-            if not isinstance(ins, Phi):
-                instrs.insert(idx, new_inst)
-                return
-        instrs.append(new_inst)
+        self._interference_graph.add_edges_from(edges)
 
-    def _used_in_phi(self, var, orig, j):
-        for instr in j.instructions:
-            if isinstance(instr, Phi):
-                if var is instr.destination or var in instr.requirements:
-                    if orig in self._get_orig_block(instr, var):
-                        return True
-        return False
+    def _merge_same_globals(self) -> None:
+        globals_by_name = defaultdict(list)
+        for var in self._phi_congruence_map.get_elements():
+            if isinstance(var, GlobalVariable):
+                globals_by_name[var.name].append(var)
+        
+        for vars_list in globals_by_name.values():
+            if len(vars_list) > 1:
+                self._phi_congruence_map.merge_classes(vars_list)
 
-    def _prune_dead_out(self, var, block):
-        is_live_out = False
-        for succ in self.cfg.get_successors(block):
-            if var in self._live_in[succ] or self._used_in_phi(var, block, succ):
-                is_live_out = True
-                break
+    def _is_live_in_context(self, var_class: PhiCongruenceClass, block: BasicBlock | None, is_dest: bool) -> bool:
+        """Returns True if the congruence class intersects with the block's relevant liveness set."""
+        liveness_set = self._live_in.get(block, set()) if is_dest else self._live_out.get(block, set())
+        return not var_class.isdisjoint(liveness_set)
 
-        if not is_live_out:
-            self._live_out[block].discard(var)
+    def _classify_pair(
+        self, x_i: Variable, x_j: Variable, l_i: BasicBlock | None, l_j: BasicBlock | None,
+        c_i: PhiCongruenceClass, c_j: PhiCongruenceClass, dest: Variable,
+        candidates: InsertionOrderedSet[Variable], unresolved: dict[Variable, set[Variable]]
+    ) -> None:
+        cond_1 = self._is_live_in_context(c_j, l_i, x_i is dest)
+        cond_2 = self._is_live_in_context(c_i, l_j, x_j is dest)
 
-    def _insert_copy(self, x, instr: Phi):
-        is_req = x in instr.requirements
-        x_new = expressions.Variable(self._gen_new_name(x), x.type, ssa_label=1)
-        copy_instr = Assignment(x_new, x) if is_req else Assignment(x, x_new)
-
-        if is_req:
-            for orig_block in self._get_orig_block(instr, x): 
-                if orig_block == None:
-                    # create new block
-                    orig_block = self.cfg.create_block([]) 
-                    block_of_instr = self._get_orig_block(instr, instr.definitions[0])[0]
-                    self.cfg.add_edge(UnconditionalEdge(orig_block, block_of_instr))
-
-                block_instrs = orig_block.instructions
-                self._insert_before_branch(block_instrs, copy_instr)
-                if self._live_out.get(orig_block):
-                    self._live_out[orig_block].add(x_new)
-                else :
-                    self._live_out[orig_block] = set(x_new)
-                self._prune_dead_out(x, orig_block)
-
-            instr.substitute(x, x_new)
-        else:
-            orig_block = self._get_orig_block(instr, x)[0]
-            block_instrs = orig_block.instructions
-            self._insert_after_phis(block_instrs, copy_instr)
-            instr.rename_destination(x, x_new)
-            self._live_in[orig_block].discard(x)
-            self._live_in[orig_block].add(x_new)
-
-        self._interference_graph = InterferenceGraph(self.cfg)
-        self._phi_congruence_class[x_new] = {x_new}
-    
-    def _classify_pair(self, instr, x_i, x_j, dest, candidates, unresolved):
-        l_i = self._get_orig_block(instr, x_i)[0]
-        l_j = self._get_orig_block(instr, x_j)[0]
-
-        if x_j is dest:
-            cond_1 = self._get_phi_congruence_class(x_i) & self._live_in[l_j]
-            cond_2 = self._get_phi_congruence_class(x_j) & self._live_out[l_i]
-        else:
-            cond_1 = self._get_phi_congruence_class(x_i) & self._live_out[l_j]
-            if x_i is dest:
-                cond_2 = self._get_phi_congruence_class(x_j) & self._live_in[l_i]
-            else:
-                cond_2 = self._get_phi_congruence_class(x_j) & self._live_out[l_i]
-
-        # case 1
-        if cond_1 and not cond_2:
+        if not cond_1 and cond_2:
             candidates.add(x_i)
-        # case 2
-        elif not cond_1 and cond_2:
+        elif cond_1 and not cond_2:
             candidates.add(x_j)
-        # case 3
         elif cond_1 and cond_2:
             candidates.update((x_i, x_j))
-        # case 4
         else:
             unresolved[x_i].add(x_j)
             unresolved[x_j].add(x_i)
 
-    def _resolve_unresolved_neighbors(self, candidates, unresolved):
-        resolved = set()
-        for x in sorted(unresolved.keys(), 
-                        key = lambda x: len(unresolved[x]),
-                        reverse = True):
-
-            # if has_unresolved_neighbor  
+    def _resolve_unresolved_neighbors(self, candidates: InsertionOrderedSet[Variable], unresolved: dict[Variable, set[Variable]]) -> None:
+        resolved: set[Variable] = set()
+        for x in sorted(unresolved.keys(), key=lambda k: len(unresolved[k]), reverse=True):
             if not unresolved[x].issubset(resolved):
                 candidates.add(x)
                 resolved.add(x)
 
-        # discard all candidates which are now resolved
         for x in list(resolved):
             if unresolved[x].issubset(resolved):
                 candidates.discard(x)
 
-    def _nullify_singleton_phi_classes(self):
-        self._phi_congruence_class = {
-            k: v for k, v in  self._phi_congruence_class.items()
-            if not (isinstance(v, set) and len(v) == 1)
-        }
+    def _create_copy_var(self, original: Variable) -> Variable:
+        return Variable(
+            name="phi_copy", vartype=original.type,
+            ssa_label=self._name_handler.get_ssa_label("phi_copy"), is_aliased=False
+        )
 
-    def _eliminate_phi_resource_interference(self):
-        self._init_phi_congruence_classes()
-        for instr in self.cfg.instructions:
-            if not isinstance(instr, Phi):
-                continue
+    def _insert_dest_copy(self, phi: Phi, x: Variable, x_new: Variable) -> None:
+        orig_block = self._phi_to_orig_map[id(phi)].dest_bb
+        if orig_block is None:
+            return
 
-            candidates = set()
-            dest = instr.destination
-            resources = [dest, *instr.requirements]
-            unresolved = {x: set() for x in resources}
+        phi.rename_destination(x, x_new)
+        self._assignment_helpers[orig_block].after_phis.add(Assignment(x, x_new))
 
-            for x_i, x_j, in itertools.combinations(resources, 2):
-                if self._phi_congruence_classes_interfere(x_i, x_j):
-                    self._classify_pair(instr, x_i, x_j, dest, candidates, unresolved)
+        self._live_in[orig_block].discard(x)
+        self._live_in[orig_block].add(x_new)
+        self._interference_graph.add_edges_from((x_new, v) for v in self._live_in[orig_block])
+
+    def _insert_req_copy(self, phi: Phi, x: Variable, x_new: Variable) -> None:
+        for orig_block in self._phi_to_orig_map[id(phi)].req_map.get(x, []):
+            if orig_block is None:
+                orig_block = self._cfg.create_block([])
+                self._live_in[orig_block], self._live_out[orig_block] = set(), set()
+                phi_block = self._phi_to_orig_map[id(phi)].dest_bb
+                self._cfg.add_edge(UnconditionalEdge(orig_block, phi_block)) 
+                if phi_block is self._cfg.root:
+                    self._cfg.root = orig_block
+
+            phi.substitute(x, x_new)
+            self._phi_to_orig_map[id(phi)].substitute_req(x, x_new)
+            self._assignment_helpers[orig_block].before_branch.add(Assignment(x_new, x))
+
+            self._live_out[orig_block].add(x_new)
+            
+            # Remove x from live_out if it's no longer needed in successors
+            if all(x not in self._live_in[succ] and 
+                   all(p.origin_block.get(orig_block) != x for p in self._block_to_phi[succ]) 
+                   for succ in self._cfg.get_successors(orig_block)):
+                self._live_out[orig_block].discard(x)
+
+            self._interference_graph.add_edges_from((x_new, v) for v in self._live_out[orig_block])
+
+    def _eliminate_phi_resource_interference(self) -> None:
+        @dataclass(slots=True)
+        class Resource:
+            var: Variable
+            block: BasicBlock | None
+
+        for phi in [i for i in self._cfg.instructions if isinstance(i, Phi)]:
+            dest = cast(Variable, phi.destination)
+            resources = [Resource(dest, self._phi_to_orig_map[id(phi)].dest_bb)]
+            
+            for req in phi.requirements:
+                resources.extend(Resource(req, b) for b in self._phi_to_orig_map[id(phi)].req_map.get(req, []))
+
+            candidates: InsertionOrderedSet[Variable] = InsertionOrderedSet()
+            unresolved = {req: set() for req in phi.requirements if isinstance(req, Variable)}
+            unresolved[dest] = set()
+
+            for r_i, r_j in itertools.combinations(resources, 2):
+                c_i, c_j = self._phi_congruence_map.get_class(r_i.var), self._phi_congruence_map.get_class(r_j.var)
+                if self._classes_interfere(c_i, c_j):
+                    self._classify_pair(r_i.var, r_j.var, r_i.block, r_j.block, c_i, c_j, dest, candidates, unresolved)
 
             self._resolve_unresolved_neighbors(candidates, unresolved)
+            
             for x in candidates:
-                self._insert_copy(x, instr) 
+                x_new = self._create_copy_var(x)
+                self._phi_congruence_map.create_class(x_new)
+                if x is dest:
+                    self._insert_dest_copy(phi, x, x_new)
+                else:
+                    self._insert_req_copy(phi, x, x_new)
 
-            # merge phi congruence classes
-            # Note phi_resources has changed due to _insert_copy
-            self._merge_phi_congruence_classes(instr.destination, *instr.requirements)
+            self._phi_congruence_map.merge_classes([dest] + [r for r in phi.requirements if isinstance(r, Variable)])
 
-        self._nullify_singleton_phi_classes()
+        self._phi_congruence_map.nullify_singletons()
 
+    def _can_remove_copy(self, lhs: Variable, rhs: Variable, lpc: PhiCongruenceClass, rpc: PhiCongruenceClass) -> bool:
+        if lpc is rpc or (not lpc and not rpc):
+            return True
 
-    def _handle_Relations(self):
-        for bb in self.cfg:
-            for instr in bb.instructions:
-                if isinstance(instr,Relation) and isinstance(instr.value,Variable) and isinstance(instr.destination,Variable):
-                    if (self._get_phi_congruence_class(instr.value) == -1):
-                        self._phi_congruence_class[instr.value] = set([instr.value])
-                    if (self._get_phi_congruence_class(instr.destination) == -1):
-                        self._phi_congruence_class[instr.destination] = set([instr.destination])
-                    self._merge_phi_congruence_classes(instr.value,instr.destination)
+        # Fast path single-empty class
+        if not lpc:
+            return not self._classes_interfere(SreedharOutOfSSA.PhiCongruenceClass(rpc - {rhs}), SreedharOutOfSSA.PhiCongruenceClass({lhs}))
+        if not rpc:
+            return not self._classes_interfere(SreedharOutOfSSA.PhiCongruenceClass(lpc - {lhs}), SreedharOutOfSSA.PhiCongruenceClass({rhs}))
 
+        c_rpc, c_lpc = SreedharOutOfSSA.PhiCongruenceClass(rpc - {rhs}), SreedharOutOfSSA.PhiCongruenceClass(lpc - {lhs})
+        return not self._classes_interfere(lpc, c_rpc) and not self._classes_interfere(rpc, c_lpc)
 
-    def _handle_constants_in_Phi(self):
-        for bb in self.cfg:
-            for instr in bb.instructions:
-                if type(instr) == Phi:
-                    instr : Phi
-                    constSet = set()
-                    for par in instr.value:
-                        if type(par) == Constant:
-                            constSet |= {par}
+    def _copy_removal(self) -> None:
+        for helper in self._assignment_helpers.values():
+            for assign in helper.get_all_assigns():
+                if isinstance(assign.destination, Variable) and isinstance(assign.value, Variable):
+                    lpc = self._phi_congruence_map.get_class(assign.destination)
+                    rpc = self._phi_congruence_map.get_class(assign.value)
+                    if self._can_remove_copy(assign.destination, assign.value, lpc, rpc):
+                        self._phi_congruence_map.merge_classes([assign.destination, assign.value])
 
-                    for con in constSet:
-                        for j in self._get_orig_block(instr,con):
-                            var = Variable(self.placeholder, instr.destination.type, ssa_label=int((time()%1000)*1000000))
-                            self._insert_before_branch(j.instructions,Assignment(var,con))
-                            self._phi_congruence_class[var] = set([var])
-                            self._merge_phi_congruence_classes(var,instr.destination)
-                            self._interference_graph.add_node(var)
-                        
-        #self._interference_graph = InterferenceGraph(self.cfg)
+    def _process_and_rename(self, instrs: Iterable[Instruction], renaming_map: dict[Variable, Variable]) -> Generator[Instruction, None, None]:
+        """Applies renaming in-place and yields instructions, skipping self-assignments and Phis/Relations."""
+        for instr in instrs:
+            if isinstance(instr, (Phi, Relation)):
+                continue
 
-                        
-    def _remove_unnecessary_copies(self):
-        self._interference_graph = InterferenceGraph(self.cfg)
-        self._handle_Relations()
-        for bb in self.cfg:
-            for inst in bb:
-                if isinstance(inst,Assignment) and (isinstance(inst.value,Variable)) and (isinstance(inst.destination,Variable)):
-                    inst : Assignment
-                    leftv = inst.destination
-                    rightv = inst.value
-                    
-                    leftpck = self._get_phi_congruence_class(leftv)
-                    if leftpck == -1:
-                        leftpck = set()
-                    rightpck = self._get_phi_congruence_class(rightv)
-                    if rightpck == -1:
-                        rightpck = set()
-                    
-                    if (leftpck == rightpck) and (leftpck == set()):   #Case 1 --> Variables are not refrred to in any Phi-instruction or they're in the same Phi-Congruence-Class
-                        bb.replace_instruction(inst,[])
-                        self._phi_congruence_class[leftv] = set([leftv])
-                        self._phi_congruence_class[rightv] = set([rightv])
-                        self._merge_phi_congruence_classes(leftv,rightv)
+            for var in instr.definitions + instr.requirements:
+                if r_var := renaming_map.get(var):
+                    instr.substitute(var, r_var)
 
-                    elif (leftpck == set()) and (rightpck != set()): #Case 2a
-                        rightrem = deepcopy(rightpck)
-                        rightrem.remove(rightv)
-                        if not (self._phi_congruence_classes_interfere(set([leftv]),rightrem)):
-                            bb.replace_instruction(inst,[])
-                            self._phi_congruence_class[leftv] = set([leftv])
-                            self._merge_phi_congruence_classes(leftv,rightv)
-                    
-                    elif (leftpck != set()) and (rightpck == set()): #Case 2b
-                        leftrem = deepcopy(leftpck)
-                        leftrem.remove(leftv)
-                        if not (self._phi_congruence_classes_interfere(set([rightv]),leftrem)):
-                            bb.replace_instruction(inst,[])
-                            self._phi_congruence_class[rightv] = set([rightv])
-                            self._merge_phi_congruence_classes(leftv,rightv)
+            # Skip tautological assignments (e.g. x = x)
+            if isinstance(instr, Assignment) and isinstance(instr.destination, Variable) and isinstance(instr.value, Variable):
+                if instr.destination.name == instr.value.name:
+                    continue
 
-                    elif (leftpck != set()) and (rightpck != set()): #Case 3
-                        leftrem = deepcopy(leftpck)
-                        leftrem.remove(leftv)
-                        rightrem = deepcopy(rightpck)
-                        rightrem.remove(rightv)
-                        if (not (self._phi_congruence_classes_interfere(leftpck,rightrem))) and (not (self._phi_congruence_classes_interfere(rightpck,leftrem))):
-                            bb.replace_instruction(inst,[])
-                            self._merge_phi_congruence_classes(leftv,rightv)
-        
-        self._interference_graph = InterferenceGraph(self.cfg)
-        self._handle_constants_in_Phi()
+            yield instr
 
-    class SreedharVariableRenamer(VariableRenamer):
-        def __init__(self, task: DecompilerTask, interference_graph: InterferenceGraph, phi_congruence_class, placeholder):
+    def _variable_rename(self) -> None:
+        renaming_map = self._phi_congruence_map.generate_renaming_map(self._function_arg_names, self._name_handler)
 
-            self.cfg = task.cfg
-            self.interference_graph = interference_graph
-            self._phi_congruence_class = phi_congruence_class
+        for bb in self._cfg:
+            has_branch = bool(bb.instructions) and isinstance(bb.instructions[-1], GenericBranch)
+            branch_instr = bb.instructions[-1] if has_branch else None
+            core_instrs = bb.instructions[:-1] if has_branch else bb.instructions
+            helper = self._assignment_helpers[bb]
+            
+            new_instructions: list[Instruction] = []
+            new_instructions.extend(self._process_and_rename(helper.after_phis, renaming_map))
+            new_instructions.extend(self._process_and_rename(core_instrs, renaming_map))
+            new_instructions.extend(self._process_and_rename(helper.before_branch, renaming_map))
 
-            self.variable_for_function_arg: Dict[str, Variable] = self._get_function_argument_variables(task.function_parameters)
-            self.function_arg_for_variable: Dict[Variable, str] = {v: k for k, v in self.variable_for_function_arg.items()}
-            #self._add_interference_for_function_args()
-            self.placeholder = placeholder
+            if branch_instr:
+                # Branch instructions just need variables substituted, never discarded
+                for var in branch_instr.definitions + branch_instr.requirements:
+                    if r_var := renaming_map.get(var):
+                        branch_instr.substitute(var, r_var)
+                new_instructions.append(branch_instr)
 
-            self.renaming_map: Dict[Variable, Variable] = dict()
-            self._generate_renaming_map()
-
-        def _generate_renaming_map(self):
-            count = 0
-            assignedNames = []
-            for variable in self.interference_graph.nodes:
-                if variable not in self._phi_congruence_class:
-                    new_name = f"{variable.name}_{variable.ssa_label}"
-                    if new_name in assignedNames:
-                        new_name = f'{new_name}__{count}'
-                        count += 1
-                    assignedNames.append(new_name)
-                    if isinstance(variable, GlobalVariable):
-                        self.renaming_map[variable] = GlobalVariable(new_name, variable.type, variable.initial_value, None, variable.is_aliased, variable, variable.is_constant, variable.tags)
-                    else:
-                        self.renaming_map[variable] = Variable(new_name, variable.type, None, variable.is_aliased, variable, variable.tags)
-
-            for argument, variable in self.variable_for_function_arg.items():
-                if variable not in self._phi_congruence_class:
-                    if argument in assignedNames:
-                        raise Exception("This argument name is already assigned")
-                    assignedNames.append(argument)
-                    self.renaming_map[variable] = Variable(argument, variable.type, None, variable.is_aliased, variable, variable.tags)
-
-            for var in self.renaming_map:
-                if isinstance(var, GlobalVariable):
-                    new_name = self.renaming_map[var].name
-                    if new_name in assignedNames:
-                        new_name = f"{new_name}__{count}"
-                        count += 1
-                    assignedNames.append(new_name)
-                    self.renaming_map[var] = GlobalVariable(new_name, var.type, var.initial_value, None, var.is_aliased, var, var.is_constant, var.tags)
-
-            for pck in self._phi_congruence_class: #determinism
-                if isinstance(self._phi_congruence_class[pck],set):
-                    self._phi_congruence_class[pck] = sorted(self._phi_congruence_class[pck],key=lambda x: str("" + x.name + str(x.ssa_label)))
-
-            for pck in self._phi_congruence_class:
-                if isinstance(self._phi_congruence_class[pck], list):
-                    glob: List[GlobalVariable] = [k for k in self._phi_congruence_class[pck] if isinstance(k,GlobalVariable)]
-                    if len(glob) != 0:
-                        globnames = list({j.name for j in glob})
-                        if len(globnames) == 1:
-                            for var in self._phi_congruence_class[pck]:
-                                glob_var = glob[0]
-                                self.renaming_map[var] = GlobalVariable(glob_var.name, glob_var.type, glob_var.initial_value, None, glob_var.is_aliased, var, glob_var.is_constant, glob_var.tags)
-                        else: 
-                            raise Exception("detected more than one global variable in a phi congruence class")
-                    else:
-                        new_name = None
-                        # check if a function arg is in class
-                        for var in self._phi_congruence_class[pck]:
-                            if var in self.function_arg_for_variable:
-                                new_name = self.function_arg_for_variable[var]
-                                break
-
-                        # else use first name of class
-                        if new_name == None:
-                            for var in self._phi_congruence_class[pck]:
-                                new_name = var.name
-                                if new_name != self.placeholder:
-                                    break
-                        
-                        if new_name == None:
-                            raise Exception("Encountered a Phi-Fuction which only contains Constants!")
-                        
-                        if new_name in assignedNames:
-                            new_name = f"{new_name}__{count}"
-                            count += 1
-                        assignedNames.append(new_name)
-
-                        for var in self._phi_congruence_class[pck]:
-                            self.renaming_map[var] = Variable(new_name, var.type, None, var.is_aliased, var, var.tags)
-
-
-    def _leave_CSSA(self):
-        for bb in self.cfg: #remove Phi-Instructions
-            for inst in bb:
-                if isinstance(inst,Phi):
-                    bb.replace_instruction(inst,[])                    
-
-        #self._interference_graph = InterferenceGraph(self.cfg)
-        renamer = self.SreedharVariableRenamer(self.task, self._interference_graph, self._phi_congruence_class, self.placeholder)
-        renamer.rename()
-
-    def perform(self):
-        self._eliminate_phi_resource_interference() #Step 1: Translation to CSSA
-        self._remove_unnecessary_copies()           #Step 3: Eliminate redundant copies
-        self._leave_CSSA()                          #Step 3: Eliminate phi instructions and use phi-congruence-property
+            bb.instructions = new_instructions

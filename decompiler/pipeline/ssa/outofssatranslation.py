@@ -15,7 +15,7 @@ from decompiler.structures.graphs.cfg import BasicBlock
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo.instructions import Phi
 from decompiler.task import DecompilerTask
-from decompiler.pipeline.ssa.sreedhar_out_of_ssa import SreedharOutOfSsa
+from decompiler.pipeline.ssa.sreedhar_out_of_ssa import SreedharOutOfSSA, ConstantLifter
 
 
 class SSAOptions(Enum):
@@ -168,7 +168,8 @@ class OutOfSsaTranslation(PipelineStage):
         ConditionalVariableRenamer(self.task, self.interference_graph).rename()
 
     def _sreedhar_out_of_ssa(self) -> None:
-        SreedharOutOfSsa(self.task).perform()
+        ConstantLifter(self.task).perform()
+        SreedharOutOfSSA(self.task).perform()
 
     # This translator maps the optimization levels to the functions.
     out_of_ssa_strategy: dict[SSAOptions, Callable[["OutOfSsaTranslation"], None]] = {
