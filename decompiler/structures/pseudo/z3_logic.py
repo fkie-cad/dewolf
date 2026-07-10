@@ -213,6 +213,12 @@ class Z3Converter(BaseConverter):
         OperationType.bitwise_and: And,
         OperationType.bitwise_xor: Xor,
         OperationType.bitwise_or: Or,
+        # When the operands are already boolean (e.g. a logical OR of two comparisons),
+        # combine them directly -- the ``a != 0`` coercion in OPERATIONS assumes BitVec
+        # (truthy integer) operands and crashes on a BoolRef under z3 >= 4.x with
+        # "True, False or Z3 Boolean expression expected. Received 0 of type <class 'int'>".
+        OperationType.logical_or: Or,
+        OperationType.logical_and: And,
         OperationType.logical_not: Not,
         OperationType.negate: Not,
     }

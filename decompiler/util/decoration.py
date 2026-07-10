@@ -10,7 +10,43 @@ from sys import stdout
 from typing import Dict, TextIO
 
 import z3
-from binaryninja import BranchType, EdgePenStyle, EdgeStyle, FlowGraph, FlowGraphNode, HighlightStandardColor, ThemeColor, show_graph_report
+
+try:
+    from binaryninja import (
+        BranchType,
+        EdgePenStyle,
+        EdgeStyle,
+        FlowGraph,
+        FlowGraphNode,
+        HighlightStandardColor,
+        ThemeColor,
+        show_graph_report,
+    )
+except ImportError:  # Binary Ninja optional for non-BN frontends (e.g. Ghidra)
+
+    class _BnMissing:
+        """Sentinel standing in for unavailable binaryninja enums/classes.
+
+        Returns itself for any attribute access or call so that class-body
+        references (e.g. ``BranchType.UnconditionalBranch``) do not break import.
+        The graph-export methods that actually need these are only invoked from
+        the Binary Ninja GUI, where the real symbols are present.
+        """
+
+        def __getattr__(self, _):
+            return self
+
+        def __call__(self, *_, **__):
+            return self
+
+    BranchType = _BnMissing()
+    EdgePenStyle = _BnMissing()
+    EdgeStyle = _BnMissing()
+    FlowGraph = _BnMissing()
+    FlowGraphNode = _BnMissing()
+    HighlightStandardColor = _BnMissing()
+    ThemeColor = _BnMissing()
+    show_graph_report = _BnMissing()
 from decompiler.structures.ast.ast_nodes import (
     AbstractSyntaxTreeNode,
     CaseNode,

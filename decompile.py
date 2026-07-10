@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Collection, Optional
 
 from decompiler.backend.codegenerator import CodeGenerator
-from decompiler.frontend import BinaryninjaFrontend, Frontend
+from decompiler.frontend import Frontend, get_frontend
 from decompiler.pipeline.pipeline import DecompilerPipeline
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
@@ -30,15 +30,23 @@ class Decompiler:
         return Options.load_default_options()
 
     @classmethod
-    def from_path(cls, path: str, options: Optional[Options] = None, frontend: Frontend = BinaryninjaFrontend) -> Decompiler:
+    def from_path(cls, path: str, options: Optional[Options] = None, frontend=None) -> Decompiler:
         """Create a decompiler instance by invoking the given frontend on the given sample."""
         if not options:
             options = Decompiler.create_options()
+        if frontend is None:
+            frontend = get_frontend(options.getstring("frontend", fallback="") if options else "")
+        elif isinstance(frontend, str):
+            frontend = get_frontend(frontend)
         return cls(frontend.from_path(path, options))
 
     @classmethod
-    def from_raw(cls, data, frontend: Frontend = BinaryninjaFrontend) -> Decompiler:
+    def from_raw(cls, data, frontend=None) -> Decompiler:
         """Create a decompiler instance from existing frontend instance (e.g. a binaryninja view)."""
+        if frontend is None:
+            frontend = get_frontend("")
+        elif isinstance(frontend, str):
+            frontend = get_frontend(frontend)
         return cls(frontend.from_raw(data))
 
     def decompile_all(self, function_ids: Collection[object] | None = None, task_options: Options | None = None) -> Result:

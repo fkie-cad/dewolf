@@ -1,0 +1,531 @@
+"""Ghidra lifter converting decompiler High-P-code to dewolf pseudo IR."""
+
+import logging
+from typing import Dict, List, Optional, Tuple
+
+from decompiler.frontend.lifter import ObserverLifter
+from decompiler.structures.pseudo import FunctionSymbol, ImportedFunctionSymbol, Integer, UnknownExpression, UnknownType
+from decompiler.structures.pseudo.complextypes import ComplexTypeMap, UniqueNameProvider
+
+BYTE_SIZE = 8
+
+
+class GhidraLifter(ObserverLifter):
+    """Lift ghidra decompiler p-code (SSA) onto pseudo expressions / instructions."""
+
+    def __init__(self, program, no_bit_masks: bool = True):
+        self.no_bit_masks = no_bit_masks
+        self.program = program
+        self.complex_types: ComplexTypeMap = ComplexTypeMap()
+        self.unique_name_provider: UniqueNameProvider = UniqueNameProvider()
+        self.OPCODE_HANDLERS: Dict[int, callable] = {}
+        self._compare_opcodes = set()
+        # SSA versioning state (per function).
+        self._hv_next: Dict[Tuple, int] = {}
+        self._vn_version: Dict[int, int] = {}
+        self._name_cache: Dict[int, Optional[str]] = {}
+        self._mem_version = 0
+        # Memory-SSA state (per function); aliased globals are versioned by memory version.
+        self._addr_version: Dict[int, int] = {}  # address varnode uid -> memory version
+        self._op_mem: Dict[int, int] = {}  # op seqnum-time -> memory version (writes_memory)
+        self._memphi_by_seq: Dict[int, Tuple[int, List[int]]] = {}  # rep MULTIEQUAL seq -> (dest, [src]) mem versions
+        self._fallback_lift = None  # set by OpcodeHandler.register(); generic p-code fallback
+        # Canonical access size per global address: a global Ghidra accesses at multiple sizes
+        # (e.g. addr4:0x47125e and addr1:0x47125e) must lift to ONE typed GlobalVariable per
+        # (address, memory version); otherwise the 4-byte and 1-byte variants become distinct
+        # Variables (Variable equality includes the type) that share (name, ssa_label) and trip
+        # "duplicate entries in copy pool". We use the largest access size as the canonical type.
+        self._global_size: Dict[int, int] = {}
+        from .handlers import HANDLERS
+
+        for handler in HANDLERS:
+            handler(self).register()
+
+    @property
+    def is_omitting_masks(self) -> bool:
+        return self.no_bit_masks
+
+    # -- dispatch ----------------------------------------------------------
+    def lift(self, expression, **kwargs):
+        """Dispatch on the ghidra object kind: PcodeOp -> Instruction, Varnode -> Expression, DataType -> Type."""
+        if expression is None:
+            return None
+        kind = expression.getClass().getName()
+        if "PcodeOp" in kind:
+            handler = self.OPCODE_HANDLERS.get(expression.getOpcode())
+            if handler is None:
+                if self._fallback_lift is not None:
+                    logging.debug("[GhidraLifter] no dedicated handler for p-code opcode %s; using fallback", expression.getOpcode())
+                    return self._fallback_lift(expression, **kwargs)
+                logging.debug("[GhidraLifter] no handler for p-code opcode %s", expression.getOpcode())
+                self._maybe_log_skipped_def(expression)
+                return None
+            try:
+                result = handler(expression, **kwargs)
+            except Exception as exc:  # noqa: BLE001
+                logging.warning("[GhidraLifter] failed to lift p-code %s: %s", expression.getSeqnum(), exc)
+                self._maybe_log_skipped_def(expression)
+                return None
+            if result is None:
+                self._maybe_log_skipped_def(expression)
+            return result
+        if "Varnode" in kind:
+            return self.lift_varnode(expression, **kwargs)
+        # Treat anything else as a type (DataType).
+        return self.lift_type(expression, **kwargs)
+
+    def _maybe_log_skipped_def(self, op) -> None:
+        """Log (debug) when a defining op is skipped, since its result may be used elsewhere.
+
+        The following skips are intentional (memory-SSA no-ops handled by the pipeline), so we only
+        surface genuinely unexpected skips at warning level:
+          * address-output INDIRECT  -> the version bump is inserted by insert-missing-definitions
+          * address-output COPY       -> a no-op rename (output inherits the input's memory version)
+          * address-output MULTIEQUAL -> a redundant member of a memory merge; the representative
+            MULTIEQUAL emits the MemPhi and MemPhiConverter expands it to per-global Phis
+        """
+        try:
+            out = op.getOutput()
+            if out is None:
+                return
+            from ghidra.program.model.pcode import PcodeOp
+
+            opc = op.getOpcode()
+            intentional = (
+                (opc == PcodeOp.INDIRECT and out.isAddress())
+                or (opc == PcodeOp.COPY and out.isAddress())
+                or (opc == PcodeOp.MULTIEQUAL and out.isAddress())
+            )
+            desc = out.getDescendants() if hasattr(out, "getDescendants") else None
+            used = desc is None or desc.hasNext()
+            if not used:
+                return
+            if intentional:
+                logging.debug(
+                    "[GhidraLifter] skipped defining op %s (opcode=%s) output=%s", op.getSeqnum(), op.getOpcode(), out.getUniqueId()
+                )
+            else:
+                logging.warning(
+                    "[GhidraLifter] skipped defining op %s (opcode=%s) output=%s", op.getSeqnum(), op.getOpcode(), out.getUniqueId()
+                )
+        except Exception:  # noqa: BLE001
+            pass
+
+    def lift_unknown(self, expression, **kwargs):
+        if expression is None:
+            return UnknownType()
+        logging.warning("[GhidraLifter] can not lift %r (%s)", expression, type(expression))
+        return UnknownExpression(str(expression))
+
+    # -- varnode helpers ---------------------------------------------------
+    def precompute_ssa_labels(self, high_function) -> None:
+        """Assign SSA labels so that live-in varnodes get label 0 and definitions get 1, 2, ...
+
+        dewolf's ``insert-missing-definitions`` assumes the smallest SSA label of each variable
+        is the live-in / entry value (defined from the start) and only inserts definitions for
+        strictly larger labels. Lifting lazily in block-iteration order can assign a real
+        definition label 0 and a later live-in use label 1, which breaks that invariant
+        ("non-aliased variable has no definition"). We therefore pre-scan all p-code:
+
+          * Pass A reserves label 0 for every input varnode with no defining op
+            (function parameters / uninitialized live-in values).
+          * Pass B assigns incrementing labels to op outputs (definitions) in execution order.
+
+        Uses share their Varnode identity (and thus uid) with the output of their defining
+        op, so caching by uid makes uses resolve to their definition's label automatically.
+        """
+        blocks = list(high_function.getBasicBlocks())
+        # Pass A: reserve label 0 for live-in varnodes (no defining op).
+        for b in blocks:
+            for op in b.getIterator():
+                for i in range(op.getNumInputs()):
+                    vn = op.getInput(i)
+                    if vn is None or not self._is_variable_varnode(vn):
+                        continue
+                    if vn.getDef() is not None:
+                        continue
+                    key = self._var_key(vn)
+                    if key not in self._hv_next:
+                        self._hv_next[key] = 1  # reserve label 0; next def starts at 1
+                    self._vn_version[int(vn.getUniqueId())] = 0
+        # Pass B: assign labels to definitions (op outputs) in execution order.
+        for b in blocks:
+            for op in b.getIterator():
+                out = op.getOutput()
+                if out is None or not self._is_variable_varnode(out):
+                    continue
+                key = self._var_key(out)
+                nxt = self._hv_next.get(key, 0)
+                self._hv_next[key] = nxt + 1
+                self._vn_version[int(out.getUniqueId())] = nxt
+
+    @staticmethod
+    def _is_variable_varnode(vn) -> bool:
+        """A varnode that lifts to a (local) Variable, i.e. neither a constant nor an address."""
+        try:
+            if vn.isConstant() or vn.isAddress():
+                return False
+        except Exception:  # noqa: BLE001
+            return False
+        return True
+
+    @staticmethod
+    def _seq(op) -> int:
+        """Stable, hashable id for a p-code op: its seqnum time (unique within a function)."""
+        try:
+            return int(op.getSeqnum().getTime())
+        except Exception:  # noqa: BLE001
+            return int(op.getSeqnum().getTarget().getOffset())
+
+    def precompute_global_sizes(self, high_function) -> None:
+        """Record the largest access size per global address.
+
+        Ghidra may access one global at several sizes (e.g. a 4-byte ``int`` load and a 1-byte
+        ``SUBPIECE`` of it), emitting separate address varnodes (``addr4:…`` and ``addr1:…``) at
+        the same offset. Lifting each at its own size yields distinct typed ``GlobalVariable``\ s
+        that share ``(name, ssa_label)`` and collide in the copy pool. Using the maximum access
+        size as the canonical type makes all accesses of one global lift to the same typed
+        variable, so they de-duplicate (Variable equality includes the type).
+        """
+        from ghidra.program.model.pcode import PcodeOp
+
+        for b in high_function.getBasicBlocks():
+            for op in b.getIterator():
+                for i in range(op.getNumInputs()):
+                    vn = op.getInput(i)
+                    if vn is None or not vn.isAddress():
+                        continue
+                    addr = int(vn.getOffset())
+                    sz = int(vn.getSize())
+                    if sz > self._global_size.get(addr, 0):
+                        self._global_size[addr] = sz
+                out = op.getOutput()
+                if out is not None and out.isAddress():
+                    addr = int(out.getOffset())
+                    sz = int(out.getSize())
+                    if sz > self._global_size.get(addr, 0):
+                        self._global_size[addr] = sz
+
+    def precompute_memory_versions(self, high_function) -> None:
+        """Compute a unified memory-version SSA over the function (Binary Ninja's model).
+
+        Memory versions form a single counter shared by all aliased globals:
+          * version 0 is the function entry;
+          * every CALL / CALLIND / STORE starts a new version (``writes_memory``);
+          * every global assignment (any op with an address output that is not an INDIRECT) starts
+            a new version;
+          * at a block with address-MULTIEQUALs (a memory merge) one new version M_merge is
+            allocated and shared by all those MULTIEQUALs -> a single ``MemPhi`` per merge, which
+            the pipeline expands into one Phi per aliased global.
+
+        Each global varnode is labelled with the memory version in scope at its defining op
+        (INDIRECT outputs inherit the causing call's version). Reads share their Varnode identity
+        with the defining op, so caching by uid makes uses resolve automatically.
+        """
+        from ghidra.program.model.pcode import PcodeOp as P
+
+        blocks = list(high_function.getBasicBlocks())
+        if not blocks:
+            return
+        by_index = {int(b.getIndex()): b for b in blocks}
+        entry_block = blocks[0]
+        try:
+            entry_addr = int(high_function.getFunction().getEntryPoint().getOffset())
+            for b in blocks:
+                if int(b.getStart().getOffset()) == entry_addr:
+                    entry_block = b
+                    break
+        except Exception:  # noqa: BLE001
+            pass
+
+        order: list = []
+        visited: set = set()
+
+        def _rpo(b):
+            bid = int(b.getIndex())
+            if bid in visited:
+                return
+            visited.add(bid)
+            for i in range(b.getOutSize()):
+                _rpo(b.getOut(i))
+            order.append(b)
+
+        _rpo(entry_block)
+        order.reverse()
+        for b in blocks:
+            if int(b.getIndex()) not in visited:
+                order.append(b)
+
+        block_exit_mem: Dict[int, int] = {}
+        # block id -> (M_merge, [predecessor exit memory versions])
+        self._memphi_info: Dict[int, Tuple[int, List[int]]] = {}
+        memphi_rep_seq: Dict[int, int] = {}  # block id -> rep MULTIEQUAL seq
+
+        for b in order:
+            bid = int(b.getIndex())
+            ops = list(b.getIterator())
+            merge_ops = [op for op in ops if op.getOpcode() == P.MULTIEQUAL and op.getOutput() is not None and op.getOutput().isAddress()]
+            if b is entry_block:
+                entry = 0
+            else:
+                preds = [int(b.getIn(i).getIndex()) for i in range(b.getInSize())]
+                # Use a predecessor already processed in RPO (block_exit_mem set). preds[0] can be a
+                # loop back-edge that is processed *after* this header, so block_exit_mem.get(preds[0],
+                # 0) would wrongly default to 0; a forward predecessor is already filled in.
+                entry = next((block_exit_mem[p] for p in preds if p in block_exit_mem), 0)
+            if merge_ops:
+                m_merge = self._next_memory_version()
+                memphi_rep_seq[bid] = self._seq(merge_ops[0])
+                pred_exits = [block_exit_mem.get(int(b.getIn(i).getIndex()), 0) for i in range(b.getInSize())]
+                self._memphi_info[bid] = (m_merge, pred_exits)
+                for op in merge_ops:
+                    self._addr_version[int(op.getOutput().getUniqueId())] = m_merge
+                cur = m_merge
+            else:
+                cur = entry
+            for op in ops:
+                opc = op.getOpcode()
+                out = op.getOutput()
+                if opc == P.INDIRECT:
+                    # The output inherits the memory version of its *causing* op (the CALL/STORE/
+                    # CALLOTHER that may have modified the global). Ghidra's block iterator yields
+                    # the INDIRECT before its causing op, so we cannot rely on `cur` here -- we look
+                    # up the causing op by the seqnum encoded in input(1) and (idempotently) allocate
+                    # its memory version. The causing op itself, when reached, reuses that version.
+                    if out is not None and out.isAddress():
+                        cseq = int(op.getInput(1).getOffset())
+                        m = self.memory_version_of_seq(cseq)
+                        self._addr_version[int(out.getUniqueId())] = m
+                        cur = m
+                    continue
+                has_addr_out = out is not None and out.isAddress()
+                if opc in (P.CALL, P.CALLIND, P.STORE):
+                    cur = self.memory_version_of(op)
+                elif has_addr_out and opc != P.MULTIEQUAL:
+                    if opc == P.COPY:
+                        # COPY of a global is a no-op rename in Ghidra's memory SSA: the output
+                        # holds the same value as the input, so it inherits the input's memory
+                        # version. It is NOT a memory write -- it must not start a new unified
+                        # memory version (which would spuriously bump every other global) and it
+                        # must not be lifted as an assignment (that would define a second version
+                        # of the global and make phi-sources interfere at merges). We skip it when
+                        # lifting and let insert-missing-definitions / phis define the versions.
+                        self._addr_version[int(out.getUniqueId())] = self._addr_version.get(int(op.getInput(0).getUniqueId()), cur)
+                    else:
+                        # PTRSUB / other address derivations -> a new memory version.
+                        m = self._next_memory_version()
+                        self._addr_version[int(out.getUniqueId())] = m
+                        cur = m
+            block_exit_mem[bid] = cur
+
+        # Map each rep MULTIEQUAL seq -> (dest memory version, source memory versions) for lifting.
+        self._memphi_by_seq: Dict[int, Tuple[int, List[int]]] = {seq: self._memphi_info[bid] for bid, seq in memphi_rep_seq.items()}
+
+    def memory_version_of_seq(self, seq: int) -> int:
+        """Return the memory version associated with the op whose seqnum-time is ``seq``.
+
+        Allocates one if unseen. Used by address INDIRECTs to inherit their causing op's version
+        (the causing op is identified by the seqnum encoded in the INDIRECT's input(1) constant).
+        """
+        if seq not in self._op_mem:
+            self._op_mem[seq] = self._next_memory_version()
+        return self._op_mem[seq]
+
+    def memory_version_of(self, op) -> int:
+        """Return the memory version written by the given memory-changing op, allocating one if unseen."""
+        return self.memory_version_of_seq(self._seq(op))
+
+    def _high(self, vn):
+        try:
+            return vn.getHigh()
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _var_key(self, vn) -> Tuple:
+        hv = self._high(vn)
+        if hv is not None:
+            try:
+                rep = hv.getRepresent()
+                if rep is not None:
+                    return ("hv", int(rep.getUniqueId()))
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                return ("hvn", hv.getName())
+            except Exception:  # noqa: BLE001
+                pass
+        return ("vn", int(vn.getUniqueId()))
+
+    def _version(self, vn) -> int:
+        uid = int(vn.getUniqueId())
+        if uid in self._vn_version:
+            return self._vn_version[uid]
+        key = self._var_key(vn)
+        nxt = self._hv_next.get(key, 0)
+        self._hv_next[key] = nxt + 1
+        self._vn_version[uid] = nxt
+        return nxt
+
+    def _name_for(self, vn) -> str:
+        uid = int(vn.getUniqueId())
+        if uid in self._name_cache:
+            return self._name_cache[uid] or f"u{uid}"
+        name: Optional[str] = None
+        hv = self._high(vn)
+        if hv is not None:
+            try:
+                candidate = hv.getName()
+                # "u..." and "UNNAMED" are Ghidra's unnamed markers. Using "UNNAMED" for every
+                # unnamed HighVariable makes them all collide on one name, producing "duplicate
+                # entries in copy pool for UNNAMED"; fall back to a per-HighVariable unique name.
+                if candidate and not candidate.startswith("u") and candidate != "UNNAMED":
+                    name = self._purge(candidate)
+            except Exception:  # noqa: BLE001
+                pass
+        if name is None and vn.isRegister():
+            try:
+                reg = vn.getRegister()
+                if reg is not None:
+                    name = self._purge(reg.getName())
+            except Exception:  # noqa: BLE001
+                pass
+        if name is None:
+            # Use the HighVariable's representative varnode id so the name is shared across all
+            # varnodes of one HighVariable (not split per-varnode) yet distinct between unnamed
+            # HighVariables (so they don't collide on "UNNAMED").
+            rep_uid = uid
+            if hv is not None:
+                try:
+                    rep = hv.getRepresent()
+                    if rep is not None:
+                        rep_uid = int(rep.getUniqueId())
+                except Exception:  # noqa: BLE001
+                    pass
+            name = f"u{rep_uid}"
+        self._name_cache[uid] = name
+        return name
+
+    @staticmethod
+    def _purge(name: str) -> str:
+        return name.translate({ord(" "): "_", ord("'"): "", ord("."): "_", ord("`"): "", ord("#"): "_", ord(":"): "_"}).replace("$", "_")
+
+    def _is_aliased(self, vn) -> bool:
+        hv = self._high(vn)
+        if hv is None:
+            return False
+        try:
+            return bool(hv.isAddrTied())
+        except Exception:  # noqa: BLE001
+            return False
+
+    def _type_for_varnode(self, vn):
+        hv = self._high(vn)
+        dtype = None
+        if hv is not None:
+            try:
+                dtype = hv.getDataType()
+            except Exception:  # noqa: BLE001
+                dtype = None
+        if dtype is None:
+            size = int(vn.getSize()) if vn is not None else 0
+            return Integer((size or 4) * BYTE_SIZE, signed=False)
+        return self.lift_type(dtype)
+
+    # -- memory version ----------------------------------------------------
+    def _next_memory_version(self) -> int:
+        self._mem_version += 1
+        return self._mem_version
+
+    # -- address / symbol helpers -----------------------------------------
+    def _address(self, addr: int):
+        return self.program.getAddressFactory().getDefaultAddressSpace().getAddress(addr)
+
+    def _global_type(self, program, addr: int, size: int):
+        try:
+            if (dv := program.getListing().getDataAt(self._address(addr))) is not None and dv.getDataType() is not None:
+                return self.lift_type(dv.getDataType())
+        except Exception:  # noqa: BLE001
+            pass
+        # Use the canonical (largest) access size for this address so a global accessed at
+        # multiple sizes lifts to a single typed variable (see ``_global_size``).
+        size = self._global_size.get(addr, size)
+        return Integer((size or 8) * BYTE_SIZE, signed=False)
+
+    def _address_size_bits(self) -> int:
+        """Pointer size of the program's default address space, in bits (cached)."""
+        if not hasattr(self, "_addr_bits_cache"):
+            try:
+                self._addr_bits_cache = int(self.program.getAddressFactory().getDefaultAddressSpace().getSize())
+            except Exception:  # noqa: BLE001
+                self._addr_bits_cache = 64
+        return self._addr_bits_cache
+
+    def _string_at(self, addr: int) -> Optional[str]:
+        """Return the defined string stored at ``addr``, if any (so a pointer constant can be
+        lifted as a string literal, e.g. ``apr_optional_hook_get("create_req")`` instead of
+        ``apr_optional_hook_get(0x52c038)``)."""
+        try:
+            dv = self.program.getListing().getDefinedDataAt(self._address(addr))
+            if dv is None:
+                return None
+            val = dv.getValue()
+            if isinstance(val, str) and val:
+                return val
+        except Exception:  # noqa: BLE001
+            pass
+        return None
+
+    def _global_symbol_name(self, addr: int) -> Optional[str]:
+        """A real (symbol-table) name for the global at ``addr``, if any.
+
+        Unlike Ghidra's flaky per-varnode ``DAT_`` auto-labels (which ``_global_name`` deliberately
+        ignores), a primary symbol is stable per address, so using it does not split one global
+        into two. Auto-generated labels (``DAT_``, ``FUN_``, ``sub_``) are skipped.
+        """
+        try:
+            sym = self.program.getSymbolTable().getPrimarySymbolAt(self._address(addr))
+            if sym is None or sym.isExternalEntryPoint():
+                return None
+            name = sym.getName()
+            if not name or name.startswith(("DAT_", "FUN_", "sub_", "loc_", "off_")):
+                return None
+            return self._purge(name)
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _function_symbol_at(self, program, addr: int):
+        try:
+            fm = program.getFunctionManager()
+            func = fm.getFunctionAt(self._address(addr))
+            if func is not None:
+                sym = FunctionSymbol(self._purge(func.getName()), addr)
+                try:
+                    sym.can_return = bool(func.getReturn().canReturn()) if func.getReturn() else None
+                except Exception:  # noqa: BLE001
+                    sym.can_return = None
+                return sym
+            sym = program.getSymbolTable().getPrimarySymbolAt(self._address(addr))
+            if sym is not None:
+                return ImportedFunctionSymbol(self._purge(sym.getName()), addr)
+        except Exception as exc:  # noqa: BLE001
+            logging.debug("[GhidraLifter] symbol lookup at %s failed: %s", hex(addr), exc)
+        return ImportedFunctionSymbol(f"sub_{addr:x}", addr)
+
+    def _function_symbol_for_pointer(self, vn):
+        try:
+            if vn.isConstant() or vn.isAddress():
+                addr = int(vn.getOffset())
+                return self._function_symbol_at(self.program, addr)
+        except Exception:  # noqa: BLE001
+            pass
+        return None
+
+    def _param_names_for_call(self, symbol) -> list:
+        try:
+            addr = int(symbol.value)
+            func = self.program.getFunctionManager().getFunctionAt(self._address(addr))
+            if func is not None:
+                return [p.getName() for p in func.getParameters()]
+        except Exception:  # noqa: BLE001
+            pass
+        return []
