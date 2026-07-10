@@ -12,6 +12,7 @@ from decompiler.structures.graphs.classifiedgraph import ClassifiedGraph, EdgePr
 from decompiler.structures.graphs.interface import GraphEdgeInterface, GraphNodeInterface
 from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo import Branch, Condition, IndirectBranch, OperationType
+from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 from networkx import DiGraph
 
 
@@ -253,7 +254,11 @@ class TransitionCFG(ClassifiedGraph):
         jump_instruction = node.instructions[-1]
         assert isinstance(jump_instruction, IndirectBranch), f"The instruction {jump_instruction} must be an IndirectBranch."
         variable = jump_instruction.expression
-        for v in set(condition for edge in cfg.get_out_edges(node) for condition in edge.cases):
+        # NB: InsertionOrderedSet (not a plain set) -- Constant.__hash__ mixes in the identity-hashed
+        # type object, so plain-set iteration order varies per process and makes symbol numbering
+        # (x1, x2, ...) and thus the whole decompilation non-deterministic. Encounter order over the
+        # (deterministic) out-edges/case lists gives a stable, reproducible ordering.
+        for v in InsertionOrderedSet(condition for edge in cfg.get_out_edges(node) for condition in edge.cases):
             labels[v] = self.condition_handler.add_condition(Condition(operation=OperationType.equal, operands=[variable, v]))
         for edge in cfg.get_out_edges(node):
             tag = None

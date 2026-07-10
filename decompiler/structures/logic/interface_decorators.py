@@ -8,6 +8,8 @@ def ensure_cnf(method: Callable):
     @wraps(method)
     def wrapper(self, *args, **kwargs):
         result = method(self, *args, **kwargs)
+        # simplify()/to_cnf() are cheap no-ops for already-normalized formulas: simplify_z3_condition
+        # short-circuits literals/true/false, and to_cnf() returns early when already in CNF form.
         self.simplify()
         self.to_cnf()
         return result

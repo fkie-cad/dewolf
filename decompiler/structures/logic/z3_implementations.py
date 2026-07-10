@@ -1,7 +1,8 @@
 # Implementations on z3-level
 import logging
 from itertools import product
-from typing import Dict, Iterator, Optional, Set
+from typing import Dict, Iterator, Optional, Set, Tuple
+from weakref import WeakKeyDictionary
 
 from decompiler.structures.pseudo import Condition, Constant, Expression, NotUseableConstant, OperationType, Variable
 from z3 import (
@@ -29,6 +30,27 @@ from z3 import (
     is_true,
     simplify,
 )
+
+# Per-context caches. Keyed by the z3 Context (one per decompiled function), so that the whole
+# cache for a function is released automatically once its context is garbage collected. This keeps
+# memory bounded for long-running hosts such as the Ghidra plugin, which decompiles many functions.
+#
+# Cache keys are `BoolRef.sexpr()` -- a stable, structural serialization of the formula. We deliberately
+# do NOT key on `get_id()`/`hash()`: z3 recycles AST ids when temporary expressions are freed, so an id
+# is only unique among currently-live ASTs and would cause false cache hits (returning the result of a
+# since-freed, structurally different formula). (Note also that `==`/`!=` are overloaded on BoolRef and
+# build new expressions, so z3 expressions must never be used directly as dict keys.)
+_SIMPLIFY_CACHE: "WeakKeyDictionary[Context, Dict[Tuple[str, bool], BoolRef]]" = WeakKeyDictionary()
+_IMPLY_CACHE: "WeakKeyDictionary[Context, Dict[Tuple[str, str, bool], bool]]" = WeakKeyDictionary()
+
+
+def _cache_for(store: WeakKeyDictionary, context: Context) -> dict:
+    """Return (creating if necessary) the per-context sub-cache for the given context."""
+    cache = store.get(context)
+    if cache is None:
+        cache = {}
+        store[context] = cache
+    return cache
 
 
 class Z3Implementation:
@@ -132,8 +154,20 @@ class Z3Implementation:
         return True
 
     def does_imply(self, condition: BoolRef, other: BoolRef) -> bool:
+        # Cheap, logically-sound short-circuits before touching the solver:
+        #   A ⊢ A, False ⊢ anything, anything ⊢ True.
+        if condition.eq(other) or is_false(condition) or is_true(other):
+            return True
+        if is_true(condition) and is_false(other):
+            return False
+        cache = _cache_for(_IMPLY_CACHE, condition.ctx)
+        key = (condition.sexpr(), other.sexpr(), self._resolve_negations)
+        if (cached := cache.get(key)) is not None:
+            return cached
         tmp_condition = self.simplify_z3_condition(Or(Not(condition), other))
-        return is_true(tmp_condition)
+        result = is_true(tmp_condition)
+        cache[key] = result
+        return result
 
     def z3_to_cnf(self, condition: BoolRef) -> BoolRef:
         """Given a z3 formula it returns a z3 formula in CNF form"""
@@ -177,11 +211,37 @@ class Z3Implementation:
          - if resolve negation is true, we first remove Not(....)
          - Depending on the complexity of the condition we choose different simplification tactics.
         """
-        if self._resolve_negations and resolve_negations:
+        # A literal (symbol or negated symbol), true or false is already fully simplified: skip the
+        # solver entirely -- this is the common case and avoids crossing the z3 FFI boundary at all.
+        if is_true(z3_condition) or is_false(z3_condition) or self.is_literal(z3_condition):
+            return z3_condition
+
+        effective_resolve = self._resolve_negations and resolve_negations
+        cache = _cache_for(_SIMPLIFY_CACHE, z3_condition.ctx)
+        key = (z3_condition.sexpr(), effective_resolve)
+        if (cached := cache.get(key)) is not None:
+            return cached
+
+        result = self._simplify_z3_condition(z3_condition, effective_resolve)
+
+        cache[key] = result
+        # Simplification is idempotent, so cache the result as its own fixed point too. This turns a
+        # later simplify() of an already-simplified formula into a single dict lookup.
+        cache.setdefault((result.sexpr(), effective_resolve), result)
+        return result
+
+    def _simplify_z3_condition(self, z3_condition: BoolRef, resolve_negations: bool) -> BoolRef:
+        """Run the actual (uncached) z3 simplification tactics on the given condition."""
+        if resolve_negations:
             z3_condition = self._resolve_negation(z3_condition)
         z3_condition = simplify(z3_condition)
         z3_condition = simplify(Repeat(Tactic("ctx-simplify", ctx=z3_condition.ctx))(z3_condition).as_expr())
-        if not self._too_large_to_fully_simplify(z3_condition):
+        # `ctx-solver-simplify` invokes the SAT solver (the single most expensive tactic). Skip it
+        # when it provably cannot help -- a literal/true/false is already minimal -- or when the
+        # formula is too large to afford it.
+        if not (is_true(z3_condition) or is_false(z3_condition) or self.is_literal(z3_condition)) and not self._too_large_to_fully_simplify(
+            z3_condition
+        ):
             z3_condition = simplify(Repeat(Tactic("ctx-solver-simplify", ctx=z3_condition.ctx))(z3_condition).as_expr())
         return z3_condition
 
@@ -249,7 +309,13 @@ class Z3Implementation:
 
     @staticmethod
     def _resolve_negation(input_cond: BoolRef):
-        """Remove Not(Y) where Y is a logic formula that is not a single symbol or a comparison."""
+        """Remove Not(Y) where Y is a logic formula that is not a single symbol or a comparison.
+
+        NB: this must NOT be memoized on ``sexpr()``. Unlike simplification, this transformation
+        preserves the exact operator nesting of its input, and z3's ``sexpr()`` prints associative
+        operators flattened -- so a flat ``And(a, b, c)`` and a nested ``And(And(a, b), c)`` would
+        share a cache key despite being different ASTs, and downstream code distinguishes them.
+        """
         if is_not(input_cond):
             argument = input_cond.arg(0)
             if is_true(argument):
