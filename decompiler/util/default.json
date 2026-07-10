@@ -633,6 +633,36 @@
                 "argument_name": "--max-function-size"
             },
             {
+                "dest": "ghidra.install_dir",
+                "default": "",
+                "title": "Ghidra install directory",
+                "type": "string",
+                "description": "Path to an unzipped Ghidra installation (the directory containing 'ghidraRun'). Falls back to the GHIDRA_INSTALL_DIR environment variable, then to a search of common locations.",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--ghidra-install-dir"
+            },
+            {
+                "dest": "ghidra.project_location",
+                "default": "/tmp/dewolf_ghidra_projects",
+                "title": "Ghidra project location",
+                "type": "string",
+                "description": "Directory where dewolf stores the (temporary) Ghidra projects it creates for analysis.",
+                "is_hidden_from_gui": true,
+                "is_hidden_from_cli": false,
+                "argument_name": "--ghidra-project-location"
+            },
+            {
+                "dest": "ghidra.project_name",
+                "default": "",
+                "title": "Ghidra project name",
+                "type": "string",
+                "description": "Name of the Ghidra project to create for the binary (defaults to the binary's file name).",
+                "is_hidden_from_gui": true,
+                "is_hidden_from_cli": false,
+                "argument_name": "--ghidra-project-name"
+            },
+            {
                 "dest": "lifter.report_threshold",
                 "default": 5,
                 "title": "Lifter report threshold",

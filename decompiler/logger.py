@@ -3,7 +3,14 @@
 import logging.config
 from typing import Optional
 
-from binaryninja import core_ui_enabled
+try:
+    from binaryninja import core_ui_enabled
+except ImportError:  # Binary Ninja optional for non-BN frontends (e.g. Ghidra)
+
+    def core_ui_enabled() -> bool:
+        return False
+
+
 from decompiler.util.options import Options
 
 DEFAULT_FORMAT = "[%(filename)s:%(lineno)s %(funcName)s()] %(levelname)s - %(message)s"
