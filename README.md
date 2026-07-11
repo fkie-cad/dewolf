@@ -5,7 +5,11 @@
 
 # dewolf
 
-<img src="assets/logo.png" width="200">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="assets/logo-light.svg">
+  <img align="right" width="150" alt="dewolf" src="assets/logo-light.svg">
+</picture>
 
 dewolf is a research decompiler we developed during a research cooperation from 2019 to 2021 between Germany (Fraunhofer FKIE) and Singapore (DSO National Laboratories).
 
