@@ -56,7 +56,7 @@ def _install_macos(command: list[str], ghidra_install_dir: str | None) -> Path:
     macos.mkdir(parents=True, exist_ok=True)
     export = f"export GHIDRA_INSTALL_DIR={shlex.quote(ghidra_install_dir)}\n" if ghidra_install_dir else ""
     stub = macos / "dewolf"
-    stub.write_text(f"#!/bin/bash\n{export}exec {_quote(command)} \"$@\"\n")
+    stub.write_text(f'#!/bin/bash\n{export}exec {_quote(command)} "$@"\n')
     stub.chmod(stub.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     (app / "Contents" / "Info.plist").write_text(_INFO_PLIST)
     return app
