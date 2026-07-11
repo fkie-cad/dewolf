@@ -757,7 +757,9 @@ class GhidraLifter(ObserverLifter):
             addr = int(symbol.value)
             func = self.program.getFunctionManager().getFunctionAt(self._address(addr))
             if func is not None:
-                return [p.getName() for p in func.getParameters()]
+                # Strip Ghidra's leading-underscore convention for library parameters so the argument
+                # comments read like Binary Ninja's, e.g. ``/* format */`` instead of ``/* __format */``.
+                return [str(p.getName()).lstrip("_") for p in func.getParameters()]
         except Exception:  # noqa: BLE001
             pass
         return []
