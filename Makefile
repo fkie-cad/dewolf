@@ -42,7 +42,7 @@ endif
 	python -m black --version && \
 	python -m black --check . && \
 	python -m isort --version && \
-	python -m isort --check . -s install_api.py -s $(VENV_PATH) --skip-glob dewolf-idioms --skip-glob logic
+	python -m isort --check . -s install_api.py -s $(VENV_PATH)
 
 .ONESHELL: format
 .PHONY: format
