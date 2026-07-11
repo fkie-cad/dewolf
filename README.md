@@ -15,7 +15,7 @@ dewolf is a research decompiler we developed during a research cooperation from 
 
 The restructuring of dewolf is based on the former DREAM/DREAM++ approach [Yakdan et al. NDSS 2015, IEEE (SP) 2016].
 
-The decompiler dewolf is implemented as a plugin for Binary Ninja and uses their Medium-Level intermediate language as the starting point.
+dewolf runs on top of an existing disassembler, from which it lifts an intermediate representation and then restructures it into readable C-like code. It supports two interchangeable frontends — **Binary Ninja** (lifting from their Medium-Level IL) and **Ghidra** (lifting from High P-code) — and ships a decompiler window for both GUIs as well as a command-line interface.
 Although we consider dewolf to be pretty stable, it is still a research prototype and not extensively optimized for production use.
 Consequently, you will likely observe a few bugs or even decompilation failures when applying dewolf on real-world binaries.
 
@@ -28,7 +28,7 @@ ___
 Before we start, please make sure you have the following dependencies installed and available on your computer:
 
 - At least [Python 3.10](https://www.python.org/)
-- Latest stable release of [Binary Ninja (>=3.4)](https://binary.ninja/)
+- A disassembler frontend — either [Binary Ninja (>=3.4)](https://binary.ninja/) **or** [Ghidra (>=11.3, with PyGhidra)](https://ghidra-sre.org/)
 - [astyle](https://code.tools/man/1/astyle/) for proper indentation of the decompiled code
 - [libgraph-easy-perl](https://packages.ubuntu.com/source/focal/libgraph-easy-perl) only required for printing ASCII graphs
 
@@ -69,11 +69,23 @@ python <binaryninja_path>/scripts/install_api.py [--install-on-pyenv if using vi
 
 **Warning:** Changes made to the dewolf plugin only comes into effect after restarting the Binary Ninja GUI.
 
+### Ghidra Plugin
+dewolf also ships a **"dewolf Decompiler"** window for the Ghidra GUI (no Binary Ninja required).
+Install it and generate a double-click launcher with:
+
+```bash
+pip install "dewolf[ghidra] @ git+https://github.com/fkie-cad/dewolf.git"
+dewolf-install-launcher
+```
+
+Then open **dewolf for Ghidra** from your applications/desktop. See
+[`ghidra_plugin/README.md`](ghidra_plugin/README.md) for details (requires Ghidra 11.3+ with PyGhidra).
+
 
 ___
 ## Usage
 
-The dewolf decompiler can be used from both the command line and within Binary Ninja.
+The dewolf decompiler can be used from the command line, within Binary Ninja, or within Ghidra.
 
 ### GUI
 After enabling the dewolf decompilation widget via **Tools > dewolf decompiler**, the decompiled code for the currently active symbol will be displayed.
@@ -83,6 +95,8 @@ The automatic decompilation of selected functions can be toggled with the *follo
 Decompiled code is cached and can be generated again with the *decompile* button, e.g. after patching instructions in the binary view.
 
 ![Widget](https://user-images.githubusercontent.com/12004321/145460476-f869e5cc-d585-4f53-8920-6ecfa4b346d5.png)
+
+For the equivalent window inside the **Ghidra** GUI, see [`ghidra_plugin/README.md`](ghidra_plugin/README.md).
 
 ### CLI
 For batch decompilation, it may be more convenient to utilize dewolf as a command line program.
@@ -98,6 +112,8 @@ If you wish to decompile a specific function, the function name can be provided 
 python decompile.py <path/to/binary> <function_name>
 ```
 
+By default the CLI uses Binary Ninja if it is installed, otherwise Ghidra. Select one explicitly with `--frontend binaryninja` or `--frontend ghidra` (the Ghidra frontend requires the `pyghidra` package and a Ghidra installation).
+
 By default, the generated code is displayed on the console.
 If you want to write the output to a file instead, you can specify it with the `--output/-o` flag.
 Please use the `--help` flag for more information.
@@ -107,10 +123,10 @@ ___
 dewolf has multiple configuration options of which some are configurable via the GUI.
 
 ### via GUI
-You can configure dewolf from the Binary Ninja GUI by navigating to **Edit > Preferences > Settings** or by pressing <kbd>Ctrl</kbd> + <kbd>,</kbd>.
-Search for **dewolf** in the search bar and all dewolf related settings will be displayed.
+In **Binary Ninja**, configure dewolf by navigating to **Edit > Preferences > Settings** or by pressing <kbd>Ctrl</kbd> + <kbd>,</kbd>, then searching for **dewolf**.
+In **Ghidra**, the same options are exposed under **Edit > Tool Options > dewolf**.
 
-**Warning:** Configurations made through Binary Ninja will not be taken into account when dewolf is started via command line interface. To configure dewolf when started via CLI, do as described in the following section.
+**Warning:** Configurations made through the GUI will not be taken into account when dewolf is started via command line interface. To configure dewolf when started via CLI, do as described in the following section.
 
 ### via CLI
 To apply settings for command line mode or using advanced settings not shown in the GUI, you can provide a *config.json* file in the decompiler root folder.

@@ -1,12 +1,17 @@
 # TODO — Ship the Ghidra plugin: pip-installable dewolf + double-click launcher
 
-Status: **planned, not started.** Goal UX: `pip install "dewolf[ghidra]"` → run a one-time launcher
+Status: **All phases done & verified (PyPI publish deferred). Remaining: real-Ghidra GUI smoke test + commit.** Goal UX:
+`pip install "dewolf[ghidra] @ git+https://github.com/fkie-cad/dewolf.git"` → run a one-time launcher
 installer → **double-click a desktop icon (never a terminal)** and Ghidra opens with the dewolf window
-already there. Updates via `pip install -U dewolf`.
+already there. Updates by re-installing the git ref.
 
 ## Decisions (settled)
-- [x] **Distribution channel: PyPI** (`pip install dewolf`). No Ghidra "app store" exists; PyPI + pip is
-  the closest equivalent and gives real `pip install -U` updates.
+- [x] **Distribution channel: install from the GitHub URL** (`pip install
+  "dewolf[ghidra] @ git+https://github.com/fkie-cad/dewolf.git"`). PyPI is deferred — the packaging work
+  is identical either way; only PyPI publishing + owning the name are skipped. Pin with `@<tag>`/`@<commit>`;
+  update by re-installing the ref. Bonus: installing from git allows **direct-URL deps** (PyPI forbids
+  them), so dewolf's own git deps (`delogic`, `dewolf-idioms`) can be `pkg @ git+https://…` in
+  `[project.dependencies]`.
 - [x] **Java plugin: compile-at-launch** via pyghidra's `install_plugin` (no Gradle zip, no CI matrix;
   always built against the running Ghidra; auto-reinstalls on source change).
 - [x] **Launch: keep the in-process design + ship a double-click launcher** (Option A). Do NOT split
@@ -27,62 +32,52 @@ already there. Updates via `pip install -U dewolf`.
 
 ---
 
-## Phase 1 — Make dewolf pip-installable
-- [ ] Add a real `[project]` table to root `pyproject.toml` (currently only black/isort config):
-  `name = "dewolf"`, `requires-python = ">=3.10"`, version from `update_for_release.py` scheme.
-- [ ] `dependencies` = runtime entries from `requirements.txt` (delogic, delogic-idioms, networkx, pydot,
-  pygments, z3-solver). Move black/isort/pytest to `[project.optional-dependencies] dev`.
-- [ ] `[project.optional-dependencies] ghidra = ["pyghidra"]` (frontend stays optional — matches
-  `decompiler/frontend/__init__.py` try/except).
-- [ ] setuptools packaging:
-  - [ ] packages: `decompiler` (+subpackages), `ghidra_plugin` (+subpackages).
-  - [ ] top-level module `decompile` (`py-modules = ["decompile"]`) — `backend.py:396` does
-    `from decompile import Decompiler`, must import when installed.
-  - [ ] **ship Java sources as package data**: `ghidra_plugin/java/**/*.java`
-    (`[tool.setuptools.package-data]` / `include-package-data`). `install_plugin`/`javac` need real files
-    on disk; wheels unpack, so `Path(__file__).parent/"java"` resolves.
-- [ ] Do NOT package the repo-root `__init__.py` (BN plugin shim w/ `sys.path.append`); BN install stays
-  git-clone-based.
+## Phase 1 — Make dewolf pip-installable  ✅ DONE (verified via built wheel + fresh-venv install)
+- [x] Added `[build-system]` + `[project]` to root `pyproject.toml`: `name = "dewolf"`,
+  `requires-python = ">=3.10"`, static `version = "0.1.0"` (release-time date versioning stays in
+  `update_for_release.py`/`plugin.json`, separate from the pip version).
+- [x] `dependencies` from `requirements.txt`, with git deps as **direct URLs** (legal off-PyPI):
+  `delogic @ git+…/dewolf-logic.git`, `compiler-idioms @ git+…/dewolf-idioms.git`
+  (NB: the idioms **dist name is `compiler-idioms`**, confirmed via `packages_distributions`, not
+  "dewolf-idioms"), plus `networkx != 2.8.4`, `pydot`, `pygments`, `z3-solver == 4.8.10`.
+  black/isort/pytest moved to `[project.optional-dependencies] dev`.
+- [x] `[project.optional-dependencies] ghidra = ["pyghidra"]` (frontend stays optional).
+- [x] setuptools packaging: `packages.find include = ["decompiler*","ghidra_plugin*"]`,
+  `py-modules = ["decompile"]`, `package-data ghidra_plugin = ["java/**/*.java"]` (the `**` glob works —
+  13 `.java` files land under `site-packages/ghidra_plugin/java/…` on install).
+- [x] Repo-root `__init__.py` (BN shim), `tests/`, `dewolf-idioms/` are NOT packaged (verified absent
+  from the wheel). BN install stays git-clone-based.
+- [x] `dewolf` CLI wired: added `_cli()` to `decompile.py`; `[project.scripts] dewolf = "decompile:_cli"`.
+- [x] `dewolf-ghidra` CLI wired to the existing `ghidra_plugin.launch:main` (works today; will move to the
+  `hooks.py` refactor in Phase 2).
 
-## Phase 2 — pyghidra entry points
-- [ ] New `ghidra_plugin/hooks.py` with two functions (shared by entry points + launcher):
-  - [ ] `install_extension(launcher)` → `install_plugin(JAVA_SRC, ExtensionDetails(name="dewolf", ...,
-    plugin_version=_plugin_version()))`. Reuse existing `_plugin_version()` sha1 hash (`launch.py:28`) —
-    already drives auto-reinstall via pyghidra's `plugin_version` compare.
-  - [ ] `register_backend()` → body of today's `_register_backend()` (`launch.py:47`);
-    `DewolfBackendRegistry.setBackend(DewolfPythonBackend())`.
-- [ ] Register in `pyproject.toml`:
-  ```toml
-  [project.entry-points."pyghidra.setup"]
-  dewolf = "ghidra_plugin.hooks:install_extension"
-  [project.entry-points."pyghidra.pre_launch"]
-  dewolf = "ghidra_plugin.hooks:register_backend"
-  ```
+## Phase 2 — pyghidra entry points  ✅ DONE (verified: entry_points.txt in built wheel)
+- [x] New `ghidra_plugin/hooks.py` with `plugin_version()`, `install_extension(launcher)` (the
+  `pyghidra.setup` hook), `register_backend()` (the `pyghidra.pre_launch` hook). Lazy imports so the
+  module loads without pyghidra/a JVM.
+- [x] `launch.py` refactored to import + call these hooks (single code path shared with the entry
+  points); removed the duplicated `_plugin_version`/`_register_backend`.
+- [x] Registered both entry points in `pyproject.toml` (`pyghidra.setup`/`pyghidra.pre_launch` → the two
+  hooks). Confirmed present in the wheel's `entry_points.txt`.
 
-## Phase 3 — Console scripts + double-click launcher
-- [ ] `[project.scripts] dewolf = "decompile:_cli"` — thin zero-arg CLI wrapper calling
-  `commandline.main(Decompiler)`.
-- [ ] `dewolf-ghidra` — the launch entry. Promote `launch.py:main()`: build `GuiPyGhidraLauncher`
-  (install dir via `_resolve_install_dir`, `launch.py:36`), call `install_extension` + `register_backend`,
-  then `launcher.start()`. Runs in dewolf's own interpreter (so plugin/backend match what's installed).
-  Still works from a git checkout (where entry points aren't registered).
-- [ ] `dewolf-install-launcher` — run once; new module `ghidra_plugin/desktop_launcher.py` creates the
-  OS-native double-clickable entry pointing at the abs path of `dewolf-ghidra`
-  (`shutil.which`/`sys.executable`):
-  - [ ] **macOS**: minimal `dewolf.app` in `~/Applications` (`Contents/MacOS/dewolf` stub exec'ing
-    `dewolf-ghidra`, `Info.plist`, icon). pyghidra already drives the Cocoa loop (`_run_mac_app`).
-  - [ ] **Linux**: `~/.local/share/applications/dewolf-ghidra.desktop` (`Exec=<abs>`, `Terminal=false`,
-    icon).
-  - [ ] **Windows**: Start-menu / Desktop `.lnk` (PowerShell `WScript.Shell` or `pywin32`).
-  - [ ] Bake `GHIDRA_INSTALL_DIR` into the entry (or leave to runtime autodetect).
+## Phase 3 — Console scripts + double-click launcher  ✅ DONE (verified: built wheel + sandboxed run)
+- [x] `dewolf` (`decompile:_cli`) and `dewolf-ghidra` (`ghidra_plugin.launch:main`) console scripts.
+- [x] `dewolf-install-launcher` (`ghidra_plugin.desktop_launcher:main`) — generates the OS-native
+  double-click launcher. Prefers the installed `dewolf-ghidra` script (checked on PATH + next to the
+  interpreter), falls back to `python -m ghidra_plugin`. Bakes `GHIDRA_INSTALL_DIR` when set, else
+  leaves it to runtime autodetect.
+  - [x] **macOS**: `~/Applications/dewolf.app` (`Contents/MacOS/dewolf` bash stub + `Info.plist`).
+    Verified end-to-end with a sandboxed `HOME` (bundle + stub generated correctly).
+  - [x] **Linux**: `~/.local/share/applications/dewolf-ghidra.desktop` (`Terminal=false`).
+  - [x] **Windows**: Desktop `.lnk` via PowerShell `WScript.Shell`; uses a generated `.cmd` wrapper when
+    env baking / extra args are needed (a `.lnk` can't set env vars). *(code path not runtime-verified on
+    macOS dev box — no Windows to test on.)*
 
-## Phase 4 — Docs + release
-- [ ] Rewrite `ghidra_plugin/README.md` + main install docs: `pip install "dewolf[ghidra]"` → run
-  `dewolf-install-launcher` once → double-click the icon. Note: `astyle` is an external system dep
-  (degrades gracefully, `backend.py:385`); dewolf must be installed in the interpreter the launcher uses
-  (the shipped launcher guarantees this).
-- [ ] GitHub Actions: build wheel + publish to PyPI on tag (trusted publishing); run headless smoke test
-  as a gate.
+## Phase 4 — Docs  ✅ DONE
+- [x] Rewrote `ghidra_plugin/README.md`: pip-from-git install, the three console scripts, double-click
+  launcher / terminal / `pyghidraRun` routes, the same-interpreter requirement, and the `astyle` note.
+- [x] Added a "Ghidra Plugin" section to the main `README.md` pointing at `ghidra_plugin/README.md`.
+- [ ] (Deferred) PyPI publish + trusted-publishing CI job — not needed for git-URL installs. Revisit later.
 
 ---
 
@@ -98,9 +93,11 @@ already there. Updates via `pip install -U dewolf`.
 - `requirements.txt` — source of truth for deps (or superseded by pyproject).
 
 ## Verification
-- [ ] `python -m build`; `unzip -l dist/*.whl` shows `ghidra_plugin/java/**.java` + top-level `decompile.py`.
-- [ ] Fresh venv `pip install "dist/dewolf-*.whl[ghidra]"`; `import decompiler, ghidra_plugin, decompile`
-  works; `dewolf` / `dewolf-ghidra` / `dewolf-install-launcher` scripts exist.
+- [ ] Fresh venv, install straight from git:
+  `pip install "dewolf[ghidra] @ git+file://$(pwd)"` (local clone) or the GitHub URL. Confirm
+  `import decompiler, ghidra_plugin, decompile` works and `dewolf` / `dewolf-ghidra` /
+  `dewolf-install-launcher` scripts exist. (Also sanity-check `pip wheel` builds and the wheel contains
+  `ghidra_plugin/java/**.java` + top-level `decompile.py` — proves package-data is shipped.)
 - [ ] Entry points present:
   `python -c "import importlib.metadata as m; print([(e.group,e.name,e.value) for g in ('pyghidra.setup','pyghidra.pre_launch') for e in m.entry_points(group=g)])"`
 - [ ] `dewolf-install-launcher` creates the OS entry (e.g. `~/Applications/dewolf.app`) → points at
@@ -110,4 +107,5 @@ already there. Updates via `pip install -U dewolf`.
 - [ ] Touch a `.java` source → relaunch → pyghidra uninstalls old `dewolf` extension, installs new.
 - [ ] Run existing `smoke_test.py` against the installed package (not repo cwd) — import resolution no
   longer depends on repo root.
-- [ ] `pip install -U` newer build → relaunch via same icon shows new version, no manual Ghidra steps.
+- [ ] Re-install a newer git ref (`pip install --force-reinstall "… @ git+…@<tag>"`) → relaunch via same
+  icon shows new version, no manual Ghidra steps.

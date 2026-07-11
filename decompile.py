@@ -95,8 +95,13 @@ class Decompiler:
         code: str
 
 
-"""When invoked as a script, run the commandline interface."""
-if __name__ == "__main__":
+def _cli():
+    """Console-script entry point (``dewolf``): run the command-line interface."""
     from decompiler.util.commandline import main
 
     main(Decompiler)
+
+
+"""When invoked as a script, run the commandline interface."""
+if __name__ == "__main__":
+    _cli()
