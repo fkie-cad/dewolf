@@ -189,9 +189,7 @@ class TestDecoratedCFG:
         decorated = DecoratedCFG.from_cfg(simple_graph)
         dot_converter = ToDotConverter(decorated.graph)
         content = dot_converter._create_dot()
-        assert (
-            content
-            == """digraph  {
+        assert content == """digraph  {
 0 [shape="box", color="blue", label="0.\\na#0 = 0x2\\nb#0 = foo(a#0)\\nif(a#0 < b#0)"]; 
 1 [shape="box", color="blue", label="1.\\nb#2 = a#0 - b#0"]; 
 2 [shape="box", color="blue", label="2.\\nb#1 = ϕ(b#0,b#2)\\nreturn b#1"]; 
@@ -199,15 +197,12 @@ class TestDecoratedCFG:
 0 -> 2 [color="darkred"]; 
 1 -> 2 [color="blue"]; 
 }"""
-        )
 
     def test_convert_to_dot_with_string(self, graph_with_string):
         decorated = DecoratedCFG.from_cfg(graph_with_string)
         dot_converter = ToDotConverter(decorated.graph)
         content = dot_converter._create_dot()
-        assert (
-            content
-            == """digraph  {
+        assert content == """digraph  {
 0 [shape="box", color="blue", label="0.\\na#0 = 0x2\\nb#0 = foo(a#0)\\nif(a#0 < b#0)"]; 
 1 [shape="box", color="blue", label="1.\\nb#2 = a#0 - b#0"]; 
 2 [shape="box", color="blue", label="2.\\nb#1 = ϕ(b#0,b#2)\\nprintf(\\"The result is : %i\\", b#1)\\nreturn b#1"]; 
@@ -215,7 +210,6 @@ class TestDecoratedCFG:
 0 -> 2 [color="darkred"]; 
 1 -> 2 [color="blue"]; 
 }"""
-        )
 
     def test_png_export(self, simple_graph, png_magic):
         decorated = DecoratedCFG.from_cfg(simple_graph)
@@ -582,9 +576,7 @@ class TestDecoratedAST:
         decorated = DecoratedAST.from_ast(ast_condition)
         dot_converter = ToDotConverter(decorated.graph)
         content = dot_converter._create_dot()
-        assert (
-            content
-            == """digraph  {
+        assert content == """digraph  {
 0 [style="filled", fillcolor="#e6f5c9", label="0. SeqNode\\n\\nSequence"]; 
 1 [style="filled", fillcolor="#e6f5c9", label="1. ConditionNode\\n\\nif (true)"]; 
 2 [style="filled", fillcolor="#e6f5c9", label="2. SeqNode\\n\\nSequence"]; 
@@ -597,16 +589,13 @@ class TestDecoratedAST:
 2 -> 3 []; 
 4 -> 5 []; 
 }"""
-        )
 
     def test_convert_to_dot_switch(self, ast_switch):
         """Test that convert to dot can handle switch"""
         decorated = DecoratedAST.from_ast(ast_switch)
         dot_converter = ToDotConverter(decorated.graph)
         content = dot_converter._create_dot()
-        assert (
-            content
-            == """digraph  {
+        assert content == """digraph  {
 0 [style="filled", fillcolor="#e6f5c9", label="0. SeqNode\\n\\nSequence"]; 
 1 [style="filled", fillcolor="#fdcdac", label="1. SwitchNode\\n\\nswitch (0x29)"]; 
 2 [style="filled", fillcolor="#e6f5c9", label="2. CaseNode\\n\\ncase 0x0:"]; 
@@ -627,7 +616,6 @@ class TestDecoratedAST:
 6 -> 7 []; 
 8 -> 9 []; 
 }"""
-        )
 
     def test_png_export(self, ast_for_loop, png_magic):
         decorated = DecoratedAST.from_ast(ast_for_loop)
