@@ -88,15 +88,13 @@ ___
 The dewolf decompiler can be used from the command line, within Binary Ninja, or within Ghidra.
 
 ### GUI
-After enabling the dewolf decompilation widget via **Tools > dewolf decompiler**, the decompiled code for the currently active symbol will be displayed.
-In the dewolf widget, it is possible to navigate through functions by double-clicking them.
+Both frontends provide a dockable **dewolf** window that shows the decompilation of the current function, follows the cursor, caches results, and re-decompiles on demand. Double-click a function in the window to navigate to it.
 
-The automatic decompilation of selected functions can be toggled with the *follow* button.
-Decompiled code is cached and can be generated again with the *decompile* button, e.g. after patching instructions in the binary view.
+#### Binary Ninja
+Enable the widget via **Tools > dewolf decompiler**; the decompiled code for the active function is shown. Toggle automatic decompilation with the *follow* button, and regenerate the current function with the *decompile* button (e.g. after patching instructions in the binary view).
 
-![Widget](https://user-images.githubusercontent.com/12004321/145460476-f869e5cc-d585-4f53-8920-6ecfa4b346d5.png)
-
-For the equivalent window inside the **Ghidra** GUI, see [`ghidra_plugin/README.md`](ghidra_plugin/README.md).
+#### Ghidra
+Start Ghidra through the desktop launcher created by `dewolf-install-launcher` (or run `dewolf-ghidra`), then open the window via **Window > dewolf Decompiler**. It follows the cursor in the Listing; use the *follow* toggle and *refresh* button in the window's toolbar. Beyond navigation, the window also supports renaming and retyping variables and functions directly from the decompiled view. See [`ghidra_plugin/README.md`](ghidra_plugin/README.md) for the full feature list.
 
 ### CLI
 For batch decompilation, it may be more convenient to utilize dewolf as a command line program.
@@ -129,8 +127,7 @@ In **Ghidra**, the same options are exposed under **Edit > Tool Options > dewolf
 **Warning:** Configurations made through the GUI will not be taken into account when dewolf is started via command line interface. To configure dewolf when started via CLI, do as described in the following section.
 
 ### via CLI
-To apply settings for command line mode or using advanced settings not shown in the GUI, you can provide a *config.json* file in the decompiler root folder.
-The format of such a config file has to be as follows:
+To apply settings for command line mode (or advanced settings not shown in the GUI), provide a `config.json` file in the dewolf root folder — copy the bundled `config.example.json` as a starting point. It overrides the defaults and looks like:
 
 ```
 {

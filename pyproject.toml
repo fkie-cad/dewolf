@@ -46,6 +46,8 @@ py-modules = ["decompile"]
 include = ["decompiler*", "ghidra_plugin*"]
 
 [tool.setuptools.package-data]
+# default.json is the option schema/defaults the Options loader reads at runtime — must be shipped.
+"decompiler.util" = ["*.json"]
 # The Ghidra plugin's Java sources are compiled at launch by pyghidra's install_plugin, so they
 # must ship as data and resolve to a real on-disk path inside the installed package.
 ghidra_plugin = ["java/**/*.java"]

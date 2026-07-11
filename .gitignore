@@ -24,6 +24,9 @@ tests/*.png
 /bugfinder.py
 .DS_Store
 
+# user-local CLI config (optional; copy config.example.json to create it)
+/config.json
+
 # Python build artifacts
 /build/
 /dist/
