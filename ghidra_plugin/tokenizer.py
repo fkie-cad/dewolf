@@ -6,6 +6,7 @@ carrying the indent of the *following* line as a COUNT OF LEADING SPACES (column
 Ghidra's panel renders a ClangBreak's indent as that many single-space widths
 (PrettyPrinter.INDENT_STRING == " "), so this must be columns, not indent levels.
 """
+
 from __future__ import annotations
 
 import re

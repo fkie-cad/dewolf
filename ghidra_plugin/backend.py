@@ -1,4 +1,5 @@
 """dewolf decompilation backend exposed to the Java plugin via JPype."""
+
 from __future__ import annotations
 
 import logging
@@ -6,9 +7,8 @@ import re
 import traceback
 from collections import OrderedDict
 
-from jpype import JArray, JClass, JImplements, JOverride
-
 from ghidra_plugin import options_bridge, tokenizer
+from jpype import JArray, JClass, JImplements, JOverride
 
 CACHE_LIMIT = 128
 
@@ -94,9 +94,7 @@ class DewolfPythonBackend:
         decompiler = self._get_decompiler(program)
         high_function = self._high_function(decompiler, function)
         _raise_if_cancelled(should_cancel)
-        task, code = self._run_pipeline(
-            decompiler, function, self._user_defined_names(high_function), overrides, should_cancel
-        )
+        task, code = self._run_pipeline(decompiler, function, self._user_defined_names(high_function), overrides, should_cancel)
         code = self._reindent(code).strip("\n")  # drop blank lines around the function
         tokens = tokenizer.tokenize(code, self._name_classifier(task, program))
         original_names = self._original_names(task, high_function)
@@ -106,9 +104,7 @@ class DewolfPythonBackend:
             self._cache.popitem(last=False)
         return self._to_java(code, tokens, high_function, original_names)
 
-    def _run_pipeline(
-        self, decompiler, function, user_defined_names: set[str], overrides: dict | None = None, should_cancel=None
-    ):
+    def _run_pipeline(self, decompiler, function, user_defined_names: set[str], overrides: dict | None = None, should_cancel=None):
         """Decompiler.decompile, unrolled so user-defined names can be applied to the
         AST between the pipeline and code generation (dewolf's out-of-ssa names merged
         locals var_N; the original names survive in each instance's .ssa_name)."""
@@ -122,9 +118,7 @@ class DewolfPythonBackend:
         task = DecompilerTask(str(function), function, options)
         _raise_if_cancelled(should_cancel)
         decompiler._frontend.lift(task)
-        pipeline = DecompilerPipeline.from_strings(
-            options.getlist("pipeline.cfg_stages"), options.getlist("pipeline.ast_stages")
-        )
+        pipeline = DecompilerPipeline.from_strings(options.getlist("pipeline.cfg_stages"), options.getlist("pipeline.ast_stages"))
         pipeline.run(task, should_cancel=should_cancel)
         _raise_if_cancelled(should_cancel)
         self._apply_source_names(task, user_defined_names)
@@ -176,10 +170,7 @@ class DewolfPythonBackend:
         """Rename output variables to the user-defined Ghidra name they originate from."""
         from typing import Counter
 
-        from decompiler.pipeline.controlflowanalysis.variable_name_generation import (
-            RenamingScheme,
-            VariableNameGeneration,
-        )
+        from decompiler.pipeline.controlflowanalysis.variable_name_generation import RenamingScheme, VariableNameGeneration
 
         if not user_defined_names:
             return
@@ -192,9 +183,7 @@ class DewolfPythonBackend:
         for (name, label), instances in groups.items():
             if name in parameter_names:
                 continue
-            origins = Counter(
-                instance.ssa_name.name for instance in instances if instance.ssa_name is not None
-            )
+            origins = Counter(instance.ssa_name.name for instance in instances if instance.ssa_name is not None)
             for candidate, _count in origins.most_common():
                 if candidate in user_defined_names and candidate != name and candidate not in taken:
                     rename_map[(name, label)] = candidate
@@ -225,9 +214,7 @@ class DewolfPythonBackend:
         uid_to_symbol = self._uid_symbol_map(high_function) if high_function is not None else {}
         names: dict[str, str] = {}
         for (name, _label), instances in self._variable_groups(task).items():
-            origins = Counter(
-                instance.ssa_name.name for instance in instances if instance.ssa_name is not None
-            )
+            origins = Counter(instance.ssa_name.name for instance in instances if instance.ssa_name is not None)
             if not origins:
                 continue
             origin = origins.most_common(1)[0][0]
@@ -360,9 +347,7 @@ class DewolfPythonBackend:
         HashMap = JClass("java.util.HashMap")
         if tokens is None:
             tokens = tokenizer.message_tokens(code)
-        token_array = JArray(TokenData)(
-            [TokenData(kind, text, address, indent) for kind, text, address, indent in tokens]
-        )
+        token_array = JArray(TokenData)([TokenData(kind, text, address, indent) for kind, text, address, indent in tokens])
         name_map = HashMap()
         for displayed, original in (original_names or {}).items():
             name_map.put(displayed, original)

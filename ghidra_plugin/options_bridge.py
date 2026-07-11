@@ -8,6 +8,7 @@ Ghidra options are hierarchical, path-separated by ``.``. We register each dewol
 under ``dewolf.<Group Title>.<dest>`` so the group titles from default.json become the
 subcategories shown in the options tree, and read them back by the same path.
 """
+
 from __future__ import annotations
 
 import logging
@@ -65,8 +66,7 @@ def register(tool) -> None:
             default_value = _coerce_default(option)
             description = option.get("description", "")
             try:
-                options.registerOption(name, _option_type(JClass, option.get("type", "string")),
-                                       default_value, None, description)
+                options.registerOption(name, _option_type(JClass, option.get("type", "string")), default_value, None, description)
                 count += 1
             except Exception:  # noqa: BLE001
                 logger.debug("failed to register option %s", name, exc_info=True)

@@ -1,32 +1,16 @@
 import re
-import shutil
 import subprocess
-from pathlib import Path
 
-import pytest
-from decompiler.backend.codegenerator import FAIL_MESSAGE
+from tests.sample_decompilation import record_crash, run_decompilation
 
 
 def test_sample(test_cases):
     """Test the decompiler with the given test case."""
     sample, function_name = test_cases
-    try:
-        output = subprocess.run(("python", "decompile.py", sample, function_name), check=True, capture_output=True).stdout.decode("utf-8")
-        failed = FAIL_MESSAGE in output
-    except subprocess.CalledProcessError as e:
-        failed = True
-    if failed:
-        __add_sample_to_crashed_sample_folder(sample, function_name)
-    assert not failed
-
-
-def __add_sample_to_crashed_sample_folder(sample, function_name):
-    """Copy the sample to the crashed sample folder."""
-    crash_dir = Path("crash_reports")
-    crash_dir.mkdir(exist_ok=True)
-    # Copy the binary to the crash directory
-    output_file = crash_dir / ("_".join(sample.parts[3:]) + "_" + function_name)
-    shutil.copy(sample, output_file)
+    ok, detail = run_decompilation(sample, function_name)
+    if not ok:
+        record_crash(sample, function_name)
+    assert ok, detail
 
 
 def test_globals():

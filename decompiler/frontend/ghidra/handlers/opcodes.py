@@ -395,9 +395,7 @@ class OpcodeHandler(Handler):
             bits = (int(base_vn.getSize()) or 4) * BYTE_SIZE
             signed = raw_offset - (1 << bits) if raw_offset >= (1 << (bits - 1)) else raw_offset
             variable, delta = self._lifter.stack_variable(signed)
-            address = UnaryOperation(
-                OperationType.address, [variable], vartype=Pointer(variable.type, self._lifter._address_size_bits())
-            )
+            address = UnaryOperation(OperationType.address, [variable], vartype=Pointer(variable.type, self._lifter._address_size_bits()))
             value = address if delta == 0 else BinaryOperation(OperationType.plus, [address, Constant(delta)])
             return Assignment(dst, value)
         # PTRSUB(const_base, offset) is an absolute address (a global). Fold the constant base into a

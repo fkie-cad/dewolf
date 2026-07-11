@@ -9,6 +9,7 @@ extension by PyGhidra at launch time (re-compiled automatically whenever the Jav
 source changes), and a dewolf backend is registered before the GUI starts so the
 "dewolf Decompiler" window can decompile in-process.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -52,9 +53,8 @@ def _register_backend() -> None:
     if str(REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(REPO_ROOT))
 
-    from jpype import JClass
-
     from ghidra_plugin.backend import DewolfPythonBackend
+    from jpype import JClass
 
     _backend = DewolfPythonBackend()
     JClass("dewolfghidra.DewolfBackendRegistry").setBackend(_backend)

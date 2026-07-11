@@ -148,7 +148,7 @@ def _classify(*ops):
 
 def test_indirect_only_global_is_readonly():
     # a global that only ever appears as a conservative may-write after a call (INDIRECT)
-    op = FakeOp(PcodeOp.INDIRECT, output=_ram(0x405000), inputs=[_ram(0x405000), _const(0x2a)])
+    op = FakeOp(PcodeOp.INDIRECT, output=_ram(0x405000), inputs=[_ram(0x405000), _const(0x2A)])
     lifter = _classify(op)
     assert 0x405000 not in lifter._written_globals
     assert not lifter._is_written_global(_ram(0x405000))

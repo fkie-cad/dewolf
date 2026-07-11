@@ -54,7 +54,7 @@ class VarnodeHandler(Handler):
         return Constant(value, vartype=vartype)
 
     def _lift_address(self, vn, destination: bool):
-        """A varnode in the ram address space: an aliased global variable, versioned by memory version.
+        r"""A varnode in the ram address space: an aliased global variable, versioned by memory version.
 
         Address varnodes that reach the lifter (i.e. not call/branch targets, which are handled
         inline) denote fixed globals tracked by Ghidra's memory SSA. We lift them as aliased

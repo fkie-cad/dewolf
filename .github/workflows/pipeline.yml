@@ -5,34 +5,92 @@ on:
     branches:
       - main
   pull_request:
-    
+
 jobs:
-  build-docker-and-run-tests:
+  # Code style is frontend-agnostic, so it runs once in a plain Python env (no Binary Ninja needed).
+  format-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install formatters
+        # keep these versions in sync with requirements.txt
+        run: pip install black==26.5.1 isort==8.0.1
+      - name: Run Format Check
+        run: make check-format CONFIG_NO_VENV=1
+
+  # Binary Ninja frontend: built and tested inside the Docker image (needs the private BN license).
+  binja-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - name: Setup BinaryNinja License
         run: |
           echo "${{ secrets.BINJA_LICENSE }}" | base64 --decode > license.txt
-      - name: Download BinayNinja.zip
+      - name: Download BinaryNinja.zip
         run: |
           curl -L --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_BINJA_TOKEN }}" "https://gitlab.fkie.fraunhofer.de/api/v4/projects/1250/repository/archive.zip?sha=Binja5" -o complete_repo.zip
       - name: Build Docker Image
-        run: |
-          docker build -t dewolf .
-      - name: Run Format Check
-        run: |
-          docker run dewolf make check-format
+        run: docker build -t dewolf .
       - name: Run Tests
         id: run_tests
-        run: |
-          docker run -v "$(pwd)"/artifacts:/opt/dewolf/crash_reports dewolf make
+        run: docker run -v "$(pwd)"/artifacts:/opt/dewolf/crash_reports dewolf make
       - name: Upload Crash Reports
-        if: ${{ failure() && steps.run_tests.conclusion == 'failure' }}  # Only run if previous steps fail
+        if: ${{ failure() && steps.run_tests.conclusion == 'failure' }}
         uses: actions/upload-artifact@v4
         with:
-          name: crash-reports
+          name: crash-reports-binja
           path: artifacts/*
-          retention-days: 7 # Adjust retention as needed
+          retention-days: 7
+
+  # Ghidra frontend + GUI plugin: Ghidra is a free download, so this job needs no secrets and also
+  # runs on forks. Mirrors the binja job (build tool -> run tests -> upload crash reports).
+  ghidra-tests:
+    runs-on: ubuntu-latest
+    env:
+      GHIDRA_VERSION: "12.1.2"
+      GHIDRA_INSTALL_DIR: ${{ github.workspace }}/ghidra/ghidra_12.1.2_PUBLIC
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install build tools for samples
+        run: sudo apt-get update && sudo apt-get install -y gcc-multilib astyle graphviz
+      - name: Cache Ghidra
+        id: cache-ghidra
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/ghidra
+          key: ghidra-${{ env.GHIDRA_VERSION }}
+      - name: Download Ghidra
+        if: steps.cache-ghidra.outputs.cache-hit != 'true'
+        run: |
+          ASSET_URL=$(curl -sL "https://api.github.com/repos/NationalSecurityAgency/ghidra/releases/tags/Ghidra_${GHIDRA_VERSION}_build" | jq -r '.assets[] | select(.name | endswith(".zip")) | .browser_download_url' | head -n1)
+          echo "Downloading $ASSET_URL"
+          curl -L "$ASSET_URL" -o ghidra.zip
+          unzip -q ghidra.zip -d "${{ github.workspace }}/ghidra"
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt pyghidra
+      - name: Run Ghidra Tests
+        id: run_tests
+        run: make ghidra-tests CONFIG_NO_VENV=1
+      - name: Upload Crash Reports
+        if: ${{ failure() && steps.run_tests.conclusion == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-reports-ghidra
+          path: crash_reports/*
+          retention-days: 7

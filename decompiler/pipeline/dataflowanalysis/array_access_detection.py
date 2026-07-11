@@ -181,9 +181,7 @@ class ArrayAccessDetection(PipelineStage):
             array_info = ArrayInfo(base_variable, index, confidence)
             candidate.dereference.array_info = array_info
 
-    def _get_base_and_offset(
-        self, operand: BinaryOperation
-    ) -> Tuple[Optional[Variable[Pointer]], Optional[Pointer], Optional[Expression]]:
+    def _get_base_and_offset(self, operand: BinaryOperation) -> Tuple[Optional[Variable[Pointer]], Optional[Pointer], Optional[Expression]]:
         """
         Given operand of *(addition), we want to check, if it is of form base+offset or offset+base,
         where base is a pointer (a pointer variable, or a pointer-typed cast of a variable). We
