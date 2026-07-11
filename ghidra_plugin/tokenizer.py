@@ -41,7 +41,7 @@ def tokenize(code: str, classify_name: Classifier) -> list[Token]:
     for index, line in enumerate(code.splitlines()):
         stripped = line.lstrip(" ")
         # ClangBreak indents by this many single-space widths, so pass the raw leading-space
-        # count (astyle already indents the source); dividing to an indent level would render
+        # count (clang-format already indents the source); dividing to an indent level would render
         # only one space per level.
         indent = len(line) - len(stripped)
         if index > 0:

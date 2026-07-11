@@ -368,13 +368,13 @@ class DewolfPythonBackend:
 
     @staticmethod
     def _reindent(code: str) -> str:
-        """Indent the raw codegen output with astyle (as the Binary Ninja widget does)."""
+        """Indent the raw codegen output with clang-format (as the Binary Ninja widget does)."""
         from decompiler.util.decoration import DecoratedCode
 
         try:
             return DecoratedCode.formatted_plain(code)
-        except Exception:  # noqa: BLE001 - astyle missing: show unformatted code instead
-            logger.warning("astyle failed or is not installed; showing unformatted code", exc_info=True)
+        except Exception:  # noqa: BLE001 - formatting failed: show unformatted code instead
+            logger.warning("clang-format failed; showing unformatted code", exc_info=True)
             return code
 
     def _get_decompiler(self, program):

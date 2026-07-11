@@ -29,15 +29,15 @@ Before we start, please make sure you have the following dependencies installed 
 
 - At least [Python 3.10](https://www.python.org/)
 - A disassembler frontend — either [Binary Ninja (>=3.4)](https://binary.ninja/) **or** [Ghidra (>=11.3, with PyGhidra)](https://ghidra-sre.org/)
-- [astyle](https://code.tools/man/1/astyle/) for proper indentation of the decompiled code
 - [libgraph-easy-perl](https://packages.ubuntu.com/source/focal/libgraph-easy-perl) only required for printing ASCII graphs
 
-Under **Linux** (Ubuntu / Debian), you can use the following command to install both **astyle** and **libgraph-easy-perl**:
+Under **Linux** (Ubuntu / Debian), you can install **libgraph-easy-perl** with:
 
 ```bash
-sudo apt install astyle libgraph-easy-perl
+sudo apt install libgraph-easy-perl
 ```
-Under **Windows**, please make sure the **astyle**-binary has been added to the environment Path.
+
+Code indentation uses [clang-format](https://pypi.org/project/clang-format/), which is installed automatically as a Python dependency — no system package required.
 
 ### Binary Ninja Plugin
 Follow the steps below to setup dewolf as a GUI plugin for Binary Ninja.
@@ -54,10 +54,10 @@ Clone the dewolf repository into the Binary Ninja plugin folder which is located
 If you want to use a python virtual environment, make sure it is enabled for the next steps and also when starting Binary Ninja.
 
 #### Step 2:
-Install dewolf's python dependencies with:
+Install dewolf and its dependencies with:
 
 ```bash
-pip install -r requirements.txt
+pip install -e .
 ```
 
 #### Step 3:

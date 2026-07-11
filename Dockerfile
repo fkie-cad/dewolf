@@ -21,7 +21,6 @@ RUN apt -y update && apt -y upgrade && apt install -y --no-install-recommends \
     # others
     virtualenv \
     unzip \
-	astyle \
     graphviz \
     # plotting ascii graphs for debug purposes
     libgraph-easy-perl \

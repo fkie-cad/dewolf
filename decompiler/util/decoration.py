@@ -79,11 +79,15 @@ try:
 except FileNotFoundError as _:
     GRAPH_EASY_INSTALLED = False
 
-try:
-    run(["astyle", "-V"], capture_output=True)
-    ASTYLE_INSTALLED = True
-except FileNotFoundError as _:
-    ASTYLE_INSTALLED = False
+# clang-format style matching the previous astyle output: 4-space indent, K&R braces, no re-wrapping,
+# and every block/statement broken onto its own line (never collapsed onto one line).
+_CLANG_FORMAT_STYLE = (
+    "{BasedOnStyle: LLVM, IndentWidth: 4, TabWidth: 4, UseTab: Never, BreakBeforeBraces: Attach, "
+    "ColumnLimit: 0, ReflowComments: false, PointerAlignment: Left, "
+    "AllowShortBlocksOnASingleLine: Never, AllowShortFunctionsOnASingleLine: None, "
+    "AllowShortIfStatementsOnASingleLine: Never, AllowShortLoopsOnASingleLine: false, "
+    "AllowShortCaseLabelsOnASingleLine: false, AllowShortEnumsOnASingleLine: false}"
+)
 
 
 class DecoratedGraph:
@@ -379,18 +383,20 @@ class DecoratedCode:
         return decoration.code
 
     def reformat(self):
-        """Call astyle on command line to reformat the code."""
-        if not ASTYLE_INSTALLED:
-            warning(f"Invoking astyle although it seems like it is not installed on the system.")
+        """Reformat the code with clang-format (bundled via the `clang-format` pip package)."""
+        try:
+            from clang_format import get_executable
 
-        with CloseableNamedTemporaryFile(mode="w", encoding="utf-8") as file:
-            file.write(self._text)
-            file.close()
-
-            run(["astyle", "-z2", "-n", file.name], check=True, capture_output=True)
-
-            with open(file.name, "r", encoding="utf-8") as output:
-                self._text = output.read()
+            result = run(
+                [get_executable("clang-format"), f"-style={_CLANG_FORMAT_STYLE}"],
+                input=self._text,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self._text = result.stdout
+        except Exception as error:  # noqa: BLE001 - never let formatting break the decompilation output
+            warning(f"clang-format is unavailable or failed ({error}); showing unformatted code")
 
     def export_ascii(self) -> str:
         return highlight(self._text, CppLexer(), TerminalFormatter(style=self._style))

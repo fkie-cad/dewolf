@@ -15,12 +15,13 @@ dependencies = [
     "networkx != 2.8.4",
     "pydot",
     "pygments",
+    "clang-format",
     "z3-solver == 4.8.10",
 ]
 
 [project.optional-dependencies]
 ghidra = ["pyghidra"]
-dev = ["black", "isort", "pytest != 5.3.4", "pytest-xdist"]
+dev = ["black == 26.5.1", "isort == 8.0.1", "pytest != 5.3.4", "pytest-xdist"]
 
 [project.scripts]
 dewolf = "decompile:_cli"

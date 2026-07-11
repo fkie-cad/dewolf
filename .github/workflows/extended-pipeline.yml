@@ -50,7 +50,7 @@ jobs:
         with:
           python-version: '3.10'
       - name: Install build tools for samples
-        run: sudo apt-get update && sudo apt-get install -y gcc-multilib astyle graphviz
+        run: sudo apt-get update && sudo apt-get install -y gcc-multilib graphviz
       - name: Cache Ghidra
         id: cache-ghidra
         uses: actions/cache@v4
@@ -65,7 +65,7 @@ jobs:
           curl -L "$ASSET_URL" -o ghidra.zip
           unzip -q ghidra.zip -d "${{ github.workspace }}/ghidra"
       - name: Install Python dependencies
-        run: pip install -r requirements.txt pyghidra
+        run: pip install ".[dev,ghidra]"
       - name: Run Ghidra Extended Tests
         id: run_tests
         run: make ghidra-extendedtests CONFIG_NO_VENV=1

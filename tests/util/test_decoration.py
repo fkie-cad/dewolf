@@ -11,7 +11,7 @@ from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, I
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Phi, Return
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType
 from decompiler.structures.pseudo.typing import Integer
-from decompiler.util.decoration import ASTYLE_INSTALLED, GRAPH_EASY_INSTALLED, DecoratedAST, DecoratedCFG, DecoratedCode
+from decompiler.util.decoration import GRAPH_EASY_INSTALLED, DecoratedAST, DecoratedCFG, DecoratedCode
 from decompiler.util.to_dot_converter import ToDotConverter
 
 
@@ -645,7 +645,6 @@ class TestDecoratedCode:
         assert decorated.export_ascii()
 
     @pytest.mark.usefixtures("simple_code")
-    @pytest.mark.skipif(not ASTYLE_INSTALLED, reason="requires astyle")
     def test_does_reformat_code(self, simple_code):
         """Check if code formatting works properly."""
         decorated = DecoratedCode(simple_code)

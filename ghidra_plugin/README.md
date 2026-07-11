@@ -16,8 +16,7 @@ Python interpreter, so the launchers below all go through PyGhidra.
 ## Requirements
 
 - Ghidra 11.3+ (with the bundled PyGhidra feature); tested with 12.1.2
-- Python 3.10+
-- `astyle` on `PATH` for indentation (optional — code is shown unindented if missing)
+- Python 3.10+ (indentation uses `clang-format`, pulled in automatically by `pip install "dewolf[ghidra]"`)
 
 ## Install
 
