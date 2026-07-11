@@ -15,6 +15,7 @@ from decompiler.pipeline.preprocessing import (
     RegisterPairHandling,
     RemoveGoPrologue,
     RemoveNoreturnBoilerplate,
+    RemoveSEHExceptionList,
     RemoveStackCanary,
     SwitchVariableDetection,
 )
@@ -37,6 +38,9 @@ PREPROCESSING_STAGES = [
     Coherence,
     SwitchVariableDetection,
     MemPhiConverter,
+    # After MemPhiConverter (so any expanded ExceptionList phis are removed too) and before
+    # InsertMissingDefinitions (whose copy-pool check is what ExceptionList crashes).
+    RemoveSEHExceptionList,
     InsertMissingDefinitions,
     PhiFunctionFixer,
 ]

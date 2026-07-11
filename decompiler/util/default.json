@@ -110,6 +110,16 @@
                 "argument_name": "--remove-stack-canary"
             },
             {
+                "dest": "remove-seh-exception-list.remove_seh",
+                "default": true,
+                "title": "Remove SEH ExceptionList bookkeeping",
+                "type": "boolean",
+                "description": "remove Windows SEH FS:[0] ExceptionList handler-chain reads/writes",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--remove-seh-exception-list"
+            },
+            {
                 "dest": "remove-go-prologue.remove_prologue",
                 "default": false,
                 "title": "Remove Go function prologues",
