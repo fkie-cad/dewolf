@@ -108,8 +108,11 @@ pytest: unittests
 # concurrent workers would start competing JVMs and race on the shared Ghidra project directory.
 
 .PHONY: ghidra-tests
-ghidra-tests: ghidra-unittests ghidra-systemtests
+ghidra-tests: ghidra-unittests ghidra-systemtests ghidra-visualtest
 
+# The full unit suite (same as `unittests`), minus the Binary-Ninja-only unit tests (which import
+# binaryninja and so cannot run in this secret-free job) and the JVM-backed Ghidra tests (run by the
+# system/visual targets below). Pure Python -> pytest-xdist (`-n auto` from addopts) is fine here.
 .ONESHELL: ghidra-unittests
 .PHONY: ghidra-unittests
 ifdef CONFIG_NO_VENV
@@ -118,7 +121,16 @@ else
 ghidra-unittests: venv
 	. $(VENV_PATH)/bin/activate
 endif
-	PYTHONPATH=. pytest --import-mode=importlib tests/frontend/test_ghidra_constants.py tests/frontend/test_ghidra_readonly_globals.py tests/frontend/test_ghidra_plugin_tokenizer.py
+	PYTHONPATH=. pytest --import-mode=importlib \
+		--ignore-glob="*test-lifting.py" \
+		--ignore-glob="tests/test_sample_binaries.py" \
+		--ignore-glob="tests/test_plugin.py" \
+		--ignore-glob="tests/frontend/test_parser.py" \
+		--ignore-glob="tests/util/test_decoration.py" \
+		--ignore-glob="tests/test_ghidra_sample_binaries.py" \
+		--ignore-glob="tests/test_ghidra_plugin.py" \
+		--ignore-glob="tests/test_ghidra_visual.py" \
+		tests
 
 .ONESHELL: ghidra-systemtests
 .PHONY: ghidra-systemtests
@@ -129,7 +141,17 @@ ghidra-systemtests: venv system-tests-samples
 	. $(VENV_PATH)/bin/activate
 endif
 	PYTHONPATH=. pytest -n0 --import-mode=importlib tests/test_ghidra_plugin.py
-	PYTHONPATH=. pytest -n0 --import-mode=importlib tests/test_ghidra_sample_binaries.py
+	PYTHONPATH=. pytest -n0 --systemtests --import-mode=importlib tests/test_ghidra_sample_binaries.py
+
+.ONESHELL: ghidra-visualtest
+.PHONY: ghidra-visualtest
+ifdef CONFIG_NO_VENV
+ghidra-visualtest: system-tests-samples
+else
+ghidra-visualtest: venv system-tests-samples
+	. $(VENV_PATH)/bin/activate
+endif
+	PYTHONPATH=. pytest -n0 --import-mode=importlib tests/test_ghidra_visual.py
 
 .ONESHELL: ghidra-extendedtests
 .PHONY: ghidra-extendedtests
