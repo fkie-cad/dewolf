@@ -18,7 +18,7 @@ jobs:
           echo "${{ secrets.BINJA_LICENSE }}" | base64 --decode > license.txt
       - name: Download BinaryNinja.zip
         run: |
-          curl -L --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_BINJA_TOKEN }}" "https://gitlab.fkie.fraunhofer.de/api/v4/projects/1250/repository/archive.zip?sha=Binja5" -o complete_repo.zip
+          curl -L --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_BINJA_TOKEN }}" "https://gitlab.fkie.fraunhofer.de/api/v4/projects/1250/repository/archive.zip?sha=binja" -o complete_repo.zip
       - name: Build Docker Image
         run: docker build -t dewolf .
       - name: Run Tests
