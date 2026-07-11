@@ -1,7 +1,7 @@
 """Ghidra lifter converting decompiler High-P-code to dewolf pseudo IR."""
 
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from decompiler.frontend.lifter import ObserverLifter
 from decompiler.structures.pseudo import FunctionSymbol, ImportedFunctionSymbol, Integer, UnknownExpression, UnknownType
@@ -28,6 +28,13 @@ class GhidraLifter(ObserverLifter):
         # Memory-SSA state (per function); aliased globals are versioned by memory version.
         self._addr_version: Dict[int, int] = {}  # address varnode uid -> memory version
         self._op_mem: Dict[int, int] = {}  # op seqnum-time -> memory version (writes_memory)
+        # Addresses of globals that are genuinely written in this function (a direct store to a
+        # known address, or a non-global value copied into the address). A global NOT in this set is
+        # read-only: its value is constant across the function, so it must NOT be routed through the
+        # aliased memory-version machinery (which would version it across every call and fabricate a
+        # carry-forward Relation per memory op -- an O(globals x memory-ops) blow-up that interferes
+        # in out-of-ssa). Populated by precompute_written_globals.
+        self._written_globals: Set[int] = set()
         self._memphi_by_seq: Dict[int, Tuple[int, List[int]]] = {}  # rep MULTIEQUAL seq -> (dest, [src]) mem versions
         self._fallback_lift = None  # set by OpcodeHandler.register(); generic p-code fallback
         # Canonical access size per global address: a global Ghidra accesses at multiple sizes
@@ -278,6 +285,59 @@ class GhidraLifter(ObserverLifter):
                     if sz > self._global_size.get(addr, 0):
                         self._global_size[addr] = sz
 
+    def precompute_written_globals(self, high_function) -> None:
+        """Record which global addresses are genuinely written in this function.
+
+        Ghidra models a global (a ram-space varnode) as memory that any call may modify, emitting an
+        INDIRECT for it after every call. Treating every such global as aliased makes the memory-SSA
+        machinery version it across every call and, via insert-missing-definitions, fabricate a
+        carry-forward Relation per memory op -- the O(globals x memory-ops) blow-up that overwhelms
+        out-of-ssa. But the overwhelming majority of these globals are never actually written in the
+        function (Ghidra fragments a read-only struct/table into many ram varnodes and versions them
+        all conservatively). Such read-only globals hold a constant value and need no versioning at
+        all; only genuinely-written globals need the aliased machinery.
+
+        A global at address A is written iff some op *defines a non-derived value* at A:
+          * a STORE to a statically-known constant address A, or
+          * any op whose output is the ram varnode at A and whose first input is NOT itself a global
+            (a register/constant/arithmetic value written into A).
+        A def whose source is another global (a COPY rename, or a SUBPIECE/PIECE fragmenting a wide
+        global into a narrower view) is value-preserving, not a write, so it does not mark A written.
+        Conservative may-writes (INDIRECT, and stores through a computed pointer) are deliberately
+        ignored -- matching Binary Ninja and Ghidra's own decompiler, which do not re-version a
+        global just because a call *might* touch it.
+        """
+        from ghidra.program.model.pcode import PcodeOp as P
+
+        for b in high_function.getBasicBlocks():
+            for op in b.getIterator():
+                opc = op.getOpcode()
+                out = op.getOutput()
+                if out is not None and out.isAddress() and opc not in (P.INDIRECT, P.MULTIEQUAL):
+                    in0 = op.getInput(0) if op.getNumInputs() else None
+                    if in0 is None or not in0.isAddress():
+                        self._written_globals.add(int(out.getOffset()))
+                if opc == P.STORE and op.getNumInputs() > 1:
+                    target = op.getInput(1)
+                    if target is not None and target.isConstant():
+                        self._written_globals.add(int(target.getOffset()))
+
+    def _is_written_global(self, vn) -> bool:
+        """True if the varnode is a ram global that this function genuinely writes (see above)."""
+        return vn is not None and vn.isAddress() and int(vn.getOffset()) in self._written_globals
+
+    def defines_readonly_global(self, op) -> bool:
+        """True if the op's output is a read-only global (a constant location we do not version).
+
+        Every op that outputs a read-only global is value-preserving plumbing -- an SSA rename
+        (COPY), a conservative may-write (INDIRECT), a merge (MULTIEQUAL), or a fragmenting view
+        (SUBPIECE / PIECE); a read-only global has no genuine-write def by definition. We drop such
+        ops when parsing: the global is read directly from its (constant) memory location wherever it
+        is used, so no definition is needed and none of the aliased carry-forward Relations arise.
+        """
+        out = op.getOutput()
+        return out is not None and out.isAddress() and int(out.getOffset()) not in self._written_globals
+
     def precompute_memory_versions(self, high_function) -> None:
         """Compute a unified memory-version SSA over the function (Binary Ninja's model).
 
@@ -336,7 +396,10 @@ class GhidraLifter(ObserverLifter):
         for b in order:
             bid = int(b.getIndex())
             ops = list(b.getIterator())
-            merge_ops = [op for op in ops if op.getOpcode() == P.MULTIEQUAL and op.getOutput() is not None and op.getOutput().isAddress()]
+            # Only genuinely-written globals participate in the memory-version SSA; read-only globals
+            # are lifted as plain single-version globals and must not create memory phis (see
+            # precompute_written_globals).
+            merge_ops = [op for op in ops if op.getOpcode() == P.MULTIEQUAL and self._is_written_global(op.getOutput())]
             if b is entry_block:
                 entry = 0
             else:
@@ -364,13 +427,13 @@ class GhidraLifter(ObserverLifter):
                     # the INDIRECT before its causing op, so we cannot rely on `cur` here -- we look
                     # up the causing op by the seqnum encoded in input(1) and (idempotently) allocate
                     # its memory version. The causing op itself, when reached, reuses that version.
-                    if out is not None and out.isAddress():
+                    if self._is_written_global(out):
                         cseq = int(op.getInput(1).getOffset())
                         m = self.memory_version_of_seq(cseq)
                         self._addr_version[int(out.getUniqueId())] = m
                         cur = m
                     continue
-                has_addr_out = out is not None and out.isAddress()
+                has_addr_out = self._is_written_global(out)
                 if opc in (P.CALL, P.CALLIND, P.STORE):
                     cur = self.memory_version_of(op)
                 elif has_addr_out and opc != P.MULTIEQUAL:
@@ -507,6 +570,27 @@ class GhidraLifter(ObserverLifter):
             size = int(vn.getSize()) if vn is not None else 0
             return Integer((size or 4) * BYTE_SIZE, signed=False)
         return self.lift_type(dtype)
+
+    def _is_bool_varnode(self, vn) -> bool:
+        """True if Ghidra types this varnode as ``bool`` (so a sibling 0/1 constant means false/true)."""
+        try:
+            return bool(self._type_for_varnode(vn).is_boolean)
+        except Exception:  # noqa: BLE001
+            return False
+
+    @staticmethod
+    def as_bool_constant(expr):
+        """Retype an integer 0/1 constant as ``bool`` so codegen renders it ``false`` / ``true``.
+
+        Ghidra never types a *constant* varnode as bool (only variables carry the bool datatype), so
+        a boolean written to / compared with / combined with a bool value still lifts its 0/1 literal
+        as an integer. When the surrounding operation has a bool operand we coerce that literal here.
+        """
+        from decompiler.structures.pseudo import Constant, CustomType, Integer
+
+        if type(expr) is Constant and isinstance(expr.type, Integer) and expr.value in (0, 1):
+            return Constant(expr.value, CustomType.bool())
+        return expr
 
     # -- memory version ----------------------------------------------------
     def _next_memory_version(self) -> int:

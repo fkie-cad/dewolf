@@ -794,7 +794,7 @@ public class DewolfProvider extends ComponentProviderAdapter {
 			// same-function refresh has to go through here. (A rename that patched the view in
 			// place set suppressNextRefresh and already returned above.)
 			displayedModNumber = modNumber;
-			decompile(program, function);
+			decompile(program, function, true); // keep the existing output up while re-decompiling
 			return;
 		}
 		showFunction(program, function, true);
@@ -835,6 +835,19 @@ public class DewolfProvider extends ComponentProviderAdapter {
 	}
 
 	private void decompile(Program program, Function function) {
+		decompile(program, function, false);
+	}
+
+	/**
+	 * Decompile {@code function} on the background worker.
+	 *
+	 * @param keepCurrentView when true (a same-function refresh, e.g. after a retype), the currently
+	 *     rendered output is left on screen while the new decompilation runs, so the view does not
+	 *     flash back to "decompiling ..." — the fresh result simply replaces it when ready. When false
+	 *     (switching to a different, not-yet-rendered function) the placeholder is shown immediately so
+	 *     the user does not stare at the stale previous function.
+	 */
+	private void decompile(Program program, Function function, boolean keepCurrentView) {
 		DewolfBackend backend = DewolfBackendRegistry.getBackend();
 		if (backend == null) {
 			showMessage(NO_BACKEND_TEXT);
@@ -847,11 +860,18 @@ public class DewolfProvider extends ComponentProviderAdapter {
 		// worker immediately (the prefetch aborts at its next pipeline-stage checkpoint).
 		prefetchGeneration.incrementAndGet();
 		String functionName = function.getName();
-		// dewolf can be slow; clear the view to an explicit "decompiling" message right away
-		// so the user sees the window is working on the new function, not the stale one.
-		currentDecompilation = null;
-		showMessage("// dewolf: decompiling " + functionName + " ...");
-		statusLabel.setText("dewolf: decompiling " + functionName + " ...");
+		if (keepCurrentView && currentDecompilation != null) {
+			// Refreshing a function that is already displayed: keep its output visible (it is only
+			// slightly stale) and just signal work in the status line, rather than blanking the view.
+			statusLabel.setText("dewolf: refreshing " + functionName + " ...");
+		}
+		else {
+			// dewolf can be slow; clear the view to an explicit "decompiling" message right away
+			// so the user sees the window is working on the new function, not the stale one.
+			currentDecompilation = null;
+			showMessage("// dewolf: decompiling " + functionName + " ...");
+			statusLabel.setText("dewolf: decompiling " + functionName + " ...");
+		}
 		setSubTitle(functionName);
 		executor.execute(new PrioritizedTask(0, taskSequence.incrementAndGet(), () -> {
 			DewolfDecompilation decompilation = null;

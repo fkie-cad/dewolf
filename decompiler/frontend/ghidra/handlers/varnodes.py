@@ -43,7 +43,14 @@ class VarnodeHandler(Handler):
         if size * BYTE_SIZE == self._lifter._address_size_bits():
             if (s := self._lifter._string_at(value)) is not None:
                 return Constant(s, vartype=Pointer(Integer.char()))
-        vartype = Integer(size * BYTE_SIZE, signed=False)
+        # Default integer constants to *signed* (matching the Binary Ninja frontend), so ordinary
+        # literals render as ``0`` / ``1`` / ``8`` instead of the noisy ``0U`` / ``1U`` the codegen
+        # emits to preserve an unsigned type. We only sign when the value's top bit (at its own
+        # width) is clear -- i.e. signed and unsigned render identically -- so a genuine high-bit
+        # value (a flag like ``0x80000000`` or a mask like ``0xffffffff``) keeps its unsigned type
+        # and current rendering rather than flipping to a confusing negative decimal.
+        signed = 0 <= value < (1 << (size * BYTE_SIZE - 1))
+        vartype = Integer(size * BYTE_SIZE, signed=signed)
         return Constant(value, vartype=vartype)
 
     def _lift_address(self, vn, destination: bool):
@@ -67,13 +74,20 @@ class VarnodeHandler(Handler):
             pass
         name = self._global_name(program, addr)
         vartype = self._lifter._global_type(program, addr, size)
-        ssa_label = self._lifter._addr_version.get(int(vn.getUniqueId()), 0)
+        # A global that the function never genuinely writes holds a constant value throughout, so it
+        # is lifted as a plain, non-aliased single-version global. This bypasses the aliased memory-
+        # version machinery (memory phis + per-memory-op carry-forward Relations) that Ghidra's
+        # conservative, per-call INDIRECTs would otherwise blow up -- matching Binary Ninja, which
+        # does not re-version a global merely because a call might touch it. Only genuinely-written
+        # globals (see precompute_written_globals) keep the aliased, versioned treatment.
+        is_aliased = addr in self._lifter._written_globals
+        ssa_label = self._lifter._addr_version.get(int(vn.getUniqueId()), 0) if is_aliased else 0
         return GlobalVariable(
             name,
             vartype=vartype,
             initial_value=Constant(addr, vartype=Pointer(vartype, size * BYTE_SIZE)),
             ssa_label=ssa_label,
-            is_aliased=True,
+            is_aliased=is_aliased,
         )
 
     def _lift_variable(self, vn, destination: bool) -> Variable:

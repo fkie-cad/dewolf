@@ -30,7 +30,10 @@ class GhidraParser(Parser):
         self._lifter.precompute_ssa_labels(high_function)
         # Canonical size per global address (so mixed-size accesses lift to one typed variable).
         self._lifter.precompute_global_sizes(high_function)
-        # Assign memory versions to memory-writing ops and to aliased globals.
+        # Determine which globals are genuinely written (the rest are read-only and lift as plain
+        # single-version globals, bypassing the aliased memory-version machinery).
+        self._lifter.precompute_written_globals(high_function)
+        # Assign memory versions to memory-writing ops and to aliased (genuinely-written) globals.
         self._lifter.precompute_memory_versions(high_function)
         # Record the stack pointer + frame so PTRSUB(stackpointer, off) lifts to &local_X.
         self._lifter.precompute_stack_variables(high_function)
@@ -50,6 +53,8 @@ class GhidraParser(Parser):
                 block_start_addr[int(b.getIndex())] = int(ops[0].getSeqnum().getTarget().getOffset()) if ops else 0
             instructions: List[Instruction] = []
             for op in ops:
+                if self._lifter.defines_readonly_global(op):
+                    continue  # value-preserving plumbing for a constant global; read it directly
                 lifted = self._lifter.lift(op)
                 if lifted is None:
                     continue

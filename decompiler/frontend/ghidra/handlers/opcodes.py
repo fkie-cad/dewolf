@@ -206,7 +206,10 @@ class OpcodeHandler(Handler):
             # an assignment would define a second version of the global and make phi sources
             # interfere at merges; skip it -- insert-missing-definitions / phis define the versions.
             return None
-        return Assignment(self._lifter.lift_varnode(out, destination=True), self._in(op, 0))
+        value = self._in(op, 0)
+        if self._lifter._is_bool_varnode(out):  # `flag = 0` -> `flag = false`
+            value = self._lifter.as_bool_constant(value)
+        return Assignment(self._lifter.lift_varnode(out, destination=True), value)
 
     def lift_load(self, op, **kwargs) -> Assignment:
         ptr = self._in(op, 1)
@@ -293,11 +296,23 @@ class OpcodeHandler(Handler):
         return Phi(dest, sources)
 
     # -- arithmetic / casts ------------------------------------------------
+    def _inputs_bool_aware(self, op):
+        """Lift an op's inputs, retyping a 0/1 constant as bool when a sibling operand is bool.
+
+        Covers ``flag == 0`` (INT_EQUAL/INT_NOTEQUAL) and ``flag && cond`` (BOOL_AND/BOOL_OR), where
+        Ghidra leaves the literal typed as an integer -> it would otherwise render 0/1 not false/true.
+        No-op for purely arithmetic ops (their operands are never bool-typed).
+        """
+        inputs = self._inputs(op)
+        if any(self._lifter._is_bool_varnode(op.getInput(i)) for i in range(op.getNumInputs())):
+            return [self._lifter.as_bool_constant(x) for x in inputs]
+        return inputs
+
     def lift_binary_int(self, op_type: OperationType):
         def _lift(op, **kwargs) -> Assignment:
             return Assignment(
                 self._lifter.lift_varnode(self._out(op), destination=True),
-                BinaryOperation(op_type, self._inputs(op)),
+                BinaryOperation(op_type, self._inputs_bool_aware(op)),
             )
 
         return _lift
@@ -313,7 +328,7 @@ class OpcodeHandler(Handler):
 
     def lift_compare(self, op_type: OperationType):
         def _lift(op, **kwargs) -> Assignment:
-            cond = Condition(op_type, self._inputs(op))
+            cond = Condition(op_type, self._inputs_bool_aware(op))
             return Assignment(self._lifter.lift_varnode(self._out(op), destination=True), cond)
 
         return _lift
