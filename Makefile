@@ -104,7 +104,8 @@ pytest: unittests
 # --- Ghidra frontend / plugin (mirror of the Binary Ninja targets above; no binja needed) ----------
 # In CI these run in a Python env that already has pyghidra installed, so pass CONFIG_NO_VENV=1 to skip
 # the (binja) venv bootstrap. GHIDRA_INSTALL_DIR must point at an unzipped Ghidra release; when it is
-# missing the JVM-backed tests skip themselves.
+# missing the JVM-backed tests skip themselves. The JVM-backed suites run with -n0 (no pytest-xdist):
+# concurrent workers would start competing JVMs and race on the shared Ghidra project directory.
 
 .PHONY: ghidra-tests
 ghidra-tests: ghidra-unittests ghidra-systemtests
@@ -127,8 +128,8 @@ else
 ghidra-systemtests: venv system-tests-samples
 	. $(VENV_PATH)/bin/activate
 endif
-	PYTHONPATH=. pytest --import-mode=importlib tests/test_ghidra_plugin.py
-	PYTHONPATH=. pytest --import-mode=importlib tests/test_ghidra_sample_binaries.py
+	PYTHONPATH=. pytest -n0 --import-mode=importlib tests/test_ghidra_plugin.py
+	PYTHONPATH=. pytest -n0 --import-mode=importlib tests/test_ghidra_sample_binaries.py
 
 .ONESHELL: ghidra-extendedtests
 .PHONY: ghidra-extendedtests
@@ -138,7 +139,7 @@ else
 ghidra-extendedtests: venv extended-test-samples system-tests-samples
 	. $(VENV_PATH)/bin/activate
 endif
-	PYTHONPATH=. pytest --fulltests --import-mode=importlib tests/test_ghidra_sample_binaries.py
+	PYTHONPATH=. pytest -n0 --fulltests --import-mode=importlib tests/test_ghidra_sample_binaries.py
 
 .ONESHELL: visualtest
 .PHONY: visualtest

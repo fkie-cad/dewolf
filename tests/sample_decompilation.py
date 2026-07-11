@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from decompiler.backend.codegenerator import FAIL_MESSAGE
@@ -30,9 +31,20 @@ def run_decompilation(sample, function_name: str, frontend: str | None = None) -
     dewolf default, i.e. Binary Ninja if installed).
     """
     cmd = ["python", "decompile.py", str(sample), function_name, "--debug"]
+    project_dir: str | None = None
     if frontend:
         cmd += ["--frontend", frontend]
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+        if frontend == "ghidra":
+            # Give every decompilation its own throwaway Ghidra project. Ghidra names a project after
+            # the binary, so distinct samples with the same file name (e.g. 64/0/test_loop and
+            # 64/1/test_loop) would otherwise share one project directory and collide.
+            project_dir = tempfile.mkdtemp(prefix="dewolf_ghidra_proj_")
+            cmd += ["--ghidra-project-location", project_dir]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+    finally:
+        if project_dir:
+            shutil.rmtree(project_dir, ignore_errors=True)
     failed = proc.returncode != 0 or FAIL_MESSAGE in proc.stdout
     return (not failed), (_failure_report(cmd, proc) if failed else "")
 
