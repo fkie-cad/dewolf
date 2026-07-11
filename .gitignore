@@ -22,3 +22,4 @@ tests/.pytest_cache/
 tests/*.png
 /bugs.db
 /bugfinder.py
+.DS_Store
