@@ -246,6 +246,14 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
                     val = "".join("\\x{:02x}".format(x) for x in expr.value)
                     return f'"{val}"' if len(val) <= MAX_GLOBAL_INIT_LENGTH else f'"{val[:MAX_GLOBAL_INIT_LENGTH]}..."'
         if isinstance(expr.type, ArrayType):
+            if isinstance(expr.value, int):
+                # A scalar integer carrying an array type -- e.g. an array cleared with ``= 0`` where
+                # type propagation stamps the array's type onto the scalar ``0``. The element-wise
+                # branches below assume an iterable value, so render the scalar as a plain literal.
+                element_type = expr.type.type
+                return self._format_integer_literal(
+                    element_type if isinstance(element_type, Integer) else Integer(expr.type.size), expr.value
+                )
             match expr.type.type:
                 case CustomType(text="wchar16") | CustomType(text="wchar32"):
                     val = "".join(expr.value).translate(self.ESCAPE_TABLE)
