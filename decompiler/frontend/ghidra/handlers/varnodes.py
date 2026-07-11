@@ -72,6 +72,11 @@ class VarnodeHandler(Handler):
                 return self._lifter._function_symbol_at(program, addr)
         except Exception:  # noqa: BLE001
             pass
+        # A read of a pointer into a read-only string literal -> lift as the string (matching Binary
+        # Ninja), e.g. ``__isoc99_scanf("%d", &x)`` instead of ``__isoc99_scanf(0x10201b, &x)``. Ghidra
+        # models such format-string pointers as address varnodes, not constants, so recover here too.
+        if not destination and (s := self._lifter._string_at(addr)) is not None:
+            return Constant(s, vartype=Pointer(Integer.char()))
         name = self._global_name(program, addr)
         vartype = self._lifter._global_type(program, addr, size)
         # A global that the function never genuinely writes holds a constant value throughout, so it

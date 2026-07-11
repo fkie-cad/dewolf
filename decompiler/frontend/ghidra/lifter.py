@@ -622,19 +622,74 @@ class GhidraLifter(ObserverLifter):
         return self._addr_bits_cache
 
     def _string_at(self, addr: int) -> Optional[str]:
-        """Return the defined string stored at ``addr``, if any (so a pointer constant can be
-        lifted as a string literal, e.g. ``apr_optional_hook_get("create_req")`` instead of
-        ``apr_optional_hook_get(0x52c038)``)."""
+        """Return the (C-escaped) string stored at ``addr``, if any, so a pointer constant lifts as a
+        string literal (e.g. ``__isoc99_scanf("%d", &x)`` instead of ``__isoc99_scanf(0x10201b, &x)``),
+        matching Binary Ninja's string recovery.
+
+        Ghidra's auto-analysis leaves many ``printf``/``scanf`` format strings *undefined*, so we fall
+        back to reading the bytes and recovering a NUL-terminated printable C string ourselves. The
+        result is C-escaped (control chars/quotes) so the backend emits valid C -- like the Binary
+        Ninja frontend, whose string values are already escaped.
+        """
+        raw = self._raw_string_at(addr)
+        return self._escape_c_string(raw) if raw is not None else None
+
+    def _raw_string_at(self, addr: int) -> Optional[str]:
+        """The raw (unescaped) string at ``addr``: Ghidra's defined string, else a byte-read fallback."""
         try:
             dv = self.program.getListing().getDefinedDataAt(self._address(addr))
-            if dv is None:
-                return None
-            val = dv.getValue()
-            if isinstance(val, str) and val:
-                return val
+            if dv is not None:
+                val = dv.getValue()
+                if isinstance(val, str) and val:
+                    return val
         except Exception:  # noqa: BLE001
             pass
-        return None
+        return self._read_c_string(addr)
+
+    def _read_c_string(self, addr: int, max_length: int = 4096) -> Optional[str]:
+        """Recover a NUL-terminated printable C string by reading program memory at ``addr``.
+
+        Conservative to avoid turning arbitrary pointers into strings: the target must live in an
+        initialized, read-only block (where string literals live, e.g. ``.rodata``), be terminated by
+        a NUL within ``max_length`` bytes, and be almost entirely printable.
+        """
+        try:
+            memory = self.program.getMemory()
+            start = self._address(addr)
+            block = memory.getBlock(start)
+            if block is None or not block.isInitialized() or block.isWrite():
+                return None
+            data = bytearray()
+            for offset in range(max_length):
+                byte = memory.getByte(start.add(offset)) & 0xFF
+                if byte == 0:
+                    break
+                data.append(byte)
+            else:
+                return None  # no NUL terminator within the limit -> not a C string
+            if not data:
+                return None
+            text = data.decode("latin-1")
+            printable = sum(1 for char in text if 0x20 <= ord(char) < 0x7F or char in "\t\n\r")
+            if printable / len(text) < 0.95:
+                return None
+            return text
+        except Exception:  # noqa: BLE001
+            return None
+
+    @staticmethod
+    def _escape_c_string(value: str) -> str:
+        """C-escape a recovered string so the backend renders a valid string literal."""
+        simple = {"\\": "\\\\", '"': '\\"', "\n": "\\n", "\t": "\\t", "\r": "\\r"}
+        out = []
+        for char in value:
+            if char in simple:
+                out.append(simple[char])
+            elif 0x20 <= ord(char) < 0x7F:
+                out.append(char)
+            else:
+                out.append(f"\\x{ord(char):02x}")
+        return "".join(out)
 
     def _global_symbol_name(self, addr: int) -> Optional[str]:
         """A real (symbol-table) name for the global at ``addr``, if any.

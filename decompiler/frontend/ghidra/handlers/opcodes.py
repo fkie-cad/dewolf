@@ -401,7 +401,13 @@ class OpcodeHandler(Handler):
         # PTRSUB(const_base, offset) is an absolute address (a global). Fold the constant base into a
         # single address constant instead of the noisy `0U + 0xADDR` that dereferences everywhere.
         if base_vn.isConstant():
-            return Assignment(dst, Constant(int(base_vn.getOffset()) + raw_offset))
+            absolute = int(base_vn.getOffset()) + raw_offset
+            # A pointer into a read-only string literal -> lift as the string (matching Binary Ninja),
+            # e.g. ``__isoc99_scanf("%d", &x)`` instead of ``__isoc99_scanf(0x10201b, &x)``. Ghidra
+            # models such format-string pointers as PTRSUB address arithmetic, not string data.
+            if (s := self._lifter._string_at(absolute)) is not None:
+                return Assignment(dst, Constant(s, vartype=Pointer(Integer.char())))
+            return Assignment(dst, Constant(absolute))
         value = BinaryOperation(OperationType.plus, [self._in(op, 0), Constant(raw_offset)])
         return Assignment(dst, value)
 
