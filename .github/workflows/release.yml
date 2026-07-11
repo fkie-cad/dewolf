@@ -2,6 +2,11 @@ name: Automatic release
 
 on:
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Release even if there are no changes since the last release"
+        type: boolean
+        default: false
   schedule:
     - cron: '0 0 1 */3 *'
 
@@ -10,34 +15,81 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Generate release-app token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - name: Checkout repository
         uses: actions/checkout@v3
         with: # https://github.com/actions/checkout/issues/1471
           fetch-depth: 0
           fetch-tags: true
+          token: ${{ steps.app-token.outputs.token }} # push as the app so it can bypass branch protection
 
-      - name: Set git user
-        uses: fregante/setup-git-user@v2
+      - name: Determine changes since last release
+        id: changes
+        run: |
+          last_tag=$(git tag -l 'v*' --sort=-refname | head -n1)
+          echo "last_tag=$last_tag" >> "$GITHUB_OUTPUT"
+          if [ -z "$last_tag" ]; then
+            range=""
+            changed=true
+          elif [ -n "$(git rev-list "${last_tag}..HEAD")" ]; then
+            range="${last_tag}..HEAD"
+            changed=true
+          else
+            range="${last_tag}..HEAD"
+            changed=false
+          fi
+          # Manual runs can force a release even without new commits.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then
+            changed=true
+          fi
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "Last release tag: ${last_tag:-<none>}; changed=$changed"
+          # Release notes: one bullet per (non-merge) commit added to main since the last release.
+          {
+            echo "Automatic release"
+            echo
+            echo "## Changes since ${last_tag:-the beginning}"
+            git log --no-merges --pretty=format:'- %s (%h)' $range
+            echo
+          } > RELEASE_NOTES.md
+
+      - name: Configure git identity
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "${{ steps.app-token.outputs.app-slug }}[bot]"
+          git config user.email "${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
 
       - name: Set up Python
+        if: steps.changes.outputs.changed == 'true'
         uses: actions/setup-python@v3
         with:
           python-version: 3.x
 
       - name: Update repository for release
         id: update
+        if: steps.changes.outputs.changed == 'true'
         run: echo "version=$(python update_for_release.py)" >> "$GITHUB_OUTPUT" # returns new version to output
 
-      - name: Commit changes & push
+      - name: Commit, tag & push
+        if: steps.changes.outputs.changed == 'true'
         run: |
-          git add plugin.json
+          git add plugin.json pyproject.toml
           git commit -m "Update for release ${{ steps.update.outputs.version }}"
           git tag "v${{ steps.update.outputs.version }}"
-          git push origin v${{ steps.update.outputs.version }}
+          git push origin HEAD:main                          # keep the tagged commit on main (no dangling tags)
+          git push origin "v${{ steps.update.outputs.version }}"
 
       - name: Create release
+        if: steps.changes.outputs.changed == 'true'
         uses: softprops/action-gh-release@v1
         with:
+          token: ${{ steps.app-token.outputs.token }}
           name: Release ${{ steps.update.outputs.version }}
-          body: "Automatic release"
+          body_path: RELEASE_NOTES.md
           tag_name: v${{ steps.update.outputs.version }}
