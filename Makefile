@@ -151,7 +151,7 @@ else
 ghidra-visualtest: venv system-tests-samples
 	. $(VENV_PATH)/bin/activate
 endif
-	PYTHONPATH=. pytest -n0 --import-mode=importlib tests/test_ghidra_visual.py
+	PYTHONPATH=. pytest -n0 -s --import-mode=importlib tests/test_ghidra_visual.py
 
 .ONESHELL: ghidra-extendedtests
 .PHONY: ghidra-extendedtests

@@ -49,10 +49,12 @@ def _decompiler_for(sample: str):
     return _current["decompiler"]
 
 
-def decompile_ghidra(sample, function_name: str) -> tuple[bool, str]:
+def decompile_ghidra(sample, function_name: str, print_output: bool = False) -> tuple[bool, str]:
     """Decompile ``function_name`` of ``sample`` in-process via the Ghidra frontend.
 
     Returns ``(ok, detail)`` where ``detail`` is a readable failure report (empty on success).
+    With ``print_output`` the decompiled C is printed to stdout on success, so the visual test shows
+    it on the console like the Binary Ninja ``visualtest`` (which runs ``decompile.py`` directly).
     """
     sample = str(sample)
     try:
@@ -63,6 +65,12 @@ def decompile_ghidra(sample, function_name: str) -> tuple[bool, str]:
         return False, f"{sample}::{function_name} failed during stage: {task.failure_origin}"
     if CRASH_MARKER in code:
         return False, f"{sample}::{function_name}\n{code}"
+    if print_output:
+        # Print the reformatted C to the console, matching how `decompile.py` renders it.
+        from decompiler.util.decoration import DecoratedCode
+
+        print(f"\n// ==== {sample}::{function_name} ====")
+        DecoratedCode.print_code(code, color=False)
     return True, ""
 
 

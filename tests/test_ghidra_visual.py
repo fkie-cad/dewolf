@@ -37,6 +37,6 @@ def _release_ghidra_after_session():
 
 @pytest.mark.parametrize("sample, function_name", VISUAL_CASES)
 def test_ghidra_visual(sample, function_name):
-    """Decompile a representative function through the Ghidra frontend without crashing."""
-    ok, detail = decompile_ghidra(sample, function_name)
+    """Decompile a representative function through the Ghidra frontend and print it to the console."""
+    ok, detail = decompile_ghidra(sample, function_name, print_output=True)
     assert ok, detail
