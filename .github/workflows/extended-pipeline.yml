@@ -6,30 +6,45 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Binary Ninja frontend: full sample matrix inside the Docker image.
+  # Binary Ninja frontend: full sample matrix, run natively on the runner with Binary Ninja
+  # downloaded headless via Vector35's official setup action.
   binja-extended-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Setup BinaryNinja License
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Extract Binary Ninja serial from license
+        id: binja
         run: |
-          echo "${{ secrets.BINJA_LICENSE }}" | base64 --decode > license.txt
-      - name: Download BinaryNinja.zip
+          serial=$(echo "${{ secrets.BINJA_LICENSE }}" | base64 --decode | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['serial'])")
+          echo "::add-mask::$serial"
+          echo "serial=$serial" >> "$GITHUB_OUTPUT"
+      - name: Install Binary Ninja (headless)
+        uses: Vector35/setup-binary-ninja@v1-beta
+        with:
+          license: ${{ steps.binja.outputs.serial }}
+          python-support: 'true'
+      - name: Set up Binary Ninja license
         run: |
-          curl -L --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_BINJA_TOKEN }}" "https://gitlab.fkie.fraunhofer.de/api/v4/projects/1250/repository/archive.zip?sha=Binja5" -o complete_repo.zip
-      - name: Build Docker Image
-        run: docker build -t dewolf .
+          mkdir -p ~/.binaryninja
+          echo "${{ secrets.BINJA_LICENSE }}" | base64 --decode > ~/.binaryninja/license.dat
+      - name: Install build tools + dewolf
+        run: |
+          sudo apt-get update && sudo apt-get install -y gcc-multilib graphviz
+          pip install ".[dev]"
       - name: Run Tests
         id: run_tests
-        run: docker run -v "$(pwd)"/artifacts:/opt/dewolf/crash_reports dewolf make extendedtests
+        run: make extendedtests CONFIG_NO_VENV=1
       - name: Upload Crash Reports
         if: ${{ failure() && steps.run_tests.conclusion == 'failure' }}
         uses: actions/upload-artifact@v4
         with:
           name: crash-reports-binja
-          path: artifacts/*
+          path: crash_reports/*
           retention-days: 7
 
   # Ghidra frontend: full sample matrix through --frontend ghidra (no secrets needed).
