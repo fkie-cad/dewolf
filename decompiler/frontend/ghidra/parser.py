@@ -32,6 +32,8 @@ class GhidraParser(Parser):
         self._lifter.precompute_global_sizes(high_function)
         # Assign memory versions to memory-writing ops and to aliased globals.
         self._lifter.precompute_memory_versions(high_function)
+        # Record the stack pointer + frame so PTRSUB(stackpointer, off) lifts to &local_X.
+        self._lifter.precompute_stack_variables(high_function)
 
         if os.environ.get("DEWOLF_DUMP_PCODE"):
             self._dump_pcode(high_function)

@@ -44,6 +44,14 @@ PREPROCESSING_STAGES = [
 POSTPROCESSING_STAGES = [OutOfSsaTranslation, PatternIndependentRestructuring]
 
 
+class PipelineInterrupted(Exception):
+    """Raised to abort a pipeline run early when ``should_cancel()`` becomes true.
+
+    Used by the interactive Ghidra plugin to preempt a background/in-flight decompilation the
+    moment the user navigates elsewhere, so the worker is freed for the function they want next.
+    """
+
+
 class DecompilerPipeline:
     """Basic decompiler pipleline interface."""
 
@@ -85,8 +93,12 @@ class DecompilerPipeline:
                     raise ValueError(f"Invalid pipeline: {stage.name} requires {dependency}!")
             stages_run.append(stage.name)
 
-    def run(self, task: DecompilerTask):
-        """Run the pipeline on the given graph."""
+    def run(self, task: DecompilerTask, should_cancel=None):
+        """Run the pipeline on the given graph.
+
+        ``should_cancel``: an optional zero-argument callable polled before each stage; when it
+        returns true the run aborts by raising :class:`PipelineInterrupted` (interactive preempt).
+        """
         output_format = task.options.getstring("logging.stage_output")
         show_all = task.options.getboolean("logging.show_all_stages", fallback=False)
         show_starting_point = task.options.getboolean("logging.show_starting_point", fallback=False)
@@ -105,6 +117,8 @@ class DecompilerPipeline:
             return
 
         for stage in self.stages:
+            if should_cancel is not None and should_cancel():
+                raise PipelineInterrupted()
             debug(f"stage {stage.name}")
             instance = stage()
             try:

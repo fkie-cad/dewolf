@@ -16,6 +16,7 @@ from decompiler.structures.pseudo import (
     ListOperation,
     OperationType,
     Phi,
+    Pointer,
     Return,
     UnaryOperation,
     UnknownExpression,
@@ -345,19 +346,51 @@ class OpcodeHandler(Handler):
 
     def lift_ptradd(self, op, **kwargs) -> Assignment:
         base = self._in(op, 0)
-        index = self._in(op, 1)
+        index_vn = op.getInput(1)
         size = int(op.getInput(2).getOffset()) if op.getNumInputs() > 2 else 1
+        dst = self._lifter.lift_varnode(self._out(op), destination=True)
+        # A CONSTANT index folds to a single offset: Ghidra emits `PTRADD(base, 1, 4)` for a fixed
+        # field/element, which lifted to `base + 1U * 0x4` -- pure noise. Fold it (sign-interpreting
+        # the index so negative offsets like `base + 0xffffffff * 0x2` become `base + -2`).
+        if index_vn.isConstant():
+            bits = (int(index_vn.getSize()) or 4) * BYTE_SIZE
+            raw = int(index_vn.getOffset())
+            signed = raw - (1 << bits) if raw >= (1 << (bits - 1)) else raw
+            offset = signed * size
+            base_vn = op.getInput(0)
+            if base_vn.isConstant():
+                # both base and index constant (e.g. PTRADD(0, 1, 4)) -> one folded address, not `0U + 0x4`
+                return Assignment(dst, Constant(int(base_vn.getOffset()) + offset))
+            return Assignment(dst, BinaryOperation(OperationType.plus, [base, Constant(offset)]))
+        index = self._lifter.lift_varnode(index_vn)
         if size == 1:
             value = BinaryOperation(OperationType.plus, [base, index])
         else:
             value = BinaryOperation(OperationType.plus, [base, BinaryOperation(OperationType.multiply, [index, Constant(size)])])
-        return Assignment(self._lifter.lift_varnode(self._out(op), destination=True), value)
+        return Assignment(dst, value)
 
     def lift_ptrsub(self, op, **kwargs) -> Assignment:
-        base = self._in(op, 0)
-        offset = int(op.getInput(1).getOffset()) if op.getNumInputs() > 1 else 0
-        value = BinaryOperation(OperationType.plus, [base, Constant(offset)])
-        return Assignment(self._lifter.lift_varnode(self._out(op), destination=True), value)
+        dst = self._lifter.lift_varnode(self._out(op), destination=True)
+        base_vn = op.getInput(0)
+        raw_offset = int(op.getInput(1).getOffset()) if op.getNumInputs() > 1 else 0
+        # PTRSUB(stackpointer, offset) is Ghidra's "address of the stack local at <offset>".
+        # Recover it as `&local_X` (referencing the named frame variable) instead of the raw
+        # `stackpointer + offset` arithmetic that otherwise reads as `var_16 + 0xfffffe74`.
+        if self._lifter._is_stack_pointer(base_vn):
+            bits = (int(base_vn.getSize()) or 4) * BYTE_SIZE
+            signed = raw_offset - (1 << bits) if raw_offset >= (1 << (bits - 1)) else raw_offset
+            variable, delta = self._lifter.stack_variable(signed)
+            address = UnaryOperation(
+                OperationType.address, [variable], vartype=Pointer(variable.type, self._lifter._address_size_bits())
+            )
+            value = address if delta == 0 else BinaryOperation(OperationType.plus, [address, Constant(delta)])
+            return Assignment(dst, value)
+        # PTRSUB(const_base, offset) is an absolute address (a global). Fold the constant base into a
+        # single address constant instead of the noisy `0U + 0xADDR` that dereferences everywhere.
+        if base_vn.isConstant():
+            return Assignment(dst, Constant(int(base_vn.getOffset()) + raw_offset))
+        value = BinaryOperation(OperationType.plus, [self._in(op, 0), Constant(raw_offset)])
+        return Assignment(dst, value)
 
     def lift_unknown_op(self, op, **kwargs):
         logging.debug("[GhidraOpcodeHandler] skipping unsupported p-code op %s", op.getSeqnum())
@@ -415,7 +448,11 @@ class OpcodeHandler(Handler):
         if out is None:
             return None
         mnemonic = op.getMnemonic()
-        start = 1
+        # input(0) is a real operand for ordinary ops (POPCOUNT, LZCOUNT, INSERT, EXTRACT, ...); only
+        # CALLOTHER's input(0) is the user-op index constant (folded into the name, not an operand).
+        # Defaulting start=1 here previously DROPPED the sole operand of unary ops -> `POPCOUNT()`
+        # with no argument, losing the data-flow dependency on its input.
+        start = 0
         try:
             from ghidra.program.model.pcode import PcodeOp
 

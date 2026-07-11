@@ -367,6 +367,16 @@
                 "argument_name": "--use-compound-assignment"
             },
             {
+                "dest": "code-generator.show_parameter_names",
+                "default": true,
+                "title": "Show parameter name comments",
+                "type": "boolean",
+                "description": "Emit /* name */ comments before call arguments.",
+                "is_hidden_from_gui": false,
+                "is_hidden_from_cli": false,
+                "argument_name": "--show-parameter-names"
+            },
+            {
                 "dest": "code-generator.use_increment_int",
                 "default": true,
                 "title": "Enable integer incrementation suffixes",

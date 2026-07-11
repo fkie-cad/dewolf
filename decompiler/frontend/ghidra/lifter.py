@@ -36,6 +36,11 @@ class GhidraLifter(ObserverLifter):
         # Variables (Variable equality includes the type) that share (name, ssa_label) and trip
         # "duplicate entries in copy pool". We use the largest access size as the canonical type.
         self._global_size: Dict[int, int] = {}
+        # Stack-variable recovery (per function): Ghidra models `&local_X` as
+        # PTRSUB(stackpointer, offset); we resolve these to named stack variables instead of
+        # emitting raw `stackpointer + offset` arithmetic. Populated by precompute_stack_variables.
+        self._stack_pointer_addr = None  # ghidra Address of the stack-pointer register, or None
+        self._stack_frame = None  # the function's StackFrame, for offset -> variable lookup
         from .handlers import HANDLERS
 
         for handler in HANDLERS:
@@ -158,6 +163,73 @@ class GhidraLifter(ObserverLifter):
                 nxt = self._hv_next.get(key, 0)
                 self._hv_next[key] = nxt + 1
                 self._vn_version[int(out.getUniqueId())] = nxt
+
+    def precompute_stack_variables(self, high_function) -> None:
+        """Record the stack-pointer register and the function's stack frame.
+
+        Ghidra resolves scalar stack accesses to ``stack:`` varnodes (lifted normally), but models
+        *address-taken* stack locals (buffers passed to ``memset``/``strcpy``, ``&local``) as
+        ``PTRSUB(stackpointer, offset)``. Without recovery those lift to raw
+        ``stackpointer + offset`` arithmetic (``var_16 + 0xfffffe74``); with the frame in hand we
+        turn them into ``&local_X`` referencing the named stack variable at that offset.
+        """
+        try:
+            sp = self.program.getCompilerSpec().getStackPointer()
+            self._stack_pointer_addr = sp.getAddress() if sp is not None else None
+        except Exception:  # noqa: BLE001
+            self._stack_pointer_addr = None
+        try:
+            self._stack_frame = high_function.getFunction().getStackFrame()
+        except Exception:  # noqa: BLE001
+            self._stack_frame = None
+
+    def _is_stack_pointer(self, vn) -> bool:
+        """True if ``vn`` is (a version of) the stack-pointer register."""
+        if vn is None or self._stack_pointer_addr is None:
+            return False
+        try:
+            return bool(vn.isRegister()) and vn.getAddress().equals(self._stack_pointer_addr)
+        except Exception:  # noqa: BLE001
+            return False
+
+    def stack_variable(self, offset: int):
+        """The named stack variable at frame ``offset`` (signed), plus any leftover byte delta.
+
+        Returns ``(Variable, delta)`` where ``delta`` is 0 when ``offset`` is the variable's start
+        and non-zero when it points inside a larger variable (array/struct indexing) — the caller
+        renders ``&var`` or ``&var + delta`` respectively. Falls back to a deterministic
+        ``stack_<offset>`` name when Ghidra has no frame variable there.
+        """
+        from decompiler.structures.pseudo.expressions import Variable
+
+        name = None
+        vartype = None
+        base_offset = offset
+        if self._stack_frame is not None:
+            try:
+                var = self._stack_frame.getVariableContaining(offset)
+            except Exception:  # noqa: BLE001
+                var = None
+            if var is not None:
+                try:
+                    name = self._purge(var.getName())
+                    vartype = self.lift_type(var.getDataType())
+                    base_offset = int(var.getStackOffset())
+                except Exception:  # noqa: BLE001
+                    name = None
+        if name is None:
+            # No Ghidra frame variable here; use a stable name in a namespace the out-of-SSA
+            # renamer never emits (it produces ``var_N``), so nothing collides pre-rename.
+            base_offset = offset
+            name = f"stack_{format(offset & 0xffffffff, 'x')}" if offset < 0 else f"stack_{offset:x}"
+        if vartype is None:
+            vartype = Integer(BYTE_SIZE, signed=False)
+        # A stack slot whose scalar accesses Ghidra kept as ``stack:`` varnodes is lifted there as a
+        # non-aliased SSA variable; matching that here (is_aliased=False, live-in label 0) lets
+        # out-of-SSA merge this address-of reference with those accesses into one variable. Marking
+        # it aliased instead makes insert-missing-definitions insert a conflicting definition
+        # ("defined twice") for dual-accessed slots.
+        return Variable(name, vartype, ssa_label=0, is_aliased=False), offset - base_offset
 
     @staticmethod
     def _is_variable_varnode(vn) -> bool:
@@ -378,6 +450,11 @@ class GhidraLifter(ObserverLifter):
                 # "u..." and "UNNAMED" are Ghidra's unnamed markers. Using "UNNAMED" for every
                 # unnamed HighVariable makes them all collide on one name, producing "duplicate
                 # entries in copy pool for UNNAMED"; fall back to a per-HighVariable unique name.
+                # NOTE: do NOT map by hv.getSymbol() here — one symbol can back several distinct
+                # HighVariables (SSA splits), and the SSA version counter is keyed per HighVariable,
+                # so sharing a symbol name across them yields duplicate (name, version) pairs
+                # ("Variable local_1a#2 defined twice"). Recovery of the renameable symbol name is
+                # done later, in the backend's originalNames map, not in the lifted SSA identity.
                 if candidate and not candidate.startswith("u") and candidate != "UNNAMED":
                     name = self._purge(candidate)
             except Exception:  # noqa: BLE001
@@ -483,7 +560,7 @@ class GhidraLifter(ObserverLifter):
         into two. Auto-generated labels (``DAT_``, ``FUN_``, ``sub_``) are skipped.
         """
         try:
-            sym = self.program.getSymbolTable().getPrimarySymbolAt(self._address(addr))
+            sym = self.program.getSymbolTable().getPrimarySymbol(self._address(addr))
             if sym is None or sym.isExternalEntryPoint():
                 return None
             name = sym.getName()
@@ -504,9 +581,25 @@ class GhidraLifter(ObserverLifter):
                 except Exception:  # noqa: BLE001
                     sym.can_return = None
                 return sym
-            sym = program.getSymbolTable().getPrimarySymbolAt(self._address(addr))
-            if sym is not None:
+            # Not a function at this address: a call through an import-address-table (IAT)
+            # slot targets the pointer, not code. Ghidra resolves the slot to the imported
+            # function via a reference; use that name (e.g. `CreateThread`) instead of a
+            # `sub_<slot>` placeholder. Keep the IAT slot as the symbol's address -- it is a
+            # real, navigable program address that resolves back to the import.
+            imported = fm.getReferencedFunction(self._address(addr))
+            if imported is not None:
+                return ImportedFunctionSymbol(self._purge(imported.getName()), addr)
+            ghidra_addr = self._address(addr)
+            sym = program.getSymbolTable().getPrimarySymbol(ghidra_addr)
+            if sym is not None and not sym.getName().startswith(("PTR_", "DAT_", "FUN_", "sub_")):
                 return ImportedFunctionSymbol(self._purge(sym.getName()), addr)
+            # The target is not code and has no resolved function: it is an indirect call
+            # through a data pointer (`call [DAT_...]`). Name it like any other global
+            # (`data_<hex>`, or its real symbol) so it renders and navigates as data, not a
+            # bogus `sub_<hex>` "function".
+            if program.getMemory().contains(ghidra_addr):
+                data_name = self._global_symbol_name(addr) or f"data_{hex(addr)}"
+                return ImportedFunctionSymbol(data_name, addr)
         except Exception as exc:  # noqa: BLE001
             logging.debug("[GhidraLifter] symbol lookup at %s failed: %s", hex(addr), exc)
         return ImportedFunctionSymbol(f"sub_{addr:x}", addr)

@@ -88,6 +88,10 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
     As such, it can be used to print expressions separately.
     """
 
+    # Whether to emit /* param_name */ comments before call arguments. CodeVisitor
+    # overrides this from the `code-generator.show_parameter_names` option.
+    _show_parameter_names: bool = True
+
     # For code generation
     C_SYNTAX = {
         OperationType.minus: "-",
@@ -339,7 +343,8 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
                 output += ", "
             if name.startswith("arg") or name == "...":
                 name = ""  # filter generic argument labels
-            output += f"/* {name} */ " if name else ""
+            if self._show_parameter_names:
+                output += f"/* {name} */ " if name else ""
             output += f"{self.visit(parameter)}"
             at_least_one = True
         output += ")"
