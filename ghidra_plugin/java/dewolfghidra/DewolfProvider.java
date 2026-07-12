@@ -117,14 +117,21 @@ public class DewolfProvider extends ComponentProviderAdapter {
 	// set while an in-place rename/retype is committing, so the resulting program-change
 	// event does not trigger a full (slow) re-decompile
 	private boolean suppressNextRefresh;
-	// Most recently rendered decompilation per (program, entry), so Esc can restore a
-	// previously shown function instantly on the Swing thread instead of queueing behind
-	// an in-flight decompilation on the single background thread (dewolf can be slow).
+	// Most recently rendered decompilation per (program, entry), so Esc / revisits restore a
+	// previously shown function instantly on the Swing thread instead of queueing behind an
+	// in-flight decompilation on the single background thread (dewolf can be slow).
+	//
+	// Access-order (LRU), not insertion-order: every get()/put() marks an entry recently-used, so
+	// the function you are looking at and the ones you recently viewed survive eviction. The cap is
+	// >= PREFETCH_LIMIT so a whole background prefetch sweep cannot evict your foreground working set
+	// (the old insertion-order cap of 100 was smaller than the 500-function prefetch reach, so
+	// prefetch churned out functions you had actually visited -> revisiting re-decompiled them).
+	private static final int RENDER_CACHE_LIMIT = 512;
 	private final java.util.LinkedHashMap<HistoryEntry, Rendered> rendered =
-		new java.util.LinkedHashMap<>() {
+		new java.util.LinkedHashMap<>(64, 0.75f, true) {
 			@Override
 			protected boolean removeEldestEntry(java.util.Map.Entry<HistoryEntry, Rendered> e) {
-				return size() > HISTORY_LIMIT;
+				return size() > RENDER_CACHE_LIMIT;
 			}
 		};
 
@@ -1072,6 +1079,11 @@ public class DewolfProvider extends ComponentProviderAdapter {
 		}
 		currentDecompilation = decompilation;
 		rendered.put(key, new Rendered(decompilation, program.getModificationNumber()));
+		// Keep the window title in sync with whatever is actually on screen. Every display path funnels
+		// through here -- fresh decompile, instant cache-restore (Esc back / revisited callee), and
+		// in-place rename refresh -- whereas decompile()'s placeholder setSubTitle only fires on the slow
+		// background path, so cache-restores used to leave the previous function's name in the title.
+		setSubTitle(function.getName());
 		if (controller == null) {
 			setFallbackCode(decompilation.code);
 			return;
