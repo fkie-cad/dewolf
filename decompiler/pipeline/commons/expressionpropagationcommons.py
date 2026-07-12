@@ -180,19 +180,32 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         x = 5 -- Should not be propagated
         x = a -- Should not be propagated
         x = a + 10 -- Should not be propagated
-        """
 
+        A variable defined by ``definition`` is matched against the operand of each address operation
+        in ``target`` by SSA identity (name + ssa_label), NOT by full ``Variable.__eq__``. A frontend
+        may attach a different type or ``is_aliased`` flag to the ``&x`` occurrence than to the
+        ``x = ...`` definition (e.g. the Ghidra frontend lifts ``&local`` as a non-aliased stack
+        reference while the value accesses are aliased); comparing by ``__eq__`` then missed the
+        match and produced nonsense like ``&0`` from ``local = 0; ... = &local``. Substituting a
+        value into ``&x`` is always wrong regardless of those attributes.
+        """
         if isinstance(target, Assignment):
             subexpressions = list(self._find_subexpressions(target.destination))
-            subexpressions.extend((expr for expr in self._find_subexpressions(target.value)))
-            return any(
-                (self._is_address(expr) and expr.operand in self._find_subexpressions(definition.destination) for expr in subexpressions)
-            )
-        elif isinstance(target, Return):
+            subexpressions.extend(self._find_subexpressions(target.value))
+        else:
+            # Any other instruction (Return, Branch, ...): traverse the whole instruction. Branch was
+            # previously not handled at all, so a value would be propagated into an ``&x`` inside a
+            # loop/if condition -- producing e.g. ``while ((&0 + 9) == ...)``.
             subexpressions = list(self._find_subexpressions(target))
-            return any(
-                (self._is_address(expr) and expr.operand in self._find_subexpressions(definition.destination) for expr in subexpressions)
-            )
+        defined_identities = {(var.name, var.ssa_label) for var in definition.definitions}
+        if not defined_identities:
+            return False
+        for expr in subexpressions:
+            if not self._is_address(expr):
+                continue
+            for operand_subexpr in self._find_subexpressions(expr.operand):
+                if isinstance(operand_subexpr, Variable) and (operand_subexpr.name, operand_subexpr.ssa_label) in defined_identities:
+                    return True
         return False
 
     def _operation_is_propagated_in_phi(self, target: Instruction, definition: Assignment) -> bool:
