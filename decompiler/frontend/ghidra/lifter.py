@@ -48,6 +48,7 @@ class GhidraLifter(ObserverLifter):
         # emitting raw `stackpointer + offset` arithmetic. Populated by precompute_stack_variables.
         self._stack_pointer_addr = None  # ghidra Address of the stack-pointer register, or None
         self._stack_frame = None  # the function's StackFrame, for offset -> variable lookup
+        self._stack_symbols = []  # decompiler-inferred stack layout: (start, length, name, dtype)
         # stack frame offset -> set of HighVariable keys whose value varnodes live there. An offset
         # backed by a single HighVariable is a genuine single local we can name by offset (merging
         # its value accesses with its ``&`` address-of); an offset backed by several is slot reuse we
@@ -194,6 +195,25 @@ class GhidraLifter(ObserverLifter):
             self._stack_frame = high_function.getFunction().getStackFrame()
         except Exception:  # noqa: BLE001
             self._stack_frame = None
+        # The decompiler-inferred stack layout (getLocalSymbolMap), which carries the *analysed*
+        # types the listing StackFrame lacks -- most importantly array types: a 256-byte buffer is
+        # ``undefined`` len 1 in the listing frame but ``undefined1[256]`` here. Recording it lets
+        # ``&local`` recover ``unsigned char var[256]`` instead of a lone ``unsigned char var``.
+        # Stored as (start_offset, length, name, ghidra_datatype), sorted by start.
+        self._stack_symbols = []
+        try:
+            it = high_function.getLocalSymbolMap().getSymbols()
+            while it.hasNext():
+                sym = it.next()
+                storage = sym.getStorage()
+                if storage is None or not storage.isStackStorage():
+                    continue
+                dtype = sym.getDataType()
+                length = dtype.getLength() if dtype is not None else 1
+                self._stack_symbols.append((int(storage.getStackOffset()), int(length or 1), sym.getName(), dtype))
+        except Exception:  # noqa: BLE001
+            self._stack_symbols = []
+        self._stack_symbols.sort(key=lambda entry: entry[0])
 
     def precompute_stack_slot_identity(self, high_function) -> None:
         """Record, per stack frame offset, the set of HighVariables whose value varnodes live there.
@@ -219,6 +239,17 @@ class GhidraLifter(ObserverLifter):
         """True if exactly one HighVariable's value varnodes occupy the given stack slot."""
         return len(self._stack_offset_reps.get(offset, ())) == 1
 
+    def _high_stack_symbol(self, offset: int):
+        """The decompiler-inferred stack symbol containing ``offset``: (name, dtype, start) or None.
+
+        Preferred over the listing StackFrame because it carries analysed array/struct types (a
+        stack buffer is ``undefined1[256]`` here but merely ``undefined`` in the listing frame).
+        """
+        for start, length, name, dtype in self._stack_symbols:
+            if start <= offset < start + length:
+                return name, dtype, start
+        return None
+
     def _is_stack_pointer(self, vn) -> bool:
         """True if ``vn`` is (a version of) the stack-pointer register."""
         if vn is None or self._stack_pointer_addr is None:
@@ -241,7 +272,15 @@ class GhidraLifter(ObserverLifter):
         name = None
         vartype = None
         base_offset = offset
-        if self._stack_frame is not None:
+        # Prefer the decompiler-inferred symbol (has array/struct types); fall back to the listing frame.
+        if (symbol := self._high_stack_symbol(offset)) is not None:
+            try:
+                name = self._purge(symbol[0])
+                vartype = self.lift_type(symbol[1])
+                base_offset = symbol[2]
+            except Exception:  # noqa: BLE001
+                name = None
+        if name is None and self._stack_frame is not None:
             try:
                 var = self._stack_frame.getVariableContaining(offset)
             except Exception:  # noqa: BLE001
@@ -295,6 +334,11 @@ class GhidraLifter(ObserverLifter):
         (its ``&`` address-of) so both lift to the same name; without this an address-taken local
         splits into ``&var_0`` and a distinct, undefined ``var_1`` (see ``_stack_offset_of``).
         """
+        if (symbol := self._high_stack_symbol(offset)) is not None:
+            try:
+                return self._purge(symbol[0])
+            except Exception:  # noqa: BLE001
+                pass
         if self._stack_frame is not None:
             try:
                 var = self._stack_frame.getVariableContaining(offset)

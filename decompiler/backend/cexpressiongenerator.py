@@ -482,6 +482,7 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
                 declarations_without_return_type = [f"(* {var_name})({parameter_names})" for var_name in var_names]
                 return f"{fun_type.return_type} {', '.join(declarations_without_return_type)}"
             case ArrayType():
-                return f"{var_type.type}* {', '.join(var_names)}"
+                declarations = ", ".join(f"{var_name}[{var_type.elements}]" for var_name in var_names)
+                return f"{var_type.type} {declarations}"
             case _:
                 return f"{var_type} {', '.join(var_names)}"
