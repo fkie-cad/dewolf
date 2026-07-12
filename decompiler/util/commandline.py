@@ -46,6 +46,13 @@ def parse_commandline():
     parser.add_argument("--color", type=Colorize, choices=list(Colorize), default=Colorize.AUTO)
     parser.add_argument("--output", "-o", dest="outfile", help="The file in which to place decompilation output", default=None)
     parser.add_argument("--all", "-a", dest="all", action="store_true", help="Decompile all functions in this binary", default=False)
+    parser.add_argument(
+        "--frontend",
+        dest="frontend",
+        choices=["binaryninja", "ghidra"],
+        default=SUPPRESS,
+        help="Disassembler frontend to use (default: binaryninja if available, else ghidra)",
+    )
     parser.add_argument("--print-config", dest="print", action="store_true", help="Print current config and exit", default=False)
     parser.usage = parser.format_usage().lstrip("usage: ")  # Don't add expert args to usage
     Options.register_defaults_in_argument_parser(parser)  # register expert arguments
@@ -62,7 +69,7 @@ def main(interface: "Decompiler"):
         print(options)
         return
 
-    decompiler = interface.from_path(args.binary, options)
+    decompiler = interface.from_path(args.binary, options, frontend=getattr(args, "frontend", None))
     if args.outfile is None:
         output_stream = None
         color = args.color == Colorize.ALWAYS or (args.color != Colorize.NEVER and isatty(stdout.fileno()))
@@ -85,3 +92,21 @@ def main(interface: "Decompiler"):
     finally:
         if output_stream is not None:
             output_stream.close()
+        _shutdown_frontend(decompiler)
+
+
+def _shutdown_frontend(decompiler: "Decompiler") -> None:
+    """Release frontend resources (e.g. the Ghidra JVM) so the process can exit."""
+    try:
+        frontend = getattr(decompiler, "_frontend", None)
+        if frontend is not None and hasattr(frontend, "close"):
+            frontend.close()
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        import jpype
+
+        if jpype.isJVMStarted():
+            jpype.shutdownJVM()
+    except Exception:  # noqa: BLE001
+        pass

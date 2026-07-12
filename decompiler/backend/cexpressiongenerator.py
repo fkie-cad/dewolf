@@ -88,6 +88,10 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
     As such, it can be used to print expressions separately.
     """
 
+    # Whether to emit /* param_name */ comments before call arguments. CodeVisitor
+    # overrides this from the `code-generator.show_parameter_names` option.
+    _show_parameter_names: bool = True
+
     # For code generation
     C_SYNTAX = {
         OperationType.minus: "-",
@@ -242,6 +246,14 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
                     val = "".join("\\x{:02x}".format(x) for x in expr.value)
                     return f'"{val}"' if len(val) <= MAX_GLOBAL_INIT_LENGTH else f'"{val[:MAX_GLOBAL_INIT_LENGTH]}..."'
         if isinstance(expr.type, ArrayType):
+            if isinstance(expr.value, int):
+                # A scalar integer carrying an array type -- e.g. an array cleared with ``= 0`` where
+                # type propagation stamps the array's type onto the scalar ``0``. The element-wise
+                # branches below assume an iterable value, so render the scalar as a plain literal.
+                element_type = expr.type.type
+                return self._format_integer_literal(
+                    element_type if isinstance(element_type, Integer) else Integer(expr.type.size), expr.value
+                )
             match expr.type.type:
                 case CustomType(text="wchar16") | CustomType(text="wchar32"):
                     val = "".join(expr.value).translate(self.ESCAPE_TABLE)
@@ -291,6 +303,21 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         if op.operation == OperationType.cast:
             if op.type == op.operand.type:
                 return operand
+            # Collapse a redundant intermediate pointer cast: ``(T*)(U*)x`` is representationally
+            # identical to ``(T*)x`` because every pointer cast merely reinterprets the same bits.
+            # The Ghidra lifter routinely stacks such casts (a use-site pointer cast wrapped by a
+            # parameter-type coercion), yielding noise like ``(char*)(unsigned char*)var_1``.
+            elif (
+                isinstance(op.type, Pointer)
+                and isinstance(inner := op.operand, operations.UnaryOperation)
+                and not isinstance(inner, MemberAccess)
+                and inner.operation == OperationType.cast
+                and not inner.contraction
+                and isinstance(inner.type, Pointer)
+            ):
+                target = inner.operand
+                target_str = self._visit_bracketed(target) if self._has_lower_precedence(target, op) else self.visit(target)
+                return f"({op.type}){target_str}"
             elif isinstance(op.operand, expressions.Constant):
                 if isinstance(op.type, Integer) and isinstance(op.operand.type, Integer):
                     value = self._get_integer_literal_value(op.operand)
@@ -339,7 +366,8 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
                 output += ", "
             if name.startswith("arg") or name == "...":
                 name = ""  # filter generic argument labels
-            output += f"/* {name} */ " if name else ""
+            if self._show_parameter_names:
+                output += f"/* {name} */ " if name else ""
             output += f"{self.visit(parameter)}"
             at_least_one = True
         output += ")"
@@ -469,6 +497,7 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
                 declarations_without_return_type = [f"(* {var_name})({parameter_names})" for var_name in var_names]
                 return f"{fun_type.return_type} {', '.join(declarations_without_return_type)}"
             case ArrayType():
-                return f"{var_type.type}* {', '.join(var_names)}"
+                declarations = ", ".join(f"{var_name}[{var_type.elements}]" for var_name in var_names)
+                return f"{var_type.type} {declarations}"
             case _:
                 return f"{var_type} {', '.join(var_names)}"

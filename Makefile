@@ -42,7 +42,7 @@ endif
 	python -m black --version && \
 	python -m black --check . && \
 	python -m isort --version && \
-	python -m isort --check . -s install_api.py -s $(VENV_PATH) --skip-glob dewolf-idioms --skip-glob logic
+	python -m isort --check . -s install_api.py -s $(VENV_PATH)
 
 .ONESHELL: format
 .PHONY: format
@@ -74,7 +74,7 @@ systemtests: venv system-tests-samples
 	. $(VENV_PATH)/bin/activate
 endif
 	PYTHONPATH=. pytest --import-mode=importlib tests/test_plugin.py
-	py.test --systemtests --import-mode=importlib tests/test_sample_binaries.py
+	PYTHONPATH=. py.test --systemtests --import-mode=importlib tests/test_sample_binaries.py
 
 .ONESHELL: extendedtests
 .PHONY: extendedtests
@@ -84,7 +84,7 @@ else
 extendedtests: venv extended-test-samples system-tests-samples
 	. $(VENV_PATH)/bin/activate
 endif
-	py.test --fulltests --import-mode=importlib tests/test_sample_binaries.py; \
+	PYTHONPATH=. py.test --fulltests --import-mode=importlib tests/test_sample_binaries.py; \
 
 .ONESHELL: unittests
 .PHONY: unittests
@@ -94,11 +94,74 @@ else
 unittests: venv
 	. $(VENV_PATH)/bin/activate
 endif
-	PYTHONPATH=. pytest --import-mode=importlib --ignore-glob="*test-lifting.py" --ignore-glob="tests/test_sample_binaries.py" --ignore-glob="tests/test_plugin.py" tests
+	PYTHONPATH=. pytest --import-mode=importlib --ignore-glob="*test-lifting.py" --ignore-glob="tests/test_sample_binaries.py" --ignore-glob="tests/test_plugin.py" --ignore-glob="tests/test_ghidra_sample_binaries.py" --ignore-glob="tests/test_ghidra_plugin.py" tests
 
 
 .PHONY: pytest
 pytest: unittests
+
+
+# --- Ghidra frontend / plugin (mirror of the Binary Ninja targets above; no binja needed) ----------
+# In CI these run in a Python env that already has pyghidra installed, so pass CONFIG_NO_VENV=1 to skip
+# the (binja) venv bootstrap. GHIDRA_INSTALL_DIR must point at an unzipped Ghidra release; when it is
+# missing the JVM-backed tests skip themselves. The JVM-backed suites run with -n0 (no pytest-xdist):
+# concurrent workers would start competing JVMs and race on the shared Ghidra project directory.
+
+.PHONY: ghidra-tests
+ghidra-tests: ghidra-unittests ghidra-systemtests ghidra-visualtest
+
+# The full unit suite (same as `unittests`), minus the Binary-Ninja-only unit tests (which import
+# binaryninja and so cannot run in this secret-free job) and the JVM-backed Ghidra tests (run by the
+# system/visual targets below). Pure Python -> pytest-xdist (`-n auto` from addopts) is fine here.
+.ONESHELL: ghidra-unittests
+.PHONY: ghidra-unittests
+ifdef CONFIG_NO_VENV
+ghidra-unittests:
+else
+ghidra-unittests: venv
+	. $(VENV_PATH)/bin/activate
+endif
+	PYTHONPATH=. pytest --import-mode=importlib \
+		--ignore-glob="*test-lifting.py" \
+		--ignore-glob="tests/test_sample_binaries.py" \
+		--ignore-glob="tests/test_plugin.py" \
+		--ignore-glob="tests/frontend/test_parser.py" \
+		--ignore-glob="tests/util/test_decoration.py" \
+		--ignore-glob="tests/test_ghidra_sample_binaries.py" \
+		--ignore-glob="tests/test_ghidra_plugin.py" \
+		--ignore-glob="tests/test_ghidra_visual.py" \
+		tests
+
+.ONESHELL: ghidra-systemtests
+.PHONY: ghidra-systemtests
+ifdef CONFIG_NO_VENV
+ghidra-systemtests: system-tests-samples
+else
+ghidra-systemtests: venv system-tests-samples
+	. $(VENV_PATH)/bin/activate
+endif
+	PYTHONPATH=. pytest -n0 --import-mode=importlib tests/test_ghidra_plugin.py
+	PYTHONPATH=. pytest -n0 --systemtests --import-mode=importlib tests/test_ghidra_sample_binaries.py
+
+.ONESHELL: ghidra-visualtest
+.PHONY: ghidra-visualtest
+ifdef CONFIG_NO_VENV
+ghidra-visualtest: system-tests-samples
+else
+ghidra-visualtest: venv system-tests-samples
+	. $(VENV_PATH)/bin/activate
+endif
+	PYTHONPATH=. pytest -n0 -s --import-mode=importlib tests/test_ghidra_visual.py
+
+.ONESHELL: ghidra-extendedtests
+.PHONY: ghidra-extendedtests
+ifdef CONFIG_NO_VENV
+ghidra-extendedtests: extended-test-samples system-tests-samples
+else
+ghidra-extendedtests: venv extended-test-samples system-tests-samples
+	. $(VENV_PATH)/bin/activate
+endif
+	PYTHONPATH=. pytest -n0 --fulltests --import-mode=importlib tests/test_ghidra_sample_binaries.py
 
 .ONESHELL: visualtest
 .PHONY: visualtest

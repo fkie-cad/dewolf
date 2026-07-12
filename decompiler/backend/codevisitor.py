@@ -40,6 +40,7 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
         self._neg_hex_as_twos_complement: bool = task.options.getboolean("code-generator.negative_hex_as_twos_complement", fallback=True)
         self._aggressive_array_detection: bool = task.options.getboolean("code-generator.aggressive_array_detection", fallback=False)
         self._preferred_true_branch: str = task.options.getstring("code-generator.preferred_true_branch", fallback="none")
+        self._show_parameter_names: bool = task.options.getboolean("code-generator.show_parameter_names", fallback=True)
         self.task = task
 
     def visit_seq_node(self, node: ast_nodes.SeqNode) -> str:

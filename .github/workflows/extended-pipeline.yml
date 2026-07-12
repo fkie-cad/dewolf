@@ -6,29 +6,84 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-docker-and-run-extended-tests:
-    runs-on: ubuntu-latest
+  # Binary Ninja frontend: full sample matrix, run natively on the runner (no Docker). Binary Ninja is
+  # pulled from the private GitLab mirror (`binja` branch) and set up with our license. Pinned to
+  # ubuntu-22.04 so the Binary Ninja headless dependency package names resolve.
+  binja-extended-tests:
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          submodules: recursive
-      - name: Setup BinaryNinja License
+          python-version: '3.10'
+      - name: Install system dependencies
         run: |
-          echo "${{ secrets.BINJA_LICENSE }}" | base64 --decode > license.txt
-      - name: Download BinayNinja.zip
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc-multilib graphviz unzip \
+            libgl1-mesa-glx libfontconfig1 libxrender1 libegl1-mesa libxi6 \
+            libnspr4 libsm6 libpython2.7 libdbus-1-3 libxkbcommon-x11-0
+      - name: Set up Binary Ninja
         run: |
-          curl -L --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_BINJA_TOKEN }}" "https://gitlab.fkie.fraunhofer.de/api/v4/projects/1250/repository/archive.zip?sha=Binja5" -o complete_repo.zip
-      - name: Build Docker Image
-        run: |
-          docker build -t dewolf .
+          mkdir -p ~/.binaryninja
+          echo "${{ secrets.BINJA_LICENSE }}" | base64 --decode > ~/.binaryninja/license.dat
+          curl -L --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_BINJA_TOKEN }}" "https://gitlab.fkie.fraunhofer.de/api/v4/projects/1250/repository/archive.zip?sha=binja" -o complete_repo.zip
+          unzip -q complete_repo.zip -d binja_repo
+          sudo unzip -q binja_repo/*/BinaryNinja.zip -d /opt
+          python3 /opt/binaryninja/scripts/install_api.py
+          echo "/opt/binaryninja/python" > "$(python3 -c 'import site; print(site.getsitepackages()[0])')/binaryninja.pth"
+      - name: Install Python dependencies
+        run: pip install ".[dev]"
       - name: Run Tests
         id: run_tests
-        run: |
-          docker run -v "$(pwd)"/artifacts:/opt/dewolf/crash_reports dewolf make extendedtests
+        run: make extendedtests CONFIG_NO_VENV=1
       - name: Upload Crash Reports
-        if: ${{ failure() && steps.run_tests.conclusion == 'failure' }}  # Only run if previous steps fail
+        if: ${{ failure() && steps.run_tests.conclusion == 'failure' }}
         uses: actions/upload-artifact@v4
         with:
-          name: crash-reports
-          path: artifacts/*
-          retention-days: 7 # Adjust retention as needed
+          name: crash-reports-binja
+          path: crash_reports/*
+          retention-days: 7
+
+  # Ghidra frontend: full sample matrix through --frontend ghidra (no secrets needed).
+  ghidra-extended-tests:
+    runs-on: ubuntu-latest
+    env:
+      GHIDRA_VERSION: "12.1.2"
+      GHIDRA_INSTALL_DIR: ${{ github.workspace }}/ghidra/ghidra_12.1.2_PUBLIC
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install build tools for samples
+        run: sudo apt-get update && sudo apt-get install -y gcc-multilib graphviz
+      - name: Cache Ghidra
+        id: cache-ghidra
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/ghidra
+          key: ghidra-${{ env.GHIDRA_VERSION }}
+      - name: Download Ghidra
+        if: steps.cache-ghidra.outputs.cache-hit != 'true'
+        run: |
+          ASSET_URL=$(curl -sL "https://api.github.com/repos/NationalSecurityAgency/ghidra/releases/tags/Ghidra_${GHIDRA_VERSION}_build" | jq -r '.assets[] | select(.name | endswith(".zip")) | .browser_download_url' | head -n1)
+          echo "Downloading $ASSET_URL"
+          curl -L "$ASSET_URL" -o ghidra.zip
+          unzip -q ghidra.zip -d "${{ github.workspace }}/ghidra"
+      - name: Install Python dependencies
+        run: pip install ".[dev,ghidra]"
+      - name: Run Ghidra Extended Tests
+        id: run_tests
+        run: make ghidra-extendedtests CONFIG_NO_VENV=1
+      - name: Upload Crash Reports
+        if: ${{ failure() && steps.run_tests.conclusion == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-reports-ghidra
+          path: crash_reports/*
+          retention-days: 7

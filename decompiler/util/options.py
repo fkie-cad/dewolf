@@ -7,7 +7,10 @@ from copy import deepcopy
 from os.path import dirname, isfile, join
 from typing import Dict, Iterator, List, Optional, Tuple, Union
 
-from binaryninja import Settings
+try:
+    from binaryninja import Settings
+except ImportError:  # Binary Ninja is optional when using an alternative frontend (e.g. Ghidra)
+    Settings = None
 
 
 def deprecated_option_setter(func):
@@ -93,6 +96,9 @@ class Options:
 
     def _register_gui_settings(self) -> None:
         """Register default settings in binaryninja gui"""
+        if Settings is None:  # binaryninja not available (non-BN frontend)
+            logging.debug("binaryninja not available, skipping GUI settings registration")
+            return
         logging.debug("registering default settings in binaryninja")
         self._bn_settings = Settings()
         self._bn_settings.register_group(self.BN_OPTION_GROUP, self.BN_GROUP_DESCRIPTION)

@@ -1,3 +1,57 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dewolf"
+version = "0.1.0"
+description = "dewolf decompiler"
+readme = "README.md"
+requires-python = ">=3.10"
+# Installed from the GitHub URL (not PyPI), so git deps stay as direct references.
+dependencies = [
+    "delogic @ git+https://github.com/fkie-cad/dewolf-logic.git",
+    "compiler-idioms @ git+https://github.com/fkie-cad/dewolf-idioms.git",
+    "networkx != 2.8.4",
+    "pydot",
+    "pygments",
+    "clang-format",
+    "z3-solver == 4.8.10",
+]
+
+[project.optional-dependencies]
+ghidra = ["pyghidra"]
+dev = ["black == 26.5.1", "isort == 8.0.1", "pytest != 5.3.4", "pytest-xdist"]
+
+[project.scripts]
+dewolf = "decompile:_cli"
+dewolf-ghidra = "ghidra_plugin.launch:main"
+dewolf-install-launcher = "ghidra_plugin.desktop_launcher:main"
+
+# Auto-activate the plugin when Ghidra is launched through pyghidra (e.g. pyghidraRun): install the
+# Java extension before the JVM starts, then register the backend once Ghidra is initialized.
+[project.entry-points."pyghidra.setup"]
+dewolf = "ghidra_plugin.hooks:install_extension"
+
+[project.entry-points."pyghidra.pre_launch"]
+dewolf = "ghidra_plugin.hooks:register_backend"
+
+[tool.setuptools]
+# Top-level single-file module (defines the Decompiler interface + the `dewolf` CLI entry).
+py-modules = ["decompile"]
+
+[tool.setuptools.packages.find]
+# Ship the two importable packages only; the repo-root __init__.py (Binary Ninja plugin shim)
+# and the tests/ + dewolf-idioms/ trees are intentionally excluded.
+include = ["decompiler*", "ghidra_plugin*"]
+
+[tool.setuptools.package-data]
+# default.json is the option schema/defaults the Options loader reads at runtime — must be shipped.
+"decompiler.util" = ["*.json"]
+# The Ghidra plugin's Java sources are compiled at launch by pyghidra's install_plugin, so they
+# must ship as data and resolve to a real on-disk path inside the installed package.
+ghidra_plugin = ["java/**/*.java"]
+
 [tool.black]
 line-length = 140
 target-version = ['py310']

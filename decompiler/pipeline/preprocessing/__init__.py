@@ -8,5 +8,6 @@ from .phi_predecessors import PhiFunctionFixer
 from .register_pair_handling import RegisterPairHandling
 from .remove_go_prologue import RemoveGoPrologue
 from .remove_noreturn_boilerplate import RemoveNoreturnBoilerplate
+from .remove_seh_exception_list import RemoveSEHExceptionList
 from .remove_stack_canary import RemoveStackCanary
 from .switch_variable_detection import BackwardSliceSwitchVariableDetection as SwitchVariableDetection

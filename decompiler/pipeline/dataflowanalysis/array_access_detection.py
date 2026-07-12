@@ -93,6 +93,10 @@ class ArrayAccessDetection(PipelineStage):
             return
         self._candidates = defaultdict(list)
         self._candidate_offset_classes = defaultdict(OffsetInfo)
+        # base variable -> the pointer type its element size is taken from. This can come from the
+        # variable itself or from a pointer-typed cast wrapping it (see ``_pointer_base``), so we
+        # remember it here instead of re-deriving it from the (possibly non-pointer) base variable.
+        self._candidate_ptr_type = {}
         for instr in task.graph.instructions:
             for dereference in self._find_dereference_subexpressions(instr):
                 self._add_possible_array_element_access_candidates(dereference)
@@ -107,28 +111,32 @@ class ArrayAccessDetection(PipelineStage):
         """
         operand = candidate.operand
         if self._is_addition(operand):
-            base, offset = self._get_base_and_offset(operand)
-            if base and offset:
+            base, ptr_type, offset = self._get_base_and_offset(operand)
+            if base is not None and offset is not None:
                 if (offset_details := self._parse_offset(offset)) is not None:
                     offset_class, index, element_size = offset_details
                     self._candidates[base].append(Candidate(candidate, array_index=index, array_base=base))
+                    self._candidate_ptr_type[base] = ptr_type
                     self._update_candidate_offsets(base, offset_class, element_size)
 
     def _mark_candidates_as_array_element_accesses(self) -> None:
         """Iterates over array candidates and if consistency check is successful, set corresponding attributes in unary operation"""
         for base, offset_class in self._candidate_offset_classes.items():
-            array_type_size = self._get_array_type_size(base)
+            array_type_size = self._array_type_size(self._candidate_ptr_type.get(base))
             self._mark_candidates_if_consistent_offsets(base, offset_class, array_type_size)
 
-    def _get_array_type_size(self, base: Variable) -> int:
+    def _array_type_size(self, pointer_type) -> int:
         """
-        :param base: variable storing start of array
-        :return size of array type; in case of custom/unknown/void pointer returns 0.
+        :param pointer_type: the Pointer type the base's element size is taken from (from the base
+            variable itself, or from a pointer-typed cast wrapping it).
+        :return size of the pointed-to type in bytes; 0 for a custom/unknown/void/zero-size pointer.
         """
-        array_type = base.type
-        if array_type.type == CustomType.void() or array_type.type == UnknownType() or array_type.size == 0:
+        if pointer_type is None:
             return 0
-        return self._size_in_bytes(array_type.type.size)
+        pointed = pointer_type.type
+        if pointed == CustomType.void() or pointed == UnknownType() or pointer_type.size == 0:
+            return 0
+        return self._size_in_bytes(pointed.size)
 
     def _mark_candidates_if_consistent_offsets(
         self, base: Variable, offset_class: OffsetInfo, available_array_type_size: Optional[int] = None
@@ -173,25 +181,46 @@ class ArrayAccessDetection(PipelineStage):
             array_info = ArrayInfo(base_variable, index, confidence)
             candidate.dereference.array_info = array_info
 
-    def _get_base_and_offset(self, operand: BinaryOperation) -> Tuple[Optional[Variable[Pointer]], Optional[Expression]]:
+    def _get_base_and_offset(self, operand: BinaryOperation) -> Tuple[Optional[Variable[Pointer]], Optional[Pointer], Optional[Expression]]:
         """
         Given operand of *(addition), we want to check, if it is of form base+offset or offset+base,
-        where base is a variable of type pointer. We return both values and not just True or False
-        since we would need them anyway and want to avoid parsing the operand twice.
+        where base is a pointer (a pointer variable, or a pointer-typed cast of a variable). We
+        return the base variable, the pointer type its element size comes from, and the offset (all
+        needed later), to avoid parsing the operand twice.
         :param operand: operand of *(addition)
-        :return: tuple of base and offset, in case base is found (offset form is checked later); None,None otherwise
+        :return: (base variable, pointer type, offset) if a base is found; (None, None, None) otherwise
         """
         left = operand.left
         right = operand.right
-        base = None
-        offset = None
-        if self._is_pointer_variable(left):
-            base = left
-            offset = right
-        elif self._is_pointer_variable(right):
-            base = right
-            offset = left
-        return base, offset
+        base, ptr_type = self._pointer_base(left)
+        if base is not None:
+            return base, ptr_type, right
+        base, ptr_type = self._pointer_base(right)
+        if base is not None:
+            return base, ptr_type, left
+        return None, None, None
+
+    @staticmethod
+    def _pointer_base(expression: Expression) -> Tuple[Optional[Variable], Optional[Pointer]]:
+        """Recognise an array base and the pointer type its element size comes from.
+
+        Accepts a bare pointer variable, or a pointer-typed cast of a variable: the Ghidra frontend
+        commonly feeds the base as ``(T *) v`` — the pointer type sits on an inlined cast rather than
+        on the (merged, often non-pointer) variable — which would otherwise hide the array access.
+        In that case the base variable is the cast's operand and the element size comes from the
+        cast's pointer type. Returns (None, None) for anything else (e.g. a cast of a constant
+        address, which is an untyped global, not an array variable).
+        """
+        if isinstance(expression, Variable) and isinstance(expression.type, Pointer):
+            return expression, expression.type
+        if (
+            isinstance(expression, UnaryOperation)
+            and expression.operation == OperationType.cast
+            and isinstance(expression.type, Pointer)
+            and isinstance(expression.operand, Variable)
+        ):
+            return expression.operand, expression.type
+        return None, None
 
     def _parse_offset(self, offset: Expression) -> Optional[Tuple[str, Variable, int]]:
         """

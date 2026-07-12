@@ -1,5 +1,6 @@
 """Module for finding variable relevant to switch"""
 
+import logging
 from typing import Optional
 
 from decompiler.pipeline.stage import PipelineStage
@@ -115,6 +116,15 @@ class BackwardSliceSwitchVariableDetection(PipelineStage):
         for variable in self._backwardslice(traced_variable):
             if self._is_bounds_checked(variable):
                 return variable
+        # Some frontends fold the switch bounds-check into the switch construct (e.g. Ghidra's
+        # high-pcode represents a jump-table switch as a BRANCHIND on the raw index with no
+        # surviving comparison), so no candidate passes the bounds-check criteria. The block was
+        # already identified as a switch block (it has SwitchCase edges), and the indirect
+        # branch's direct requirement is the switch index itself -- fall back to it rather than
+        # aborting the whole function with "No switch variable candidate found".
+        if isinstance(traced_variable, Variable):
+            logging.debug("[BackwardSliceSwitchVariableDetection] no bounds-checked candidate; falling back to %s", traced_variable)
+            return traced_variable
         raise ValueError("No switch variable candidate found.")
 
     def _is_used_in_condition_assignment(self, value: Variable):
