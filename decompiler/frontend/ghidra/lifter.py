@@ -693,6 +693,28 @@ class GhidraLifter(ObserverLifter):
         size = self._global_size.get(addr, size)
         return Integer((size or 8) * BYTE_SIZE, signed=False)
 
+    def _global_initial_value(self, addr: int, vartype):
+        """The initial *contents* of the global at ``addr`` (read from the program), as a Constant.
+
+        The global declaration should read ``d = 8`` (its initial value), not ``d = 0x104010`` (its
+        own address, which is what using the address as the initial value produced), matching the
+        Binary Ninja frontend. Uninitialized ``.bss`` globals have no defined data and default to 0.
+        """
+        from decompiler.structures.pseudo import Constant
+
+        try:
+            dv = self.program.getListing().getDataAt(self._address(addr))
+            value = dv.getValue() if dv is not None else None
+            if value is not None:
+                if hasattr(value, "getValue"):  # ghidra Scalar
+                    return Constant(int(value.getValue()), vartype)
+                if hasattr(value, "getOffset"):  # ghidra Address (a pointer global's target)
+                    return Constant(int(value.getOffset()), vartype)
+                return Constant(int(value), vartype)
+        except Exception:  # noqa: BLE001
+            pass
+        return Constant(0, vartype)
+
     def _address_size_bits(self) -> int:
         """Pointer size of the program's default address space, in bits (cached)."""
         if not hasattr(self, "_addr_bits_cache"):
@@ -777,11 +799,14 @@ class GhidraLifter(ObserverLifter):
 
         Unlike Ghidra's flaky per-varnode ``DAT_`` auto-labels (which ``_global_name`` deliberately
         ignores), a primary symbol is stable per address, so using it does not split one global
-        into two. Auto-generated labels (``DAT_``, ``FUN_``, ``sub_``) are skipped.
+        into two. Auto-generated labels (``DAT_``, ``FUN_``, ``sub_``) are skipped. We deliberately do
+        NOT skip external-entry-point symbols: exported/imported data globals (``a``, ``c``, ``d``,
+        ...) are marked as entry points yet carry perfectly good names, so rejecting them merely
+        forced the noisy ``data_<hex>`` fallback instead of the real name Ghidra already knows.
         """
         try:
             sym = self.program.getSymbolTable().getPrimarySymbol(self._address(addr))
-            if sym is None or sym.isExternalEntryPoint():
+            if sym is None:
                 return None
             name = sym.getName()
             if not name or name.startswith(("DAT_", "FUN_", "sub_", "loc_", "off_")):
@@ -832,6 +857,20 @@ class GhidraLifter(ObserverLifter):
         except Exception:  # noqa: BLE001
             pass
         return None
+
+    def _userop_name(self, index: int) -> Optional[str]:
+        """The name of the CALLOTHER user-defined p-code op at ``index`` (e.g. ``RDTSC``), or None.
+
+        Ghidra models instructions it has no p-code semantics for (``rdtsc``, ``cpuid``, ``LOCK``,
+        vector/crypto intrinsics, syscalls, ...) as CALLOTHER with a per-language user-op index. The
+        language's user-op table maps that index to a readable name, so ``callother_43(...)`` can be
+        rendered as ``RDTSC(...)``.
+        """
+        try:
+            name = self.program.getLanguage().getUserDefinedOpName(int(index))
+            return self._purge(name) if name else None
+        except Exception:  # noqa: BLE001
+            return None
 
     def _param_names_for_call(self, symbol) -> list:
         try:

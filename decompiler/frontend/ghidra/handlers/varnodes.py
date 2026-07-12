@@ -90,7 +90,7 @@ class VarnodeHandler(Handler):
         return GlobalVariable(
             name,
             vartype=vartype,
-            initial_value=Constant(addr, vartype=Pointer(vartype, size * BYTE_SIZE)),
+            initial_value=self._lifter._global_initial_value(addr, vartype),
             ssa_label=ssa_label,
             is_aliased=is_aliased,
         )

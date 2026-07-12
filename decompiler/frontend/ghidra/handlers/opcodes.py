@@ -13,6 +13,7 @@ from decompiler.structures.pseudo import (
     Constant,
     IndirectBranch,
     Integer,
+    IntrinsicSymbol,
     ListOperation,
     OperationType,
     Phi,
@@ -88,14 +89,23 @@ class OpcodeHandler(Handler):
             ("FLOAT_LESS", self.lift_compare(OperationType.less)),
             ("FLOAT_LESSEQUAL", self.lift_compare(OperationType.less_or_equal)),
             ("FLOAT_NEG", self.lift_unary_int(OperationType.negate)),
+            # int<->float and float-width conversions ARE casts.
             ("FLOAT_INT2FLOAT", self.lift_cast),
             ("FLOAT_FLOAT2FLOAT", self.lift_cast),
-            ("FLOAT_TRUNC", self.lift_cast),
-            ("FLOAT_CEIL", self.lift_unary_int(OperationType.cast)),
-            ("FLOAT_FLOOR", self.lift_unary_int(OperationType.cast)),
-            ("FLOAT_ROUND", self.lift_unary_int(OperationType.cast)),
-            ("FLOAT_SQRT", self.lift_unary_int(OperationType.cast)),
-            ("FLOAT_ABS", self.lift_unary_int(OperationType.cast)),
+            ("FLOAT_TRUNC", self.lift_cast),  # float -> integer, truncating toward zero
+            # Floating-point library functions (round-to-{+inf,-inf,nearest}, sqrt, abs). These are
+            # NOT casts: lifting them as `(double)x` silently drops the operation (``sqrt(x)`` became
+            # ``(double)x``). Lift them as intrinsic calls, matching the Binary Ninja frontend.
+            ("FLOAT_CEIL", self.lift_intrinsic("ceil")),
+            ("FLOAT_FLOOR", self.lift_intrinsic("floor")),
+            ("FLOAT_ROUND", self.lift_intrinsic("round")),
+            ("FLOAT_SQRT", self.lift_intrinsic("sqrt")),
+            ("FLOAT_ABS", self.lift_intrinsic("fabs")),
+            # Bit-population intrinsics (POPCOUNT / count-leading-zeros) Ghidra emits for popcnt/lzcnt
+            # and __builtin_popcount/__builtin_clz. Lift as intrinsic calls rather than the opaque
+            # ``POPCOUNT(x)`` UnknownExpression the generic fallback would otherwise produce.
+            ("POPCOUNT", self.lift_intrinsic("__builtin_popcount")),
+            ("LZCOUNT", self.lift_intrinsic("__builtin_clz")),
             # Boolean/flag ops Ghidra emits in high-pcode. These produce a 1-bit result that often
             # feeds a branch condition, so they need a precise boolean lowering (a synthetic call
             # would make z3-based stages such as dead-path-elimination choke on the condition).
@@ -104,12 +114,12 @@ class OpcodeHandler(Handler):
             ("INT_SBORROW", self.lift_unknown_flag),
             ("FLOAT_NAN", self.lift_float_nan),
         ]
-        # Generic fallback for any p-code opcode without a dedicated handler (CALLOTHER, INSERT,
-        # SEGMENTOP, NEW, POPCOUNT, LZCOUNT, ...). Defining the (possibly used) output as an opaque
-        # expression prevents the "non-aliased variable has no definition" crash. We deliberately
-        # use UnknownExpression (not a synthetic Call): z3's logic converter raises ValueError on
-        # it, which dead-path-elimination catches and skips, whereas a Call would silently yield a
-        # non-boolean and crash z3.
+        # Generic fallback for any p-code opcode without a dedicated handler (CALLOTHER, and the
+        # rare bit-range ops INSERT / ZPULL / SPULL, plus SEGMENTOP / CPOOLREF / NEW). Defining the
+        # (possibly used) output as an opaque expression prevents the "non-aliased variable has no
+        # definition" crash. We deliberately use UnknownExpression (not a synthetic Call): z3's logic
+        # converter raises ValueError on it, which dead-path-elimination catches and skips, whereas a
+        # Call would silently yield a non-boolean and crash z3.
         self._lifter._fallback_lift = self.lift_generic
         for name, handler in handlers:
             opcode = getattr(P, name, None)
@@ -163,10 +173,40 @@ class OpcodeHandler(Handler):
         return Condition(OperationType.not_equal, [self._lifter.lift_varnode(cond_vn), Constant(0, Integer_int32())])
 
     def _build_condition(self, op) -> Condition:
-        from ghidra.program.model.pcode import PcodeOp
-
         optype = self._compare_opcode_to_optype(op.getOpcode())
-        return Condition(optype, [self._lifter.lift_varnode(op.getInput(0)), self._lifter.lift_varnode(op.getInput(1))])
+        operands = [self._lifter.lift_varnode(op.getInput(0)), self._lifter.lift_varnode(op.getInput(1))]
+        optype, operands = self._normalize_comparison(optype, operands)
+        return Condition(optype, operands)
+
+    # Swapped operator for putting the constant operand on the right (`9 < x` -> `x > 9`).
+    _FLIP_COMPARE = {
+        OperationType.less: OperationType.greater,
+        OperationType.greater: OperationType.less,
+        OperationType.less_us: OperationType.greater_us,
+        OperationType.greater_us: OperationType.less_us,
+        OperationType.less_or_equal: OperationType.greater_or_equal,
+        OperationType.greater_or_equal: OperationType.less_or_equal,
+        OperationType.less_or_equal_us: OperationType.greater_or_equal_us,
+        OperationType.greater_or_equal_us: OperationType.less_or_equal_us,
+        OperationType.equal: OperationType.equal,
+        OperationType.not_equal: OperationType.not_equal,
+    }
+
+    def _normalize_comparison(self, optype: OperationType, operands: list):
+        """Put a constant comparison operand on the right, matching Binary Ninja's variable-first
+        comparisons (``9 < counter`` -> ``counter > 9``, ``1 >= param_1`` -> ``param_1 <= 1``).
+
+        Ghidra frequently emits the constant as the left operand; only flip when the left operand is
+        a constant and the right is not, so we never introduce a Yoda condition where there was none.
+        """
+        if (
+            len(operands) == 2
+            and isinstance(operands[0], Constant)
+            and not isinstance(operands[1], Constant)
+            and optype in self._FLIP_COMPARE
+        ):
+            return self._FLIP_COMPARE[optype], [operands[1], operands[0]]
+        return optype, operands
 
     def _compare_opcode_to_optype(self, opcode) -> OperationType:
         from ghidra.program.model.pcode import PcodeOp
@@ -326,9 +366,29 @@ class OpcodeHandler(Handler):
 
         return _lift
 
+    def lift_intrinsic(self, name: str):
+        """Lift a p-code op that models a compiler intrinsic / library primitive as a named call.
+
+        Used for the floating-point library ops (``sqrt``/``fabs``/``ceil``/``floor``/``round``) and
+        the bit-population ops (``__builtin_popcount``/``__builtin_clz``), which have no dedicated
+        pseudo operation. Emitting ``Call(IntrinsicSymbol(name), args)`` -- as the Binary Ninja
+        frontend does -- preserves the semantics (``y = sqrt(x)`` instead of the wrong ``y = (double)x``
+        a cast would produce, or the opaque ``POPCOUNT(x)`` the generic fallback would emit).
+        """
+
+        def _lift(op, **kwargs) -> Assignment:
+            out = self._out(op)
+            outputs = [self._lifter.lift_varnode(out, destination=True)] if out is not None else []
+            args = [self._in(op, i) for i in range(op.getNumInputs())]
+            vartype = outputs[0].type if outputs else self._lifter.lift_type(None)
+            return Assignment(ListOperation(outputs), Call(IntrinsicSymbol(name), args, vartype=vartype))
+
+        return _lift
+
     def lift_compare(self, op_type: OperationType):
         def _lift(op, **kwargs) -> Assignment:
-            cond = Condition(op_type, self._inputs_bool_aware(op))
+            optype, operands = self._normalize_comparison(op_type, self._inputs_bool_aware(op))
+            cond = Condition(optype, operands)
             return Assignment(self._lifter.lift_varnode(self._out(op), destination=True), cond)
 
         return _lift
@@ -477,7 +537,11 @@ class OpcodeHandler(Handler):
 
             if op.getOpcode() == PcodeOp.CALLOTHER:
                 start = 1
-                mnemonic = f"callother_{int(op.getInput(0).getOffset())}"
+                # input(0) is the user-op index. Resolve its real name (``RDTSC``, ``CPUID``, ``LOCK``,
+                # a vector/crypto intrinsic, ...) from the language's user-op table so the output reads
+                # ``RDTSC()`` rather than an opaque ``callother_43(...)``.
+                index = int(op.getInput(0).getOffset())
+                mnemonic = self._lifter._userop_name(index) or f"callother_{index}"
         except Exception:  # noqa: BLE001
             start = 0
         args = ", ".join(str(self._lifter.lift_varnode(op.getInput(i))) for i in range(start, op.getNumInputs()))
