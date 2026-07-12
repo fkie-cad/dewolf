@@ -48,6 +48,11 @@ class GhidraLifter(ObserverLifter):
         # emitting raw `stackpointer + offset` arithmetic. Populated by precompute_stack_variables.
         self._stack_pointer_addr = None  # ghidra Address of the stack-pointer register, or None
         self._stack_frame = None  # the function's StackFrame, for offset -> variable lookup
+        # stack frame offset -> set of HighVariable keys whose value varnodes live there. An offset
+        # backed by a single HighVariable is a genuine single local we can name by offset (merging
+        # its value accesses with its ``&`` address-of); an offset backed by several is slot reuse we
+        # must leave split. Populated by precompute_stack_slot_identity.
+        self._stack_offset_reps: Dict[int, set] = {}
         from .handlers import HANDLERS
 
         for handler in HANDLERS:
@@ -190,6 +195,30 @@ class GhidraLifter(ObserverLifter):
         except Exception:  # noqa: BLE001
             self._stack_frame = None
 
+    def precompute_stack_slot_identity(self, high_function) -> None:
+        """Record, per stack frame offset, the set of HighVariables whose value varnodes live there.
+
+        An address-taken local (``&week`` escaping to ``scanf``) has all its value accesses on one
+        HighVariable at its slot; naming those accesses by the slot offset then merges them with the
+        ``&`` address-of into a single variable. When Ghidra instead keeps several HighVariables at
+        one offset (stack-slot reuse or an SSA split), merging by offset would collapse their
+        independent SSA versions, so ``_name_for`` leaves those offsets split (see there).
+        """
+        for b in high_function.getBasicBlocks():
+            for op in b.getIterator():
+                vns = [op.getOutput()] + [op.getInput(i) for i in range(op.getNumInputs())]
+                for vn in vns:
+                    if vn is None:
+                        continue
+                    offset = self._stack_offset_of(vn)
+                    if offset is None:
+                        continue
+                    self._stack_offset_reps.setdefault(offset, set()).add(self._var_key(vn))
+
+    def _stack_offset_has_single_hv(self, offset: int) -> bool:
+        """True if exactly one HighVariable's value varnodes occupy the given stack slot."""
+        return len(self._stack_offset_reps.get(offset, ())) == 1
+
     def _is_stack_pointer(self, vn) -> bool:
         """True if ``vn`` is (a version of) the stack-pointer register."""
         if vn is None or self._stack_pointer_addr is None:
@@ -228,7 +257,7 @@ class GhidraLifter(ObserverLifter):
             # No Ghidra frame variable here; use a stable name in a namespace the out-of-SSA
             # renamer never emits (it produces ``var_N``), so nothing collides pre-rename.
             base_offset = offset
-            name = f"stack_{format(offset & 0xffffffff, 'x')}" if offset < 0 else f"stack_{offset:x}"
+            name = self._stack_slot_name(offset)
         if vartype is None:
             vartype = Integer(BYTE_SIZE, signed=False)
         # A stack slot whose scalar accesses Ghidra kept as ``stack:`` varnodes is lifted there as a
@@ -237,6 +266,46 @@ class GhidraLifter(ObserverLifter):
         # it aliased instead makes insert-missing-definitions insert a conflicting definition
         # ("defined twice") for dual-accessed slots.
         return Variable(name, vartype, ssa_label=0, is_aliased=False), offset - base_offset
+
+    def _stack_offset_of(self, vn) -> Optional[int]:
+        """The stack-frame offset a varnode lives at, if it is a stack local; else None.
+
+        Ghidra keeps an address-taken local (e.g. ``week``, whose ``&week`` escapes to ``scanf``) in
+        its stack slot and models every access as a varnode in the ``stack`` address space. Reading
+        that offset lets us name such value accesses identically to the ``&week`` address-of, so
+        out-of-SSA merges them into one variable instead of splitting them.
+        """
+        try:
+            addr = vn.getAddress()
+            if addr is not None and addr.getAddressSpace().getName() == "stack":
+                return int(addr.getOffset())
+        except Exception:  # noqa: BLE001
+            return None
+        return None
+
+    @staticmethod
+    def _stack_slot_name(offset: int) -> str:
+        """Deterministic fallback name for a stack slot Ghidra gives no frame variable."""
+        return f"stack_{format(offset & 0xFFFFFFFF, 'x')}" if offset < 0 else f"stack_{offset:x}"
+
+    def _stack_variable_name(self, offset: int) -> str:
+        """Canonical name of the stack local at ``offset`` (frame-variable name, else ``stack_<off>``).
+
+        Shared by ``_name_for`` (value accesses of an address-taken local) and ``stack_variable``
+        (its ``&`` address-of) so both lift to the same name; without this an address-taken local
+        splits into ``&var_0`` and a distinct, undefined ``var_1`` (see ``_stack_offset_of``).
+        """
+        if self._stack_frame is not None:
+            try:
+                var = self._stack_frame.getVariableContaining(offset)
+            except Exception:  # noqa: BLE001
+                var = None
+            if var is not None:
+                try:
+                    return self._purge(var.getName())
+                except Exception:  # noqa: BLE001
+                    pass
+        return self._stack_slot_name(offset)
 
     @staticmethod
     def _is_variable_varnode(vn) -> bool:
@@ -506,6 +575,18 @@ class GhidraLifter(ObserverLifter):
         if uid in self._name_cache:
             return self._name_cache[uid] or f"u{uid}"
         name: Optional[str] = None
+        # A stack local that occupies its slot *alone* (one HighVariable at that offset): name it by
+        # the frame offset, matching ``stack_variable`` (its ``&`` form), so an address-taken local's
+        # value accesses and its address-of merge into one variable (``scanf(&var_0); switch(var_0)``
+        # rather than ``&var_0`` split from an undefined ``var_1``). We deliberately do NOT do this
+        # when Ghidra keeps several distinct HighVariables at one offset (slot reuse / SSA split):
+        # forcing them to share a name would collapse their independent versions and define, e.g.,
+        # ``local_20#1`` twice ("Program is not in SSA-Form").
+        stack_offset = self._stack_offset_of(vn)
+        if stack_offset is not None and self._stack_offset_has_single_hv(stack_offset):
+            name = self._stack_variable_name(stack_offset)
+            self._name_cache[uid] = name
+            return name
         hv = self._high(vn)
         if hv is not None:
             try:

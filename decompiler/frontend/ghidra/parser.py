@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 from decompiler.frontend.lifter import Lifter
 from decompiler.frontend.parser import Parser
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, SwitchCase, TrueCase, UnconditionalEdge
-from decompiler.structures.pseudo import Constant
+from decompiler.structures.pseudo import Constant, Integer
 from decompiler.structures.pseudo.complextypes import ComplexTypeMap
 from decompiler.structures.pseudo.instructions import Instruction
 
@@ -37,6 +37,12 @@ class GhidraParser(Parser):
         self._lifter.precompute_memory_versions(high_function)
         # Record the stack pointer + frame so PTRSUB(stackpointer, off) lifts to &local_X.
         self._lifter.precompute_stack_variables(high_function)
+        # Record which stack slots are backed by a single HighVariable (so an address-taken local's
+        # value accesses and its &-address-of can be merged into one variable, see _name_for).
+        self._lifter.precompute_stack_slot_identity(high_function)
+        # Recover the real jump-table case labels (per BRANCHIND address) so switch edges carry the
+        # genuine case values instead of fabricated out-edge indices.
+        jump_tables = self._recover_jump_tables(high_function)
 
         if os.environ.get("DEWOLF_DUMP_PCODE"):
             self._dump_pcode(high_function)
@@ -86,13 +92,25 @@ class GhidraParser(Parser):
                     else:
                         cfg.add_edge(FalseCase(bb, target))
             elif opcode == PcodeOp.BRANCHIND:
-                # Model indirect jumps (switches / jump tables) as SwitchCase edges
-                # with crafted per-target case constants. The restructuring pipeline
-                # expects switch edges to carry `.cases`; a bare IndirectEdge would
-                # crash `empty_basic_block_remover`.
+                # Model indirect jumps (switches / jump tables) as SwitchCase edges carrying the
+                # real case labels. Ghidra's jump table maps each case value to a target address;
+                # we group the values by target (like Binary Ninja's lookup table) so each out-edge
+                # gets the genuine constants (e.g. ``case 12:`` / ``case 500:``) instead of the
+                # fabricated out-edge index that made non-sequential switches nonsensical. The
+                # default block collects every gap value; the restructuring pipeline recognises it
+                # as ``default:`` (matching Binary Ninja). We keep the sequential fallback for the
+                # rare BRANCHIND with no recovered table so switch edges always carry ``.cases``
+                # (a bare IndirectEdge would crash ``empty_basic_block_remover``).
+                branchind_addr = self._op_address(last_op)
+                lookup = jump_tables.get(branchind_addr)
                 for i in range(out_size):
                     ob = b.getOut(i)
-                    cfg.add_edge(SwitchCase(bb, blocks[int(ob.getIndex())][0], [Constant(i)]))
+                    target = blocks[int(ob.getIndex())][0]
+                    ob_start = block_start_addr.get(int(ob.getIndex()))
+                    cases = lookup.get(ob_start) if lookup else None
+                    if not cases:
+                        cases = [Constant(i)]
+                    cfg.add_edge(SwitchCase(bb, target, cases))
             else:  # BRANCH or fall-through -> unconditional
                 ob = b.getOut(0)
                 cfg.add_edge(UnconditionalEdge(bb, blocks[int(ob.getIndex())][0]))
@@ -170,6 +188,50 @@ class GhidraParser(Parser):
                     inst._value.substitute(operand, var)
         if new_assignments and entry is not None:
             entry.instructions = new_assignments + list(entry.instructions)
+
+    def _recover_jump_tables(self, high_function) -> Dict[int, Dict[int, List[Constant]]]:
+        """Recover Ghidra's jump tables as ``{branchind_addr: {target_addr: [case constants]}}``.
+
+        Ghidra's decompiler resolves a switch's jump table into parallel ``getCases()`` (target
+        addresses) and ``getLabelValues()`` (the case values that reach them). We invert this into a
+        per-target list of case constants -- exactly the lookup table the Binary Ninja frontend
+        builds -- keyed by the BRANCHIND (switch) address so the parser can annotate each out-edge
+        with the genuine case values. Best-effort: any table we cannot read is simply skipped, and
+        the parser falls back to sequential indices for that BRANCHIND.
+        """
+        tables: Dict[int, Dict[int, List[Constant]]] = {}
+        try:
+            jump_tables = high_function.getJumpTables()
+        except Exception:  # noqa: BLE001
+            return tables
+        for jt in jump_tables or []:
+            try:
+                switch_addr = int(jt.getSwitchAddress().getOffset())
+                cases = jt.getCases()
+                labels = jt.getLabelValues()
+            except Exception:  # noqa: BLE001
+                continue
+            if cases is None or labels is None or len(labels) < len(cases):
+                continue
+            lookup: Dict[int, List[Constant]] = {}
+            for i in range(len(cases)):
+                try:
+                    target = int(cases[i].getOffset())
+                    value = int(labels[i])
+                except Exception:  # noqa: BLE001
+                    continue
+                lookup.setdefault(target, []).append(Constant(value, Integer.int32_t()))
+            if lookup:
+                tables[switch_addr] = lookup
+        return tables
+
+    @staticmethod
+    def _op_address(op) -> Optional[int]:
+        """The program address of a p-code op (its seqnum target), or None."""
+        try:
+            return int(op.getSeqnum().getTarget().getOffset())
+        except Exception:  # noqa: BLE001
+            return None
 
     @property
     def complex_types(self) -> ComplexTypeMap:
