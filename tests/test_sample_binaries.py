@@ -69,4 +69,5 @@ def test_iat_entries_are_decompiled_correctly():
     args = ["python", "decompile.py", "tests/samples/others/test.exe", "0x401865"]
     subprocess.run(args, check=True)
     output = str(subprocess.run(args, check=True, capture_output=True).stdout)
-    assert re.search(r"=\s*GetModuleHandleW\((0x0|/\* lpModuleName \*/ 0x0\))", output)
+    # The null argument renders as 0x0 / 0 / 0U depending on the Binary Ninja version's constant typing.
+    assert re.search(r"=\s*GetModuleHandleW\((/\* lpModuleName \*/ )?(0x0|0U|0)\)", output)
