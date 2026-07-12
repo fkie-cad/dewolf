@@ -887,7 +887,7 @@ class GhidraLifter(ObserverLifter):
             # (`data_<hex>`, or its real symbol) so it renders and navigates as data, not a
             # bogus `sub_<hex>` "function".
             if program.getMemory().contains(ghidra_addr):
-                data_name = self._global_symbol_name(addr) or f"data_{hex(addr)}"
+                data_name = self._global_symbol_name(addr) or f"data_{addr:x}"
                 return ImportedFunctionSymbol(data_name, addr)
         except Exception as exc:  # noqa: BLE001
             logging.debug("[GhidraLifter] symbol lookup at %s failed: %s", hex(addr), exc)

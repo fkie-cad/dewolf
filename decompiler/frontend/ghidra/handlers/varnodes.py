@@ -111,7 +111,7 @@ class VarnodeHandler(Handler):
         """
         if (sym := self._lifter._global_symbol_name(addr)) is not None:
             return sym
-        return f"{GLOBAL_VARIABLE_PREFIX}{hex(addr)}"
+        return f"{GLOBAL_VARIABLE_PREFIX}{addr:x}"
 
     @staticmethod
     def _purge(name: str) -> str:

@@ -303,6 +303,21 @@ class CExpressionGenerator(DataflowObjectVisitorInterface):
         if op.operation == OperationType.cast:
             if op.type == op.operand.type:
                 return operand
+            # Collapse a redundant intermediate pointer cast: ``(T*)(U*)x`` is representationally
+            # identical to ``(T*)x`` because every pointer cast merely reinterprets the same bits.
+            # The Ghidra lifter routinely stacks such casts (a use-site pointer cast wrapped by a
+            # parameter-type coercion), yielding noise like ``(char*)(unsigned char*)var_1``.
+            elif (
+                isinstance(op.type, Pointer)
+                and isinstance(inner := op.operand, operations.UnaryOperation)
+                and not isinstance(inner, MemberAccess)
+                and inner.operation == OperationType.cast
+                and not inner.contraction
+                and isinstance(inner.type, Pointer)
+            ):
+                target = inner.operand
+                target_str = self._visit_bracketed(target) if self._has_lower_precedence(target, op) else self.visit(target)
+                return f"({op.type}){target_str}"
             elif isinstance(op.operand, expressions.Constant):
                 if isinstance(op.type, Integer) and isinstance(op.operand.type, Integer):
                     value = self._get_integer_literal_value(op.operand)
