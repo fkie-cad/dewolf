@@ -54,6 +54,11 @@ class GhidraLifter(ObserverLifter):
         # its value accesses with its ``&`` address-of); an offset backed by several is slot reuse we
         # must leave split. Populated by precompute_stack_slot_identity.
         self._stack_offset_reps: Dict[int, set] = {}
+        # Addresses this function references purely as *data pointers* (Ghidra ``DATA`` reference
+        # type, i.e. address-taken, as opposed to READ/WRITE). Lets _lift_constant render such an
+        # immediate as ``&data_<addr>`` instead of a bare integer. Populated by
+        # precompute_pointer_constants.
+        self._pointer_constant_targets: set = set()
         from .handlers import HANDLERS
 
         for handler in HANDLERS:
@@ -234,6 +239,33 @@ class GhidraLifter(ObserverLifter):
                     if offset is None:
                         continue
                     self._stack_offset_reps.setdefault(offset, set()).add(self._var_key(vn))
+
+    def precompute_pointer_constants(self, high_function) -> None:
+        """Collect the addresses this function references purely as *data pointers*.
+
+        Ghidra attaches a reference to the instruction that materialises a pointer to global data
+        (``PUSH &blob`` / ``MOV reg, &blob``); its reference type is the plain ``DATA`` kind (address
+        taken) as opposed to ``READ``/``WRITE`` (the value at the address is accessed). Recording
+        those target addresses lets ``_lift_constant`` render such an immediate as ``&data_<addr>``
+        -- a clickable global reference -- instead of a bare integer like ``0x413028``, matching both
+        Ghidra's own decompiler and Binary Ninja. Keyed by *value* (not the referencing instruction's
+        address) because the decompiler folds the pointer from the ``PUSH`` into a later op (e.g. the
+        ``CALL`` argument), so the constant no longer sits at the referencing instruction.
+        """
+        self._pointer_constant_targets = set()
+        try:
+            body = high_function.getFunction().getBody()
+            for instr in self.program.getListing().getInstructions(body, True):
+                for ref in instr.getReferencesFrom():
+                    rt = ref.getReferenceType()
+                    if rt.isData() and not rt.isRead() and not rt.isWrite():
+                        self._pointer_constant_targets.add(int(ref.getToAddress().getOffset()))
+        except Exception:  # noqa: BLE001
+            self._pointer_constant_targets = set()
+
+    def _is_pointer_constant(self, value: int) -> bool:
+        """True if ``value`` is an address this function takes as a data pointer (see above)."""
+        return value in self._pointer_constant_targets
 
     def _stack_offset_has_single_hv(self, offset: int) -> bool:
         """True if exactly one HighVariable's value varnodes occupy the given stack slot."""

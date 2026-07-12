@@ -40,6 +40,9 @@ class GhidraParser(Parser):
         # Record which stack slots are backed by a single HighVariable (so an address-taken local's
         # value accesses and its &-address-of can be merged into one variable, see _name_for).
         self._lifter.precompute_stack_slot_identity(high_function)
+        # Record the addresses referenced purely as data pointers, so an immediate that is really a
+        # pointer to global data lifts as `&data_<addr>` instead of a bare integer constant.
+        self._lifter.precompute_pointer_constants(high_function)
         # Recover the real jump-table case labels (per BRANCHIND address) so switch edges carry the
         # genuine case values instead of fabricated out-edge indices.
         jump_tables = self._recover_jump_tables(high_function)

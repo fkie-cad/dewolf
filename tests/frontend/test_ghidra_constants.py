@@ -24,6 +24,30 @@ class _StubLifter:
     def _string_at(self, value):
         return None
 
+    def _is_pointer_constant(self, value):
+        return False
+
+
+class _PointerStubLifter(_StubLifter):
+    """A lifter that flags one address as a data-pointer target, so _lift_constant emits ``&global``."""
+
+    program = None
+
+    def __init__(self, pointer_value):
+        self._pointer_value = pointer_value
+
+    def _is_pointer_constant(self, value):
+        return value == self._pointer_value
+
+    def _global_symbol_name(self, addr):
+        return None  # no real symbol -> data_<addr>
+
+    def _global_type(self, program, addr, size):
+        return Integer(32, signed=False)
+
+    def _global_initial_value(self, addr, vartype):
+        return Constant(0, vartype)
+
 
 class _FakeConstVarnode:
     def __init__(self, value, size):
@@ -92,3 +116,23 @@ def test_as_bool_constant_leaves_other_values_untouched():
     assert GhidraLifter.as_bool_constant(Constant(5, Integer.int32_t())).type == Integer.int32_t()
     ptr = Constant(0, Pointer(Integer.char()))
     assert GhidraLifter.as_bool_constant(ptr).type == Pointer(Integer.char())  # a null pointer stays a pointer
+
+
+# -- pointer-valued immediates lift as &global instead of a bare integer ---------------------------
+
+
+def test_data_pointer_constant_lifts_as_address_of_global():
+    # An address-sized immediate Ghidra references as a data pointer (e.g. FUN(&data_413028)) renders
+    # as a clickable global reference, not a meaningless 0x413028.
+    handler = object.__new__(VarnodeHandler)
+    handler._lifter = _PointerStubLifter(0x413028)
+    expr = handler._lift_constant(_FakeConstVarnode(0x413028, 8))
+    assert _render(expr) == "&data_413028"
+
+
+def test_non_pointer_constant_stays_a_plain_integer():
+    # the same value, when NOT flagged as a data pointer, keeps rendering as an ordinary literal
+    handler = object.__new__(VarnodeHandler)
+    handler._lifter = _PointerStubLifter(0xDEAD)  # flags a different address
+    expr = handler._lift_constant(_FakeConstVarnode(0x413028, 8))
+    assert isinstance(expr, Constant) and "data_" not in _render(expr)

@@ -34,7 +34,7 @@ class VarnodeHandler(Handler):
             logging.warning("[GhidraVarnodeHandler] failed to lift %r: %s", vn, exc)
             return Variable(f"vn_{vn.getUniqueId()}", self._lifter.lift_type(None))
 
-    def _lift_constant(self, vn) -> Constant:
+    def _lift_constant(self, vn) -> Union[Constant, UnaryOperation]:
         value = int(vn.getOffset())
         size = int(vn.getSize()) or 4
         # A pointer-sized constant that addresses a defined string -> lift as a string literal
@@ -43,6 +43,14 @@ class VarnodeHandler(Handler):
         if size * BYTE_SIZE == self._lifter._address_size_bits():
             if (s := self._lifter._string_at(value)) is not None:
                 return Constant(s, vartype=Pointer(Integer.char()))
+        # An immediate that Ghidra references as a data pointer (address of a global blob/buffer, not
+        # a readable string) -> lift as ``&data_<addr>`` so it renders as a clickable global reference
+        # like Ghidra's own decompiler, not a meaningless ``0x413028``. Checked independent of the
+        # varnode's declared width: the target set only holds real image-range addresses, so a value
+        # in it is unambiguously a pointer even where the decompiler models the immediate at a
+        # non-address width (which is why some call sites otherwise kept the bare constant).
+        if self._lifter._is_pointer_constant(value):
+            return self._address_of_global(value, self._lifter._address_size_bits() // BYTE_SIZE)
         # Default integer constants to *signed* (matching the Binary Ninja frontend), so ordinary
         # literals render as ``0`` / ``1`` / ``8`` instead of the noisy ``0U`` / ``1U`` the codegen
         # emits to preserve an unsigned type. We only sign when the value's top bit (at its own
@@ -94,6 +102,26 @@ class VarnodeHandler(Handler):
             ssa_label=ssa_label,
             is_aliased=is_aliased,
         )
+
+    def _address_of_global(self, addr: int, size: int) -> UnaryOperation:
+        """Lift a pointer-valued constant as ``&global`` (address-of a data global at ``addr``).
+
+        Used for an immediate Ghidra flags as a data pointer (see ``precompute_pointer_constants``).
+        The global is a plain, non-aliased reference -- taking its address neither reads nor
+        versions its value -- so it stays out of the memory-SSA machinery that ``_lift_address``
+        needs for genuine reads/writes.
+        """
+        program = self._lifter.program
+        name = self._global_name(program, addr)
+        vartype = self._lifter._global_type(program, addr, size)
+        glob = GlobalVariable(
+            name,
+            vartype=vartype,
+            initial_value=self._lifter._global_initial_value(addr, vartype),
+            ssa_label=0,
+            is_aliased=False,
+        )
+        return UnaryOperation(OperationType.address, [glob], vartype=Pointer(vartype))
 
     def _lift_variable(self, vn, destination: bool) -> Variable:
         name = self._lifter._name_for(vn)
