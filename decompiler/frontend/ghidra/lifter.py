@@ -366,7 +366,14 @@ class GhidraLifter(ObserverLifter):
         (its ``&`` address-of) so both lift to the same name; without this an address-taken local
         splits into ``&var_0`` and a distinct, undefined ``var_1`` (see ``_stack_offset_of``).
         """
-        if (symbol := self._high_stack_symbol(offset)) is not None:
+        # Only adopt the analysed symbol name when ``offset`` is the symbol's *start*. A multi-byte
+        # symbol (array/struct) spans several frame offsets; naming every interior value access by the
+        # shared symbol name would collapse distinct HighVariables (each with its own per-variable SSA
+        # version counter) onto one name -> ``local_2c#37`` defined twice ("Program is not in SSA-
+        # Form"). Interior accesses fall through to the listing frame / ``stack_<off>``, staying
+        # distinct. (The array *declaration* + ``&var + delta`` indexing come from ``stack_variable``,
+        # which is unversioned and unaffected.)
+        if (symbol := self._high_stack_symbol(offset)) is not None and symbol[2] == offset:
             try:
                 return self._purge(symbol[0])
             except Exception:  # noqa: BLE001
