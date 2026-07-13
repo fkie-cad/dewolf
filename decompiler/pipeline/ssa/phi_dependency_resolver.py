@@ -56,7 +56,11 @@ class PhiDependencyResolver:
         dependency_graph.remove_node(phi_function)
 
         variable = phi_function.definitions[0]
-        copy_variable = Variable("copy_" + variable.name, variable.type, variable.ssa_label, variable.is_aliased)
+        # copy_variable denotes the same source variable as `variable` (it only breaks a circular phi
+        # dependency), so carry its provenance over instead of dropping it to None.
+        copy_variable = Variable(
+            "copy_" + variable.name, variable.type, variable.ssa_label, variable.is_aliased, origin=variable.origin
+        )
         phi_function.rename_destination(variable, copy_variable)
 
         dependency_graph.add_edges_from([(phi_function, succ) for succ in successors])

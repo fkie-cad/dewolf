@@ -155,9 +155,19 @@ class InsertMissingDefinitions(PipelineStage):
         all_variables = self._use_map.used_variables | self._def_map.defined_variables
         aliased_variables = {variable for variable in all_variables if variable.is_aliased}
 
+        source_names: DefaultDict[str, Set[str]] = defaultdict(set)
+        for variable in aliased_variables:
+            if variable.origin is not None and variable.origin.source_name is not None:
+                source_names[variable.name].add(variable.origin.source_name)
+
         for memory_version in self._node_of_memory_version.keys():
             for variable in aliased_variables:
                 aliased_variable = variable.copy(ssa_label=memory_version)
+                if len(source_names[aliased_variable.name]) > 1:
+                    # versions disagree on their DWARF source (reused slot); we cannot know which applies
+                    # to this synthesized memory version, so leave it unattributed rather than guessing.
+                    # (rebind, don't mutate: copy() shares the origin object with the real occurrence.)
+                    aliased_variable.origin = None
                 if aliased_variable not in all_variables:
                     undefined_variables.add(aliased_variable)
         return undefined_variables
