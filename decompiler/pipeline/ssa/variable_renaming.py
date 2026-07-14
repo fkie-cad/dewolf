@@ -127,13 +127,14 @@ class VariableRenamer:
         if variable not in self.renaming_map:
             return
         replacement_variable = self.renaming_map[variable].copy()
+        # carry the lifted variable's provenance (incl. matched DWARF source_name) onto the renamed
+        # variable, so the C source variable is readable directly from renamed_var.origin. A renamed
+        # variable merges a whole SSA renaming class; each occurrence keeps the provenance of the
+        # specific SSA variable it replaced (so conflicting merges stay visible). Independent of
+        # ssa_name, so set outside the ssa_label guard (also covers the Relation.rename path below).
+        replacement_variable.origin = variable.origin
         if variable.ssa_label is not None:
             replacement_variable.ssa_name = variable.copy()
-            # carry the lifted variable's provenance (incl. matched DWARF source_name) onto the
-            # renamed variable, so the C source variable is readable directly from renamed_var.origin.
-            # Note: a renamed variable merges a whole SSA renaming class; each occurrence keeps the
-            # provenance of the specific SSA variable it replaced (so conflicting merges stay visible).
-            replacement_variable.origin = variable.origin
         instruction.substitute(variable, replacement_variable)
         if isinstance(instruction, Relation):
             instruction.rename(variable, replacement_variable)

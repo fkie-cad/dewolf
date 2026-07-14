@@ -259,24 +259,8 @@ class _VariableReplacer:
         replacement -- The Variable utilized for replacement
         """
         info(f"[{self.__class__.__name__}] merging identity group {', '.join([str(x) for x in replacees])} into {replacement}")
-        self._preserve_provenance(replacees, replacement)
         self._substitute_usages(replacees, replacement)
         self._handle_definitions(replacees, replacement)
-
-    @staticmethod
-    def _preserve_provenance(replacees: Set[Variable], replacement: Variable):
-        """Keep a matched DWARF source name alive across an identity merge.
-
-        The replacement is chosen by dataflow role, not by provenance, so it may lack an origin while a
-        replacee in the group carries one. Since the whole group is one source variable, adopt a
-        replacee's origin (preferring one with a source name) rather than silently dropping it.
-        """
-        if replacement.origin is not None and replacement.origin.source_name is not None:
-            return
-        candidates = [replacee.origin for replacee in replacees if replacee.origin is not None]
-        if not candidates:
-            return
-        replacement.origin = next((origin for origin in candidates if origin.source_name is not None), candidates[0])
 
     def _handle_definitions(self, replacees: Set[Variable], replacement: Variable):
         """

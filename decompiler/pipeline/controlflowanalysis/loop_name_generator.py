@@ -52,7 +52,11 @@ class WhileLoopVariableRenamer:
             - loop body
         Also add a copy instruction if the variable is used after the loop without reinitialization.
         """
-        new_variable = Variable(self._get_variable_name(), variable_init.instruction.destination.type)
+        new_variable = Variable(
+            self._get_variable_name(),
+            variable_init.instruction.destination.type,
+            ssa_name=variable_init.instruction.destination.ssa_name,
+        )
         self._ast.replace_variable_in_subtree(loop_node, variable_init.instruction.destination, new_variable)
         if _requirement_without_reinitialization(self._ast, loop_node, variable_init.instruction.destination):
             self._ast.add_instructions_after(loop_node, Assignment(variable_init.instruction.destination, new_variable))
