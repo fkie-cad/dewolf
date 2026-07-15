@@ -16,17 +16,25 @@ propagation can be inspected: the CFG after preprocessing (each line annotated w
 source names, once lifting and preprocessing have propagated them) and the CFG after out-of-SSA
 (each line annotated with the SSA origin of its variables).
 
-The binary must be compiled with -g (that is where the source names come from). Results are
-printed and also written to a JSON file.
+The binary must be compiled with -g (that is where the source names come from). The variable
+matching, tallies, and collisions are printed to the terminal; the full results (including the
+code snapshots and CFG edges, which are not printed) are written to a JSON file.
 
 JSON output: ``{"binary": <path>, "functions": {<name>: <entry>}}`` with exactly one entry per
 function, every entry sharing the same keys so the file is uniform to parse:
-  * ``status``:  ``"ok"`` (analyzed) | ``"failed"`` (pipeline failed before out-of-SSA) | ``"error"`` (an exception was raised)
-  * ``message``: ``null`` when status is ``"ok"``, otherwise why the function was skipped
-  * ``report``:  the analysis (matches, code snapshots, edges, tallies) when status is ``"ok"``, otherwise ``null``
+  * ``status``:  ``"success"`` (analyzed) | ``"failed"`` (pipeline failed at a stage) |
+    ``"decompilation-error"`` (decompiler.run raised) | ``"parsing-error"`` (building the report raised)
+  * ``message``: ``null`` when status is ``"success"``, otherwise why the function was skipped
+  * ``report``:  the analysis (matches, tallies, over-/under-merges, conflicts, code snapshots,
+    edges) when status is ``"success"``, otherwise ``null``
 
 Usage (dewolf venv, binaryninja importable, cwd = dewolf repo):
-  python3 report_variable_matching.py BINARY [fn1,fn2,...] [output.json]
+  python3 report_variable_matching.py BINARY [fn1,fn2,...] [output.json] [-q/--quiet]
+
+Pass -q/--quiet to suppress all terminal output (still writes the JSON) - useful for larger
+evaluations. To view any field (including the code snapshots and edges) back out of the JSON
+afterwards, use the standalone inspect_report.py (no dewolf/binaryninja needed):
+  python3 inspect_report.py REPORT.json [-f fn1,fn2,...] [--fields variables,code,edges,tally,collisions]
 
 Layering (outer depends on inner; dewolf types confined to the layers that need them):
   domain -> classification/collection -> analysis -> infrastructure -> presentation -> CLI
@@ -49,7 +57,7 @@ from decompiler.pipeline.pipeline import PREPROCESSING_STAGES, DecompilerPipelin
 from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.structures.graphs.branches import SwitchCase
 from decompiler.structures.graphs.cfg import ControlFlowGraph
-from decompiler.structures.pseudo import GlobalVariable, Instruction, Variable
+from decompiler.structures.pseudo import Constant, GlobalVariable, Instruction, Variable
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
@@ -147,12 +155,26 @@ class FunctionReport:
         return tallies
 
     def overmerged(self) -> Dict[str, List[str]]:
-        """Output names that map to more than one distinct source variable (over-merge).
+        """Output names that map to several sources via *different* SSA variables (over-merge).
 
         The renamer grouped SSA variables that DWARF says are different source variables - a
-        precision error. This is the signal the per-occurrence origin preserves.
+        precision error. The differing sources must come from distinct lifted SSA variables; the
+        same SSA variable resolving to several sources is a conflict (see conflicts()), not an
+        over-merge, so it is excluded here.
         """
-        return self._collisions(key=lambda match: match.variable, value=lambda match: match.source or "")
+        sources = self._grouped(key=lambda match: match.variable, value=lambda match: match.source or "")
+        lifted = self._grouped(key=lambda match: match.variable, value=lambda match: match.lifted or "")
+        return {variable: sorted(names) for variable, names in sources.items() if len(names) > 1 and len(lifted[variable]) > 1}
+
+    def conflicts(self) -> Dict[str, List[str]]:
+        """One SSA variable ("output name (lifted)") attributed to more than one source.
+
+        The same lifted SSA variable resolved to several source names - an ambiguity we cannot
+        resolve, distinct from an over-merge (which is *different* SSA variables merged into one
+        name). Should not normally happen; recorded so a bulk run surfaces it instead of hiding it.
+        """
+        grouped = self._grouped(key=lambda match: f"{match.variable} ({match.lifted})", value=lambda match: match.source or "")
+        return {identity: sorted(names) for identity, names in grouped.items() if len(names) > 1}
 
     def undermerged(self) -> Dict[str, List[str]]:
         """Source variables spread across more than one output name (under-merge / over-split).
@@ -161,24 +183,62 @@ class FunctionReport:
         same source variable, so one source name appears under several out-of-SSA names - a recall
         error.
         """
-        return self._collisions(key=lambda match: match.source or "", value=lambda match: match.variable or "")
+        grouped = self._grouped(key=lambda match: match.source or "", value=lambda match: match.variable)
+        return {source: sorted(names) for source, names in grouped.items() if len(names) > 1}
 
-    def _collisions(self, key: Callable[[VariableMatch], str], value: Callable[[VariableMatch], str]) -> Dict[str, List[str]]:
-        """Group DWARF-local matches by key(match), returning keys with >1 distinct value(match).
+    def _grouped(self, key: Callable[[VariableMatch], str], value: Callable[[VariableMatch], str]) -> DefaultDict[str, Set[str]]:
+        """Group DWARF-local matched matches by key(match), collecting the distinct value(match)s.
 
         Restricted to DWARF locals: a source that is a repeated string constant living under two
-        globals is not a split variable, so it must not count as an under-merge.
+        globals is not a split variable, so it must not count as a collision.
         """
         grouped: DefaultDict[str, Set[str]] = defaultdict(set)
         for match in self.matches:
             if match.kind is MatchKind.DWARF_LOCAL and match.source is not None:
                 grouped[key(match)].add(value(match))
-        return {group: sorted(values) for group, values in grouped.items() if len(values) > 1}
+        return grouped
 
 
 # --------------------------------------------------------------------------------------------- #
 # Variable matching (classify each dewolf Variable's source, then collect matches across the CFG)
 # --------------------------------------------------------------------------------------------- #
+
+
+def collect_matches(graph: ControlFlowGraph) -> List[VariableMatch]:
+    """Collect the distinct VariableMatch records across the CFG, sorted by (output name, lifted).
+
+    Deduping by the whole record (not by name/SSA identity alone) keeps only genuine duplicates:
+      * repeated occurrences of the same SSA variable produce identical records and collapse to one;
+      * anything that differs stays separate - a different SSA variable merged into the same output
+        name, and (crucially) the same identity carrying a different source.
+    Keeping every distinct source matters: if we saved only one source per (name, SSA variable), the
+    over-/under-merge analyses - which look at the set of sources per name and names per source -
+    could miss a collision.
+    """
+    matches: Set[VariableMatch] = set()  # frozen VariableMatch is hashable;
+    for instruction in graph.instructions:
+        for variable in _variables_of(instruction):
+            matches.add(_match(variable))
+    return sorted(matches, key=lambda match: (match.variable, match.lifted or ""))
+
+
+def _variables_of(instruction: Instruction) -> Iterator[Variable]:
+    """Yield every Variable occurrence (definitions then requirements) of an instruction."""
+    for variable in instruction.definitions + instruction.requirements:
+        if isinstance(variable, Variable):
+            yield variable
+
+
+def _match(variable: Variable) -> VariableMatch:
+    """Build the VariableMatch record for a single variable occurrence."""
+    source, kind = classify_source(variable)
+    return VariableMatch(variable=str(variable), lifted=_lifted_id(variable), source=source, kind=kind)
+
+
+def _lifted_id(variable: Variable) -> str | None:
+    """The "name#label" identifier of the SSA variable this occurrence replaced, if any."""
+    lifted = variable.ssa_name
+    return f"{lifted.name}#{lifted.ssa_label}" if lifted is not None else None
 
 
 def classify_source(variable: Variable) -> Tuple[str | None, MatchKind]:
@@ -199,57 +259,11 @@ def _const_string(global_var: GlobalVariable) -> str:
     String literals are stored as a Constant whose value is a list of single characters, so
     join them back into one string; otherwise stringify as is.
     """
-    value = getattr(global_var.initial_value, "value", global_var.initial_value)
+    initial = global_var.initial_value
+    value = initial.value if isinstance(initial, Constant) else initial
     if isinstance(value, List):
         return "".join(str(character) for character in value)
     return str(value)
-
-
-def collect_matches(graph: ControlFlowGraph) -> List[VariableMatch]:
-    """Collect one deduped VariableMatch per (output name, lifted SSA variable) in the CFG.
-
-    Deduping by that pair (rather than by output name) is deliberate: multiple textual occurrences
-    of one SSA variable share a single origin and collapse to one record, while distinct SSA
-    variables merged into the same output name remain separate records - which is what makes an
-    over-merge observable.
-    """
-    matches: List[VariableMatch] = []
-    seen: Set[Tuple] = set()
-    for instruction in graph.instructions:
-        for variable in _variables_of(instruction):
-            key = _dedup_key(variable)
-            if key in seen:
-                continue
-            seen.add(key)
-            matches.append(_match(variable))
-    return matches
-
-
-def _variables_of(instruction: Instruction) -> Iterator[Variable]:
-    """Yield every Variable occurrence (definitions then requirements) of an instruction."""
-    for variable in list(instruction.definitions) + list(instruction.requirements):
-        if isinstance(variable, Variable):
-            yield variable
-
-
-def _dedup_key(variable: Variable) -> Tuple:
-    """Key identifying a variable occurrence by its output name and lifted SSA identity."""
-    lifted = variable.ssa_name
-    if lifted is None:
-        return (str(variable), None, None)
-    return (str(variable), lifted.name, lifted.ssa_label)
-
-
-def _match(variable: Variable) -> VariableMatch:
-    """Build the VariableMatch record for a single variable occurrence."""
-    source, kind = classify_source(variable)
-    return VariableMatch(variable=str(variable), lifted=_lifted_id(variable), source=source, kind=kind)
-
-
-def _lifted_id(variable: Variable) -> str | None:
-    """The "name#label" identifier of the SSA variable this occurrence replaced, if any."""
-    lifted = variable.ssa_name
-    return f"{lifted.name}#{lifted.ssa_label}" if lifted is not None else None
 
 
 # --------------------------------------------------------------------------------------------- #
@@ -411,15 +425,18 @@ class TextReportRenderer:
         self._render_tally(report.tally_by_kind())
         self._render_collisions("over-merged variables (one name -> multiple source variables)", report.overmerged())
         self._render_collisions("under-merged variables (one source variable -> multiple names)", report.undermerged())
+        self._render_collisions("conflicts (one SSA variable -> multiple source variables)", report.conflicts())
 
-    def render_skipped(self, name: str, message: str) -> None:
+    @staticmethod
+    def render_written(output_path: str) -> None:
+        """Print the confirmation that the JSON output was written."""
+        print(f"\nwrote {output_path}")
+
+    @staticmethod
+    def render_skipped(name: str, message: str) -> None:
         """Print the header and skip note for a function that was not analyzed."""
         print(f"\n## {name}")
         print(f"  (skipped: {message})")
-
-    def render_written(self, output_path: str) -> None:
-        """Print the confirmation that the JSON output was written."""
-        print(f"\nwrote {output_path}")
 
     @staticmethod
     def _render_matches(matches: List[VariableMatch]) -> None:
@@ -428,7 +445,7 @@ class TextReportRenderer:
         for match in matches:
             lifted = match.lifted or "-"
             source = match.source or "(none)"
-            print(f"  {match.variable:14} <- lifted {lifted:14} -> source variable: {source}  [{match.kind.value}]")
+            print(f"  {match.variable:14} - lifted {lifted:14} - source variable: {source}  [{match.kind.value}]")
 
     def _render_tally(self, tally: Dict[MatchKind, KindTally]) -> None:
         """Print the matched/total counts per kind, in the canonical kind order."""
@@ -470,6 +487,7 @@ class JsonReportSerializer:
             "by_kind": self._tally_to_dict(report.tally_by_kind()),
             "overmerged": report.overmerged(),
             "undermerged": report.undermerged(),
+            "conflicts": report.conflicts(),
             "variables": [self._match_to_dict(match) for match in report.matches],
             "code_preprocessed": [self._block_to_dict(block) for block in report.code_preprocessed],
             "code": [self._block_to_dict(block) for block in report.code],
@@ -517,13 +535,6 @@ def default_output_path(binary: str) -> str:
     return f"variable_matching_{Path(binary).name}.json"
 
 
-def failure_message(task: DecompilerTask) -> str:
-    """Human-readable reason a task was skipped before out-of-SSA ran."""
-    origin = task.failure_origin  # empty string, not None, when a stage failed
-    detail = f" at stage '{origin}'" if origin else ""
-    return f"decompiling {task.name} failed{detail}; out-of-SSA did not run"
-
-
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     """Parse the command-line arguments (binary, optional function list, optional output path)."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -558,19 +569,29 @@ def main(argv: List[str] | None = None) -> None:
             continue
         try:
             result = decompiler.run(name)
-            if result.task.failed:
-                message = failure_message(result.task)
-                renderer.render_skipped(name, message)
-                functions[name] = {"status": "failed", "message": message, "report": None}
-                continue
-            report = build_function_report(name, result)
         except Exception as exc:
-            message = f"{type(exc).__name__}: {exc}"
+            message = f"decompiling {name} raised {type(exc).__name__}: {exc}"
             renderer.render_skipped(name, message)
-            functions[name] = {"status": "error", "message": message, "report": None}
+            functions[name] = {"status": "decompilation-error", "message": message, "report": None}
             continue
-        renderer.render(report)
-        functions[name] = {"status": "ok", "message": None, "report": serializer.function_to_dict(report)}
+
+        if result.task.failed:
+            message = f"decompiling {name} failed at stage {result.task.failure_origin}"
+            renderer.render_skipped(name, message)
+            functions[name] = {"status": "failed", "message": message, "report": None}
+            continue
+
+        try:
+            report: FunctionReport = build_function_report(name, result)
+            serialized_report = serializer.function_to_dict(report)
+        except Exception as exc:
+            message = f"building the report for {name} failed after a successful decompilation: {type(exc).__name__}: {exc}"
+            renderer.render_skipped(name, message)
+            functions[name] = {"status": "parsing-error", "message": message, "report": None}
+            continue
+
+        renderer.render(report)  # I/O: pipe/print errors propagate, not miscategorized as a function error
+        functions[name] = {"status": "success", "message": None, "report": serialized_report}
 
     Path(output_path).write_text(json.dumps({"binary": args.binary, "functions": functions}, indent=2))
     renderer.render_written(output_path)
