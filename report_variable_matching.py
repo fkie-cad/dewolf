@@ -19,6 +19,12 @@ source names, once lifting and preprocessing have propagated them) and the CFG a
 The binary must be compiled with -g (that is where the source names come from). Results are
 printed and also written to a JSON file.
 
+JSON output: ``{"binary": <path>, "functions": {<name>: <entry>}}`` with exactly one entry per
+function, every entry sharing the same keys so the file is uniform to parse:
+  * ``status``:  ``"ok"`` (analyzed) | ``"failed"`` (pipeline failed before out-of-SSA) | ``"error"`` (an exception was raised)
+  * ``message``: ``null`` when status is ``"ok"``, otherwise why the function was skipped
+  * ``report``:  the analysis (matches, code snapshots, edges, tallies) when status is ``"ok"``, otherwise ``null``
+
 Usage (dewolf venv, binaryninja importable, cwd = dewolf repo):
   python3 report_variable_matching.py BINARY [fn1,fn2,...] [output.json]
 
@@ -122,10 +128,12 @@ class FunctionReport:
 
     @property
     def matched(self) -> int:
+        """Number of records that were attributed to a source (over all kinds)."""
         return sum(1 for match in self.matches if match.source is not None)
 
     @property
     def total(self) -> int:
+        """Number of (output name, lifted SSA variable) records in this function."""
         return len(self.matches)
 
     def tally_by_kind(self) -> DefaultDict[MatchKind, KindTally]:
@@ -144,7 +152,7 @@ class FunctionReport:
         The renamer grouped SSA variables that DWARF says are different source variables - a
         precision error. This is the signal the per-occurrence origin preserves.
         """
-        return self._collisions(key=lambda match: match.variable, value=lambda match: match.source)
+        return self._collisions(key=lambda match: match.variable, value=lambda match: match.source or "")
 
     def undermerged(self) -> Dict[str, List[str]]:
         """Source variables spread across more than one output name (under-merge / over-split).
@@ -169,81 +177,84 @@ class FunctionReport:
 
 
 # --------------------------------------------------------------------------------------------- #
-# Classification + collection (map dewolf Variables into the domain model)
+# Variable matching (classify each dewolf Variable's source, then collect matches across the CFG)
 # --------------------------------------------------------------------------------------------- #
 
 
-class SourceClassifier:
-    """Maps an out-of-SSA variable to the source it was matched to. Pure, no IO."""
-
-    def classify(self, variable: Variable) -> Tuple[str | None, MatchKind]:
-        # After out-of-SSA the renamed variable carries its lifted provenance directly
-        # (variable_renaming copies origin onto the replacement), so the C source name is
-        # readable straight off the renamed variable.
-        if variable.origin is not None and variable.origin.source_name is not None:
-            return variable.origin.source_name, MatchKind.DWARF_LOCAL
-        if isinstance(variable, GlobalVariable) and variable.is_constant:
-            return self._const_string(variable), MatchKind.CONST_STRING
-        return None, MatchKind.UNMATCHED
-
-    @staticmethod
-    def _const_string(global_var: GlobalVariable) -> str:
-        """Render a read-only global's constant value as a readable string.
-
-        String literals are stored as a Constant whose value is a list of single characters, so
-        join them back into one string; otherwise stringify as is.
-        """
-        value = getattr(global_var.initial_value, "value", global_var.initial_value)
-        if isinstance(value, List):
-            return "".join(str(character) for character in value)
-        return str(value)
+def classify_source(variable: Variable) -> Tuple[str | None, MatchKind]:
+    """Return the (source, kind) this out-of-SSA variable was matched to. Pure, no IO."""
+    # After out-of-SSA the renamed variable carries its lifted provenance directly
+    # (variable_renaming copies origin onto the replacement), so the C source name is
+    # readable straight off the renamed variable.
+    if variable.origin is not None and variable.origin.source_name is not None:
+        return variable.origin.source_name, MatchKind.DWARF_LOCAL
+    if isinstance(variable, GlobalVariable) and variable.is_constant:
+        return _const_string(variable), MatchKind.CONST_STRING
+    return None, MatchKind.UNMATCHED
 
 
-class MatchCollector:
-    """Walk a post-out-of-SSA CFG and collect one VariableMatch per (output name, lifted SSA var).
+def _const_string(global_var: GlobalVariable) -> str:
+    """Render a read-only global's constant value as a readable string.
+
+    String literals are stored as a Constant whose value is a list of single characters, so
+    join them back into one string; otherwise stringify as is.
+    """
+    value = getattr(global_var.initial_value, "value", global_var.initial_value)
+    if isinstance(value, List):
+        return "".join(str(character) for character in value)
+    return str(value)
+
+
+def collect_matches(graph: ControlFlowGraph) -> List[VariableMatch]:
+    """Collect one deduped VariableMatch per (output name, lifted SSA variable) in the CFG.
 
     Deduping by that pair (rather than by output name) is deliberate: multiple textual occurrences
     of one SSA variable share a single origin and collapse to one record, while distinct SSA
     variables merged into the same output name remain separate records - which is what makes an
     over-merge observable.
     """
+    matches: List[VariableMatch] = []
+    seen: Set[Tuple] = set()
+    for instruction in graph.instructions:
+        for variable in _variables_of(instruction):
+            key = _dedup_key(variable)
+            if key in seen:
+                continue
+            seen.add(key)
+            matches.append(_match(variable))
+    return matches
 
-    def __init__(self, classifier: SourceClassifier) -> None:
-        self._classifier = classifier
 
-    def collect(self, graph: ControlFlowGraph) -> List[VariableMatch]:
-        matches: List[VariableMatch] = []
-        seen: Set[Tuple] = set()
-        for instruction in graph.instructions:
-            for variable in self._variables_of(instruction):
-                key = self._dedup_key(variable)
-                if key in seen:
-                    continue
-                seen.add(key)
-                matches.append(self._match(variable))
-        return matches
+def _variables_of(instruction: Instruction) -> Iterator[Variable]:
+    """Yield every Variable occurrence (definitions then requirements) of an instruction."""
+    for variable in list(instruction.definitions) + list(instruction.requirements):
+        if isinstance(variable, Variable):
+            yield variable
 
-    @staticmethod
-    def _variables_of(instruction: Instruction) -> Iterator[Variable]:
-        for variable in list(instruction.definitions) + list(instruction.requirements):
-            if isinstance(variable, Variable):
-                yield variable
 
-    @staticmethod
-    def _dedup_key(variable: Variable) -> Tuple:
-        lifted = variable.ssa_name
-        if lifted is None:
-            return (str(variable), None, None)
-        return (str(variable), lifted.name, lifted.ssa_label)
+def _dedup_key(variable: Variable) -> Tuple:
+    """Key identifying a variable occurrence by its output name and lifted SSA identity."""
+    lifted = variable.ssa_name
+    if lifted is None:
+        return (str(variable), None, None)
+    return (str(variable), lifted.name, lifted.ssa_label)
 
-    def _match(self, variable: Variable) -> VariableMatch:
-        source, kind = self._classifier.classify(variable)
-        return VariableMatch(variable=str(variable), lifted=self._lifted_id(variable), source=source, kind=kind)
 
-    @staticmethod
-    def _lifted_id(variable: Variable) -> str | None:
-        lifted = variable.ssa_name
-        return f"{lifted.name}#{lifted.ssa_label}" if lifted is not None else None
+def _match(variable: Variable) -> VariableMatch:
+    """Build the VariableMatch record for a single variable occurrence."""
+    source, kind = classify_source(variable)
+    return VariableMatch(variable=str(variable), lifted=_lifted_id(variable), source=source, kind=kind)
+
+
+def _lifted_id(variable: Variable) -> str | None:
+    """The "name#label" identifier of the SSA variable this occurrence replaced, if any."""
+    lifted = variable.ssa_name
+    return f"{lifted.name}#{lifted.ssa_label}" if lifted is not None else None
+
+
+# --------------------------------------------------------------------------------------------- #
+# Code & edge extraction (recover the CFG's text and structure into the domain model)
+# --------------------------------------------------------------------------------------------- #
 
 
 def extract_code(graph: ControlFlowGraph, describe: Callable[[Variable], List[str]]) -> List[CodeBlock]:
@@ -265,9 +276,8 @@ def extract_code(graph: ControlFlowGraph, describe: Callable[[Variable], List[st
 def _annotate(instruction: Instruction, describe: Callable[[Variable], List[str]]) -> Dict[str, List[str]]:
     """Collect describe(...) tags for every variable occurrence, keyed by variable name."""
     mapping: DefaultDict[str, Set[str]] = defaultdict(set)
-    for variable in list(instruction.definitions) + list(instruction.requirements):
-        if isinstance(variable, Variable):
-            mapping[str(variable)].update(describe(variable))
+    for variable in _variables_of(instruction):
+        mapping[str(variable)].update(describe(variable))
     return {name: sorted(tags) for name, tags in mapping.items() if tags}
 
 
@@ -296,21 +306,21 @@ def extract_edges(graph: ControlFlowGraph) -> List[CfgEdge]:
     ]
 
 
-class FunctionReportBuilder:
-    """Assembles a FunctionReport from a decompiled task's CFG."""
+# --------------------------------------------------------------------------------------------- #
+# Report assembly (combine variable matches, code snapshots, and edges into a FunctionReport)
+# --------------------------------------------------------------------------------------------- #
 
-    def __init__(self, classifier: SourceClassifier | None = None) -> None:
-        self._collector = MatchCollector(classifier or SourceClassifier())
 
-    def build(self, name: str, result: DecompilationResult) -> FunctionReport:
-        graph = result.task.graph  # post-out-of-SSA CFG
-        return FunctionReport(
-            name=name,
-            matches=self._collector.collect(graph),
-            code_preprocessed=result.code_preprocessed,
-            code=extract_code(graph, describe=ssa_origin),
-            edges=extract_edges(graph),
-        )
+def build_function_report(name: str, result: DecompilationResult) -> FunctionReport:
+    """Assemble the matches, code snapshots, and edges into a FunctionReport from a decompiled task's CFG."""
+    graph = result.task.graph  # post-out-of-SSA CFG
+    return FunctionReport(
+        name=name,
+        matches=collect_matches(graph),
+        code_preprocessed=result.code_preprocessed,
+        code=extract_code(graph, describe=ssa_origin),
+        edges=extract_edges(graph),
+    )
 
 
 # --------------------------------------------------------------------------------------------- #
@@ -343,7 +353,13 @@ class OutOfSsaDecompiler:
     within the post-preprocessing phase), so each pipeline validates on its own.
     """
 
+    _frontend: BinaryninjaFrontend
+    _options: Options
+    _preprocessing: DecompilerPipeline
+    _post_preprocessing: DecompilerPipeline
+
     def __init__(self, frontend: BinaryninjaFrontend, options: Options) -> None:
+        """Store the frontend/options and build the preprocessing and post-preprocessing pipelines."""
         self._frontend = frontend
         self._options = options
         self._preprocessing, self._post_preprocessing = self._build_pipelines(options)
@@ -385,36 +401,29 @@ class TextReportRenderer:
     _KIND_ORDER = (MatchKind.DWARF_LOCAL, MatchKind.CONST_STRING, MatchKind.UNMATCHED)
 
     def render(self, report: FunctionReport) -> None:
+        """Print the report's variable matching, tallies, and collisions.
+
+        The code snapshots and CFG edges are intentionally not printed - they are large and go to
+        the JSON only; use inspect_report.py to view them (or any other field) from the JSON.
+        """
         print(f"\n## {report.name}")
-        self._render_code("code after preprocessing (with DWARF source names)", report.code_preprocessed)
-        self._render_code("code after out-of-SSA (with SSA origins)", report.code)
-        self._render_edges(report.edges)
         self._render_matches(report.matches)
         self._render_tally(report.tally_by_kind())
         self._render_collisions("over-merged variables (one name -> multiple source variables)", report.overmerged())
         self._render_collisions("under-merged variables (one source variable -> multiple names)", report.undermerged())
 
-    @staticmethod
-    def _render_code(title: str, code: List[CodeBlock]) -> None:
-        print(f"  ### {title}")
-        for block in code:
-            print(f"    block {hex(block.address)}:")
-            for line in block.lines:
-                tags = ", ".join(f"{name}={'/'.join(values)}" for name, values in line.annotations.items())
-                suffix = f"    [{tags}]" if tags else ""
-                print(f"      {line.text}{suffix}")
+    def render_skipped(self, name: str, message: str) -> None:
+        """Print the header and skip note for a function that was not analyzed."""
+        print(f"\n## {name}")
+        print(f"  (skipped: {message})")
 
-    @staticmethod
-    def _render_edges(edges: List[CfgEdge]) -> None:
-        if not edges:
-            return
-        print("  ### edges")
-        for edge in edges:
-            label = f"{edge.condition}: {', '.join(edge.cases)}" if edge.cases else edge.condition
-            print(f"    {hex(edge.source)} -> {hex(edge.sink)}  [{label}]")
+    def render_written(self, output_path: str) -> None:
+        """Print the confirmation that the JSON output was written."""
+        print(f"\nwrote {output_path}")
 
     @staticmethod
     def _render_matches(matches: List[VariableMatch]) -> None:
+        """Print one line per match: output name, lifted SSA variable, matched source, and kind."""
         print("  ### variable matching")
         for match in matches:
             lifted = match.lifted or "-"
@@ -422,12 +431,14 @@ class TextReportRenderer:
             print(f"  {match.variable:14} <- lifted {lifted:14} -> source variable: {source}  [{match.kind.value}]")
 
     def _render_tally(self, tally: Dict[MatchKind, KindTally]) -> None:
+        """Print the matched/total counts per kind, in the canonical kind order."""
         for kind in self._KIND_ORDER:
             if kind in tally:
                 print(f"  {kind.value:13} {tally[kind].matched}/{tally[kind].total}")
 
     @staticmethod
     def _render_collisions(title: str, collisions: Dict[str, List[str]]) -> None:
+        """Print a collision table (over-/under-merges), or nothing when there are none."""
         if not collisions:
             return
         print(f"  ### {title}")
@@ -435,10 +446,24 @@ class TextReportRenderer:
             print(f"    {group} -> {', '.join(values)}")
 
 
+class NullReportRenderer:
+    """Renderer that prints nothing; selected with --quiet for large evaluations."""
+
+    def render(self, report: FunctionReport) -> None:
+        pass
+
+    def render_skipped(self, name: str, message: str) -> None:
+        pass
+
+    def render_written(self, output_path: str) -> None:
+        pass
+
+
 class JsonReportSerializer:
     """Serializes a FunctionReport to a JSON-ready dict."""
 
     def function_to_dict(self, report: FunctionReport) -> Dict[str, Any]:
+        """Convert a FunctionReport into a JSON-serializable dict of all its fields and analyses."""
         return {
             "matched": report.matched,
             "total": report.total,
@@ -453,14 +478,17 @@ class JsonReportSerializer:
 
     @staticmethod
     def _tally_to_dict(tally: Dict[MatchKind, KindTally]) -> Dict[str, Any]:
+        """Serialize the per-kind matched/total tally, keyed by kind value."""
         return {kind.value: {"matched": item.matched, "total": item.total} for kind, item in tally.items()}
 
     @staticmethod
     def _match_to_dict(match: VariableMatch) -> Dict[str, Any]:
+        """Serialize a single VariableMatch record."""
         return {"variable": match.variable, "lifted": match.lifted, "source": match.source, "kind": match.kind.value}
 
     @staticmethod
     def _block_to_dict(block: CodeBlock) -> Dict[str, Any]:
+        """Serialize a code block: its address and its annotated instruction lines."""
         return {
             "block": block.address,
             "instructions": [{"text": line.text, "annotations": line.annotations} for line in block.lines],
@@ -468,6 +496,7 @@ class JsonReportSerializer:
 
     @staticmethod
     def _edge_to_dict(edge: CfgEdge) -> Dict[str, Any]:
+        """Serialize a CFG edge, including switch cases only when present."""
         data: Dict[str, Any] = {"source": edge.source, "sink": edge.sink, "condition": edge.condition}
         if edge.cases is not None:
             data["cases"] = edge.cases
@@ -488,18 +517,31 @@ def default_output_path(binary: str) -> str:
     return f"variable_matching_{Path(binary).name}.json"
 
 
+def failure_message(task: DecompilerTask) -> str:
+    """Human-readable reason a task was skipped before out-of-SSA ran."""
+    origin = task.failure_origin  # empty string, not None, when a stage failed
+    detail = f" at stage '{origin}'" if origin else ""
+    return f"decompiling {task.name} failed{detail}; out-of-SSA did not run"
+
+
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
+    """Parse the command-line arguments (binary, optional function list, optional output path)."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("binary", help="path to the -g compiled binary")
     parser.add_argument("functions", nargs="?", default=None, help="comma-separated function names (default: all)")
     parser.add_argument("output", nargs="?", default=None, help="output JSON path (default: variable_matching_<binary-name>.json)")
+    parser.add_argument("-q", "--quiet", action="store_true", help="suppress all terminal output (still writes the JSON)")
     return parser.parse_args(argv)
 
 
 def main(argv: List[str] | None = None) -> None:
+    """Run the report for each requested function and write the combined JSON output.
+
+    Decompiles each function up to out-of-SSA, printing a skip note for functions whose pipeline
+    failed or raised, and rendering plus serializing a FunctionReport for the rest.
+    """
     args = parse_args(argv)
     # Silence pipeline logging (e.g. DeadLoopElimination "could not convert ... into z3 logic"),
-    # which is noise for this report; our own output goes through print, not logging.
     logging.getLogger().setLevel(logging.ERROR)
     function_list = {name.strip() for name in args.functions.split(",")} if args.functions else None
     output_path = args.output or default_output_path(args.binary)
@@ -507,8 +549,7 @@ def main(argv: List[str] | None = None) -> None:
     options = Options.load_default_options()
     frontend = BinaryninjaFrontend.from_path(args.binary, options)
     decompiler = OutOfSsaDecompiler(frontend, options)
-    builder = FunctionReportBuilder()
-    renderer = TextReportRenderer()
+    renderer = NullReportRenderer() if args.quiet else TextReportRenderer()
     serializer = JsonReportSerializer()
 
     functions: Dict[str, Dict[str, Any]] = {}
@@ -518,18 +559,21 @@ def main(argv: List[str] | None = None) -> None:
         try:
             result = decompiler.run(name)
             if result.task.failed:
-                print(f"\n## {name}\n  (skipped: pipeline failed at stage '{result.task.failure_origin}'; out-of-SSA did not run)")
-                functions[name] = {"failed": True, "failure_origin": result.task.failure_origin}
+                message = failure_message(result.task)
+                renderer.render_skipped(name, message)
+                functions[name] = {"status": "failed", "message": message, "report": None}
                 continue
-            report = builder.build(name, result)
+            report = build_function_report(name, result)
         except Exception as exc:
-            print(f"\n## {name}\n  (skipped: {type(exc).__name__}: {exc})")
+            message = f"{type(exc).__name__}: {exc}"
+            renderer.render_skipped(name, message)
+            functions[name] = {"status": "error", "message": message, "report": None}
             continue
         renderer.render(report)
-        functions[name] = serializer.function_to_dict(report)
+        functions[name] = {"status": "ok", "message": None, "report": serializer.function_to_dict(report)}
 
     Path(output_path).write_text(json.dumps({"binary": args.binary, "functions": functions}, indent=2))
-    print(f"\nwrote {output_path}")
+    renderer.render_written(output_path)
 
 
 if __name__ == "__main__":

@@ -44,7 +44,7 @@ class BinaryninjaFrontend(Frontend):
         self._tagging = CompilerIdiomsTagging(self._bv)
 
     @classmethod
-    def from_path(cls, path: str, options: Options):
+    def from_path(cls, path: str, options: Options) -> "BinaryninjaFrontend":
         """Create a frontend object by invoking binaryninja on the given sample."""
         file_options = {"analysis.limits.maxFunctionSize": options.getint("binaryninja.max_function_size")}
         if (bv := binaryninja.load(path, options=file_options)) is not None:
