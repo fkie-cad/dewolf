@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict 
 from typing import DefaultDict, Iterator, List, Optional, Dict
 from copy import deepcopy
 import networkx as nx
@@ -235,42 +235,128 @@ class Boissinot2008:
         """Step 3 of the Boissinot et al. algorithm: color the interference graph and rename variables accordingly."""
         # We do the coloring on a spearate graph
         self.ifgColoring = deepcopy(self._interference_graph)
-        #Ensure that all relations are satisfied
+        #Ensure that all relations are satisfied and combine all variables mentioned in a Phi function
         self.handle_Relations()
         #Ensure consistency in node names
         self.fsetFix()
-        #produces Lists of global and non-global variables
-        self.getGlobals()
-        #Create classes of variables that can get the same name
-        self.doColoring()
-
-        #These asseertions are helpful for debugging, so they are still included and only commented out.
-        #assert all(not self._interference_graph.are_interfering(*x) for x in self.gvars)
-        #assert all(not self._interference_graph.are_interfering(*x) for x in self.nvars)
+        #Construct variable classes based on the interference graph and Methods described in the Paper and the criteria defined in doVarCheckClassTogetherPossible
+        self.varClasses = self.constructVariableClasses()
 
         ttask = deepcopy(self._task)
         ttask.cfg = self._cfg_copy
 
         #Compute renaming map and rename the variables accordingly
-        self.renamer = self.BoissinotVariableRenamer(ttask,self._interference_graph,self.nvars,self.gvars)
+        #TODO: Fix Variable Renamer to work with the new interference graph and variable classes
+        self.renamer = self.BoissinotVariableRenamer(ttask,self._interference_graph,self.varClasses)
         self.renamer.rename()
 
-
-    def getGlobals(self):
-        """produce sorted (deterministic) lists of global and non-global variables and save them as members of the Boissinot2008 object."""
-        globs = []
-        norms = []
-        for node in self.ifgColoring.nodes():
+    def constructVariableClasses(self) -> List[List[Variable]]:
+        """Creates Variable Classes based on the interference graph and the criteria defined in doVarCheckClassTogetherPossible like described in the paper by Boissinot et al. 2008."""
+        #Merge Variables that are connected by a copy assignment into one class, if they do not interfere based on our new criteria.
+        varClasses = defaultdict(lambda: [])
+        for node in self.ifgColoring.nodes(data=False):
             if isinstance(node,frozenset):
-                if len([x for x in node if isinstance(x, GlobalVariable)]) >= 1:
-                    globs.append(node)
-                else: 
-                    norms.append(node)
+                classVars = list(node)
+                for var in node:
+                    varClasses[var] = classVars
             else:
-                raise Exception("Found an object which is not a frozenset while renaming!")
+                raise Exception("Found a node which is not a frozenset while constructing variable classes!")
 
-        self.globs = sorted(globs, key = lambda x : ''.join([f"{x.name}{x.ssa_label}" for x in tuple(sorted(x,key = lambda x : f"{x.name}{x.ssa_label}"))]))
-        self.norms = sorted(norms, key = lambda x : ''.join([f"{x.name}{x.ssa_label}" for x in tuple(sorted(x,key = lambda x : f"{x.name}{x.ssa_label}"))]))
+        basicBlockList = self.getBasicBlockList()
+        for bb in basicBlockList:
+            for instr in bb.instructions:
+                if isinstance(instr,Assignment):
+                    instr: Assignment
+                    if isinstance(instr.destination,Variable) and isinstance(instr.value,Variable):
+                        if (varClasses[instr.destination] is not varClasses[instr.value]):
+                            if not self._interference_graph.are_interfering(*varClasses[instr.destination],*varClasses[instr.value]):
+                                newClass = [*varClasses[instr.destination],*varClasses[instr.value]]
+                                for var in newClass:
+                                    varClasses[var] = newClass
+
+        #Check remaining copys for special criterion of Boissinot et al. 
+        # Given two assignments of the form x = y and z = y, if x and z are live at the same time, they can be in the same class
+
+        liveness = LivenessAnalysis(self._cfg_copy)
+        liveOuts = liveness._live_out_block.values()
+        assignmentsEliminationDict = defaultdict(lambda: [])
+
+        for bb in basicBlockList:
+            for instr in bb.instructions:
+                if isinstance(instr,Assignment):
+                    instr: Assignment
+                    if isinstance(instr.destination,Variable) and isinstance(instr.value,Variable) and (varClasses[instr.destination] != varClasses[instr.value]):
+                        assignmentsEliminationDict[id(varClasses[instr.value])].append(instr.destination)
+
+        changes=True
+        while changes:
+            changes = False     
+            for varList in assignmentsEliminationDict.values():
+                if len(varList) > 1:
+                    for var1,var2 in itertools.combinations(varList,2):
+                        if (varClasses[var1] is not varClasses[var2]) and self.doVarCheckClassToghetherPossible(var1, var2):
+                            for liveOut in liveOuts:
+                                if (var1 in liveOut) and (var2 in liveOut): #The two variables are live at the same time, so they can be in the same class
+                                    if not self._interference_graph.are_interfering(*varClasses[var1],*varClasses[var2]):
+                                        newClass = [*varClasses[var1],*varClasses[var2]]
+                                        for var in newClass:
+                                            varClasses[var] = newClass
+                                        changes = True
+
+                                    break
+
+        return [list(varClasses[x]) for x in varClasses.keys()]
+
+    def getBasicBlockList(self) -> List[BasicBlock]:
+        """Returns a list of all basic blocks in the CFG, sorted by the number of loops the basic block is involved in descending order."""
+
+        #idom = self._cfg_copy.dominator_tree
+        #print(type(idom),idom)
+        #print(idom.)
+        #idom : nx.DiGraph
+        #idom = {node : idom.predecessors(node)[0] for node in idom.nodes(data=False)}
+        idom = nx.immediate_dominators(self._cfg_copy._graph,self._cfg_copy.root)
+        idom : Dict[BasicBlock, BasicBlock]
+        idom.setdefault(self._cfg_copy.root,self._cfg_copy.root)
+
+        backEdges = []
+        for (A, B) in self._cfg_copy._graph.edges():
+            if self._dominates(B, A, idom):
+                backEdges.append((A, B))
+
+        loops = []
+        for (A, B) in backEdges:
+            loops.append(self.getLoopInvolvedNodes(B, A)) 
+
+        loops = [y for x in loops for y in x]
+        count = {}
+        for bb in self._cfg_copy:
+            count[bb] = loops.count(bb)
+
+        return sorted(count.keys(), key=lambda bb: count[bb],reverse=True)
+
+
+    def _dominates(self, dominator: BasicBlock, dominated: BasicBlock, idom: Dict[BasicBlock, BasicBlock]) -> bool:
+        """Returns True if dominator dominates dominated in the CFG, False otherwise."""
+        current = dominated
+        while current != self._cfg_copy.root:
+            if current == dominator:
+                return True
+            current = idom[current]
+        return current == dominator  # Check if the root is the dominator
+    
+    def getLoopInvolvedNodes(self,Head: BasicBlock, B: BasicBlock) -> List[BasicBlock]:
+        """Returns a list of all basic blocks involved in the loop with header A and back edge B->A"""
+        loop = [Head, B]
+        worklist = [B]
+        while worklist:
+            x = worklist.pop()
+            for pred in self._cfg_copy.get_predecessors(x):
+                if (pred not in loop) and (pred is not None):
+                    loop.append(pred)
+                    worklist.append(pred)
+        
+        return loop
 
     def areinstances(self, objs : List,classToCheck):
         """Checks if all objects in the list are instances of the given class."""
@@ -325,46 +411,6 @@ class Boissinot2008:
                 raise Exception("Found a 'Variable' that's neither a Variable nor a frozenset.")
         nx.relabel_nodes(self.ifgColoring,map,False)
 
-    def doColoring(self):
-        """Agglomerates the global variables and non-global variables into high-level variables. For globals this is done manually, for non-globals we perfom a coloring on the valueinterference graph. """
-
-        if len(self.globs) > 0:
-            gvars = []
-            globdict = DefaultDict(list)
-            for glob in self.globs:
-                for globv in glob:
-                    if globdict[globv.name] != []:
-                        if not self._interference_graph.are_interfering(globv,*globdict[globv.name]):
-                            globdict[globv.name].append(globv)
-                        else:
-                            raise Exception("Found interfering variables with the same name!")
-                    else:
-                        globdict[globv.name].append(globv)
-            
-            for pck in globdict.values():
-                gvars.append(pck)
-                
-            self.gvars = gvars
-        else:
-            self.gvars = []
-
-        #Do a coloring on the interference graph
-        if len(self.norms) > 0:
-            colors = nx.greedy_color(self.ifgColoring,"largest_first",True)
-            colors : Dict
-            num = max(colors.values()) + 1
-            nvars = [[] for _ in range(0,num)]
-            #collect all vairables with the same color into a list, but only collect non-global variables
-            for varSet in colors.keys():
-                if isinstance(varSet,frozenset):
-                    for var in varSet:
-                        if not isinstance(var,GlobalVariable):
-                            nvars[int(colors[varSet])].append(var)
-                
-            self.nvars = nvars
-        else:
-            self.nvars = []
-
     def doVarCheckClassToghetherPossible(self, var1: Variable, var2: Variable) -> bool:
         """Returns true, if var1 and var2 do not interfere based on our 'newly' found criteria:
                 Global Variable and normal variables do not get mixed.
@@ -387,12 +433,12 @@ class Boissinot2008:
         
 
     class BoissinotVariableRenamer(VariableRenamer):
-        def __init__(self, task: DecompilerTask, interference_graph,varClassesn:list,varClassesg:list):
+        def __init__(self, task: DecompilerTask, interference_graph,varClasses:list):
             super().__init__(task,interference_graph)
 
             self.cfg = task.cfg
             self.interference_graph = interference_graph
-            self.varClasses = varClassesn + varClassesg
+            self.varClasses = varClasses
 
             self.variable_for_function_arg: Dict[str, Variable] = self._get_function_argument_variables(task.function_parameters)
             self.function_arg_for_variable: Dict[Variable, str] = {v: k for k, v in self.variable_for_function_arg.items()}
