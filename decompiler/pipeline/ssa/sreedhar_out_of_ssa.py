@@ -186,8 +186,9 @@ class SreedharOutOfSSA:
             if old_req != req and old_req in self.req_map:
                 self.req_map[req] = self.req_map.pop(old_req)
 
-    def __init__(self, task: DecompilerTask):
+    def __init__(self, task: DecompilerTask, debug_check = True):
         self._task = task
+        self._debug_check = debug_check
         self._cfg: ControlFlowGraph = cast(ControlFlowGraph, task.cfg)
         self._phi_congruence_map = self.PhiCongruenceMap()
         self._interference_graph = InterferenceGraph(self._cfg)
@@ -195,8 +196,8 @@ class SreedharOutOfSSA:
         self._live_out: dict[BasicBlock | None, set[Variable]] = {}
         
         self._phi_to_orig_map: dict[int, SreedharOutOfSSA.OriginMap] = {}
-        self._assignment_helpers: dict[BasicBlock, SreedharOutOfSSA.AssignmentHelper] = defaultdict(self.AssignmentHelper)
         self._block_to_phi: dict[BasicBlock, list[Phi]] = defaultdict(list)
+        self._assignment_helpers: dict[BasicBlock, SreedharOutOfSSA.AssignmentHelper] = defaultdict(self.AssignmentHelper)
         
         self._name_handler = NameHandler()
         self._function_arg_names = {var.name for var in self._task.function_parameters}
@@ -204,9 +205,9 @@ class SreedharOutOfSSA:
         self._initialize_liveness()
         self._initialize_instructions_and_maps()
 
+
     def perform(self) -> None:
         self._init_interference_graph()
-        self._merge_same_globals()
         self._eliminate_phi_resource_interference()
         self._copy_removal()
         self._variable_rename()
@@ -221,6 +222,7 @@ class SreedharOutOfSSA:
     def _initialize_instructions_and_maps(self) -> None:
         for block in self._cfg:
             for instr in block.instructions:
+
                 for v in instr.definitions + instr.requirements:
                     self._name_handler.register_ssa_var(v)
                     self._phi_congruence_map.create_class(v)
@@ -228,30 +230,46 @@ class SreedharOutOfSSA:
                 match instr:
                     case Relation(destination=dest, value=val):
                         self._phi_congruence_map.merge_classes([dest, val])
+
                     case Phi() as phi:
                         self._block_to_phi[block].append(phi)
+
                         origin_map = self.OriginMap()
                         origin_map.dest_bb = block
+
                         for o_block, req in phi.origin_block.items():
                             if req:
                                 origin_map.req_map[req].append(o_block)
+
+                        for req in phi.requirements:
+                            if req not in origin_map.req_map:
+                                origin_map.req_map[req] = [None]
+
                         self._phi_to_orig_map[id(phi)] = origin_map
+
                     case Assignment(destination=Variable(), value=Variable()):
                         self._assignment_helpers[block].block_assigns.add(instr)
 
     def _classes_interfere(self, a: PhiCongruenceClass, b: PhiCongruenceClass) -> bool:
         if a is b:
             return False
+
         return any(self._interference_graph.are_interfering(y_i, y_j) for y_i, y_j in itertools.product(a, b))
 
     def _init_interference_graph(self) -> None:
-        all_vars = list(self._interference_graph.nodes)
+        all_vars = {
+            var
+            for instr in self._cfg.instructions
+            for collection in (instr.definitions, instr.requirements)
+            for var in collection
+        }
+
         global_vars = [v for v in all_vars if isinstance(v, GlobalVariable)]
         local_vars = [v for v in all_vars if not isinstance(v, GlobalVariable)]
-        
+
         lhs_of_assignments = {
             i.destination for i in self._cfg.instructions 
-            if isinstance(i, (Assignment, Phi, Relation)) and isinstance(i.destination, Variable)
+            if isinstance(i, Assignment) and isinstance(i.destination, Variable)
         }
 
         # Find latest SSA version of function arguments
@@ -276,16 +294,6 @@ class SreedharOutOfSSA:
         edges.extend((a1, a2) for a1, a2 in itertools.product(non_lhs_aliased, aliased_vars) if a1 is not a2 and a1.name != a2.name)
 
         self._interference_graph.add_edges_from(edges)
-
-    def _merge_same_globals(self) -> None:
-        globals_by_name = defaultdict(list)
-        for var in self._phi_congruence_map.get_elements():
-            if isinstance(var, GlobalVariable):
-                globals_by_name[var.name].append(var)
-        
-        for vars_list in globals_by_name.values():
-            if len(vars_list) > 1:
-                self._phi_congruence_map.merge_classes(vars_list)
 
     def _is_live_in_context(self, var_class: PhiCongruenceClass, block: BasicBlock | None, is_dest: bool) -> bool:
         """Returns True if the congruence class intersects with the block's relevant liveness set."""
@@ -340,7 +348,7 @@ class SreedharOutOfSSA:
         self._interference_graph.add_edges_from((x_new, v) for v in self._live_in[orig_block])
 
     def _insert_req_copy(self, phi: Phi, x: Variable, x_new: Variable) -> None:
-        for orig_block in self._phi_to_orig_map[id(phi)].req_map.get(x, []):
+        for orig_block in self._phi_to_orig_map[id(phi)].req_map[x]:
             if orig_block is None:
                 orig_block = self._cfg.create_block([])
                 self._live_in[orig_block], self._live_out[orig_block] = set(), set()
@@ -370,11 +378,12 @@ class SreedharOutOfSSA:
             block: BasicBlock | None
 
         for phi in [i for i in self._cfg.instructions if isinstance(i, Phi)]:
+
             dest = cast(Variable, phi.destination)
             resources = [Resource(dest, self._phi_to_orig_map[id(phi)].dest_bb)]
-            
+
             for req in phi.requirements:
-                resources.extend(Resource(req, b) for b in self._phi_to_orig_map[id(phi)].req_map.get(req, []))
+                resources.extend(Resource(req, b) for b in self._phi_to_orig_map[id(phi)].req_map[req])
 
             candidates: InsertionOrderedSet[Variable] = InsertionOrderedSet()
             unresolved = {req: set() for req in phi.requirements if isinstance(req, Variable)}
@@ -395,11 +404,25 @@ class SreedharOutOfSSA:
                 else:
                     self._insert_req_copy(phi, x, x_new)
 
-            self._phi_congruence_map.merge_classes([dest] + [r for r in phi.requirements if isinstance(r, Variable)])
+            k = [phi.destination] + [r for r in phi.requirements]
+            if self._debug_check:
+                for a, b in itertools.combinations(k, 2):
+                    if self._interference_graph.are_interfering(a, b):
+                        raise AssertionError(
+                            f"Two elements in a phi function interfere after lifting: {a} and {b}"
+                        )
+
+            self._phi_congruence_map.merge_classes(k)
 
         self._phi_congruence_map.nullify_singletons()
 
     def _can_remove_copy(self, lhs: Variable, rhs: Variable, lpc: PhiCongruenceClass, rpc: PhiCongruenceClass) -> bool:
+        if isinstance(lhs, GlobalVariable) and isinstance(rhs, GlobalVariable) and lhs.name != rhs.name:
+            return False 
+        
+        if lhs.is_aliased and rhs.is_aliased and lhs.name != rhs.name:
+            return False
+
         if lpc is rpc or (not lpc and not rpc):
             return True
 
