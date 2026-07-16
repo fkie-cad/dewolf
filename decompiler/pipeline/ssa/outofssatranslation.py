@@ -6,6 +6,7 @@ from configparser import NoOptionError
 from enum import Enum
 from typing import Callable, DefaultDict, List
 
+from decompiler.pipeline.ssa.boissinot_2008 import Boissinot2008
 from decompiler.pipeline.ssa.phi_cleaner import PhiFunctionCleaner
 from decompiler.pipeline.ssa.phi_dependency_resolver import PhiDependencyResolver
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
@@ -25,6 +26,7 @@ class SSAOptions(Enum):
     lift_minimal = "lift_minimal"
     conditional = "conditional"
     sreedhar = "sreedhar"
+    boissinot2008 = "boissinot2008"
 
 
 class OutOfSsaTranslation(PipelineStage):
@@ -54,6 +56,7 @@ class OutOfSsaTranslation(PipelineStage):
         "non SSA-variables is (almost) minimal",
         SSAOptions.conditional.value: "first lifts the phi-functions and renames the SSA-variables according to their dependencies.",
         SSAOptions.sreedhar.value: "out-of-SSA due to Sreedhar et. al.",
+        SSAOptions.boissinot2008.value: "Out-of-SSA due to Boissinot et al. 'Revisiting Out-of-SSA Translation for Correctness, Code Quality, and Efficency'" 
     }
 
     def __init__(self):
@@ -166,10 +169,15 @@ class OutOfSsaTranslation(PipelineStage):
         PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift()
         ConditionalVariableRenamer(self.task, self.interference_graph).rename()
 
+    def _boissinot2008(self):
+        Boissinot2008(self.task,self._phi_functions_of).perform()
+
+
     # This translator maps the optimization levels to the functions.
     out_of_ssa_strategy: dict[SSAOptions, Callable[["OutOfSsaTranslation"], None]] = {
         SSAOptions.simple: _simple_out_of_ssa,
         SSAOptions.minimization: _minimization_out_of_ssa,
         SSAOptions.lift_minimal: _lift_minimal_out_of_ssa,
         SSAOptions.conditional: _conditional_out_of_ssa,
+        SSAOptions.boissinot2008: _boissinot2008,
     }
