@@ -557,10 +557,10 @@
                 "default": [
                     "expression-propagation",
                     "bit-field-comparison-unrolling",
-                    "type-propagation",
                     "dead-path-elimination",
                     "dead-loop-elimination",
                     "dead-code-elimination",
+                    "type-propagation",
                     "expression-propagation-memory",
                     "expression-propagation-function-call",
                     "expression-simplification-cfg",
