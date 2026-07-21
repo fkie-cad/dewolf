@@ -53,10 +53,27 @@ def dependency_graph_from_cfg(
         instruction : Assignment
         defined_variables = instruction.definitions
         for used_variable, scorev in _expression_dependencies(instruction.value, strong, mid, weak).items():
-            if (scorev > 0) and not (ifg.are_interfering(*defined_variables, used_variable)):
+            if (scorev > 0) and not (ifg.are_interfering(*defined_variables, used_variable)) and not (variablesAreInterfering(ifg, defined_variables[0], used_variable)):
                 for dvar in defined_variables:
                         dependency_graph.add_edge((dvar,), (used_variable,), score=scorev)
     return dependency_graph
+
+def variablesAreInterfering(interference_graph: InterferenceGraph, var_X: Variable,var_Y: Variable) -> bool:
+    if interference_graph.are_interfering(*var_X, *var_Y):
+        return True
+    elif var_X.type != var_Y.type:
+        return True
+    elif (var_X.is_aliased != var_Y.is_aliased) or (var_X.is_aliased and var_Y.is_aliased and (var_X.name != var_Y.name)):
+        return True
+    elif isinstance(var_X, GlobalVariable) != isinstance(var_Y, GlobalVariable):
+        return True
+    elif (isinstance(var_X,GlobalVariable) and  isinstance(var_Y,GlobalVariable) and (var_X.name != var_Y.name)):
+        return True
+
+    if(var_X.type == None) or (var_Y.type == None):
+        raise Exception("Encountered a None type variable in the SSA-Stage!")
+    
+    return False
 
 
 def _collect_variables(cfg: ControlFlowGraph) -> Iterator[Variable]:
