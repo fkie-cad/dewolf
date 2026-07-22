@@ -1,4 +1,4 @@
-""" Tests for the AbstractSyntaxTree base class."""
+"""Tests for the AbstractSyntaxTree base class."""
 
 from itertools import combinations
 

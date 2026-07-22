@@ -14,6 +14,7 @@ from .expressions import (
     Tag,
     UnknownExpression,
     Variable,
+    VariableProvenance,
 )
 from .instructions import (
     Assignment,

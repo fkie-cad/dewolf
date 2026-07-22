@@ -1,4 +1,6 @@
-from typing import Optional, Set
+from collections import defaultdict
+from itertools import chain
+from typing import Dict, Optional, Set
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import ControlFlowGraph
@@ -43,17 +45,21 @@ class MemPhiConverter(PipelineStage):
         :return aliased_variables: set of aliased variables used in this graph
         """
         self._aliased_variables = set()
+        source_names: Dict[str, Set[str]] = defaultdict(set)
         for instruction in self._cfg.instructions:
-            for variable in instruction.requirements:
-                if variable.is_aliased:
-                    var_copy = variable.copy()
-                    var_copy.unsubscript()
-                    self._aliased_variables.add(var_copy)
-            for variable in instruction.definitions:
-                if variable.is_aliased:
-                    var_copy = variable.copy()
-                    var_copy.unsubscript()
-                    self._aliased_variables.add(var_copy)
+            for variable in chain(instruction.requirements, instruction.definitions):
+                if not variable.is_aliased:
+                    continue
+                if variable.origin is not None and variable.origin.source_name is not None:
+                    source_names[variable.name].add(variable.origin.source_name)
+                var_copy = variable.copy()
+                var_copy.unsubscript()
+                self._aliased_variables.add(var_copy)
+        # Versions of one aliased name disagreeing on their DWARF source (BN merged what DWARF splits):
+        # the set kept one arbitrarily, so drop the guess rather than stamping it onto every phi.
+        for template in self._aliased_variables:
+            if len(source_names[template.name]) > 1:
+                template.origin = None
 
     def _replace_mem_phis_with_phis(self) -> None:
         """

@@ -88,7 +88,7 @@ def _discover_coreutils_tests() -> Iterator[tuple[pathlib.Path, str]]:
         funcs_contents = f.readlines()
 
     for line in funcs_contents:
-        (sample_name, function_name) = line.split()
+        sample_name, function_name = line.split()
         yield pathlib.Path(f"tests/coreutils/binaries/{sample_name}"), function_name
 
 

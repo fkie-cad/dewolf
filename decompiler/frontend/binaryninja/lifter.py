@@ -8,6 +8,7 @@ from decompiler.frontend.lifter import ObserverLifter
 from decompiler.structures.pseudo import DataflowObject, Tag, UnknownExpression, UnknownType
 
 from ...structures.pseudo.complextypes import ComplexTypeMap, UniqueNameProvider
+from .dwarf import DwarfVariableResolver
 from .handlers import HANDLERS
 
 
@@ -19,6 +20,9 @@ class BinaryninjaLifter(ObserverLifter):
         self.bv: BinaryView = bv
         self.complex_types: ComplexTypeMap = ComplexTypeMap()
         self.unique_name_provider: UniqueNameProvider = UniqueNameProvider()
+        # Resolves the C source-variable name for lifted variables from DWARF (if present);
+        # inert when the binary has no debug info or pyelftools is unavailable.
+        self.dwarf: DwarfVariableResolver = DwarfVariableResolver.for_path(bv.file.filename if bv is not None else None)
         for handler in HANDLERS:
             handler(self).register()
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Main decompiler Interface."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

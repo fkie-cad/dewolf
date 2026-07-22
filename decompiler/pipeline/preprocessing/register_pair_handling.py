@@ -10,7 +10,7 @@ from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.maps import DefMap, UseMap
 from decompiler.structures.pseudo import Integer
-from decompiler.structures.pseudo.expressions import Constant, RegisterPair, Variable
+from decompiler.structures.pseudo.expressions import Constant, RegisterPair, Variable, VariableProvenance
 from decompiler.structures.pseudo.instructions import Assignment, GenericBranch, Instruction
 from decompiler.structures.pseudo.operations import BinaryOperation, OperationType
 from decompiler.task import DecompilerTask
@@ -120,8 +120,17 @@ class RegisterPairHandling(PipelineStage):
 
     @staticmethod
     def _get_replacement_variable(register_pair: RegisterPair, counter) -> Variable:
-        """Generate a replacement variable for the given register pair."""
-        return Variable(f"loc_{counter}", register_pair.type, 0)
+        """Generate a replacement variable for the given register pair.
+
+        When both register halves resolve to the same DWARF source variable, the pair is one source
+        variable split across two registers, so carry that source name onto the replacement. A synthetic
+        pair (e.g. a 64-bit multiplication result) has no shared name and its replacement stays unset.
+        """
+        source_names = {
+            half.origin.source_name for half in register_pair if half.origin is not None and half.origin.source_name is not None
+        }
+        origin = VariableProvenance(source_name=source_names.pop()) if len(source_names) == 1 else None
+        return Variable(f"loc_{counter}", register_pair.type, 0, origin=origin)
 
     def _replace_definition_of_register_pair(
         self, basic_block: BasicBlock, definition_of_register_pair: Assignment, replacement: Variable

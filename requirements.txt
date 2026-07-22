@@ -1,8 +1,9 @@
 git+https://github.com/fkie-cad/dewolf-logic.git#egg=delogic
 git+https://github.com/fkie-cad/dewolf-idioms.git
-black
-isort
+black == 26.5.1
+isort == 8.0.1
 networkx != 2.8.4
+pyelftools
 pydot
 pygments
 pytest !=5.3.4
