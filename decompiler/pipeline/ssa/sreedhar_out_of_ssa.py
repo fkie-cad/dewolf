@@ -137,20 +137,27 @@ class SreedharOutOfSSA:
             for k, v in self._element_to_class.items():
                 group = groups[id(v)]
                 group.vars.append(k)
-                group.is_aliased |= k.is_aliased
+                
+                if not group.name: 
+                    if isinstance(k, GlobalVariable):
+                        group.name, group.type = k.name, k.type
+                        group.initial_value = k.initial_value
+                        group.tags, group.is_constant = k.tags, k.is_constant
+                        group.is_aliased, group.is_global = k.is_aliased, True
 
-                if isinstance(k, GlobalVariable):
-                    group.name, group.type = k.name, k.type
-                    group.initial_value, group.is_global = k.initial_value, True
-                    group.tags, group.is_constant = k.tags, k.is_constant
-                elif not group.name and k.name in function_arg_names:
-                    group.name = k.name
+                    elif k.is_aliased:
+                        group.name, group.type = k.name, k.type
+                        group.is_aliased = k.is_aliased
 
+                    elif k.name in function_arg_names:
+                        group.name, group.type = k.name, k.type
+                        group.is_aliased = k.is_aliased
+                
             renaming_map: dict[Variable, Variable] = {}
             for group in groups.values():
                 group.name = group.name or group.vars[0].name
                 group.type = group.type or group.vars[0].type
-                base_name = group.name if group.is_global else name_handler.get_name(group.name)
+                base_name = group.name if group.is_global or group.is_aliased else name_handler.get_name(group.name)
                     
                 for v in group.vars:
                     if group.is_global:
@@ -267,10 +274,8 @@ class SreedharOutOfSSA:
         global_vars = [v for v in all_vars if isinstance(v, GlobalVariable)]
         local_vars = [v for v in all_vars if not isinstance(v, GlobalVariable)]
 
-        lhs_of_assignments = {
-            i.destination for i in self._cfg.instructions 
-            if isinstance(i, Assignment) and isinstance(i.destination, Variable)
-        }
+        aliased_vars = [v for v in all_vars if v.is_aliased]
+        non_aliased_vars = [v for v in all_vars if not v.is_aliased]
 
         # Find latest SSA version of function arguments
         func_args: dict[str, Variable] = {}
@@ -280,18 +285,12 @@ class SreedharOutOfSSA:
                     func_args[var.name] = var
 
         edges = list(itertools.combinations(func_args.values(), 2))
-        edges.extend(itertools.product(func_args.values(), global_vars))
-        
-        non_lhs_globals = [gv for gv in global_vars if gv not in lhs_of_assignments]
-        edges.extend(itertools.product(non_lhs_globals, local_vars))
-        edges.extend((g1, g2) for g1, g2 in itertools.product(non_lhs_globals, global_vars) if g1 is not g2 and g1.name != g2.name)
 
-        aliased_vars = [v for v in all_vars if v.is_aliased]
-        non_aliased_vars = [v for v in all_vars if not v.is_aliased]
-        non_lhs_aliased = [a for a in aliased_vars if a not in lhs_of_assignments]
+        edges.extend(itertools.product(global_vars, local_vars))
+        edges.extend((g1, g2) for g1, g2 in itertools.product(global_vars, global_vars) if g1 is not g2 and g1.name != g2.name)
         
-        edges.extend(itertools.product(non_lhs_aliased, non_aliased_vars))
-        edges.extend((a1, a2) for a1, a2 in itertools.product(non_lhs_aliased, aliased_vars) if a1 is not a2 and a1.name != a2.name)
+        edges.extend(itertools.product(aliased_vars, non_aliased_vars))
+        edges.extend((a1, a2) for a1, a2 in itertools.product(aliased_vars, aliased_vars) if a1 is not a2 and a1.name != a2.name)
 
         self._interference_graph.add_edges_from(edges)
 
@@ -371,6 +370,19 @@ class SreedharOutOfSSA:
 
             self._interference_graph.add_edges_from((x_new, v) for v in self._live_out[orig_block])
 
+    def test(self):
+        globals = set()
+        aliased = set()
+        for instr in self._cfg.instructions:
+            for var in instr.requirements + instr.definitions:
+                if isinstance(var, GlobalVariable):
+                    globals.add(var)
+
+                if var.is_aliased:
+                    aliased.add(var)
+
+
+
     def _eliminate_phi_resource_interference(self) -> None:
         @dataclass(slots=True)
         class Resource:
@@ -414,6 +426,7 @@ class SreedharOutOfSSA:
 
             self._phi_congruence_map.merge_classes(k)
 
+        #TODO here
         self._phi_congruence_map.nullify_singletons()
 
     def _can_remove_copy(self, lhs: Variable, rhs: Variable, lpc: PhiCongruenceClass, rpc: PhiCongruenceClass) -> bool:
