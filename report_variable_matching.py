@@ -542,6 +542,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser.add_argument("functions", nargs="?", default=None, help="comma-separated function names (default: all)")
     parser.add_argument("output", nargs="?", default=None, help="output JSON path (default: variable_matching_<binary-name>.json)")
     parser.add_argument("-q", "--quiet", action="store_true", help="suppress all terminal output (still writes the JSON)")
+    parser.add_argument("--ssa-algo", dest="ssa_algo", default="min", help="SSA elimination algorithm (default: variable renaming)")
     return parser.parse_args(argv)
 
 
@@ -558,6 +559,7 @@ def main(argv: List[str] | None = None) -> None:
     output_path = args.output or default_output_path(args.binary)
 
     options = Options.load_default_options()
+    options.update({"out-of-ssa-translation.mode": args.ssa_algo})
     frontend = BinaryninjaFrontend.from_path(args.binary, options)
     decompiler = OutOfSsaDecompiler(frontend, options)
     renderer = NullReportRenderer() if args.quiet else TextReportRenderer()
