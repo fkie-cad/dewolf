@@ -163,11 +163,13 @@ class SreedharOutOfSSA:
                     if group.is_global:
                         new_var = GlobalVariable(
                             name=base_name, vartype=group.type, initial_value=group.initial_value, 
-                            is_aliased=group.is_aliased, ssa_name=v, is_constant=group.is_constant, tags=group.tags 
+                            is_aliased=group.is_aliased, ssa_name=v, is_constant=group.is_constant, tags=group.tags,
+                            origin=v.origin
                         )
                     else:
                         new_var = Variable(
-                            name=base_name, vartype=group.type, is_aliased=group.is_aliased, ssa_name=v, tags=v.tags
+                            name=base_name, vartype=group.type, is_aliased=group.is_aliased, ssa_name=v, tags=v.tags,
+                            origin=v.origin
                         )
                     renaming_map[v] = new_var
 
