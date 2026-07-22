@@ -90,6 +90,8 @@ class ConstantLifter:
 class SreedharOutOfSSA:
     """Implements Sreedhar's Out-of-SSA algorithm to translate SSA form back to normal form."""
 
+    _PHI_COPY_NAME = "phi_copy"
+
     class PhiCongruenceClass(InsertionOrderedSet[Variable]):
         pass
 
@@ -219,6 +221,7 @@ class SreedharOutOfSSA:
         self._init_interference_graph()
         self._eliminate_phi_resource_interference()
         self._copy_removal()
+        self._debug_check_phi_classes()
         self._variable_rename()
 
     def _initialize_liveness(self) -> None:
@@ -332,8 +335,8 @@ class SreedharOutOfSSA:
 
     def _create_copy_var(self, original: Variable) -> Variable:
         return Variable(
-            name="phi_copy", vartype=original.type,
-            ssa_label=self._name_handler.get_ssa_label("phi_copy"), is_aliased=False
+            name=self._PHI_COPY_NAME, vartype=original.type,
+            ssa_label=self._name_handler.get_ssa_label(self._PHI_COPY_NAME), is_aliased=False
         )
 
     def _insert_dest_copy(self, phi: Phi, x: Variable, x_new: Variable) -> None:
@@ -371,19 +374,6 @@ class SreedharOutOfSSA:
                 self._live_out[orig_block].discard(x)
 
             self._interference_graph.add_edges_from((x_new, v) for v in self._live_out[orig_block])
-
-    def test(self):
-        globals = set()
-        aliased = set()
-        for instr in self._cfg.instructions:
-            for var in instr.requirements + instr.definitions:
-                if isinstance(var, GlobalVariable):
-                    globals.add(var)
-
-                if var.is_aliased:
-                    aliased.add(var)
-
-
 
     def _eliminate_phi_resource_interference(self) -> None:
         @dataclass(slots=True)
@@ -428,7 +418,6 @@ class SreedharOutOfSSA:
 
             self._phi_congruence_map.merge_classes(k)
 
-        #TODO here
         self._phi_congruence_map.nullify_singletons()
 
     def _can_remove_copy(self, lhs: Variable, rhs: Variable, lpc: PhiCongruenceClass, rpc: PhiCongruenceClass) -> bool:
@@ -458,6 +447,48 @@ class SreedharOutOfSSA:
                     rpc = self._phi_congruence_map.get_class(assign.value)
                     if self._can_remove_copy(assign.destination, assign.value, lpc, rpc):
                         self._phi_congruence_map.merge_classes([assign.destination, assign.value])
+
+    def _debug_check_phi_classes(self) -> None:
+        if not self._debug_check:
+            return
+
+        classes_by_id: dict[int, list[Variable]] = defaultdict(list)
+        for k, v in self._phi_congruence_map._element_to_class.items():
+            classes_by_id[id(v)].append(k)
+
+        for phi_class in classes_by_id.values():
+            # Filter out phi_copy placeholders for strict identity checks
+            real_vars = [v for v in phi_class if v.name != self._PHI_COPY_NAME]
+            if not real_vars:
+                continue
+
+            # 1. Validate Globals
+            globals_in_class = [v for v in real_vars if isinstance(v, GlobalVariable)]
+            if globals_in_class:
+                first_global = globals_in_class[0]
+                for v in real_vars:
+                    if not isinstance(v, GlobalVariable):
+                        raise AssertionError(
+                            f"Global variable mixed with non-global variable in congruence class: {phi_class}"
+                        )
+                    if v.name != first_global.name:
+                        raise AssertionError(
+                            f"Different global names in same congruence class: {phi_class}"
+                        )
+
+            # 2. Validate Aliased Variables
+            aliased_in_class = [v for v in real_vars if v.is_aliased]
+            if aliased_in_class:
+                first_aliased = aliased_in_class[0]
+                for v in real_vars:
+                    if not v.is_aliased:
+                        raise AssertionError(
+                            f"Aliased variable mixed with non-aliased variable in congruence class: {phi_class}"
+                        )
+                    if v.name != first_aliased.name:
+                        raise AssertionError(
+                            f"Different aliased names in same congruence class: {phi_class}"
+                        )
 
     def _process_and_rename(self, instrs: Iterable[Instruction], renaming_map: dict[Variable, Variable]) -> Generator[Instruction, None, None]:
         """Applies renaming in-place and yields instructions, skipping self-assignments and Phis/Relations."""
