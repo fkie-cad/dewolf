@@ -69,7 +69,8 @@ from decompiler.util.options import Options
 class MatchKind(Enum):
     """How a variable was matched to its source."""
 
-    DWARF_LOCAL = "dwarf-local"  # matched to a DWARF source local via provenance
+    DWARF_LOCAL = "dwarf-local"  # matched to a DWARF source local/parameter via provenance
+    DWARF_GLOBAL = "dwarf-global"  # matched to a DWARF global variable by address
     CONST_STRING = "const-string"  # read-only global; the constant value is the ground truth
     UNMATCHED = "unmatched"  # no source could be attributed
 
@@ -146,13 +147,25 @@ class FunctionReport:
 
     def tally_by_kind(self) -> DefaultDict[MatchKind, KindTally]:
         """Matched/total per kind, so the renaming score (dwarf-local) is not diluted by
-        trivially-matched string constants (const-string)."""
+        trivially-matched string constants (const-string) or globals (dwarf-global)."""
         tallies: DefaultDict[MatchKind, KindTally] = defaultdict(KindTally)
         for match in self.matches:
             tallies[match.kind].total += 1
             if match.source is not None:
                 tallies[match.kind].matched += 1
         return tallies
+
+    def initial_matching(self) -> Dict[str, List[str]]:
+        """The DWARF source name(s) attached to each variable right after preprocessing, before the
+        CFG stages rewrite variables. Recovered from the code_preprocessed annotations (already in the
+        report), so comparing it to the final matching shows what the pipeline dropped on the way to
+        out-of-SSA."""
+        matching: DefaultDict[str, Set[str]] = defaultdict(set)
+        for block in self.code_preprocessed:
+            for line in block.lines:
+                for variable, sources in line.annotations.items():
+                    matching[variable].update(sources)
+        return {variable: sorted(sources) for variable, sources in sorted(matching.items())}
 
     def overmerged(self) -> Dict[str, List[str]]:
         """Output names that map to several sources via *different* SSA variables (over-merge).
@@ -247,7 +260,10 @@ def classify_source(variable: Variable) -> Tuple[str | None, MatchKind]:
     # (variable_renaming copies origin onto the replacement), so the C source name is
     # readable straight off the renamed variable.
     if variable.origin is not None and variable.origin.source_name is not None:
-        return variable.origin.source_name, MatchKind.DWARF_LOCAL
+        # A global's DWARF name is matched by address; keep it a distinct kind so it does not enter
+        # the over-/under-merge analysis (globals are not renamed/coalesced like local SSA variables).
+        kind = MatchKind.DWARF_GLOBAL if isinstance(variable, GlobalVariable) else MatchKind.DWARF_LOCAL
+        return variable.origin.source_name, kind
     if isinstance(variable, GlobalVariable) and variable.is_constant:
         return _const_string(variable), MatchKind.CONST_STRING
     return None, MatchKind.UNMATCHED
@@ -412,7 +428,7 @@ class OutOfSsaDecompiler:
 class TextReportRenderer:
     """Prints a FunctionReport as human-readable text."""
 
-    _KIND_ORDER = (MatchKind.DWARF_LOCAL, MatchKind.CONST_STRING, MatchKind.UNMATCHED)
+    _KIND_ORDER = (MatchKind.DWARF_LOCAL, MatchKind.DWARF_GLOBAL, MatchKind.CONST_STRING, MatchKind.UNMATCHED)
 
     def render(self, report: FunctionReport) -> None:
         """Print the report's variable matching, tallies, and collisions.
@@ -421,6 +437,7 @@ class TextReportRenderer:
         the JSON only; use inspect_report.py to view them (or any other field) from the JSON.
         """
         print(f"\n## {report.name}")
+        self._render_initial_matching(report.initial_matching())
         self._render_matches(report.matches)
         self._render_tally(report.tally_by_kind())
         self._render_collisions("over-merged variables (one name -> multiple source variables)", report.overmerged())
@@ -437,6 +454,15 @@ class TextReportRenderer:
         """Print the header and skip note for a function that was not analyzed."""
         print(f"\n## {name}")
         print(f"  (skipped: {message})")
+
+    @staticmethod
+    def _render_initial_matching(matching: Dict[str, List[str]]) -> None:
+        """Print the DWARF source name matched to each variable right after preprocessing."""
+        if not matching:
+            return
+        print("  ### initial dwarf matching (post-preprocessing)")
+        for variable, sources in matching.items():
+            print(f"  {variable:14} - source variable: {', '.join(sources)}")
 
     @staticmethod
     def _render_matches(matches: List[VariableMatch]) -> None:
@@ -488,6 +514,7 @@ class JsonReportSerializer:
             "overmerged": report.overmerged(),
             "undermerged": report.undermerged(),
             "conflicts": report.conflicts(),
+            "initial_matching": report.initial_matching(),
             "variables": [self._match_to_dict(match) for match in report.matches],
             "code_preprocessed": [self._block_to_dict(block) for block in report.code_preprocessed],
             "code": [self._block_to_dict(block) for block in report.code],

@@ -50,6 +50,7 @@ _REGISTER_SOURCE_TYPE = "RegisterVariableSourceType"
 
 # DWARF expression opcodes (numeric, robust against op-name formatting).
 _OP_ADDR = 0x03
+_OP_ADDRX = 0xA1  # DWARF5 indexed address: operand is an index into .debug_addr
 _OP_FBREG = 0x91
 _OP_REG0, _OP_REG31 = 0x50, 0x6F
 _OP_BREG0, _OP_BREG31 = 0x70, 0x8F
@@ -316,6 +317,47 @@ class _DwarfParser:
             return None
         return StackSlot(offset - self._cfa_delta)
 
+    def parse_globals(self) -> Dict[int, str]:
+        """Parse every named variable at a fixed address into an {address: name} model.
+
+        Covers file-scope globals and static locals alike - both are DW_TAG_variable DIEs whose
+        DW_AT_location is a single DW_OP_addr; ordinary stack/register locals have other location
+        forms and are skipped. Later definitions win on address collision (last write).
+        """
+        globals_by_address: Dict[int, str] = {}
+        for compilation_unit in self._dwarf.iter_CUs():
+            expr_parser = DWARFExprParser(compilation_unit.structs)
+            for die in compilation_unit.iter_DIEs():
+                if die.tag != "DW_TAG_variable":
+                    continue
+                address = self._global_address(die, expr_parser, compilation_unit)
+                name = _die_name(die)
+                if address is not None and name is not None:
+                    globals_by_address[address] = name
+        return globals_by_address
+
+    def _global_address(self, die, expr_parser, compilation_unit) -> Optional[int]:
+        """The absolute address of a variable at a fixed location, else None.
+
+        Handles the direct form (DW_OP_addr, operand is the address) and the DWARF5 indexed form
+        (DW_OP_addrx, operand indexes .debug_addr and is resolved against the compilation unit).
+        """
+        location_attr = die.attributes.get("DW_AT_location")
+        if location_attr is None or location_attr.form not in ("DW_FORM_exprloc", "DW_FORM_block1"):
+            return None
+        opcodes = expr_parser.parse_expr(location_attr.value)
+        if len(opcodes) != 1:
+            return None
+        operation = opcodes[0]
+        if operation.op == _OP_ADDR:
+            return operation.args[0]
+        if operation.op == _OP_ADDRX:
+            try:
+                return self._dwarf.get_addr(compilation_unit, operation.args[0])
+            except Exception:  # missing/unreadable .debug_addr: treat as no fixed address
+                return None
+        return None
+
 
 class DwarfVariableResolver:
     """Matches lifted variables to their DWARF source-variable names by storage location."""
@@ -326,9 +368,11 @@ class DwarfVariableResolver:
         :param path: filesystem path to the ELF binary, or None to build an inert resolver
         """
         self._functions: Dict[str, DwarfFunction] = {}
+        self._globals: Dict[int, str] = {}  # {absolute address: source name}
         if _DWARF_AVAILABLE and path:
             try:
                 self._functions = _parse_dwarf(path)
+                self._globals = _parse_globals(path)
             except Exception as exc:  # never let ground-truth parsing break lifting
                 logging.warning(f"DWARF parsing failed for {path}: {exc}")
 
@@ -340,8 +384,17 @@ class DwarfVariableResolver:
 
     @property
     def available(self) -> bool:
-        """True if DWARF was parsed and at least one function's variables are known."""
-        return bool(self._functions)
+        """True if DWARF was parsed and at least one function's variables or a global is known."""
+        return bool(self._functions or self._globals)
+
+    def global_source_name(self, address: Optional[int]) -> Optional[str]:
+        """Return the DWARF source name of the global variable at `address`, or None if unknown.
+
+        :param address: the absolute address of a lifted GlobalVariable
+        """
+        if address is None:
+            return None
+        return self._globals.get(address)
 
     def source_name(self, origin, function_name: str, register_name=None) -> Optional[str]:
         """Return the C source-variable name matching a lifted variable's provenance.
@@ -381,3 +434,12 @@ def _parse_dwarf(path: str) -> Dict[str, DwarfFunction]:
         if not elf_file.has_dwarf_info():
             return {}
         return _DwarfParser(elf_file).parse()
+
+
+def _parse_globals(path: str) -> Dict[int, str]:
+    """Open an ELF binary and parse its DWARF into the {global address: name} model (empty if none)."""
+    with open(path, "rb") as file_handle:
+        elf_file = ELFFile(file_handle)
+        if not elf_file.has_dwarf_info():
+            return {}
+        return _DwarfParser(elf_file).parse_globals()

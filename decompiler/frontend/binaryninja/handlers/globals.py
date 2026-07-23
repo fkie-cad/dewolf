@@ -32,6 +32,7 @@ from decompiler.structures.pseudo import (
     Pointer,
     Symbol,
     UnaryOperation,
+    VariableProvenance,
 )
 
 BYTE_SIZE = 8
@@ -139,9 +140,26 @@ class GlobalHandler(Handler):
                 raise TypeError(f"Type violation: '{init_value}'")
 
         self._lifted_globals[(addr, type)] = GlobalVariable(
-            name=vname, vartype=type, initial_value=vinit_value, ssa_label=ssa_label, is_constant=addr_in_ro_section(self._view, addr)
+            name=vname,
+            vartype=type,
+            initial_value=vinit_value,
+            ssa_label=ssa_label,
+            is_constant=addr_in_ro_section(self._view, addr),
+            origin=self._dwarf_origin(addr),
         )
         return self._lifted_globals[(addr, type)]
+
+    def _dwarf_origin(self, addr: int) -> Optional[VariableProvenance]:
+        """Provenance carrying the DWARF source name of the global at ``addr``, or None if unknown.
+
+        Consumed by ground-truth tooling; matching is by address, so it never affects lifted output.
+        Any failure is swallowed - provenance is optional metadata and must not break global lifting.
+        """
+        try:
+            source_name = self._lifter.dwarf.global_source_name(addr)
+        except Exception:
+            return None
+        return VariableProvenance(source_name=source_name) if source_name is not None else None
 
     def lift_global_variable(
         self,
