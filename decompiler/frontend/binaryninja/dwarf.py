@@ -41,6 +41,9 @@ except ImportError:  # pragma: no cover - pyelftools is optional
 # DWARF frame base DW_OP_call_frame_cfa to Binary Ninja's SP-at-entry convention).
 _CFA_DELTA_BY_ARCH = {"x64": 8, "x86": 4}
 
+# Frame-pointer register per architecture, used to match DW_OP_breg <fp> stack slots (see _decode_storage).
+_FRAME_POINTER_BY_ARCH = {"x64": "rbp", "x86": "ebp"}
+
 # Binary Ninja variable source-type names we can match against a DWARF location.
 _STACK_SOURCE_TYPE = "StackVariableSourceType"
 _REGISTER_SOURCE_TYPE = "RegisterVariableSourceType"
@@ -163,10 +166,30 @@ class DwarfFunction:
     variables: Tuple[DwarfVariable, ...]
 
 
-def _die_name(die) -> Optional[str]:
-    """Return the decoded DW_AT_name of a Debugging Information Entry (DIE), or None if it is unnamed."""
+# Reference attributes carrying the name of a DIE with none of its own: a concrete instance of an
+# inlined function (or its locals) links to the abstract DIE holding the name via DW_AT_abstract_origin;
+# DW_AT_specification is the analogous split for declarations.
+_NAME_ORIGIN_ATTRS = ("DW_AT_abstract_origin", "DW_AT_specification")
+
+
+def _die_name(die, _seen: Optional[frozenset] = None) -> Optional[str]:
+    """Return the decoded DW_AT_name of a DIE, following abstract-origin/specification links, or None."""
     name_attr = die.attributes.get("DW_AT_name")
-    return name_attr.value.decode() if name_attr else None
+    if name_attr is not None:
+        return name_attr.value.decode()
+    seen = (_seen or frozenset()) | {die.offset}  # guard against reference cycles in malformed DWARF
+    for attr in _NAME_ORIGIN_ATTRS:
+        if attr not in die.attributes:
+            continue
+        try:
+            referenced = die.get_DIE_from_attribute(attr)
+        except Exception:  # unresolvable reference: try the next link
+            continue
+        if referenced.offset not in seen:
+            name = _die_name(referenced, seen)
+            if name is not None:
+                return name
+    return None
 
 
 def _walk_locals(die) -> Iterator:
@@ -185,6 +208,7 @@ class _DwarfParser:
         self._dwarf = elf.get_dwarf_info()
         self._arch: str = elf.get_machine_arch()
         self._cfa_delta: int = _CFA_DELTA_BY_ARCH.get(self._arch, 8)
+        self._frame_pointer: Optional[str] = _FRAME_POINTER_BY_ARCH.get(self._arch)
         self._location_parser = LocationParser(self._dwarf.location_lists())
 
     def parse(self) -> Dict[str, DwarfFunction]:
@@ -193,14 +217,25 @@ class _DwarfParser:
         for compilation_unit in self._dwarf.iter_CUs():
             expr_parser = DWARFExprParser(compilation_unit.structs)
             dwarf_version = compilation_unit["version"]
+            loclist_base = self._compilation_unit_base(compilation_unit)
             for die in compilation_unit.iter_DIEs():
-                parsed = self._parse_subprogram(die, expr_parser, dwarf_version)
+                parsed = self._parse_subprogram(die, expr_parser, dwarf_version, loclist_base)
                 if parsed is not None:
                     name, function = parsed
                     functions[name] = function
         return functions
 
-    def _parse_subprogram(self, die, expr_parser, dwarf_version) -> Optional[Tuple[str, DwarfFunction]]:
+    @staticmethod
+    def _compilation_unit_base(compilation_unit) -> int:
+        """The base address location-list offsets are relative to: the CU's DW_AT_low_pc (0 if absent).
+
+        Offsets are relative to the compilation unit's base, not the enclosing function's; using the
+        function's low_pc shifts every range and matches only the function that sits at the CU base.
+        """
+        low_pc = compilation_unit.get_top_DIE().attributes.get("DW_AT_low_pc")
+        return low_pc.value if low_pc is not None else 0
+
+    def _parse_subprogram(self, die, expr_parser, dwarf_version, loclist_base) -> Optional[Tuple[str, DwarfFunction]]:
         """Parse one DW_TAG_subprogram DIE into (name, DwarfFunction), or None if it is not a named function."""
         if die.tag != "DW_TAG_subprogram":
             return None
@@ -208,22 +243,23 @@ class _DwarfParser:
         name = _die_name(die)
         if low_pc is None or name is None:
             return None
-        variables = tuple(self._parse_locals(die, expr_parser, dwarf_version, low_pc.value))
+        variables = tuple(self._parse_locals(die, expr_parser, dwarf_version, loclist_base))
         return name, DwarfFunction(low_pc.value, variables)
 
-    def _parse_locals(self, die, expr_parser, dwarf_version, low_pc) -> Iterator[DwarfVariable]:
+    def _parse_locals(self, die, expr_parser, dwarf_version, loclist_base) -> Iterator[DwarfVariable]:
         """Yield the named local variables and parameters of a subprogram that have a resolvable location."""
         for local_die in _walk_locals(die):
-            location = self._location_of(local_die, expr_parser, dwarf_version, low_pc)
+            location = self._location_of(local_die, expr_parser, dwarf_version, loclist_base)
             name = _die_name(local_die)
             if name is not None and location is not None:
                 yield DwarfVariable(name, location)
 
-    def _location_of(self, die, expr_parser, dwarf_version, low_pc) -> Optional[VariableLocation]:
+    def _location_of(self, die, expr_parser, dwarf_version, loclist_base) -> Optional[VariableLocation]:
         """Parse a variable's DW_AT_location into a VariableLocation, or None if it has no matchable storage.
 
         A DW_AT_location is either a single expression (one location for the whole function) or a
-        location list (the variable moves between locations over PC ranges, made absolute against low_pc).
+        location list (the variable moves between locations over PC ranges, made absolute against the
+        compilation-unit base address - see _compilation_unit_base).
         """
         location_attr = die.attributes.get("DW_AT_location")
         if location_attr is None or not self._location_parser.attribute_has_location(location_attr, dwarf_version):
@@ -232,11 +268,11 @@ class _DwarfParser:
         if isinstance(parsed_location, LocationExpr):
             storage = self._decode_storage(expr_parser.parse_expr(parsed_location.loc_expr))
             return FixedLocation(storage) if storage is not None else None
-        return RangedLocation(tuple(self._parse_ranges(parsed_location, expr_parser, low_pc)))
+        return RangedLocation(tuple(self._parse_ranges(parsed_location, expr_parser, loclist_base)))
 
-    def _parse_ranges(self, parsed_location, expr_parser, low_pc) -> Iterator[PcRange]:
+    def _parse_ranges(self, parsed_location, expr_parser, loclist_base) -> Iterator[PcRange]:
         """Yield the PC ranges of a location list, resolving each range's storage descriptor."""
-        base_address = low_pc
+        base_address = loclist_base
         for entry in parsed_location:
             if isinstance(entry, BaseAddressEntry):
                 base_address = entry.base_address
@@ -251,7 +287,7 @@ class _DwarfParser:
         """Decode a parsed DWARF location expression into a StorageLocation, or None if it has no matchable storage.
 
         Returns None for an empty expression, a computed/implicit value with no storage, or any form
-        we do not match here (breg / global / composite).
+        we do not match here (sp-relative breg, global, composite).
         """
         if not parsed_opcodes or any(op.op in (_OP_STACK_VALUE, _OP_IMPLICIT_VALUE) for op in parsed_opcodes):
             return None
@@ -263,7 +299,22 @@ class _DwarfParser:
                 return RegisterSlot(describe_reg_name(operation.op - _OP_REG0, self._arch))
             if operation.op == _OP_REGX:
                 return RegisterSlot(describe_reg_name(operation.args[0], self._arch))
+            if _OP_BREG0 <= operation.op <= _OP_BREG31:
+                return self._frame_pointer_slot(describe_reg_name(operation.op - _OP_BREG0, self._arch), operation.args[0])
+            if operation.op == _OP_BREGX:
+                return self._frame_pointer_slot(describe_reg_name(operation.args[0], self._arch), operation.args[1])
         return None
+
+    def _frame_pointer_slot(self, register_name: str, offset: int) -> Optional[StackSlot]:
+        """A DW_OP_breg off the frame pointer as a StackSlot in BN's SP-at-entry convention, else None.
+
+        With the standard prologue the frame pointer sits one pointer-slot (== _cfa_delta) below
+        SP-at-entry, so frame_pointer + off is at SP-at-entry + (off - _cfa_delta). Off any other
+        register (e.g. sp-relative) we do not track the per-PC frame state, so it stays unmatched.
+        """
+        if self._frame_pointer is None or register_name != self._frame_pointer:
+            return None
+        return StackSlot(offset - self._cfa_delta)
 
 
 class DwarfVariableResolver:
