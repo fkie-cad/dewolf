@@ -121,27 +121,40 @@ int main(int argc, char** argv) {
 
 
 def _has_anonymous_concrete_instance(path: str, function_name: str) -> bool:
-    """True if the DWARF has a subprogram with low_pc but no direct name resolving to `function_name`.
+    """True if the DWARF has a subprogram with low_pc, no direct name, whose abstract origin is `function_name`.
 
-    The concrete-out-of-line-instance shape the fix handles; a precondition so the test skips rather
-    than passes vacuously where the compiler did not produce it.
+    The concrete-out-of-line-instance shape the fix handles. Resolves the origin name here (not via the
+    code under test) so reverting the fix makes the guarded test fail rather than silently skip.
     """
     elffile = pytest.importorskip("elftools.elf.elffile")
+
+    def origin_name(die):
+        for attr in ("DW_AT_abstract_origin", "DW_AT_specification"):
+            if attr in die.attributes:
+                referenced = die.get_DIE_from_attribute(attr)
+                direct = referenced.attributes.get("DW_AT_name")
+                return direct.value.decode() if direct else origin_name(referenced)
+        return None
+
     with open(path, "rb") as handle:
         dwarf = elffile.ELFFile(handle).get_dwarf_info()
         for unit in dwarf.iter_CUs():
             for die in unit.iter_DIEs():
-                if die.tag != "DW_TAG_subprogram":
-                    continue
                 attributes = die.attributes
-                if "DW_AT_low_pc" in attributes and "DW_AT_name" not in attributes and _die_name(die) == function_name:
+                if die.tag != "DW_TAG_subprogram" or "DW_AT_low_pc" not in attributes or "DW_AT_name" in attributes:
+                    continue
+                if origin_name(die) == function_name:
                     return True
     return False
 
 
-@pytest.fixture(scope="module")
-def inline_binary(tmp_path_factory):
-    """Compile the inline sample with gcc -O2 -g; skip if the toolchain is unavailable or fails."""
+@pytest.fixture(scope="module", params=["-g", "-gdwarf-4"], ids=["default", "dwarf4"])
+def inline_binary(request, tmp_path_factory):
+    """Compile the inline sample with gcc -O2 at the requested debug flag; skip if the toolchain fails.
+
+    Parametrized over the toolchain default and explicit DWARF 4 - the latter is what exposed the
+    location-list base-address bug (its .debug_loc uses base-relative entries with no base selection).
+    """
     pytest.importorskip("elftools")
     if shutil.which("gcc") is None:
         pytest.skip("gcc not available")
@@ -149,9 +162,9 @@ def inline_binary(tmp_path_factory):
     source = directory / "inl.c"
     source.write_text(_INLINE_SOURCE)
     out = directory / "inl.g"
-    result = subprocess.run(["gcc", "-g", "-O2", "-o", str(out), str(source)], capture_output=True)
+    result = subprocess.run(["gcc", request.param, "-O2", "-o", str(out), str(source)], capture_output=True)
     if result.returncode != 0 or not out.exists():
-        pytest.skip(f"could not build inline debug binary: {result.stderr.decode()[:200]}")
+        pytest.skip(f"could not build inline binary with {request.param}: {result.stderr.decode()[:200]}")
     if out.read_bytes()[:4] != b"\x7fELF":  # macOS 'gcc' is clang -> Mach-O, which this ELF/DWARF path cannot read
         pytest.skip("compiler did not produce an ELF binary")
     return str(out)
