@@ -145,15 +145,58 @@ class FunctionReport:
         """Number of (output name, lifted SSA variable) records in this function."""
         return len(self.matches)
 
+    _KIND_PRIORITY = (MatchKind.DWARF_LOCAL, MatchKind.DWARF_GLOBAL, MatchKind.CONST_STRING, MatchKind.UNMATCHED)
+
     def tally_by_kind(self) -> DefaultDict[MatchKind, KindTally]:
-        """Matched/total per kind, so the renaming score (dwarf-local) is not diluted by
-        trivially-matched string constants (const-string) or globals (dwarf-global)."""
+        """Matched/total per kind at the SSA-variable granularity (one record per lifted SSA
+        variable), so the renaming score (dwarf-local) is not diluted by trivially-matched string
+        constants (const-string) or globals (dwarf-global).
+
+        This is the fine-grained view: it asks how well provenance propagated across SSA versions,
+        counting each SSA variable an out-of-SSA name merged. It understates how well the *final*
+        variables map to sources, because out-of-SSA coalesces register copies and other nameless
+        intermediates - which were never source variables - into a named variable; see
+        tally_by_output_name() for the output-variable view.
+        """
         tallies: DefaultDict[MatchKind, KindTally] = defaultdict(KindTally)
         for match in self.matches:
             tallies[match.kind].total += 1
             if match.source is not None:
                 tallies[match.kind].matched += 1
         return tallies
+
+    def tally_by_output_name(self) -> DefaultDict[MatchKind, KindTally]:
+        """Matched/total per kind at the output-variable granularity: one out-of-SSA name counted
+        once, matched if *any* SSA variable merged into it carries a source.
+
+        This is the recall view - "does the final decompiled variable correspond to a source
+        variable" - and is the fairer renaming score: out-of-SSA copies stuff through registers and
+        renames it, so a single named variable legitimately absorbs several nameless intermediates;
+        the per-SSA-variable tally would score each of those as a miss. A name that merges *different*
+        sources still counts as one matched name here (recall), and the resulting imprecision is
+        reported separately by overmerged(). Each name is bucketed under the highest-priority kind
+        among its matched records, or UNMATCHED if none matched.
+        """
+        by_name: DefaultDict[str, List[VariableMatch]] = defaultdict(list)
+        for match in self.matches:
+            by_name[match.variable].append(match)
+        tallies: DefaultDict[MatchKind, KindTally] = defaultdict(KindTally)
+        for group in by_name.values():
+            kind = self._representative_kind(group)
+            tallies[kind].total += 1
+            if kind is not MatchKind.UNMATCHED:
+                tallies[kind].matched += 1
+        return tallies
+
+    @classmethod
+    def _representative_kind(cls, group: List[VariableMatch]) -> MatchKind:
+        """The kind an output name is bucketed under: the highest-priority kind among its matched
+        records, or UNMATCHED when the name has no matched record at all."""
+        matched_kinds = {match.kind for match in group if match.source is not None}
+        for kind in cls._KIND_PRIORITY:
+            if kind in matched_kinds:
+                return kind
+        return MatchKind.UNMATCHED
 
     def initial_matching(self) -> Dict[str, List[str]]:
         """The DWARF source name(s) attached to each variable right after preprocessing, before the
@@ -439,7 +482,10 @@ class TextReportRenderer:
         print(f"\n## {report.name}")
         self._render_initial_matching(report.initial_matching())
         self._render_matches(report.matches)
+        print("  ### SSA-variable matching (per lifted SSA variable)")
         self._render_tally(report.tally_by_kind())
+        print("  ### output-variable matching (per out-of-SSA name; matched if any SSA variable matched)")
+        self._render_tally(report.tally_by_output_name())
         self._render_collisions("over-merged variables (one name -> multiple source variables)", report.overmerged())
         self._render_collisions("under-merged variables (one source variable -> multiple names)", report.undermerged())
         self._render_collisions("conflicts (one SSA variable -> multiple source variables)", report.conflicts())
@@ -511,6 +557,7 @@ class JsonReportSerializer:
             "matched": report.matched,
             "total": report.total,
             "by_kind": self._tally_to_dict(report.tally_by_kind()),
+            "by_output_name": self._tally_to_dict(report.tally_by_output_name()),
             "overmerged": report.overmerged(),
             "undermerged": report.undermerged(),
             "conflicts": report.conflicts(),
