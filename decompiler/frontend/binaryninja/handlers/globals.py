@@ -156,7 +156,8 @@ class GlobalHandler(Handler):
         Any failure is swallowed - provenance is optional metadata and must not break global lifting.
         """
         try:
-            source_name = self._lifter.dwarf.global_source_name(addr)
+            load_base = self._view.start if self._view is not None else None
+            source_name = self._lifter.dwarf.global_source_name(addr, load_base)
         except Exception:
             return None
         return VariableProvenance(source_name=source_name) if source_name is not None else None

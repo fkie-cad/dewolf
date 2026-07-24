@@ -375,4 +375,38 @@ def test_parameter_name_by_index_guarded_on_count_mismatch():
 def test_parameter_name_by_index_unknown_function_or_out_of_range():
     resolver = _resolver_with("f", ("v1", "v2"))
     assert resolver.parameter_name_by_index("missing", 0, 2) is None
+
+
+# --------------------------------------------------------------------------------------------- #
+# Global address matching: a global's DWARF location is an absolute address, so the disassembler's
+# load address must be subtracted (a PIE is mapped at a different base than the DWARF addresses).
+# --------------------------------------------------------------------------------------------- #
+
+
+def _resolver_with_globals(globals_by_address: dict, image_base: int):
+    from decompiler.frontend.binaryninja.dwarf import DwarfVariableResolver
+
+    resolver = DwarfVariableResolver(None)  # inert: no binary is opened
+    resolver._globals = globals_by_address
+    resolver._image_base = image_base
+    return resolver
+
+
+def test_global_source_name_without_load_base_looks_up_as_is():
+    resolver = _resolver_with_globals({0x50BE: "nl"}, image_base=0)
+    assert resolver.global_source_name(0x50BE) == "nl"
+    assert resolver.global_source_name(0x9999) is None
+    assert resolver.global_source_name(None) is None
+
+
+def test_global_source_name_subtracts_pie_load_bias():
+    """A PIE (DWARF image base 0) mapped at 0x400000: the disassembler address is dwarf_addr + bias."""
+    resolver = _resolver_with_globals({0x50BE: "nl"}, image_base=0)
+    assert resolver.global_source_name(0x4050BE, load_base=0x400000) == "nl"  # 0x4050be - (0x400000 - 0) == 0x50be
+
+
+def test_global_source_name_zero_bias_when_load_base_matches_image_base():
+    """A non-PIE (load address == DWARF image base) has zero bias, so the address is unchanged."""
+    resolver = _resolver_with_globals({0x400500: "g"}, image_base=0x400000)
+    assert resolver.global_source_name(0x400500, load_base=0x400000) == "g"
     assert resolver.parameter_name_by_index("f", 5, 2) is None

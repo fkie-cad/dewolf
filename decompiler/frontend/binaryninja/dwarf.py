@@ -222,7 +222,20 @@ class _DwarfParser:
         self._arch: str = elf.get_machine_arch()
         self._cfa_delta: int = _CFA_DELTA_BY_ARCH.get(self._arch, 8)
         self._frame_pointer: Optional[str] = _FRAME_POINTER_BY_ARCH.get(self._arch)
+        self._image_base: int = self._elf_image_base(elf)
         self._location_parser = LocationParser(self._dwarf.location_lists())
+
+    @staticmethod
+    def _elf_image_base(elf: ELFFile) -> int:
+        """The base address DWARF addresses are relative to: the lowest PT_LOAD segment vaddr (0 if none).
+
+        For a PIE this is 0, while the disassembler maps the image at its own load address; the
+        difference is the load bias applied when matching a global (see global_source_name). For a
+        non-PIE the segment vaddrs are the final addresses, so this equals the load address and the
+        bias is zero.
+        """
+        load_vaddrs = [segment["p_vaddr"] for segment in elf.iter_segments() if segment["p_type"] == "PT_LOAD"]
+        return min(load_vaddrs) if load_vaddrs else 0
 
     def parse(self) -> Dict[str, DwarfFunction]:
         """Parse every named subprogram into a {function_name: DwarfFunction} model."""
@@ -410,11 +423,12 @@ class DwarfVariableResolver:
         :param path: filesystem path to the ELF binary, or None to build an inert resolver
         """
         self._functions: Dict[str, DwarfFunction] = {}
-        self._globals: Dict[int, str] = {}  # {absolute address: source name}
+        self._globals: Dict[int, str] = {}  # {DWARF address: source name}
+        self._image_base: int = 0  # base the DWARF addresses are relative to (see _DwarfParser._elf_image_base)
         if _DWARF_AVAILABLE and path:
             try:
                 self._functions = _parse_dwarf(path)
-                self._globals = _parse_globals(path)
+                self._image_base, self._globals = _parse_globals(path)
             except Exception as exc:  # never let ground-truth parsing break lifting
                 logging.warning(f"DWARF parsing failed for {path}: {exc}")
 
@@ -429,13 +443,19 @@ class DwarfVariableResolver:
         """True if DWARF was parsed and at least one function's variables or a global is known."""
         return bool(self._functions or self._globals)
 
-    def global_source_name(self, address: Optional[int]) -> Optional[str]:
+    def global_source_name(self, address: Optional[int], load_base: Optional[int] = None) -> Optional[str]:
         """Return the DWARF source name of the global variable at `address`, or None if unknown.
 
-        :param address: the absolute address of a lifted GlobalVariable
+        :param address: the disassembler address of a lifted GlobalVariable
+        :param load_base: the disassembler's image load address; when given, the load bias
+            (load_base - the DWARF image base) is subtracted so a PIE mapped at a different address
+            still lines up with the DWARF addresses, mirroring the function-address translation in
+            _dwarf_pc. When None the address is looked up as-is.
         """
         if address is None:
             return None
+        if load_base is not None:
+            address -= load_base - self._image_base
         return self._globals.get(address)
 
     def source_name(self, origin, function_name: str, register_name=None) -> Optional[str]:
@@ -493,10 +513,11 @@ def _parse_dwarf(path: str) -> Dict[str, DwarfFunction]:
         return _DwarfParser(elf_file).parse()
 
 
-def _parse_globals(path: str) -> Dict[int, str]:
-    """Open an ELF binary and parse its DWARF into the {global address: name} model (empty if none)."""
+def _parse_globals(path: str) -> Tuple[int, Dict[int, str]]:
+    """Open an ELF binary and parse its DWARF into (image base, {global address: name}) (empty if none)."""
     with open(path, "rb") as file_handle:
         elf_file = ELFFile(file_handle)
         if not elf_file.has_dwarf_info():
-            return {}
-        return _DwarfParser(elf_file).parse_globals()
+            return 0, {}
+        parser = _DwarfParser(elf_file)
+        return parser._image_base, parser.parse_globals()
