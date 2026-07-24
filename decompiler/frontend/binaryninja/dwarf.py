@@ -198,10 +198,9 @@ def _parameter_names(die) -> Tuple[Optional[str], ...]:
     """Return a subprogram's formal-parameter names in declaration order (None for any unnamed one).
 
     Direct DW_TAG_formal_parameter children only (never descending into lexical blocks), so the order
-    lines up with the disassembler's parameter list. Used to name an incoming register parameter by its
-    position - see DwarfVariableResolver.parameter_name_by_index - because DWARF records no location for
-    the ABI register a parameter arrives in (only its stack home at -O0). Unnamed positions are kept as
-    None so the index stays aligned with the disassembler's list.
+    lines up with the disassembler's parameter list. Consumed by
+    DwarfVariableResolver.parameter_name_by_index, which names a parameter by its position; unnamed
+    positions are kept as None so the index stays aligned with the disassembler's list.
     """
     return tuple(_die_name(child) for child in die.iter_children() if child.tag == "DW_TAG_formal_parameter")
 
@@ -262,13 +261,39 @@ class _DwarfParser:
 
     def _parse_locals(self, die, expr_parser, dwarf_version, loclist_base) -> Iterator[DwarfVariable]:
         """Yield the named local variables and parameters of a subprogram that have a resolvable location."""
+        frame_base_register = self._frame_base_register(die, expr_parser)
         for local_die in _walk_locals(die):
-            location = self._location_of(local_die, expr_parser, dwarf_version, loclist_base)
+            location = self._location_of(local_die, expr_parser, dwarf_version, loclist_base, frame_base_register)
             name = _die_name(local_die)
             if name is not None and location is not None:
                 yield DwarfVariable(name, location)
 
-    def _location_of(self, die, expr_parser, dwarf_version, loclist_base) -> Optional[VariableLocation]:
+    def _frame_base_register(self, die, expr_parser) -> Optional[str]:
+        """Return the register a subprogram's DW_AT_frame_base is expressed off, or None for a CFA frame base.
+
+        DW_AT_frame_base takes one of two forms. DW_OP_call_frame_cfa (emitted by GCC) has no register:
+        this returns None and DW_OP_fbreg offsets are taken relative to the CFA. DW_OP_reg<n> (emitted by
+        clang, typically rbp) names a register: this returns its name and DW_OP_fbreg offsets are taken
+        relative to it, exactly like a DW_OP_breg off the same register (see _frame_pointer_slot). An absent
+        or non-register frame base uses the CFA convention.
+        """
+        frame_base_attr = die.attributes.get("DW_AT_frame_base")
+        if frame_base_attr is None:
+            return None
+        try:
+            opcodes = expr_parser.parse_expr(frame_base_attr.value)
+        except Exception:
+            return None
+        if len(opcodes) != 1:
+            return None
+        operation = opcodes[0]
+        if _OP_REG0 <= operation.op <= _OP_REG31:
+            return describe_reg_name(operation.op - _OP_REG0, self._arch)
+        if operation.op == _OP_REGX:
+            return describe_reg_name(operation.args[0], self._arch)
+        return None  # DW_OP_call_frame_cfa or anything else: use the CFA convention
+
+    def _location_of(self, die, expr_parser, dwarf_version, loclist_base, frame_base_register) -> Optional[VariableLocation]:
         """Parse a variable's DW_AT_location into a VariableLocation, or None if it has no matchable storage.
 
         A DW_AT_location is either a single expression (one location for the whole function) or a
@@ -280,11 +305,11 @@ class _DwarfParser:
             return None
         parsed_location = self._location_parser.parse_from_attribute(location_attr, dwarf_version, die=die)
         if isinstance(parsed_location, LocationExpr):
-            storage = self._decode_storage(expr_parser.parse_expr(parsed_location.loc_expr))
+            storage = self._decode_storage(expr_parser.parse_expr(parsed_location.loc_expr), frame_base_register)
             return FixedLocation(storage) if storage is not None else None
-        return RangedLocation(tuple(self._parse_ranges(parsed_location, expr_parser, loclist_base)))
+        return RangedLocation(tuple(self._parse_ranges(parsed_location, expr_parser, loclist_base, frame_base_register)))
 
-    def _parse_ranges(self, parsed_location, expr_parser, loclist_base) -> Iterator[PcRange]:
+    def _parse_ranges(self, parsed_location, expr_parser, loclist_base, frame_base_register) -> Iterator[PcRange]:
         """Yield the PC ranges of a location list, resolving each range's storage descriptor."""
         base_address = loclist_base
         for entry in parsed_location:
@@ -295,9 +320,9 @@ class _DwarfParser:
                 low, high = entry.begin_offset, entry.end_offset
             else:
                 low, high = base_address + entry.begin_offset, base_address + entry.end_offset
-            yield PcRange(low, high, self._decode_storage(expr_parser.parse_expr(entry.loc_expr)))
+            yield PcRange(low, high, self._decode_storage(expr_parser.parse_expr(entry.loc_expr), frame_base_register))
 
-    def _decode_storage(self, parsed_opcodes) -> Optional[StorageLocation]:
+    def _decode_storage(self, parsed_opcodes, frame_base_register: Optional[str] = None) -> Optional[StorageLocation]:
         """Decode a parsed DWARF location expression into a StorageLocation, or None if it has no matchable storage.
 
         Returns None for an empty expression, a computed/implicit value with no storage, or any form
@@ -308,6 +333,10 @@ class _DwarfParser:
         if len(parsed_opcodes) == 1:
             operation = parsed_opcodes[0]
             if operation.op == _OP_FBREG:
+                # DW_OP_fbreg is relative to the subprogram's frame base. Off a register (clang's rbp) it is
+                # identical to a DW_OP_breg off that register; off the CFA (GCC) it uses the CFA convention.
+                if frame_base_register is not None:
+                    return self._frame_pointer_slot(frame_base_register, operation.args[0])
                 return StackSlot(operation.args[0] + self._cfa_delta)
             if _OP_REG0 <= operation.op <= _OP_REG31:
                 return RegisterSlot(describe_reg_name(operation.op - _OP_REG0, self._arch))
@@ -432,14 +461,10 @@ class DwarfVariableResolver:
     def parameter_name_by_index(self, function_name: str, index: int, parameter_count: int) -> Optional[str]:
         """Return the DWARF name of the parameter at position `index`, or None.
 
-        A fallback for a parameter that has no matchable DWARF location - an incoming ABI register:
-        DWARF records only a parameter's stack home (at -O0), never the register it arrives in, so
-        location matching (source_name) cannot reach it. The disassembler has already resolved the
-        calling convention, so its parameter list is in the same declaration order as the DWARF
-        formal parameters and the position lines up.
-
-        Guarded so it never guesses: returns None unless the DWARF and disassembler parameter counts
-        agree (so the lists are known to align) and the position is in range and named.
+        Names a parameter by its position rather than by a machine location: the disassembler resolves
+        the calling convention, so its parameter list is in the same declaration order as the DWARF
+        formal parameters and the index lines up. Returns None unless the DWARF and disassembler
+        parameter counts agree (so the lists align) and the position is in range and named.
         """
         function = self._functions.get(function_name)
         if function is None or len(function.parameters) != parameter_count:

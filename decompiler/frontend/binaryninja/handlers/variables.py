@@ -111,13 +111,13 @@ class VariableHandler(Handler):
             return None
 
     def _parameter_source_name_by_index(self, origin: VariableProvenance, bnv: bVariable, function) -> Optional[str]:
-        """Name an incoming register parameter by its position among the function's parameters.
+        """Name a register parameter by its position among the function's parameters.
 
-        A parameter passed in a register has no DWARF location of its own (DWARF records only its stack
-        home at -O0), so location matching cannot reach it and the source name is otherwise lost when the
-        stack home is propagated away. Binary Ninja has already resolved the calling convention, so the
-        parameter's index in function.parameter_vars lines up with the DWARF formal-parameter order; the
-        count-equality guard lives in DwarfVariableResolver.parameter_name_by_index.
+        Applies to register-typed parameters. Binary Ninja resolves the calling convention, so the
+        parameter's index in function.parameter_vars lines up with the DWARF formal-parameter order and
+        the position gives its source name. The parameter is identified by Binary Ninja variable
+        equality, so this fires for the parameter itself and not for later reuses of the same register;
+        the count-equality guard lives in DwarfVariableResolver.parameter_name_by_index.
         """
         if origin.source_type != "RegisterVariableSourceType":
             return None

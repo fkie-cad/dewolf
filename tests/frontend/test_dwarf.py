@@ -287,6 +287,16 @@ def test_decode_frame_base_and_register_still_work():
     assert parser._decode_storage([_Op(0x56)]) == RegisterSlot("rbp")  # DW_OP_reg6 -> rbp
 
 
+def test_decode_fbreg_off_frame_pointer_register():
+    """With a register frame base (clang's rbp) DW_OP_fbreg is relative to it, not the CFA (verified against BN)."""
+    from decompiler.frontend.binaryninja.dwarf import StackSlot
+
+    parser = _x64_parser()
+    # clang emits DW_AT_frame_base = DW_OP_reg6 (rbp); DW_OP_fbreg then means rbp + off -> off - cfa_delta.
+    assert parser._decode_storage([_Op(0x91, (-8,))], "rbp") == StackSlot(-16)  # main's argc slot
+    assert parser._decode_storage([_Op(0x91, (-28,))], "rbp") == StackSlot(-36)  # main's local_iter slot
+
+
 def test_decode_computed_value_is_unmatched():
     """A location ending in DW_OP_stack_value is a computed value living nowhere, so it decodes to None."""
     parser = _x64_parser()
