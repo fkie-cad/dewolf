@@ -292,3 +292,77 @@ def test_decode_computed_value_is_unmatched():
     parser = _x64_parser()
     # DW_OP_breg6 -96; DW_OP_deref; DW_OP_stack_value  -> a pointer computation, not a stored slot
     assert parser._decode_storage([_Op(0x76, (-96,)), _Op(0x06), _Op(0x9F)]) is None
+
+
+# --------------------------------------------------------------------------------------------- #
+# Ordinal parameter fallback (Solution 3): a register parameter has no DWARF location of its own,
+# so it is named by its position among the function's parameters. Exercises _parameter_names and
+# the guarded DwarfVariableResolver.parameter_name_by_index directly (no binary).
+# --------------------------------------------------------------------------------------------- #
+
+
+@dataclass
+class _ParamDie:
+    """Minimal subprogram/child DIE stub: a tag, an optional name, and ordered children."""
+
+    tag: str
+    name: Optional[str] = None
+    children: tuple = ()
+    offset: int = 0
+
+    @property
+    def attributes(self) -> Dict[str, object]:
+        return {"DW_AT_name": _Attr(self.name.encode())} if self.name is not None else {}
+
+    def iter_children(self):
+        return iter(self.children)
+
+
+def _subprogram(*children: _ParamDie) -> _ParamDie:
+    return _ParamDie("DW_TAG_subprogram", children=children)
+
+
+def test_parameter_names_in_declaration_order():
+    """Only direct formal-parameter children are collected, in order; locals are ignored."""
+    from decompiler.frontend.binaryninja.dwarf import _parameter_names
+
+    die = _subprogram(
+        _ParamDie("DW_TAG_formal_parameter", "v1"),
+        _ParamDie("DW_TAG_formal_parameter", "v2"),
+        _ParamDie("DW_TAG_variable", "local"),
+    )
+    assert _parameter_names(die) == ("v1", "v2")
+
+
+def test_parameter_names_keeps_unnamed_position_as_none():
+    """An unnamed parameter stays as None so positions remain aligned with the disassembler's list."""
+    from decompiler.frontend.binaryninja.dwarf import _parameter_names
+
+    die = _subprogram(_ParamDie("DW_TAG_formal_parameter", "v1"), _ParamDie("DW_TAG_formal_parameter"))
+    assert _parameter_names(die) == ("v1", None)
+
+
+def _resolver_with(function_name: str, parameters: tuple):
+    from decompiler.frontend.binaryninja.dwarf import DwarfFunction, DwarfVariableResolver
+
+    resolver = DwarfVariableResolver(None)  # inert: no binary is opened
+    resolver._functions = {function_name: DwarfFunction(0, (), parameters)}
+    return resolver
+
+
+def test_parameter_name_by_index_returns_positional_name():
+    resolver = _resolver_with("f", ("v1", "v2"))
+    assert resolver.parameter_name_by_index("f", 0, 2) == "v1"
+    assert resolver.parameter_name_by_index("f", 1, 2) == "v2"
+
+
+def test_parameter_name_by_index_guarded_on_count_mismatch():
+    """Differing DWARF/disassembler parameter counts mean the lists may not align, so it never guesses."""
+    resolver = _resolver_with("f", ("v1", "v2"))
+    assert resolver.parameter_name_by_index("f", 0, 3) is None
+
+
+def test_parameter_name_by_index_unknown_function_or_out_of_range():
+    resolver = _resolver_with("f", ("v1", "v2"))
+    assert resolver.parameter_name_by_index("missing", 0, 2) is None
+    assert resolver.parameter_name_by_index("f", 5, 2) is None

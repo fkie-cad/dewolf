@@ -165,6 +165,7 @@ class DwarfFunction:
 
     low_pc: int
     variables: Tuple[DwarfVariable, ...]
+    parameters: Tuple[Optional[str], ...] = ()  # formal-parameter names in declaration order (None for any unnamed one)
 
 
 # Reference attributes carrying the name of a DIE with none of its own: a concrete instance of an
@@ -191,6 +192,18 @@ def _die_name(die, _seen: Optional[frozenset] = None) -> Optional[str]:
             if name is not None:
                 return name
     return None
+
+
+def _parameter_names(die) -> Tuple[Optional[str], ...]:
+    """Return a subprogram's formal-parameter names in declaration order (None for any unnamed one).
+
+    Direct DW_TAG_formal_parameter children only (never descending into lexical blocks), so the order
+    lines up with the disassembler's parameter list. Used to name an incoming register parameter by its
+    position - see DwarfVariableResolver.parameter_name_by_index - because DWARF records no location for
+    the ABI register a parameter arrives in (only its stack home at -O0). Unnamed positions are kept as
+    None so the index stays aligned with the disassembler's list.
+    """
+    return tuple(_die_name(child) for child in die.iter_children() if child.tag == "DW_TAG_formal_parameter")
 
 
 def _walk_locals(die) -> Iterator:
@@ -245,7 +258,7 @@ class _DwarfParser:
         if low_pc is None or name is None:
             return None
         variables = tuple(self._parse_locals(die, expr_parser, dwarf_version, loclist_base))
-        return name, DwarfFunction(low_pc.value, variables)
+        return name, DwarfFunction(low_pc.value, variables, _parameter_names(die))
 
     def _parse_locals(self, die, expr_parser, dwarf_version, loclist_base) -> Iterator[DwarfVariable]:
         """Yield the named local variables and parameters of a subprogram that have a resolvable location."""
@@ -414,6 +427,25 @@ class DwarfVariableResolver:
             storage = variable.location.storage_at(dwarf_pc)
             if storage is not None and storage.matches(lifted):
                 return variable.name
+        return None
+
+    def parameter_name_by_index(self, function_name: str, index: int, parameter_count: int) -> Optional[str]:
+        """Return the DWARF name of the parameter at position `index`, or None.
+
+        A fallback for a parameter that has no matchable DWARF location - an incoming ABI register:
+        DWARF records only a parameter's stack home (at -O0), never the register it arrives in, so
+        location matching (source_name) cannot reach it. The disassembler has already resolved the
+        calling convention, so its parameter list is in the same declaration order as the DWARF
+        formal parameters and the position lines up.
+
+        Guarded so it never guesses: returns None unless the DWARF and disassembler parameter counts
+        agree (so the lists are known to align) and the position is in range and named.
+        """
+        function = self._functions.get(function_name)
+        if function is None or len(function.parameters) != parameter_count:
+            return None
+        if 0 <= index < len(function.parameters):
+            return function.parameters[index]
         return None
 
     @staticmethod

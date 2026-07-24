@@ -103,9 +103,31 @@ class VariableHandler(Handler):
             function = bnv.function
             if function is None:
                 return None
-            return self._lifter.dwarf.source_name(origin, function.name, self._lifter.bv.arch.get_reg_name)
+            name = self._lifter.dwarf.source_name(origin, function.name, self._lifter.bv.arch.get_reg_name)
+            if name is not None:
+                return name
+            return self._parameter_source_name_by_index(origin, bnv, function)
         except Exception:
             return None
+
+    def _parameter_source_name_by_index(self, origin: VariableProvenance, bnv: bVariable, function) -> Optional[str]:
+        """Name an incoming register parameter by its position among the function's parameters.
+
+        A parameter passed in a register has no DWARF location of its own (DWARF records only its stack
+        home at -O0), so location matching cannot reach it and the source name is otherwise lost when the
+        stack home is propagated away. Binary Ninja has already resolved the calling convention, so the
+        parameter's index in function.parameter_vars lines up with the DWARF formal-parameter order; the
+        count-equality guard lives in DwarfVariableResolver.parameter_name_by_index.
+        """
+        if origin.source_type != "RegisterVariableSourceType":
+            return None
+        parameters = list(function.parameter_vars)
+        for index, parameter in enumerate(parameters):
+            # BN equality distinguishes the parameter from later reuses of the same register (which
+            # share its storage but are distinct variables), so this fires only for the parameter itself.
+            if parameter == bnv:
+                return self._lifter.dwarf.parameter_name_by_index(function.name, index, len(parameters))
+        return None
 
     def lift_variable_aliased(self, variable: MediumLevelILVarAliased, **kwargs) -> Variable:
         """Lift the given MediumLevelILVar_aliased operation."""
