@@ -5,6 +5,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Generator, Iterable, cast
 
+from networkx import identified_nodes
+
 from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.graphs.branches import UnconditionalEdge
@@ -349,7 +351,7 @@ class SreedharOutOfSSA:
 
         self._live_in[orig_block].discard(x)
         self._live_in[orig_block].add(x_new)
-        self._interference_graph.add_edges_from((x_new, v) for v in self._live_in[orig_block])
+        self._interference_graph.add_edges_from((x_new, v) for v in self._live_in[orig_block] if x_new is not v)
 
     def _insert_req_copy(self, phi: Phi, x: Variable, x_new: Variable) -> None:
         for orig_block in self._phi_to_orig_map[id(phi)].req_map[x]:
@@ -373,7 +375,7 @@ class SreedharOutOfSSA:
                    for succ in self._cfg.get_successors(orig_block)):
                 self._live_out[orig_block].discard(x)
 
-            self._interference_graph.add_edges_from((x_new, v) for v in self._live_out[orig_block])
+            self._interference_graph.add_edges_from((x_new, v) for v in self._live_out[orig_block] if x_new is not v)
 
     def _eliminate_phi_resource_interference(self) -> None:
         @dataclass(slots=True)
@@ -421,11 +423,25 @@ class SreedharOutOfSSA:
         self._phi_congruence_map.nullify_singletons()
 
     def _can_remove_copy(self, lhs: Variable, rhs: Variable, lpc: PhiCongruenceClass, rpc: PhiCongruenceClass) -> bool:
-        if isinstance(lhs, GlobalVariable) and isinstance(rhs, GlobalVariable) and lhs.name != rhs.name:
-            return False 
-        
+        lhs_is_global = isinstance(lhs, GlobalVariable)
+        rhs_is_global = isinstance(rhs, GlobalVariable)
+
+        # If one is a GlobalVariable but the other isn't
+        if lhs_is_global != rhs_is_global:
+            return False
+
+        # If both are GlobalVariables but names differ
+        if lhs_is_global and rhs_is_global and lhs.name != rhs.name:
+            return False
+
+        # If one is a alisased but the other isn't
+        if lhs.is_aliased != rhs.is_aliased:
+            return False
+
+        # If both are aliased but names differ
         if lhs.is_aliased and rhs.is_aliased and lhs.name != rhs.name:
             return False
+
 
         if lpc is rpc or (not lpc and not rpc):
             return True
