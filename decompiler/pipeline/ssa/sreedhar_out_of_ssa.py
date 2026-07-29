@@ -442,7 +442,6 @@ class SreedharOutOfSSA:
         if lhs.is_aliased and rhs.is_aliased and lhs.name != rhs.name:
             return False
 
-
         if lpc is rpc or (not lpc and not rpc):
             return True
 
