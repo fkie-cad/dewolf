@@ -267,6 +267,16 @@ class SreedharOutOfSSA:
                     case Assignment(destination=Variable(), value=Variable()):
                         self._assignment_helpers[block].block_assigns.add(instr)
 
+        # Remove all edges between the merged relations 
+        for k in self._phi_congruence_map.get_elements():
+            congruence_class = self._phi_congruence_map.get_class(k)
+            if len(congruence_class) < 2:
+                continue
+            
+            for a, b in itertools.combinations(congruence_class, 2):
+                if self._interference_graph.has_edge(a, b):
+                    self._interference_graph.remove_edge(a, b)
+
     def _classes_interfere(self, a: PhiCongruenceClass, b: PhiCongruenceClass) -> bool:
         if a is b:
             return False
@@ -397,7 +407,6 @@ class SreedharOutOfSSA:
     def _eliminate_phi_resource_interference(self) -> None:
 
         for phi in [i for i in self._cfg.instructions if isinstance(i, Phi)]:
-
             unresolved = {}
             candidates = InsertionOrderedSet()
             dest = self.Resource(cast(Variable, phi.destination), self._phi_to_orig_map[id(phi)].dest_bb)
