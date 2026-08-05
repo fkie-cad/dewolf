@@ -5,8 +5,6 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Generator, Iterable, cast
 
-from networkx import identified_nodes
-
 from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.graphs.branches import UnconditionalEdge
@@ -199,6 +197,11 @@ class SreedharOutOfSSA:
             if old_req != req and old_req in self.req_map:
                 self.req_map[req] = self.req_map.pop(old_req)
 
+    @dataclass(slots=True, frozen=True)
+    class Resource:
+        var: Variable
+        block: BasicBlock | None
+
     def __init__(self, task: DecompilerTask, debug_check = True):
         self._task = task
         self._debug_check = debug_check
@@ -295,7 +298,7 @@ class SreedharOutOfSSA:
 
         edges.extend(itertools.product(global_vars, local_vars))
         edges.extend((g1, g2) for g1, g2 in itertools.product(global_vars, global_vars) if g1 is not g2 and g1.name != g2.name)
-        
+
         edges.extend(itertools.product(aliased_vars, non_aliased_vars))
         edges.extend((a1, a2) for a1, a2 in itertools.product(aliased_vars, aliased_vars) if a1 is not a2 and a1.name != a2.name)
 
@@ -307,25 +310,38 @@ class SreedharOutOfSSA:
         return not var_class.isdisjoint(liveness_set)
 
     def _classify_pair(
-        self, x_i: Variable, x_j: Variable, l_i: BasicBlock | None, l_j: BasicBlock | None,
-        c_i: PhiCongruenceClass, c_j: PhiCongruenceClass, dest: Variable,
-        candidates: InsertionOrderedSet[Variable], unresolved: dict[Variable, set[Variable]]
+        self, 
+        r_i: SreedharOutOfSSA.Resource, r_j: SreedharOutOfSSA.Resource, 
+        dest: SreedharOutOfSSA.Resource,
+        candidates: InsertionOrderedSet[SreedharOutOfSSA.Resource], 
+        unresolved: dict[SreedharOutOfSSA.Resource, set[SreedharOutOfSSA.Resource]]
     ) -> None:
+
+        x_i, x_j = r_i.var, r_j.var
+        l_i, l_j = r_i.block, r_j.block
+        c_i, c_j = self._phi_congruence_map.get_class(x_i), self._phi_congruence_map.get_class(x_j)
+
+        if not self._classes_interfere(c_i, c_j):
+           return 
+
         cond_1 = self._is_live_in_context(c_j, l_i, x_i is dest)
         cond_2 = self._is_live_in_context(c_i, l_j, x_j is dest)
 
         if not cond_1 and cond_2:
-            candidates.add(x_i)
+            candidates.add(r_i)
         elif cond_1 and not cond_2:
-            candidates.add(x_j)
+            candidates.add(r_j)
         elif cond_1 and cond_2:
-            candidates.update((x_i, x_j))
+            candidates.update((r_i, r_j))
         else:
-            unresolved[x_i].add(x_j)
-            unresolved[x_j].add(x_i)
+            unresolved[r_i].add(r_j)
+            unresolved[r_j].add(r_i)
 
-    def _resolve_unresolved_neighbors(self, candidates: InsertionOrderedSet[Variable], unresolved: dict[Variable, set[Variable]]) -> None:
-        resolved: set[Variable] = set()
+    def _resolve_unresolved_neighbors(self, 
+        candidates: InsertionOrderedSet[SreedharOutOfSSA.Resource], 
+        unresolved: dict[SreedharOutOfSSA.Resource, set[SreedharOutOfSSA.Resource]]) -> None:
+
+        resolved: set[SreedharOutOfSSA.Resource] = set()
         for x in sorted(unresolved.keys(), key=lambda k: len(unresolved[k]), reverse=True):
             if not unresolved[x].issubset(resolved):
                 candidates.add(x)
@@ -377,40 +393,36 @@ class SreedharOutOfSSA:
 
             self._interference_graph.add_edges_from((x_new, v) for v in self._live_out[orig_block] if x_new is not v)
 
+
     def _eliminate_phi_resource_interference(self) -> None:
-        @dataclass(slots=True)
-        class Resource:
-            var: Variable
-            block: BasicBlock | None
 
         for phi in [i for i in self._cfg.instructions if isinstance(i, Phi)]:
 
-            dest = cast(Variable, phi.destination)
-            resources = [Resource(dest, self._phi_to_orig_map[id(phi)].dest_bb)]
+            unresolved = {}
+            candidates = InsertionOrderedSet()
+            dest = self.Resource(cast(Variable, phi.destination), self._phi_to_orig_map[id(phi)].dest_bb)
 
-            for req in phi.requirements:
-                resources.extend(Resource(req, b) for b in self._phi_to_orig_map[id(phi)].req_map[req])
-
-            candidates: InsertionOrderedSet[Variable] = InsertionOrderedSet()
-            unresolved = {req: set() for req in phi.requirements if isinstance(req, Variable)}
             unresolved[dest] = set()
+            for req in phi.requirements:
+                for b in self._phi_to_orig_map[id(phi)].req_map[req]:
+                    unresolved[self.Resource(req, b)] = set()
 
-            for r_i, r_j in itertools.combinations(resources, 2):
-                c_i, c_j = self._phi_congruence_map.get_class(r_i.var), self._phi_congruence_map.get_class(r_j.var)
-                if self._classes_interfere(c_i, c_j):
-                    self._classify_pair(r_i.var, r_j.var, r_i.block, r_j.block, c_i, c_j, dest, candidates, unresolved)
+            for r_i, r_j in itertools.combinations(unresolved.keys(), 2):
+                self._classify_pair(r_i, r_j, dest, candidates, unresolved)
 
             self._resolve_unresolved_neighbors(candidates, unresolved)
             
-            for x in candidates:
+            for r in candidates:
+                x = r.var
                 x_new = self._create_copy_var(x)
                 self._phi_congruence_map.create_class(x_new)
-                if x is dest:
+
+                if r is dest:
                     self._insert_dest_copy(phi, x, x_new)
                 else:
                     self._insert_req_copy(phi, x, x_new)
 
-            k = [phi.destination] + [r for r in phi.requirements]
+            k = [cast(Variable,phi.destination)] + [r for r in phi.requirements]
             if self._debug_check:
                 for a, b in itertools.combinations(k, 2):
                     if self._interference_graph.are_interfering(a, b):
@@ -419,7 +431,6 @@ class SreedharOutOfSSA:
                         )
 
             self._phi_congruence_map.merge_classes(k)
-
         self._phi_congruence_map.nullify_singletons()
 
     def _can_remove_copy(self, lhs: Variable, rhs: Variable, lpc: PhiCongruenceClass, rpc: PhiCongruenceClass) -> bool:
