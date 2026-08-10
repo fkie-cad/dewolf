@@ -12,6 +12,7 @@ from decompiler.structures.pseudo.expressions import (
     RegisterPair,
     Symbol,
     Variable,
+    VariableProvenance,
 )
 from decompiler.structures.pseudo.typing import Float, Integer, Pointer, UnknownType
 
@@ -81,6 +82,31 @@ class TestVariable:
         assert list(Variable("v", no_type, 0)) == []
         assert list(Variable("x", i32, 5, is_aliased=True)) == []
 
+    def test_origin_defaults_to_none(self):
+        """A variable with no provenance stamped must expose origin is None (honest 'no provenance')."""
+        assert Variable("v", i32, 0).origin is None
+
+    def test_origin_not_part_of_identity(self):
+        """Provenance must NOT participate in equality/hash (Variable identity is name/label/type/aliased)."""
+        origin = VariableProvenance(source_type="StackVariableSourceType", storage=-24, def_address=0x1151, has_real_def=True)
+        with_origin = Variable("v", i32, 0, origin=origin)
+        without_origin = Variable("v", i32, 0)
+        other_origin = Variable("v", i32, 0, origin=VariableProvenance(storage=-999))
+        assert with_origin == without_origin == other_origin
+        assert hash(with_origin) == hash(without_origin) == hash(other_origin)
+        # networkx / renaming maps rely on this: equal-but-differently-stamped vars collapse in a set.
+        assert len({with_origin, without_origin, other_origin}) == 1
+
+    def test_copy_carries_origin(self):
+        """copy() must carry provenance over (this is the key pipeline propagation point)."""
+        origin = VariableProvenance(source_type="StackVariableSourceType", storage=-24, function=0x1129)
+        original = Variable("v", i32, 0, origin=origin)
+        assert original.copy().origin is origin
+        assert Variable("v", i32, 0).copy().origin is None
+        # an explicit origin override wins
+        replaced = VariableProvenance(storage=-8)
+        assert original.copy(origin=replaced).origin is replaced
+
 
 class TestGlobalVariable:
     def test_initial_value(self):
@@ -110,6 +136,12 @@ class TestGlobalVariable:
         assert copy.ssa_label == 4
         assert copy.initial_value == original.initial_value == Constant(42)
         assert copy.is_aliased and original.is_aliased
+
+    def test_copy_carries_origin(self):
+        origin = VariableProvenance(source_type="StackVariableSourceType", storage=-24)
+        original = GlobalVariable("var_1", Integer.char(), ssa_label=3, initial_value=Constant(42), origin=origin)
+        assert original.origin is origin
+        assert original.copy().origin is origin
 
     def test_initial_value_is_copied_correctly(self):
         g1 = GlobalVariable("g1", Integer.char(), ssa_label=3, initial_value=Constant(42))

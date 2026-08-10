@@ -17,10 +17,18 @@ jobs:
           echo "${{ secrets.BINJA_LICENSE }}" | base64 --decode > license.txt
       - name: Download BinayNinja.zip
         run: |
-          curl -v --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_BINJA_TOKEN }}" https://gitlab.fkie.fraunhofer.de/api/v4/projects/1250/repository/files/BinaryNinja.zip/raw?ref=main --output BinaryNinja.zip
+          curl -L --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_BINJA_TOKEN }}" "https://gitlab.fkie.fraunhofer.de/api/v4/projects/1250/repository/archive.zip?sha=Binja5" -o complete_repo.zip
       - name: Build Docker Image
         run: |
           docker build -t dewolf .
       - name: Run Tests
+        id: run_tests
         run: |
-          docker run dewolf make extendedtests
+          docker run -v "$(pwd)"/artifacts:/opt/dewolf/crash_reports dewolf make extendedtests
+      - name: Upload Crash Reports
+        if: ${{ failure() && steps.run_tests.conclusion == 'failure' }}  # Only run if previous steps fail
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-reports
+          path: artifacts/*
+          retention-days: 7 # Adjust retention as needed
