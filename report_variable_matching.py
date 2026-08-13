@@ -278,6 +278,8 @@ def extract_code(graph: ControlFlowGraph, describe: Callable[[Variable], List[st
     same rendering serves different snapshots: DWARF source names right after lifting, SSA origins
     after out-of-SSA.
     """
+    if graph is None:
+        return []
     return [
         CodeBlock(
             address=block.address,

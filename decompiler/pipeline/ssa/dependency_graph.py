@@ -12,6 +12,7 @@ from decompiler.structures.pseudo.expressions import Constant, GlobalVariable, N
 from decompiler.structures.pseudo.instructions import Assignment
 from decompiler.util.decoration import DecoratedGraph
 from networkx import MultiDiGraph, MultiGraph, to_undirected
+from itertools import product
 
 # legacy code, not used anymore, but maybe useful in the future
 #def decorate_dependency_graph(dependency_graph: MultiDiGraph, interference_graph: InterferenceGraph) -> DecoratedGraph:
@@ -37,13 +38,9 @@ from networkx import MultiDiGraph, MultiGraph, to_undirected
 
 
 def dependency_graph_from_cfg(
-    cfg: ControlFlowGraph, strong: float, mid: float, weak: float, ifg: InterferenceGraph) -> MultiGraph:
+    cfg: ControlFlowGraph, parameters: list[float], intercept: float, ifg: InterferenceGraph) -> MultiGraph:
     """
         Construct the dependency graph of the given CFG, i.e. adds an edge between two variables if they depend on each other.
-        Types of dependencies:
-        - strong: assignments of the form x = y
-        - mid: assignments of the form x = y + 5
-        - weak: everything else (e.g. x = y + z, x = y + 5 * z, x = f(y), etc.)
     """
     dependency_graph = MultiGraph()
     for variable in _collect_variables(cfg):
@@ -51,11 +48,22 @@ def dependency_graph_from_cfg(
 
     for instruction in _assignments_in_cfg(cfg):
         instruction : Assignment
-        defined_variables = instruction.definitions
-        for used_variable, scorev in _expression_dependencies(instruction.value, strong, mid, weak).items():
-            if (scorev > 0) and not (ifg.are_interfering(*defined_variables, used_variable)) and defined_variables and not (variablesAreInterfering(ifg, defined_variables[0], used_variable)):
-                for dvar in defined_variables:
-                        dependency_graph.add_edge((dvar,), (used_variable,), score=scorev)
+        lhs = instruction.destination
+        rhs = instruction.value
+
+        #Insertion and deduplication of edges in the dependency graph. If an edge already exists, we keep the one with the higher score.
+        for (a, b), scorev in _expression_dependencies(lhs, rhs, parameters, intercept):
+            a : Variable
+            b : Variable
+            scorev : float
+            
+            if (scorev > 0) and not (ifg.are_interfering(a,b)) and not (variablesAreInterfering(ifg, a, b)):
+                if dependency_graph.has_edge((a,), (b,)):
+                    exScore = dependency_graph.get_edge_data((a,), (b,),"score",0)
+                    dependency_graph.remove_edge((a,), (b,))
+                    if scorev < exScore:
+                        scorev = exScore
+                dependency_graph.add_edge((a,), (b,), score=scorev)
     return dependency_graph
 
 def variablesAreInterfering(interference_graph: InterferenceGraph, var_X: Variable,var_Y: Variable) -> bool:
@@ -93,69 +101,62 @@ def _assignments_in_cfg(cfg: ControlFlowGraph) -> Iterator[Assignment]:
             yield instr
 
 
-def _get_base_operands(expression: list[Expression]) -> list:
-    """
-    Recursively collects all base operands (variables and constants) from the given expression list.
-    expression: The right hand side of an assignment, which can be a complex expression.
-    Returns a list of base operands found in the expression.
-    """
-    islow = False
-    parts = list()
-    remains = list()
-    remains.extend(expression)
-
-    while len(remains) != 0:
-        exp = remains.pop()
-
-        if isinstance(exp, GlobalVariable):
-            pass #We do not want dependencys form or to global variables, but we need them as a node otherwise they are merged into a class of non interfering variables
-        elif isinstance(exp, Variable):
-            parts.append(exp)
-        elif (isinstance(exp, Constant)) and (not isinstance(exp, (Symbol, NotUseableConstant, GlobalVariable))):
-            parts.append(exp)
-        elif isinstance(exp, Operation) and (
-            (not isinstance(exp, (ListOperation, UnaryOperation, Call, TernaryExpression)))
-            or (isinstance(exp, UnaryOperation) and ((exp.operation == OperationType.cast)))
-        ):
-            remains += exp.operands
-        elif isinstance(exp, Operation) and (
-            (
-                isinstance(exp, UnaryOperation)
-                and (
-                    (exp.operation == OperationType.dereference)
-                    or (exp.operation == OperationType.address)
-                    or (exp.operation == OperationType.pointer)
-                )
-            )
-        ): #Pointer arithmetic is not a strong dependency, but we still want to know about it, so we treat it as a weak dependency, this is expressed by islow
-            remains += exp.operands
-            islow = True
-        elif isinstance(exp, Call):
-            remains += exp.parameters
-            islow = True
-    return list(set(parts)), islow #if islow is True, then all dependencies are weak, even if there is only one variable in the expression
+def getVariablesAndConstants(self, expr : Expression):
+        badOperations = [OperationType.dereference, OperationType.address, OperationType.dereference, OperationType.call, OperationType.pointer, OperationType.ternary, OperationType.list_op, OperationType.field, OperationType.member_access]
+        vars = []
+        consts = []
+        hasBadOperations = False
+        for component in expr.subexpressions():
+            if isinstance(component, Variable):
+                vars.append(component)
+            elif isinstance(component, Constant):
+                consts.append(component)
+            elif isinstance(component, Operation):
+                component:Operation
+                if component.operation in badOperations:
+                    hasBadOperations = True
+        return vars, consts, hasBadOperations
 
 
-def _expression_dependencies(expression: Expression, strong: float, mid: float, weak: float) -> dict[Variable, float]:
+def _expression_dependencies(lhs: Expression, rhs: Expression, parameters: list[float], intercept: float) -> list[tuple[Variable, Variable], float]:
     """
     Calculate the dependencies of an expression in terms of its constituent variables.
-
-    This function analyzes the given expression and returns a dictionary mapping each
-    Variable to a float score representing its contribution/ dependency weight within
-    the expression.
+    We use different attributes to describe the strength of the dependency. 
+    The order of the attributes has to be the SAME as in the ConditionalSSATraining class and in the FEATURES list in the conditionalTrainingRunner.py file. 
     """
-    operands_dependencies, low = _get_base_operands([expression])
-    #if low is True the function tells us that even if there is only one variable in the expression, it should be treated as a weak dependency
-    if (len(operands_dependencies) == 1) and (isinstance(operands_dependencies[0], Variable)):
-        if not low:
-            return {operands_dependencies[0]: strong}
-        else:
-            return {operands_dependencies[0]: weak}
-    elif len(operands_dependencies) > 1:
-        vars = [var for var in operands_dependencies if isinstance(var, Variable)] # assignments in the form of x = y + 5 earns a mid dependency, everything else is a weak dependency.
-        if (len(vars) == 1) and (not low):
-            return {vars[0]: mid}
-        else:
-            return {x: weak for x in vars}
-    else:
-        return {}
+    result = []
+    vlhs, _, bO1 = getVariablesAndConstants(lhs)
+    vrhs, crhs, bO2 = getVariablesAndConstants(rhs)
+    vrhs : list[Variable]
+    vlhs : list[Variable]
+
+    if (len(vlhs) == 0) or (len(vrhs) == 0):
+        return result
+
+    for x, y in product(vlhs, vrhs):
+        edgeScore = 0
+
+        # --- Attributes ---
+        #Attirbute 1: is_strong --> if the assignment has roughly the form x = y with x and y being two variables
+        if (len(vrhs) == 1) and (len(crhs) == 0) and (len(vlhs) == 1) and (not bO1) and (not bO2):
+            edgeScore += parameters[0]
+
+        #Attribute 2: is_mid --> if the assignment has roughly the form x = y + c with c being a constant. Further there shouldn't be a cast, a copy or pointer arithmetic in the rhs Expression.
+        if (edgeScore == 0) and (len(vrhs) == 1) and (len(crhs) == 1) and (len(vlhs) == 1) and (not bO1) and (not bO2):
+            edgeScore += parameters[1]
+
+        #Attribute 3: same_base_name --> if all participating variables have the same base name (var.name)
+        if x.name == y.name:
+            edgeScore += parameters[2]
+
+        #Attribute 4: same_storage --> if all participating variables have the same storage (var.ssa_name.origin)
+        if (x.origin and y.origin): #origin is not alyways set --> variables inserted by the compiler
+            if (x.origin.source_type == y.origin.source_type) and (x.origin.storage == y.origin.storage):
+                edgeScore += parameters[3]
+
+
+
+        edgeScore += intercept
+        result.append(((x, y), edgeScore))
+
+    return result

@@ -397,15 +397,13 @@ class ConditionalVariableRenamer(VariableRenamer):
         self,
         task: DecompilerTask,
         interference_graph: InterferenceGraph,
-        strong: float,
-        mid: float,
-        weak: float,
-        strat: int = 3,
+        parameters: list[float],
+        intercept: float,
+        strat: int = 0, #DETERMINISM
     ):
         super().__init__(task, interference_graph.copy())
-        self.strongDep = strong
-        self.midDep = mid
-        self.weakDep = weak
+        self.params = parameters
+        self.intercept = intercept
         self.strat = strat
         self.correctedInterferencePairs = 0
         self.interference_graph = interference_graph
@@ -424,7 +422,7 @@ class ConditionalVariableRenamer(VariableRenamer):
 
         :param cfg: The control flow graph from which the dependency graph is derived.
         """
-        dependency_graph = dependency_graph_from_cfg(cfg, self.strongDep, self.midDep, self.weakDep, self.interference_graph)
+        dependency_graph = dependency_graph_from_cfg(cfg, self.params, self.intercept, self.interference_graph)
         dependency_graph = self.merge_contracted_variables(dependency_graph)
 
         dependency_graph = self.create_variable_classes(dependency_graph)
@@ -432,7 +430,7 @@ class ConditionalVariableRenamer(VariableRenamer):
         #The following assert is very useful for debugging, therefore it still has its place in the code
         # assert (self.checkResult(dependency_graph))
 
-        self.createRenamingMap(self.extractClasses(dependency_graph))  #<--
+        self.createRenamingMap(self.extractClasses(dependency_graph))
 
 
     def extractClasses(self, dependency_graph: Graph) -> List[List[Variable]]:

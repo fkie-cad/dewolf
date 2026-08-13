@@ -6,6 +6,7 @@ from configparser import NoOptionError
 from enum import Enum
 from typing import Callable, DefaultDict, List
 
+from decompiler.pipeline.ssa.conditionalSSATraining import ConditionalOutOfSSATraining
 from decompiler.pipeline.ssa.conditional_out_of_SSA import ConditionalOutOfSSA
 from decompiler.pipeline.ssa.phi_cleaner import PhiFunctionCleaner
 from decompiler.pipeline.ssa.phi_dependency_resolver import PhiDependencyResolver
@@ -26,6 +27,7 @@ class SSAOptions(Enum):
     lift_minimal = "lift_minimal"
     conditional = "conditional"
     sreedhar = "sreedhar"
+    conditional_training = "conditional_training"
 
 
 class OutOfSsaTranslation(PipelineStage):
@@ -55,6 +57,7 @@ class OutOfSsaTranslation(PipelineStage):
         "non SSA-variables is (almost) minimal",
         SSAOptions.conditional.value: "first lifts the phi-functions and renames the SSA-variables according to their dependencies.",
         SSAOptions.sreedhar.value: "out-of-SSA due to Sreedhar et. al.",
+        SSAOptions.conditional_training.value: "out-of-SSA using conditional training.",
     }
 
     def __init__(self):
@@ -165,10 +168,21 @@ class OutOfSsaTranslation(PipelineStage):
 
         ConditionalOutOfSSA(self.task, self._phi_functions_of, strategy = 3).perform()
 
+    def _conditional_out_of_ssa_training(self) -> None:
+            """
+            This is a more advanced algorithm for out of SSA:
+                - We first remove the circular dependency of the Phi-functions
+                - Then, we remove the Phi-functions by lifting them to their predecessor basic blocks.
+                - Afterwards, we rename the variables by considering their dependency on each other.
+            """
+    
+            ConditionalOutOfSSATraining(self.task, self._phi_functions_of).perform()
+
     # This translator maps the optimization levels to the functions.
     out_of_ssa_strategy: dict[SSAOptions, Callable[["OutOfSsaTranslation"], None]] = {
         SSAOptions.simple: _simple_out_of_ssa,
         SSAOptions.minimization: _minimization_out_of_ssa,
         SSAOptions.lift_minimal: _lift_minimal_out_of_ssa,
         SSAOptions.conditional: _conditional_out_of_ssa,
+        SSAOptions.conditional_training: _conditional_out_of_ssa_training,
     }

@@ -16,19 +16,18 @@ class ConditionalOutOfSSA:
         self,
         task: DecompilerTask,
         _phi_fuctions_of: DefaultDict[BasicBlock, List[Phi]],
-        strong: float = 0.94606,
-        mid: float = 0.332811,
-        weak: float = 0.410742,
-        strategy: int = 3,
+        parms: list[float] = [0,0,0,0], #TODO: add trained coefficients and intercept here
+        intercept: float = 0.0,
+        strategy: int = 0,
     ):
         """
-        strong/ weak/ mid: Values for the corresponding edges
+        params: List of parameters from the logistic regression model
+        intercept: Intercept from the logistic regression model
         """
         self.task = task
         self.cfg = task.cfg
-        self.strongDep = strong
-        self.midDep = mid
-        self.weakDep = weak
+        self.params = parms
+        self.intercept = intercept
         self._phi_functions_of = _phi_fuctions_of
         self.strategy = strategy
 
@@ -37,5 +36,5 @@ class ConditionalOutOfSSA:
         self.interference_graph = InterferenceGraph(self.task.cfg)
         PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift() #no more phi functions from this point on
         ConditionalVariableRenamer(
-            self.task, self.interference_graph, self.strongDep, self.midDep, self.weakDep, self.strategy
+            self.task, self.interference_graph, self.params, self.intercept, self.strategy
         ).rename()
