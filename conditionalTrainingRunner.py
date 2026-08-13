@@ -121,6 +121,8 @@ def FrankfurtAmMain():
         if folder.is_dir():
             folderList.append([random.random(),folder.name])
 
+    if len(len(folderList)) < 2:
+        raise ValueError(f"Not enough data to train the model. Found only {len(folderList)} folders with training data.")
     folderList.sort(key=lambda x: x[0])
     numTrainFolder = int(math.floor(len(folderList) * args.trainingPercentage))
 
