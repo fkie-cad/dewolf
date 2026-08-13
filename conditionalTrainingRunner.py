@@ -20,9 +20,10 @@ def set_memory_limit(limit_bytes):
     """Wird von Pebble bei JEDEM Worker-Start aufgerufen (auch bei Neustarts)."""
     resource.setrlimit(resource.RLIMIT_AS, (limit_bytes, limit_bytes))
 
-def workerFunction(binary_path: str, function_name: str, output_path: str) -> None:
+def workerFunction(binary_path: str, function_name: str, output_path: str, error_log_path: str) -> None:
 
     os.environ["ConditionalResultPath"] = str(output_path)
+    os.environ["ConditionalErrorLogPath"] = str(error_log_path)
     options = Options.load_default_options()
     options.update({"out-of-ssa-translation.mode": "conditional_training"})
     frontend = BinaryninjaFrontend.from_path(binary_path, options)
@@ -33,7 +34,7 @@ def workerFunction(binary_path: str, function_name: str, output_path: str) -> No
 
     except Exception as e:
         message = f"decompiling {binary_path}::{function_name} raised {traceback.format_exc()}: {e}"
-        with open("error_log.txt", "a") as error_log:
+        with open(error_log_path, "a") as error_log:
             error_log.write(message + "\n")
 
 
@@ -43,7 +44,7 @@ def workerFunction(binary_path: str, function_name: str, output_path: str) -> No
 
     if result.task.failed:
         message = f"decompiling {binary_path}::{function_name} failed at stage {result.task.failure_origin}"
-        with open("error_log.txt", "a") as error_log:
+        with open(error_log_path, "a") as error_log:
             error_log.write(message + "\n")
         path = f"{os.environ['ConditionalResultPath']}" + ".fail" + ".noTrainingData"
         with open(path,"w") as noData_file:
@@ -64,6 +65,8 @@ def FrankfurtAmMain():
     if (float(args.trainingPercentage) <= 0) or (float(args.trainingPercentage) >= 1):
         raise ValueError(f"Training percentage must be between 0 and 1. Got {args.trainingPercentage}.")
 
+    ERROR_LOG_PATH = str(args.output).rstrip("/") + "/error_log.txt"
+
     if args.skipDataCollection:
         print(f"--- Skipping data collection phase. ---")
     else:
@@ -83,7 +86,7 @@ def FrankfurtAmMain():
                 output_path = args.output + "/" + file + "/" + str(func) + ".json"
                 output_path_no_data = output_path + ".noTrainingData"
                 if os.path.exists(input_path) and ((not os.path.exists(output_path)) and (not os.path.exists(output_path_no_data))):
-                    tasks.append([input_path, str(func), output_path])
+                    tasks.append([input_path, str(func), output_path, ERROR_LOG_PATH])
             del options
             del frontend
 
@@ -98,14 +101,14 @@ def FrankfurtAmMain():
                     future = pool.schedule(workerFunction, args=arg, timeout=4320)
                     futures.append(future)
                 except Exception as e:
-                    with open("error_log.txt", "a") as error_log:
+                    with open(ERROR_LOG_PATH, "a") as error_log:
                         error_log.write(f"Error while scheduling task {arg}: {e}\n")
             for fut in futures:
                 try:
                     fut : ProcessFuture
                     fut.result()
                 except Exception as e:
-                    with open("error_log.txt", "a") as error_log:
+                    with open(ERROR_LOG_PATH, "a") as error_log:
                         error_log.write(f"Task raised an exception: {traceback.format_exc()}\n")
                     continue
                 except KeyboardInterrupt:
@@ -121,7 +124,7 @@ def FrankfurtAmMain():
         if folder.is_dir():
             folderList.append([random.random(),folder.name])
 
-    if len(len(folderList)) < 2:
+    if len(folderList) < 2:
         raise ValueError(f"Not enough data to train the model. Found only {len(folderList)} folders with training data.")
     folderList.sort(key=lambda x: x[0])
     numTrainFolder = int(math.floor(len(folderList) * args.trainingPercentage))

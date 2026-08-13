@@ -35,13 +35,14 @@ class ConditionalOutOfSSATraining:
         self.interference_graph = InterferenceGraph(self.task.cfg)
         PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift() #no more phi functions from this point on
 
+        self.errorLogPath = str(os.environ["ConditionalErrorLogPath"])
         #We save a file for EVERY task, even if there is no training data, to avoid touching that function again. If there is no file, it will get decompiled in each run.
         try:
             self.extractTrainingData()
             if self.weightList is not None:
                 result = {i: {"parameters": self.weightList[i][0], "goal": self.weightList[i][1]} for i in range(len(self.weightList))}
                 path = f"{os.environ['ConditionalResultPath']}"
-                #with open("error_log.txt", "a") as error_file:
+                #with open(self.errorLogPath, "a") as error_file:
                 #    error_file.write(f"Writing result to {path}\n")
                 with open(path, "w") as f:
                     json.dump(result, f)
@@ -50,7 +51,7 @@ class ConditionalOutOfSSATraining:
                 with open(path, "w") as noData_file:
                     pass
         except Exception as e:
-            with open("error_log.txt", "a") as error_file:
+            with open(self.errorLogPath, "a") as error_file:
                 error_file.write(f"Error while processing task {self.task}: {e}\n")
             return
 
@@ -140,7 +141,7 @@ class ConditionalOutOfSSATraining:
 
 
                     except Exception as e:
-                        with open("error_log.txt", "a") as error_file:
+                        with open(self.errorLogPath, "a") as error_file:
                             error_file.write(f"Error while processing instruction {instr}: {traceback.format_exc()}\n")
                         continue
 
