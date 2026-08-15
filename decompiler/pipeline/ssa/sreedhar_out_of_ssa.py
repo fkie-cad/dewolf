@@ -95,6 +95,8 @@ class SreedharOutOfSSA:
     _KIND_LOCAL    = 1 << 1  # 2
     _KIND_WILD    = 1 << 0  # 1
 
+    _NAME_CHECK_MASK = _KIND_GLOBAL | _KIND_ALIASED
+
     _ALLOWED_MERGES = {
         _KIND_GLOBAL:   _KIND_GLOBAL | _KIND_WILD,
         _KIND_ALIASED:  _KIND_ALIASED | _KIND_WILD,
@@ -351,7 +353,7 @@ class SreedharOutOfSSA:
         if not (self._ALLOWED_MERGES[a.kind] & b.kind):
             return False
             
-        if a.kind == b.kind == self._KIND_ALIASED:
+        if a.kind == b.kind and (a.kind & self._NAME_CHECK_MASK):
             return a.repr.name == b.repr.name #type: ignore
             
         return True
