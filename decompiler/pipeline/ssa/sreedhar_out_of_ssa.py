@@ -305,11 +305,11 @@ class SreedharOutOfSSA:
            if len(name_group) < 2:
                continue
 
-           vars_iter = iter(name_group)
-           anchor = next(vars_iter)
+           sorted_group = sorted(name_group, key=lambda v: v.ssa_label)
+           anchor = sorted_group[0]
            merged_class = self._phi_congruence_map.get_class(anchor)
 
-           for var in vars_iter:
+           for var in sorted_group[1:]:
                var_class = self._phi_congruence_map.get_class(var)
                if var_class is merged_class:
                     continue
