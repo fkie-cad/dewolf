@@ -58,6 +58,7 @@ def dependency_graph_from_cfg(
             scorev : float
             
             if (scorev > 0) and not (ifg.are_interfering(a,b)) and not (variablesAreInterfering(ifg, a, b)):
+                scorev = max(scorev,0.05)
                 if dependency_graph.has_edge((a,), (b,)):
                     exScore = dependency_graph.get_edge_data((a,), (b,),"score",0)
                     dependency_graph.remove_edge((a,), (b,))
@@ -155,7 +156,6 @@ def _expression_dependencies(lhs: Expression, rhs: Expression, parameters: list[
         if (x.origin and y.origin): #origin is not alyways set --> variables inserted by the compiler
             if (x.origin.source_type == y.origin.source_type) and (x.origin.storage == y.origin.storage):
                 edgeScore += parameters[3]
-
 
 
         edgeScore += intercept
