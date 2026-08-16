@@ -7,7 +7,7 @@ import traceback
 import resource
 import time
 
-SSA_Algos = ["sreedhar"] #["conditional", "sreedhar", "boissinot2008", "min"]
+SSA_Algos = ["conditional"] #["conditional", "sreedhar", "boissinot2008", "min"]
 
 def set_memory_limit(limit_bytes):
     """Wird von Pebble bei JEDEM Worker-Start aufgerufen (auch bei Neustarts)."""
@@ -21,6 +21,9 @@ def frankfurtAmMAIN():
     parser.add_argument("--max-workers", "-m", default=4, type=int, help="Maximum number of worker processes")
 
     args = parser.parse_args()
+
+    args.output = args.output.rstrip("/")  # Remove trailing slash if present
+    args.binaryFolder = args.binaryFolder.rstrip("/")  # Remove trailing slash if present
 
     # intialize sturcture in the output folder
     for algo in SSA_Algos:
@@ -39,7 +42,7 @@ def frankfurtAmMAIN():
     print(f"--- Start processing tasks with SSA algorithms: {', '.join(SSA_Algos)} and {args.max_workers}. ---")
 
     futures = []
-    with pebble.ProcessPool(max_workers=args.max_workers,max_tasks=1, initializer=set_memory_limit, initargs=(11 * 1024 * 1024 * 1024,)) as pool:
+    with pebble.ProcessPool(max_workers=args.max_workers,max_tasks=1, initializer=set_memory_limit, initargs=(8 * 1024 * 1024 * 1024,)) as pool:
         for arg in tasks:
             future = pool.schedule(main, args=(arg,), timeout=4320)
             futures.append(future)
@@ -47,7 +50,7 @@ def frankfurtAmMAIN():
             try:
                 print(f"{len(futures)}\t/{len(futures)} tasks completed.\r", end="")
                 time.sleep(1)  # Add a small delay to allow the print statement to be visible
-                result = fut.result()
+                fut.result()
             except Exception as e:
                 with open("error_log.txt", "a") as error_log:
                     error_log.write(f"Task raised an exception: {traceback.format_exc()}\n")

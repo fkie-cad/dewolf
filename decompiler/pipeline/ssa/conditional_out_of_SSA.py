@@ -16,7 +16,7 @@ class ConditionalOutOfSSA:
         self,
         task: DecompilerTask,
         _phi_fuctions_of: DefaultDict[BasicBlock, List[Phi]],
-        parms: list[float] = [0.43303464221052523,0.7158104172527855,1.7691482848508842,1.6288294960785004], #TODO: add trained coefficients and intercept here
+        parms: list[float] = [0.43303464221052523,0.7158104172527855,1.7691482848508842,1.6288294960785004],
         intercept: float = -0.900560876635858,
         strategy: int = 0,
     ):

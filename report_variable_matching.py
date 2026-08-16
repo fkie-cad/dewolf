@@ -544,10 +544,11 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser.add_argument("functions", nargs="?", default=None, help="comma-separated function names (default: all)")
     parser.add_argument("output", nargs="?", default=None, help="output JSON path (default: variable_matching_<binary-name>.json)")
     parser.add_argument("-q", "--quiet", action="store_true", help="suppress all terminal output (still writes the JSON)")
+    parser.add_argument("--ssa-algo", dest="ssa_algo", default="min", help="SSA elimination algorithm (default: variable renaming)")
     return parser.parse_args(argv)
 
 
-def main(argv: List[str] | None = None) -> None:
+def main(argv: List[str] | None = None, SSA_Algo: str = "conditional") -> None:
     """Run the report for each requested function and write the combined JSON output.
 
     Decompiles each function up to out-of-SSA, printing a skip note for functions whose pipeline
@@ -560,6 +561,7 @@ def main(argv: List[str] | None = None) -> None:
     output_path = args.output or default_output_path(args.binary)
 
     options = Options.load_default_options()
+    options.update({"pipeline.ssa_algo": args.ssa_algo})
     frontend = BinaryninjaFrontend.from_path(args.binary, options)
     decompiler = OutOfSsaDecompiler(frontend, options)
     renderer = NullReportRenderer() if args.quiet else TextReportRenderer()
@@ -597,6 +599,7 @@ def main(argv: List[str] | None = None) -> None:
 
     Path(output_path).write_text(json.dumps({"binary": args.binary, "functions": functions}, indent=2))
     renderer.render_written(output_path)
+    result = True 
 
 
 if __name__ == "__main__":
