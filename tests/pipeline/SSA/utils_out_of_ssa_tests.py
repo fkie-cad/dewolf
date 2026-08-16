@@ -118,6 +118,63 @@ def variable():
 def copy_variable():
     return [Variable(f"copy_var_{index}", Integer.int32_t()) for index in range(10)]
 
+@pytest.fixture()
+def graph_aliased_name_problem(aliased_variable_z, aliased_variable_y, variable_u, variable_v, variable_x):
+    instructions = [
+        # node 0
+        Assignment(ListOperation([]), Call(imp_function_symbol("printf"), [Constant("Enter two numbers ")])),
+        Assignment(aliased_variable_z[2], aliased_variable_z[0]),
+        Assignment(variable_v[1], UnaryOperation(OperationType.address, [aliased_variable_z[2]])),
+        Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [Constant(0x804A025), variable_v[1]])),
+        Assignment(aliased_variable_y[3], aliased_variable_y[0]),
+        Assignment(variable_u[2], UnaryOperation(OperationType.address, [aliased_variable_y[3]])),
+        Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [Constant(0x804A025), variable_u[2]])),
+        # node 1
+        Phi(variable_x[2], [Constant(0x1), variable_x[3]]),
+        Phi(aliased_variable_y[5], [aliased_variable_y[3], aliased_variable_y[6]]),
+        Phi(aliased_variable_z[5], [aliased_variable_z[2], aliased_variable_z[5]]),
+        Branch(Condition(OperationType.less_or_equal, [variable_x[2], aliased_variable_z[5]])),
+        # node 2
+        Assignment(
+            aliased_variable_y[6],
+            BinaryOperation(
+                OperationType.multiply,
+                [aliased_variable_y[5], variable_x[2]],
+            ),
+        ),
+        Assignment(
+            variable_x[3],
+            BinaryOperation(
+                OperationType.plus,
+                [variable_x[2], Constant(0x1)],
+            ),
+        ),
+        # node 3
+        Return([Constant(0x0)]),
+    ]
+
+    # Set of nodes:
+    nodes = [BasicBlock(i) for i in range(4)]
+    # Add instructions:
+    nodes[0].instructions = instructions[0:7]
+    nodes[1].instructions = instructions[7:11]
+    nodes[2].instructions = instructions[11:13]
+    nodes[3].instructions = [instructions[13]]
+
+    instructions[7]._origin_block = {nodes[0]: Constant(0x1), nodes[2]: variable_x[3]}
+    instructions[8]._origin_block = {nodes[0]: aliased_variable_y[3], nodes[2]: aliased_variable_y[6]}
+    instructions[9]._origin_block = {nodes[0]: aliased_variable_z[2], nodes[2]: aliased_variable_z[5]}
+
+    cfg = ControlFlowGraph()
+    cfg.add_edges_from(
+        [
+            UnconditionalEdge(nodes[0], nodes[1]),
+            TrueCase(nodes[1], nodes[2]),
+            FalseCase(nodes[1], nodes[3]),
+            UnconditionalEdge(nodes[2], nodes[1]),
+        ]
+    )
+    return nodes, instructions, cfg
 
 @pytest.fixture()
 def graph_no_dependency(
@@ -177,6 +234,7 @@ def graph_no_dependency(
     cfg.add_edges_from([UnconditionalEdge(nodes[0], nodes[1]), UnconditionalEdge(nodes[2], nodes[1])])
 
     new_instructions = [
+
         # node 0: 0
         Assignment(ListOperation([]), Call(imp_function_symbol("printf"), [Constant(0x804B00C)])),
         # node 1: 1 - 6

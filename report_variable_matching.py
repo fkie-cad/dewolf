@@ -561,7 +561,7 @@ def main(argv: List[str] | None = None, SSA_Algo: str = "conditional") -> None:
     output_path = args.output or default_output_path(args.binary)
 
     options = Options.load_default_options()
-    options.update({"pipeline.ssa_algo": args.ssa_algo})
+    options.update({"out-of-ssa-translation.mode": args.ssa_algo})
     frontend = BinaryninjaFrontend.from_path(args.binary, options)
     decompiler = OutOfSsaDecompiler(frontend, options)
     renderer = NullReportRenderer() if args.quiet else TextReportRenderer()
