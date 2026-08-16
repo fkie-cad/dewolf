@@ -91,8 +91,12 @@ class ConditionalOutOfSSATraining:
                 if isinstance(instr,Assignment):
                     try:
                         lhs = instr.destination
+                        if lhs is None:
+                            continue
                         vlhs, _, bO1 = self.getVariablesAndConstants(lhs)
                         rhs = instr.value
+                        if rhs is None:
+                            continue
                         vrhs, crhs, bO2 = self.getVariablesAndConstants(rhs)
                         vrhs : List[Variable]
                         vlhs : List[Variable]

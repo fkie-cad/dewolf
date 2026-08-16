@@ -7,7 +7,7 @@ import traceback
 import resource
 import time
 
-SSA_Algos = ["conditional"] #["conditional", "sreedhar", "boissinot2008", "min"]
+SSA_Algos = ["min","boissinot2008"] #["conditional", "sreedhar", "boissinot2008", "min"]
 
 def set_memory_limit(limit_bytes):
     """Wird von Pebble bei JEDEM Worker-Start aufgerufen (auch bei Neustarts)."""

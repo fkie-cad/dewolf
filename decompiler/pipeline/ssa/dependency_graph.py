@@ -101,7 +101,7 @@ def _assignments_in_cfg(cfg: ControlFlowGraph) -> Iterator[Assignment]:
             yield instr
 
 
-def getVariablesAndConstants(self, expr : Expression):
+def getVariablesAndConstants(expr : Expression):
         badOperations = [OperationType.dereference, OperationType.address, OperationType.dereference, OperationType.call, OperationType.pointer, OperationType.ternary, OperationType.list_op, OperationType.field, OperationType.member_access]
         vars = []
         consts = []
@@ -125,6 +125,8 @@ def _expression_dependencies(lhs: Expression, rhs: Expression, parameters: list[
     The order of the attributes has to be the SAME as in the ConditionalSSATraining class and in the FEATURES list in the conditionalTrainingRunner.py file. 
     """
     result = []
+    if (lhs is None) or (rhs is None):
+        return result
     vlhs, _, bO1 = getVariablesAndConstants(lhs)
     vrhs, crhs, bO2 = getVariablesAndConstants(rhs)
     vrhs : list[Variable]

@@ -548,7 +548,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: List[str] | None = None, SSA_Algo: str = "conditional") -> None:
+def main(argv: List[str] | None = None) -> None:
     """Run the report for each requested function and write the combined JSON output.
 
     Decompiles each function up to out-of-SSA, printing a skip note for functions whose pipeline
