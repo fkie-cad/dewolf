@@ -631,9 +631,9 @@ class SreedharOutOfSSA:
                 if isinstance(v, GlobalVariable):
                     global_var_names.add(v.name)
 
-        if self._global_var_names != global_var_names:
+        if self._global_var_names <= global_var_names:
             raise AssertionError(
-                f"Amount of global variables changed {self._global_var_names} -> {global_var_names}"
+                f"Amount of global variables increased {self._global_var_names} -> {global_var_names}"
             )
 
     def perform(self) -> None:
