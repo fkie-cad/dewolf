@@ -367,7 +367,7 @@ class SreedharOutOfSSA:
     
         for y_i in a:
             if not self._interference_graph.has_node(y_i):
-                return False
+                continue
 
             neighbors = self._interference_graph[y_i]
             if not b.isdisjoint(neighbors):
@@ -409,7 +409,7 @@ class SreedharOutOfSSA:
 
         resolved: set[SreedharOutOfSSA.Resource] = set()
         for x in sorted(unresolved.keys(), key=lambda k: len(unresolved[k]), reverse=True):
-            if not unresolved[x].issubset(resolved): # es gibt eine die ich durch einfügen von x löse
+            if not unresolved[x].issubset(resolved): 
                 candidates.add(x)
                 resolved.add(x)
 
