@@ -390,8 +390,8 @@ class SreedharOutOfSSA:
         if not self._classes_interfere(c_i, c_j):
            return 
 
-        cond_1 = self._is_live_in_context(c_j, l_i, x_i is dest)
-        cond_2 = self._is_live_in_context(c_i, l_j, x_j is dest)
+        cond_1 = self._is_live_in_context(c_j, l_i, r_i is dest)
+        cond_2 = self._is_live_in_context(c_i, l_j, r_j is dest)
 
         if not cond_1 and cond_2:
             candidates.add(r_i)
@@ -407,13 +407,13 @@ class SreedharOutOfSSA:
         candidates: InsertionOrderedSet[SreedharOutOfSSA.Resource], 
         unresolved: dict[SreedharOutOfSSA.Resource, set[SreedharOutOfSSA.Resource]]) -> None:
 
-        resolved: set[SreedharOutOfSSA.Resource] = set()
+        resolved: InsertionOrderedSet[SreedharOutOfSSA.Resource] = InsertionOrderedSet()
         for x in sorted(unresolved.keys(), key=lambda k: len(unresolved[k]), reverse=True):
             if not unresolved[x].issubset(resolved): 
                 candidates.add(x)
                 resolved.add(x)
 
-        for x in list(resolved):
+        for x in resolved:
             if unresolved[x].issubset(resolved):
                 candidates.discard(x)
 
