@@ -53,38 +53,39 @@ def get_all_kinds(data: list[dict]) -> list[str]:
                     kinds.add(kind)
     return sorted(kinds)
 
-def load_results(clip_path: Path) -> list[dict]:
+def load_results(clip_path: Path) -> tuple[list[dict], list[dict]]:
     """
     Load data for a single setup/clip directory.
-    Ensures that only binaries present across ALL algorithm subdirectories are loaded.
+    Returns:
+        success_rows: Functions common and successful across all algorithms.
+        failure_rows: All failure records encountered across algorithms.
     """
-    data_rows = []
+    success_rows = []
+    failure_rows = []
     
     if not clip_path.exists() or not clip_path.is_dir():
         warnings.warn(f"Input directory not found or invalid: {clip_path}")
-        return data_rows
+        return success_rows, failure_rows
 
     clip_name = clip_path.name
-    # Dynamically discover all directories as algorithm names
     algorithms = sorted([d.name for d in clip_path.iterdir() if d.is_dir()])
     
     if not algorithms:
         warnings.warn(f"No algorithm subdirectories found in {clip_path}")
-        return data_rows
+        return success_rows, failure_rows
         
     algo_binaries = {}
     for algo in algorithms:
         algo_path = clip_path / algo
         algo_binaries[algo] = {p.stem: p for p in algo_path.glob("*.json")}
     
-    # Strictly intersect so we only compare functions that ALL algorithms processed
     common_binaries = set(algo_binaries[algorithms[0]].keys())
     for algo in algorithms[1:]:
         common_binaries.intersection_update(algo_binaries[algo].keys())
         
     if not common_binaries:
         warnings.warn(f"No common binaries found across algorithms {algorithms} in {clip_path}.")
-        return data_rows
+        return success_rows, failure_rows
         
     print(f"Folder '{clip_name}': Using {len(common_binaries)} common binaries across {len(algorithms)} algorithms.")
 
@@ -141,17 +142,14 @@ def load_results(clip_path: Path) -> list[dict]:
             
             functions = content.get("functions", {})
             for func_name, func_data in functions.items():
-                if func_name not in commonFuncs[binary_name]:
-                    continue  # Skip functions not common across all algorithms
-                report = func_data.get("report") or {}
                 status = func_data.get("status", "unknown")
                 message = func_data.get("message") or ""
                 
-                # Parse failure stage from message if it exists
                 fail_stage = "unknown"
                 if status == "failed" and "failed at stage " in message:
                     fail_stage = message.split("failed at stage ")[-1].strip()
                 
+                report = func_data.get("report") or {}
                 row = {
                     "algorithm": algo,
                     "binary": binary_name,
@@ -165,13 +163,21 @@ def load_results(clip_path: Path) -> list[dict]:
                     "conflicts_count": safe_len(report.get("conflicts")),
                 }
                 
+                # Collect failures separately for Plot 7
+                if status == "failed":
+                    failure_rows.append(row)
+                    continue
+
+                # Process only common successful functions for the main metrics
+                if func_name not in commonFuncs[binary_name]:
+                    continue  
+
                 variables = report.get("variables") or func_data.get("variables", [])
                 by_kind = report.get("by_kind", {})
                 
                 if isinstance(variables, list) and len(variables) > 0 and isinstance(variables[0], dict):
                     calc_by_kind = defaultdict(lambda: {"matched": 0, "total": 0})
                     for v in variables:
-                        # collect data for precision and recall calculations
                         if (v.get("source") is not None) and (v.get("variable") is not None):
                             PRECISION_DICT[algo][binary_name][func_name][v.get("variable")].append(v.get("source"))
                             RECALL_DICT[algo][binary_name][func_name][v.get("source")].append(v.get("variable"))
@@ -179,18 +185,10 @@ def load_results(clip_path: Path) -> list[dict]:
                             INSERTED_DICT[algo][binary_name][func_name][v.get("variable")].append(v.get("lifted"))
                         TOTAL[algo][2] += 1
 
-                        # normal processing for statistics
                         k = v.get("kind", "unknown")
                         calc_by_kind[k]["total"] += 1
                         
-                        # Match heuristics: counts as matched if "source" is not null
-                        is_matched = (
-                            #v.get("matched") is True or 
-                            #v.get("is_matched") is True or 
-                            #bool(v.get("matched_to")) or 
-                            #v.get("status") in ("success", "matched") or
-                            v.get("source") is not None
-                        )
+                        is_matched = v.get("source") is not None
                         if is_matched:
                             calc_by_kind[k]["matched"] += 1
                     
@@ -201,9 +199,9 @@ def load_results(clip_path: Path) -> list[dict]:
                     row[f"kind_{kind}_matched"] = kind_data.get("matched", 0)
                     row[f"kind_{kind}_total"] = kind_data.get("total", 0)
                 
-                data_rows.append(row)
+                success_rows.append(row)
                 
-    return data_rows
+    return success_rows, failure_rows
 
 def plot_overall_accuracy(data: list[dict], outdir: Path, clip_name: str, algorithms: list, algo_colors: dict) -> None:
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -790,21 +788,21 @@ def main():
     args.outdir.mkdir(parents=True, exist_ok=True)
     
     print(f"Loading data from {args.indir}...")
-    all_data = load_results(args.indir)
+    success_data, failure_data = load_results(args.indir)
     
-    if not all_data:
+    if not success_data:
         print("No data found or processed. Exiting.")
         return
         
     clip_name = args.indir.name
-    algorithms = get_unique(all_data, "algorithm")
+    algorithms = get_unique(success_data, "algorithm")
     
     cmap = plt.get_cmap("tab10")
     algo_colors = {algo: cmap(i % 10) for i, algo in enumerate(algorithms)}
     
-    print_summary_table(all_data, clip_name, algorithms)
+    print_summary_table(success_data, clip_name, algorithms)
     
-    success_data = [row for row in all_data if row["status"] == "success"]
+    success_data = [row for row in success_data if row["status"] == "success"]
     
     print("Generating plots...")
     plot_overall_accuracy(success_data, args.outdir, clip_name, algorithms, algo_colors)
@@ -819,13 +817,13 @@ def main():
     plot_accuracy_vs_complexity(success_data, args.outdir, clip_name, algorithms, algo_colors)
     print("  - 04_accuracy_vs_complexity.png")
     
-    plot_error_modes(all_data, args.outdir, clip_name, algorithms)
+    plot_error_modes(success_data, args.outdir, clip_name, algorithms)
     print("  - 05_error_modes.png")
     
     plot_per_binary_heatmap(success_data, args.outdir, clip_name, algorithms)
     print("  - 06_per_binary_heatmap.png")
     
-    plot_failure_stages(all_data, args.outdir, clip_name, algorithms, algo_colors)
+    plot_failure_stages(failure_data, args.outdir, clip_name, algorithms, algo_colors)
     print("  - 07_failure_stages.png")
 
     #print("Calculating precision and recall metrics...")
