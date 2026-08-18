@@ -121,7 +121,7 @@ def FrankfurtAmMain():
     folderList = []
     random.seed(sum([1 for entry in os.scandir(args.output) if entry.is_dir()]))
     for folder in os.scandir(args.output):
-        if folder.is_dir():
+        if folder.is_dir() and (os.listdir(f"{args.output}{folder.name}") != []):
             folderList.append([random.random(),folder.name])
 
     if len(folderList) < 2:
