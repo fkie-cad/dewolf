@@ -1,20 +1,22 @@
-import argparse
-import multiprocessing
 import os
-from report_variable_matching import OutOfSsaDecompiler, DecompilationResult
-
-from decompiler.frontend.binaryninja.frontend import BinaryninjaFrontend
-from decompiler.util.options import Options
-from decompiler.task import DecompilerTask
+import argparse
 import resource
 import pebble
 import traceback
-import sklearn
 import math
 import random
 import json
+import multiprocessing
+
 import pandas as pd
+
 from pebble import ProcessFuture
+from sklearn.metrics import roc_auc_score
+from sklearn.linear_model import LogisticRegression
+from decompiler.frontend.binaryninja.frontend import BinaryninjaFrontend
+from decompiler.util.options import Options
+from decompiler.task import DecompilerTask
+from report_variable_matching import OutOfSsaDecompiler, DecompilationResult
 
 def set_memory_limit(limit_bytes):
     """Wird von Pebble bei JEDEM Worker-Start aufgerufen (auch bei Neustarts)."""
@@ -29,6 +31,7 @@ def workerFunction(binary_path: str, function_name: str, output_path: str, error
     frontend = BinaryninjaFrontend.from_path(binary_path, options)
     decompiler = OutOfSsaDecompiler(frontend, options)
 
+    failed = False
     try:
         result = decompiler.run(function_name)
 
@@ -37,17 +40,16 @@ def workerFunction(binary_path: str, function_name: str, output_path: str, error
         with open(error_log_path, "a") as error_log:
             error_log.write(message + "\n")
 
-
         dct = DecompilerTask(function_name,function_name)
         result = DecompilationResult(dct,[])
-        result.task.failed = True
+        failed= True
 
-    if result.task.failed:
+    if failed:
         message = f"decompiling {binary_path}::{function_name} failed at stage {result.task.failure_origin}"
         with open(error_log_path, "a") as error_log:
             error_log.write(message + "\n")
         path = f"{os.environ['ConditionalResultPath']}" + ".fail" + ".noTrainingData"
-        with open(path,"w") as noData_file:
+        with open(path,"w"):
             pass
 
 def FrankfurtAmMain():
@@ -65,25 +67,22 @@ def FrankfurtAmMain():
     if (float(args.trainingPercentage) <= 0) or (float(args.trainingPercentage) >= 1):
         raise ValueError(f"Training percentage must be between 0 and 1. Got {args.trainingPercentage}.")
 
-    ERROR_LOG_PATH = str(args.output).rstrip("/") + "/error_log.txt"
-
+    ERROR_LOG_PATH = os.path.join(args.output, "error_log.txt")
     if args.skipDataCollection:
         print(f"--- Skipping data collection phase. ---")
     else:
         print(f"--- Start collecting tasks form {args.binaryFolder} ---")
         #Create a list of tasks to be processed. 
         tasks = []
-        args.output = str(args.output).rstrip("/")
-        args.binaryFolder = str(args.binaryFolder).rstrip("/")
         for file in os.listdir(args.binaryFolder):
-            if not os.path.exists(f"{args.output}/{file}"):
-                os.mkdir(f"{args.output}/{file}")
+            if not os.path.exists(os.path.join(args.output,file)):
+                os.mkdir(os.path.join(args.output, file))
             options = Options.load_default_options()
-            filePath = args.binaryFolder + "/" + file
+            filePath = os.path.join(args.binaryFolder, file)
             frontend = BinaryninjaFrontend.from_path(filePath, options)
-            input_path = args.binaryFolder + "/" + file
+            input_path = os.path.join(args.binaryFolder, file)
             for func in frontend.get_all_function_names():
-                output_path = args.output + "/" + file + "/" + str(func) + ".json"
+                output_path = os.path.join(args.output, file, str(func) + ".json")
                 output_path_no_data = output_path + ".noTrainingData"
                 if os.path.exists(input_path) and ((not os.path.exists(output_path)) and (not os.path.exists(output_path_no_data))):
                     tasks.append([input_path, str(func), output_path, ERROR_LOG_PATH])
@@ -121,7 +120,7 @@ def FrankfurtAmMain():
     folderList = []
     random.seed(sum([1 for entry in os.scandir(args.output) if entry.is_dir()]))
     for folder in os.scandir(args.output):
-        if folder.is_dir() and (os.listdir(f"{args.output}{folder.name}") != []):
+        if folder.is_dir() and (os.listdir(os.path.join(args.output,folder.name)) != []):
             folderList.append([random.random(),folder.name])
 
     if len(folderList) < 2:
@@ -136,14 +135,15 @@ def FrankfurtAmMain():
 
     #The Order in the FEATURES list has to be the SAME as in the dependency_graph.py file and in the extractTrainingData function in the conditionalSSATraining.py
     #Otherwise the results will be very confusing. XD
-    FEATURES = ["is_strong", "is_mid", "same_base_name", "same_storage"] #If the parameters get changed, this List needs to be adapted as well
+    #If the parameters get changed, this List needs to be adapted as well
+    FEATURES = ["is_strong", "is_mid", "same_base_name", "same_storage", "def_by_usage", "func_call", "same_phi"] + [f"usage_{i+1}" for i in range(9)]
     TARGET = "same_source"
 
     trainingData = [[] for _ in range(len(FEATURES) + 1)] # +1 for the target variable
     for folder in trainingsFolders:
-        for file in os.listdir(f"{args.output}/{folder}"):
+        for file in os.listdir(os.path.join(args.output,folder)):
             if file.endswith(".json"):
-                with open(f"{args.output}/{folder}/{file}", "r") as f:
+                with open(os.path.join(args.output,folder,file), "r") as f:
                     data = json.load(f)
                     for key in data:
                         instructionVector = data[key]["parameters"]
@@ -158,7 +158,7 @@ def FrankfurtAmMain():
     })
     df[TARGET] = trainingData[len(FEATURES)]
 
-    model = sklearn.linear_model.LogisticRegression(C=1,max_iter=1000) #Du noch viel lernen musst, junger Padawan. XD
+    model = LogisticRegression(C=1,max_iter=1000) #Du noch viel lernen musst, junger Padawan. XD
     model.fit(df[FEATURES], df[TARGET])
 
     w = dict(zip(FEATURES, model.coef_[0]))
@@ -172,9 +172,9 @@ def FrankfurtAmMain():
 
     testData = [[] for _ in range(len(FEATURES) + 1)] # +1 for the target variable
     for folder in testFolders:
-        for file in os.listdir(f"{args.output}/{folder}"):
+        for file in os.listdir(os.path.join(args.output, folder)):
             if file.endswith(".json"):
-                with open(f"{args.output}/{folder}/{file}", "r") as f:
+                with open(os.path.join(args.output, folder, file), "r") as f:
                     data = json.load(f)
                     for key in data:
                         instructionVector = data[key]["parameters"]
@@ -194,11 +194,11 @@ def FrankfurtAmMain():
 
     proba_test = model.predict_proba(X_test)[:, 1] #Gets probability for every sample to have same_source = 1
 
-    auc = sklearn.metrics.roc_auc_score(y_test, proba_test)
+    auc = roc_auc_score(y_test, proba_test)
     n = len(y_test)
 
     print(f"--- AUC (Holdout): {auc:.4f}  (n={n}) ---")
-    with open(args.output + "/" +"auc.txt", "w") as f:
+    with open(os.path.join(args.output,"auc.txt"), "w") as f:
         f.write(f"{auc:.4f}  (n={n})\n")
 
 
@@ -217,7 +217,7 @@ def FrankfurtAmMain():
 
     print(kalibrierungs_tabelle)
 
-    with open(args.output + "/" + "kalibrierung.txt", "w") as f:
+    with open(os.path.join(args.output, "kalibrierung.txt"), "w") as f:
         f.write(str(kalibrierungs_tabelle))
         f.write("\n")
 
@@ -231,7 +231,7 @@ def FrankfurtAmMain():
 
     print(export)
 
-    with open(args.output + "/" + "koeffizienten.json", "w") as f:
+    with open(os.path.join(args.output, "koeffizienten.json"), "w") as f:
         json.dump(export, f, indent=2)
 
 
