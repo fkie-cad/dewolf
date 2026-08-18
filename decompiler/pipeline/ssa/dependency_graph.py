@@ -1,18 +1,11 @@
-import itertools
-from itertools import combinations
 from typing import Iterator
 
-import networkx
-import networkx as nx
-from decompiler.pipeline.ssa.metric_helper import MetricHelper
+from networkx import MultiGraph
+from decompiler.pipeline.ssa.conditional_attribute_helper import ConditionalAttributeHelper, PhiPairs
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
-from decompiler.structures.pseudo import Call, Expression, ListOperation, Operation, OperationType, TernaryExpression, UnaryOperation
-from decompiler.structures.pseudo.expressions import Constant, GlobalVariable, NotUseableConstant, Symbol, Variable
-from decompiler.structures.pseudo.instructions import Assignment
-from decompiler.util.decoration import DecoratedGraph
-from networkx import MultiDiGraph, MultiGraph, to_undirected
-from itertools import product
+from decompiler.structures.pseudo import UnaryOperation
+from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
 
 # legacy code, not used anymore, but maybe useful in the future
 #def decorate_dependency_graph(dependency_graph: MultiDiGraph, interference_graph: InterferenceGraph) -> DecoratedGraph:
@@ -36,39 +29,18 @@ from itertools import product
 #
 #    return DecoratedGraph(decorated_graph)
 
+#def _assignments_in_cfg(cfg: ControlFlowGraph) -> Iterator[Assignment]:
+#    """Yield all interesting assignments for the dependency graph."""
+#    for instr in cfg.instructions:
+#        if isinstance(instr, Assignment):
+#            yield instr
 
-def dependency_graph_from_cfg(
-    cfg: ControlFlowGraph, parameters: list[float], intercept: float, ifg: InterferenceGraph) -> MultiGraph:
-    """
-        Construct the dependency graph of the given CFG, i.e. adds an edge between two variables if they depend on each other.
-    """
-    dependency_graph = MultiGraph()
-    for variable in _collect_variables(cfg):
-        dependency_graph.add_node((variable,))
-
-    for instruction in _assignments_in_cfg(cfg):
-        instruction : Assignment
-        lhs = instruction.destination
-        rhs = instruction.value
-
-        #Insertion and deduplication of edges in the dependency graph. If an edge already exists, we keep the one with the higher score.
-        for (a, b), scorev in _expression_dependencies(lhs, rhs, parameters, intercept):
-            a : Variable
-            b : Variable
-            scorev : float
-            
-            if (scorev > 0) and not (ifg.are_interfering(a,b)) and not (variablesAreInterfering(ifg, a, b)):
-                scorev = max(scorev,0.05)
-                if dependency_graph.has_edge((a,), (b,)):
-                    exScore = dependency_graph.get_edge_data((a,), (b,),"score",0)
-                    dependency_graph.remove_edge((a,), (b,))
-                    if scorev < exScore:
-                        scorev = exScore
-                dependency_graph.add_edge((a,), (b,), score=scorev)
-    return dependency_graph
+# Any edge scoring below this is dropped entirely; anything above it is floored to this
+# value. Matches the original `scorev = max(scorev, 0.05)` behavior.
+_MIN_KEPT_SCORE = 0.05
 
 def variablesAreInterfering(interference_graph: InterferenceGraph, var_X: Variable,var_Y: Variable) -> bool:
-    if interference_graph.are_interfering(*var_X, *var_Y):
+    if interference_graph.are_interfering(var_X, var_Y):
         return True
     elif var_X.type != var_Y.type:
         return True
@@ -84,7 +56,6 @@ def variablesAreInterfering(interference_graph: InterferenceGraph, var_X: Variab
     
     return False
 
-
 def _collect_variables(cfg: ControlFlowGraph) -> Iterator[Variable]:
     """
     Yields all variables contained in the given control flow graph.
@@ -94,71 +65,27 @@ def _collect_variables(cfg: ControlFlowGraph) -> Iterator[Variable]:
             if (isinstance(subexpression, Variable)) and (not isinstance(subexpression, UnaryOperation)):
                 yield subexpression
 
-
-def _assignments_in_cfg(cfg: ControlFlowGraph) -> Iterator[Assignment]:
-    """Yield all interesting assignments for the dependency graph."""
-    for instr in cfg.instructions:
-        if isinstance(instr, Assignment):
-            yield instr
-
-
-def getVariablesAndConstants(expr : Expression):
-        badOperations = [OperationType.dereference, OperationType.address, OperationType.dereference, OperationType.call, OperationType.pointer, OperationType.ternary, OperationType.list_op, OperationType.field, OperationType.member_access]
-        vars = []
-        consts = []
-        hasBadOperations = False
-        for component in expr.subexpressions():
-            if isinstance(component, Variable):
-                vars.append(component)
-            elif isinstance(component, Constant):
-                consts.append(component)
-            elif isinstance(component, Operation):
-                component:Operation
-                if component.operation in badOperations:
-                    hasBadOperations = True
-        return vars, consts, hasBadOperations
-
-
-def _expression_dependencies(lhs: Expression, rhs: Expression, parameters: list[float], intercept: float) -> list[tuple[Variable, Variable], float]:
+def dependency_graph_from_cfg(
+        cfg: ControlFlowGraph, parameters: list[float], intercept: float, phi_pairs: PhiPairs, ifg: InterferenceGraph) -> MultiGraph:
     """
-    Calculate the dependencies of an expression in terms of its constituent variables.
-    We use different attributes to describe the strength of the dependency. 
-    The order of the attributes has to be the SAME as in the ConditionalSSATraining class and in the FEATURES list in the conditionalTrainingRunner.py file. 
+        Construct the dependency graph of the given CFG, i.e. adds an edge between two variables if they depend on each other.
     """
-    result = []
-    if (lhs is None) or (rhs is None):
-        return result
-    vlhs, _, bO1 = getVariablesAndConstants(lhs)
-    vrhs, crhs, bO2 = getVariablesAndConstants(rhs)
-    vrhs : list[Variable]
-    vlhs : list[Variable]
+    dependency_graph = MultiGraph()
+    for variable in _collect_variables(cfg):
+        dependency_graph.add_node((variable,))
 
-    if (len(vlhs) == 0) or (len(vrhs) == 0):
-        return result
+    helper = ConditionalAttributeHelper(phi_pairs)
+    for vector, (a, b) in helper.iter_edge_data(cfg):
+        score = sum(p * v for p, v in zip(parameters, vector)) + intercept
+        if score <= 0 or variablesAreInterfering(ifg, a, b):
+            continue
 
-    for x, y in product(vlhs, vrhs):
-        edgeScore = 0
+        existing_score = 0.0
+        score = max(score, _MIN_KEPT_SCORE)
+        if dependency_graph.has_edge((a,), (b,)):
+            existing_score = next(iter(dependency_graph.get_edge_data((a,), (b,)).values()))["score"]
+            dependency_graph.remove_edge((a,), (b,))
+ 
+        dependency_graph.add_edge((a,), (b,), score=max(score, existing_score))
 
-        # --- Attributes ---
-        #Attirbute 1: is_strong --> if the assignment has roughly the form x = y with x and y being two variables
-        if (len(vrhs) == 1) and (len(crhs) == 0) and (len(vlhs) == 1) and (not bO1) and (not bO2):
-            edgeScore += parameters[0]
-
-        #Attribute 2: is_mid --> if the assignment has roughly the form x = y + c with c being a constant. Further there shouldn't be a cast, a copy or pointer arithmetic in the rhs Expression.
-        if (edgeScore == 0) and (len(vrhs) == 1) and (len(crhs) == 1) and (len(vlhs) == 1) and (not bO1) and (not bO2):
-            edgeScore += parameters[1]
-
-        #Attribute 3: same_base_name --> if all participating variables have the same base name (var.name)
-        if x.name == y.name:
-            edgeScore += parameters[2]
-
-        #Attribute 4: same_storage --> if all participating variables have the same storage (var.ssa_name.origin)
-        if (x.origin and y.origin): #origin is not alyways set --> variables inserted by the compiler
-            if (x.origin.source_type == y.origin.source_type) and (x.origin.storage == y.origin.storage):
-                edgeScore += parameters[3]
-
-
-        edgeScore += intercept
-        result.append(((x, y), edgeScore))
-
-    return result
+    return dependency_graph

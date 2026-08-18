@@ -3,37 +3,32 @@
 import logging
 import random
 from collections import defaultdict
-from copy import deepcopy
 from dataclasses import dataclass, field
 from itertools import chain, combinations
 from logging import debug
-from operator import attrgetter, itemgetter
+from operator import attrgetter 
 from typing import DefaultDict, Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union
 
 import networkx as nx
 import numpy as np
-from decompiler.pipeline.ssa.dependency_graph import _collect_variables, dependency_graph_from_cfg
-from decompiler.pipeline.ssa.metric_helper import MetricHelper
+from decompiler.pipeline.ssa.conditional_attribute_helper import PhiPairs
+from decompiler.pipeline.ssa.dependency_graph import dependency_graph_from_cfg
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import BaseAssignment, Instruction, Relation
 from decompiler.structures.pseudo.typing import Type
 from decompiler.task import DecompilerTask
-from decompiler.util.decoration import DecoratedCFG
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 from decompiler.util.lexicographical_bfs import LexicographicalBFS
 from networkx import (
     Graph,
-    MultiDiGraph,
     MultiGraph,
     connected_components,
     has_path,
     minimum_cut,
-    relabel_nodes,
     selfloop_edges,
     shortest_path_length,
-    subgraph,
 )
 from scipy.optimize import Bounds, LinearConstraint, milp
 import os
@@ -399,11 +394,13 @@ class ConditionalVariableRenamer(VariableRenamer):
         interference_graph: InterferenceGraph,
         parameters: list[float],
         intercept: float,
+        phi_pairs: PhiPairs,
         strat: int = 0, #DETERMINISM
     ):
         super().__init__(task, interference_graph.copy())
         self.params = parameters
         self.intercept = intercept
+        self.phi_pairs = phi_pairs
         self.strat = strat
         self.correctedInterferencePairs = 0
         self.interference_graph = interference_graph
@@ -422,7 +419,7 @@ class ConditionalVariableRenamer(VariableRenamer):
 
         :param cfg: The control flow graph from which the dependency graph is derived.
         """
-        dependency_graph = dependency_graph_from_cfg(cfg, self.params, self.intercept, self.interference_graph)
+        dependency_graph = dependency_graph_from_cfg(cfg, self.params, self.intercept, self.phi_pairs, self.interference_graph)
         dependency_graph = self.merge_contracted_variables(dependency_graph)
 
         dependency_graph = self.create_variable_classes(dependency_graph)
