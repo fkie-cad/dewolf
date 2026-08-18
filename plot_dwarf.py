@@ -361,10 +361,6 @@ def plot_error_modes(data: list[dict], outdir: Path, clip_name: str, algorithms:
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.legend(title="Error Type")
     
-    fig.text(0.5, 0.01, 
-             "Note: Certain algorithms (like Sreedhar) may not produce structural errors due to their theoretical properties.",
-             ha="center", fontsize=9, style='italic')
-             
     plt.subplots_adjust(bottom=0.20)
     plt.savefig(outdir / "05_error_modes.png", dpi=150, bbox_inches="tight")
     plt.close()
