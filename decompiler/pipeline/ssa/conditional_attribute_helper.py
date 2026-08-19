@@ -161,7 +161,6 @@ class TrainingAttributeHelper(AbstractAttributeHelper):
                 lhs = self._get_expression_info(assign.destination)
                 rhs = self._get_expression_info(assign.value)
 
-                # skip assignments where either side has no
                 template = self._common_template(lhs, rhs)
                 for x, y in product(lhs.c_v, rhs.c_v):
                     if (
