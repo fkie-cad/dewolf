@@ -1,11 +1,11 @@
 from typing import Iterator
 
 from networkx import MultiGraph
-from decompiler.pipeline.ssa.conditional_attribute_helper import ConditionalAttributeHelper, PhiPairs
+from decompiler.pipeline.ssa.conditional_attribute_helper import ConditionalAttributeHelper, PhiPairs, variablesAreInterfering
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo import UnaryOperation
-from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
+from decompiler.structures.pseudo.expressions import Variable
 
 # legacy code, not used anymore, but maybe useful in the future
 #def decorate_dependency_graph(dependency_graph: MultiDiGraph, interference_graph: InterferenceGraph) -> DecoratedGraph:
@@ -39,22 +39,6 @@ from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
 # value. Matches the original `scorev = max(scorev, 0.05)` behavior.
 _MIN_KEPT_SCORE = 0.05
 
-def variablesAreInterfering(interference_graph: InterferenceGraph, var_X: Variable,var_Y: Variable) -> bool:
-    if interference_graph.are_interfering(var_X, var_Y):
-        return True
-    elif var_X.type != var_Y.type:
-        return True
-    elif (var_X.is_aliased != var_Y.is_aliased) or (var_X.is_aliased and var_Y.is_aliased and (var_X.name != var_Y.name)):
-        return True
-    elif isinstance(var_X, GlobalVariable) != isinstance(var_Y, GlobalVariable):
-        return True
-    elif (isinstance(var_X,GlobalVariable) and  isinstance(var_Y,GlobalVariable) and (var_X.name != var_Y.name)):
-        return True
-
-    if(var_X.type == None) or (var_Y.type == None):
-        raise Exception("Encountered a None type variable in the SSA-Stage!")
-    
-    return False
 
 def _collect_variables(cfg: ControlFlowGraph) -> Iterator[Variable]:
     """

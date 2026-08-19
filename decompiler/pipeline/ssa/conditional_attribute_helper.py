@@ -27,8 +27,9 @@ from itertools import permutations, product
 from typing import Dict, Iterator, List, NamedTuple, Set, Tuple
 
 from decompiler.structures.graphs.cfg import ControlFlowGraph
-from decompiler.structures.pseudo.expressions import Constant, Expression, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Phi
+from decompiler.structures.interferencegraph import InterferenceGraph
+from decompiler.structures.pseudo.expressions import Constant, Expression, GlobalVariable, Variable
 from decompiler.structures.pseudo.operations import Call, Operation, OperationType
 
 PhiPairs = Set[Tuple[Variable, Variable]]
@@ -41,6 +42,24 @@ INDEX_FUNC_CALL = 5
 INDEX_IN_SAME_PHI = 6 
 INDEX_USAGE_BASE = 7  # usage_1..usage_5 live at INDEX_USAGE_BASE + (n - 1)
 VECTOR_LENGTH = 16 
+
+
+def variablesAreInterfering(interference_graph: InterferenceGraph, var_X: Variable,var_Y: Variable) -> bool:
+    if interference_graph.are_interfering(var_X, var_Y):
+        return True
+    elif var_X.type != var_Y.type:
+        return True
+    elif (var_X.is_aliased != var_Y.is_aliased) or (var_X.is_aliased and var_Y.is_aliased and (var_X.name != var_Y.name)):
+        return True
+    elif isinstance(var_X, GlobalVariable) != isinstance(var_Y, GlobalVariable):
+        return True
+    elif (isinstance(var_X,GlobalVariable) and  isinstance(var_Y,GlobalVariable) and (var_X.name != var_Y.name)):
+        return True
+
+    if(var_X.type == None) or (var_Y.type == None):
+        raise Exception("Encountered a None type variable in the SSA-Stage!")
+    
+    return False
 
 def get_phi_pairs(cfg: ControlFlowGraph) -> PhiPairs:
     """All ordered pairs of variables that co-occur in the same phi function."""
@@ -106,8 +125,7 @@ class AbstractAttributeHelper(ABC):
             vec[INDEX_USAGE_BASE + n_rhs_vars - 1] = 1
         return vec
 
-    @staticmethod
-    def _fill_pair_attrs(vec: List[int], phi_pairs: PhiPairs, x: Variable, y: Variable) -> None:
+    def _fill_pair_attrs(self, vec: List[int], x: Variable, y: Variable) -> None:
         vec[INDEX_SAME_BASE_NAME] = int(x.name == y.name)
         vec[INDEX_SAME_STORAGE] = int(
             x.origin is not None
@@ -115,7 +133,7 @@ class AbstractAttributeHelper(ABC):
             and x.origin.source_type == y.origin.source_type
             and x.origin.storage == y.origin.storage
         )
-        vec[INDEX_IN_SAME_PHI] = int((x, y) in phi_pairs)
+        vec[INDEX_IN_SAME_PHI] = int((x, y) in self._phi_pairs)
 
     def _assignments_in_cfg(self, cfg: ControlFlowGraph) -> Iterator[Assignment]:
         for instr in cfg.instructions:
@@ -132,6 +150,10 @@ class TrainingRecord(NamedTuple):
 class TrainingAttributeHelper(AbstractAttributeHelper):
     """Used to build (vector, training_goal) training examples. Only yields pairs where"""
 
+    def __init__(self, phi_pairs: PhiPairs, interference_graph: InterferenceGraph):
+        self._interference_graph = interference_graph
+        super().__init__(phi_pairs)
+
     def iter_training_data(self, cfg: ControlFlowGraph, on_error=None) -> Iterator[TrainingRecord]:
         """on_error(assign, exc) is called (if given) when a single assignment fails to process"""
         for assign in self._assignments_in_cfg(cfg):
@@ -140,27 +162,19 @@ class TrainingAttributeHelper(AbstractAttributeHelper):
                 rhs = self._get_expression_info(assign.value)
 
                 # skip assignments where either side has no
-                # variables at all, or none of them carry SSA origin info
-                if not lhs.c_v or not rhs.c_v:
-                    continue
-                if not any(x.origin is not None for x in lhs.c_v) or not any(
-                    y.origin is not None for y in rhs.c_v
-                ):
-                    continue
-
                 template = self._common_template(lhs, rhs)
-
                 for x, y in product(lhs.c_v, rhs.c_v):
                     if (
                         x.origin is None
                         or y.origin is None
                         or x.origin.source_name is None
                         or y.origin.source_name is None
+                        or variablesAreInterfering(self._interference_graph, x, y)
                     ):
                         continue
 
                     vec = template.copy()
-                    self._fill_pair_attrs(vec, self._phi_pairs, x, y)
+                    self._fill_pair_attrs(vec, x, y)
                     t_goal = int(x.origin.source_name == y.origin.source_name)
                     yield TrainingRecord(vec, t_goal, x.origin.source_name, y.origin.source_name)
 
@@ -184,5 +198,5 @@ class ConditionalAttributeHelper(AbstractAttributeHelper):
 
             for x, y in product(lhs.c_v, rhs.c_v):
                 vec = template.copy()
-                self._fill_pair_attrs(vec, self._phi_pairs, x, y)
+                self._fill_pair_attrs(vec, x, y)
                 yield vec, (x, y)

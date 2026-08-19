@@ -34,23 +34,20 @@ class ConditionalOutOfSSATraining:
         # We need to get the phi_pairs before lifting
         phi_pairs = get_phi_pairs(self.task.cfg)
         #Start as if it would be a normal conditional out of SSA run to achieve the same state of the CFG and Interference graph as in a normal conditional.
-        self._lift_phis()
- 
-        # We always write SOME file for every task (a marker if there's no useful data)
-        # so a function is never re-decompiled just to find out again that it has nothing.
-        try:
-            self._extract_and_write(phi_pairs)
-        except Exception as e:
-            with open(self.error_log_path, "a") as error_file:
-                error_file.write(f"Error while processing task {self.task}: {e}\n")
-
-    def _lift_phis(self):
         PhiDependencyResolver(self._phi_functions_of).resolve()
         interference_graph = InterferenceGraph(self.task.cfg)
         PhiFunctionLifter(self.task.graph, interference_graph, self._phi_functions_of).lift()
  
-    def _extract_and_write(self, phi_pairs: PhiPairs) -> None:
-        helper = TrainingAttributeHelper(phi_pairs)
+        # We always write SOME file for every task (a marker if there's no useful data)
+        # so a function is never re-decompiled just to find out again that it has nothing.
+        try:
+            self._extract_and_write(phi_pairs, interference_graph)
+        except Exception as e:
+            with open(self.error_log_path, "a") as error_file:
+                error_file.write(f"Error while processing task {self.task}: {e}\n")
+    
+    def _extract_and_write(self, phi_pairs: PhiPairs, interference_graph: InterferenceGraph) -> None:
+        helper = TrainingAttributeHelper(phi_pairs, interference_graph)
  
         tmp_path = self.result_path + ".tmp"
         source_names: set = set()
