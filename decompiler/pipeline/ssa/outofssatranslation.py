@@ -8,6 +8,7 @@ from typing import Callable, DefaultDict, List
 
 from decompiler.pipeline.ssa.conditionalSSATraining import ConditionalOutOfSSATraining
 from decompiler.pipeline.ssa.conditional_out_of_SSA import ConditionalOutOfSSA
+from decompiler.pipeline.ssa.boissinot_2008 import Boissinot2008
 from decompiler.pipeline.ssa.phi_cleaner import PhiFunctionCleaner
 from decompiler.pipeline.ssa.phi_dependency_resolver import PhiDependencyResolver
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
@@ -29,6 +30,7 @@ class SSAOptions(Enum):
     conditional = "conditional"
     sreedhar = "sreedhar"
     conditional_training = "conditional_training"
+    boissinot2008 = "boissinot2008"
 
 
 class OutOfSsaTranslation(PipelineStage):
@@ -59,6 +61,7 @@ class OutOfSsaTranslation(PipelineStage):
         SSAOptions.conditional.value: "first lifts the phi-functions and renames the SSA-variables according to their dependencies.",
         SSAOptions.sreedhar.value: "out-of-SSA due to Sreedhar et. al.",
         SSAOptions.conditional_training.value: "out-of-SSA using conditional training.",
+        SSAOptions.boissinot2008.value: "Out-of-SSA due to Boissinot et al. 'Revisiting Out-of-SSA Translation for Correctness, Code Quality, and Efficency'" 
     }
 
     def __init__(self):
@@ -183,6 +186,10 @@ class OutOfSsaTranslation(PipelineStage):
         ConstantLifter(self.task).perform()
         SreedharOutOfSSA(self.task).perform()
 
+    def _boissinot2008(self):
+        Boissinot2008(self.task,self._phi_functions_of).perform()
+
+
     # This translator maps the optimization levels to the functions.
     out_of_ssa_strategy: dict[SSAOptions, Callable[["OutOfSsaTranslation"], None]] = {
         SSAOptions.simple: _simple_out_of_ssa,
@@ -191,4 +198,5 @@ class OutOfSsaTranslation(PipelineStage):
         SSAOptions.conditional: _conditional_out_of_ssa,
         SSAOptions.conditional_training: _conditional_out_of_ssa_training,
         SSAOptions.sreedhar: _sreedhar_out_of_ssa,
+        SSAOptions.boissinot2008: _boissinot2008,
     }
