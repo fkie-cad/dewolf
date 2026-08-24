@@ -246,7 +246,6 @@ class Boissinot2008:
         ttask.cfg = self._cfg_copy
 
         #Compute renaming map and rename the variables accordingly
-        #TODO: Fix Variable Renamer to work with the new interference graph and variable classes
         self.renamer = self.BoissinotVariableRenamer(ttask,self._interference_graph,self.varClasses)
         self.renamer.rename()
 
@@ -269,10 +268,16 @@ class Boissinot2008:
                     instr: Assignment
                     if isinstance(instr.destination,Variable) and isinstance(instr.value,Variable):
                         if (varClasses[instr.destination] is not varClasses[instr.value]):
-                            if not self._interference_graph.are_interfering(*varClasses[instr.destination],*varClasses[instr.value]):
-                                newClass = [*varClasses[instr.destination],*varClasses[instr.value]]
-                                for var in newClass:
-                                    varClasses[var] = newClass
+                            if not self._interference_graph.are_interfering(*varClasses[instr.destination],*varClasses[instr.value]): 
+                                canGoTogether = True
+                                for x,y in itertools.product(varClasses[instr.destination],varClasses[instr.value]):
+                                    if not self.doVarCheckClassToghetherPossible(x,y):
+                                        canGoTogether = False
+                                        break
+                                if canGoTogether:
+                                    newClass = [*varClasses[instr.destination],*varClasses[instr.value]]
+                                    for var in newClass:
+                                        varClasses[var] = newClass
 
         #Check remaining copys for special criterion of Boissinot et al. 
         # Given two assignments of the form x = y and z = y, if x and z are live at the same time, they can be in the same class
@@ -294,16 +299,21 @@ class Boissinot2008:
             for varList in assignmentsEliminationDict.values():
                 if len(varList) > 1:
                     for var1,var2 in itertools.combinations(varList,2):
-                        if (varClasses[var1] is not varClasses[var2]) and self.doVarCheckClassToghetherPossible(var1, var2):
-                            for liveOut in liveOuts:
-                                if (var1 in liveOut) and (var2 in liveOut): #The two variables are live at the same time, so they can be in the same class
-                                    if not self._interference_graph.are_interfering(*varClasses[var1],*varClasses[var2]):
-                                        newClass = [*varClasses[var1],*varClasses[var2]]
-                                        for var in newClass:
-                                            varClasses[var] = newClass
-                                        changes = True
-
+                        if (varClasses[var1] is not varClasses[var2]):
+                            possible = True
+                            for x,y in itertools.product(varClasses[var1],varClasses[var2]):
+                                if not self.doVarCheckClassToghetherPossible(x,y):
+                                    possible = False
                                     break
+                            if possible:
+                                for liveOut in liveOuts:
+                                    if (var1 in liveOut) and (var2 in liveOut): #The two variables are live at the same time, so they can be in the same class
+                                        if not self._interference_graph.are_interfering(*varClasses[var1],*varClasses[var2]):
+                                            newClass = [*varClasses[var1],*varClasses[var2]]
+                                            for var in newClass:
+                                                varClasses[var] = newClass
+                                            changes = True
+                                        break
 
         return [list(varClasses[x]) for x in varClasses.keys()]
 
@@ -434,8 +444,7 @@ class Boissinot2008:
 
     class BoissinotVariableRenamer(VariableRenamer):
         def __init__(self, task: DecompilerTask, interference_graph,varClasses:list):
-            super().__init__(task,interference_graph)
-
+            
             self.cfg = task.cfg
             self.interference_graph = interference_graph
             self.varClasses = varClasses

@@ -11,6 +11,25 @@ from decompiler.structures.pseudo.instructions import Assignment, Instruction
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 from networkx import topological_sort
 
+def doVarCheckClassToghetherPossible(var1: Variable, var2: Variable) -> bool:
+        """Returns true, if var1 and var2 do not interfere based on our 'newly' found criteria:
+            Global Variable and normal variables do not get mixed.
+            Global variables in one class have to have the same name.
+            The type of all variables in one class has to be identical.
+            The variables either have to be all aliased or all non-aliased.
+            If both variables are aliased they have to have the same name.
+            """
+        if isinstance(var1, GlobalVariable) and isinstance(var2, GlobalVariable) and (var1.name != var2.name):
+            return False
+        elif isinstance(var1, GlobalVariable) != isinstance(var2, GlobalVariable):
+            return False
+        elif var1.type != var2.type:
+            return False
+        elif var1.is_aliased != var2.is_aliased:
+            return False
+        elif var1.is_aliased and var2.is_aliased and (var1.name != var2.name):
+            return False
+        return True
 
 class ValueInterferenceGraph(InterferenceGraph):
     def __init__(self, cfg: ControlFlowGraph = None): #type: ignore
@@ -22,18 +41,6 @@ class ValueInterferenceGraph(InterferenceGraph):
         self._value_classes:Dict[Variable, Variable] = dict()
         self._build_variable_classes(cfg)
         super().__init__(cfg)
-
-        neededEdges = []
-        for var1, var2 in combinations(self._collect_variables(cfg), 2):
-            var1Glob = isinstance(var1, GlobalVariable)
-            var2Glob = isinstance(var2, GlobalVariable)
-            if (var1Glob and var2Glob and (var1.name != var2.name)) or \
-            (var1Glob != var2Glob) or \
-            (var1.type != var2.type) or \
-            (var1.is_aliased != var2.is_aliased) or \
-            (var1.is_aliased and var2.is_aliased and (var1.name != var2.name)):
-                neededEdges.append((var1, var2))
-        self.add_edges_from(neededEdges)
 
     def _is_copy_assignment(self, instr: Instruction) -> bool:
         """Returns true if instr is an assignment between two VARIABLES"""
@@ -49,26 +56,6 @@ class ValueInterferenceGraph(InterferenceGraph):
                 if isinstance(subexpression, Variable):
                     yield subexpression
 
-    def doVarCheckClassToghetherPossible(self, var1: Variable, var2: Variable) -> bool:
-            """Returns true, if var1 and var2 do not interfere based on our 'newly' found criteria:
-                Global Variable and normal variables do not get mixed.
-                Global variables in one class have to have the same name.
-                The type of all variables in one class has to be identical.
-                The variables either have to be all aliased or all non-aliased.
-                If both variables are aliased they have to have the same name.
-                """
-            if isinstance(var1, GlobalVariable) and isinstance(var2, GlobalVariable) and (var1.name != var2.name):
-                return False
-            elif isinstance(var1, GlobalVariable) != isinstance(var2, GlobalVariable):
-                return False
-            elif var1.type != var2.type:
-                return False
-            elif var1.is_aliased != var2.is_aliased:
-                return False
-            elif var1.is_aliased and var2.is_aliased and (var1.name != var2.name):
-                return False
-            return True
-
     def _build_variable_classes(self, cfg:ControlFlowGraph) -> None:
         """We build a class for every variable. If there's a copy assignment then the variables have the same value at that point and therefore do not interfere,
         despite possible live range interferance.
@@ -79,7 +66,7 @@ class ValueInterferenceGraph(InterferenceGraph):
         basic_block: BasicBlock
         for basic_block in topological_sort(cfg.dominator_tree._graph): #type: ignore
             for instr in basic_block:
-                if self._is_copy_assignment(instr) and self.doVarCheckClassToghetherPossible(instr.value, instr.destination):
+                if self._is_copy_assignment(instr) and doVarCheckClassToghetherPossible(instr.value, instr.destination):
                     instr: Assignment
                     #if (not isinstance(instr.value,GlobalVariable) and (not isinstance(instr.destination,GlobalVariable))):
                     self._value_classes[instr.destination] = self._value_classes[instr.value] #type:ignore
