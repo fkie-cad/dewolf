@@ -31,6 +31,7 @@ from decompiler.structures.pseudo.instructions import Assignment, Phi
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo.expressions import Constant, Expression, GlobalVariable, Variable
 from decompiler.structures.pseudo.operations import Call, Operation, OperationType
+from decompiler.structures.pseudo.typing import Type, UnknownType
 
 PhiPairs = Set[Tuple[Variable, Variable]]
 INDEX_IS_STRONG = 0
@@ -40,14 +41,12 @@ INDEX_SAME_STORAGE = 3
 INDEX_DEF_BY_USAGE = 4
 INDEX_FUNC_CALL = 5
 INDEX_IN_SAME_PHI = 6 
-INDEX_USAGE_BASE = 7  # usage_1..usage_5 live at INDEX_USAGE_BASE + (n - 1)
+INDEX_USAGE_BASE = 7  # usage_1..usage_9 live at INDEX_USAGE_BASE + (n - 1)
 VECTOR_LENGTH = 16 
 
 
 def variablesAreInterfering(interference_graph: InterferenceGraph, var_X: Variable,var_Y: Variable) -> bool:
     if interference_graph.are_interfering(var_X, var_Y):
-        return True
-    elif var_X.type != var_Y.type:
         return True
     elif (var_X.is_aliased != var_Y.is_aliased) or (var_X.is_aliased and var_Y.is_aliased and (var_X.name != var_Y.name)):
         return True
@@ -55,6 +54,11 @@ def variablesAreInterfering(interference_graph: InterferenceGraph, var_X: Variab
         return True
     elif (isinstance(var_X,GlobalVariable) and  isinstance(var_Y,GlobalVariable) and (var_X.name != var_Y.name)):
         return True
+    elif var_X.type != var_Y.type:
+        if (isinstance(var_X.type,UnknownType) or isinstance(var_Y.type,UnknownType)):
+            return True
+        if var_X.type.size != var_Y.type.size:
+            return True
 
     if(var_X.type == None) or (var_Y.type == None):
         raise Exception("Encountered a None type variable in the SSA-Stage!")
@@ -75,6 +79,10 @@ class AbstractAttributeHelper(ABC):
 
     __slots__ = ("_phi_pairs",)
 
+    _GOOD_OPERATIONS = frozenset({
+        OperationType.cast,
+    })
+
     _BAD_OPERATIONS = frozenset({
         OperationType.dereference,
         OperationType.address,
@@ -89,7 +97,8 @@ class AbstractAttributeHelper(ABC):
     class ExprInfo(NamedTuple):
         c_c: int                    # number of constants
         is_call: bool
-        has_bad_op: bool
+        has_bad_op_strong: bool
+        has_bad_op_mid: bool
         c_v: Dict[Variable, int]    # variable -> occurrence count
 
     def __init__(self, phi_pairs: PhiPairs) -> None:
@@ -97,7 +106,8 @@ class AbstractAttributeHelper(ABC):
 
     def _get_expression_info(self, expr: Expression) -> ExprInfo:
         c_c = 0
-        has_bad_op = False
+        has_bad_op_strong = False
+        has_bad_op_mid = False
         is_call = isinstance(expr, Call)
         c_v: Dict[Variable, int] = {}
 
@@ -106,22 +116,25 @@ class AbstractAttributeHelper(ABC):
                 c_v[e] = c_v.get(e, 0) + 1
             elif isinstance(e, Constant):
                 c_c += 1
-            elif not has_bad_op and isinstance(e, Operation) and e.operation in self._BAD_OPERATIONS:
-                has_bad_op = True
+            if not has_bad_op_strong and isinstance(e, Operation) and e.operation not in self._GOOD_OPERATIONS:
+                has_bad_op_strong = True
+            if not has_bad_op_mid and isinstance(e, Operation) and e.operation in self._BAD_OPERATIONS:
+                has_bad_op_mid = True
 
-        return self.ExprInfo(c_c, is_call, has_bad_op, c_v)
+        return self.ExprInfo(c_c, is_call,has_bad_op_strong, has_bad_op_mid, c_v)
 
     def _common_template(self, lhs: ExprInfo, rhs: ExprInfo) -> List[int]:
         n_rhs_vars = len(rhs.c_v)
         single_rhs_var_once = n_rhs_vars == 1 and next(iter(rhs.c_v.values())) == 1
-        no_bad_ops = not lhs.has_bad_op and not rhs.has_bad_op
+        no_bad_ops_strong = not lhs.has_bad_op_strong and not rhs.has_bad_op_strong
+        no_bad_ops_mid = not lhs.has_bad_op_mid and not rhs.has_bad_op_mid
 
         vec = [0] * VECTOR_LENGTH
-        vec[INDEX_IS_STRONG] = int(single_rhs_var_once and rhs.c_c == 0 and no_bad_ops)
-        vec[INDEX_IS_MID] = int(single_rhs_var_once and rhs.c_c == 1 and no_bad_ops)
-        vec[INDEX_DEF_BY_USAGE] = int(n_rhs_vars == 1 and no_bad_ops)
+        vec[INDEX_IS_STRONG] = int(single_rhs_var_once and rhs.c_c == 0 and no_bad_ops_strong)
+        vec[INDEX_IS_MID] = int(single_rhs_var_once and rhs.c_c == 1 and no_bad_ops_mid)
+        vec[INDEX_DEF_BY_USAGE] = int(n_rhs_vars == 1 and no_bad_ops_mid)
         vec[INDEX_FUNC_CALL] = int(rhs.is_call)
-        if 1 <= n_rhs_vars <= 5:
+        if 1 <= n_rhs_vars <= 9:
             vec[INDEX_USAGE_BASE + n_rhs_vars - 1] = 1
         return vec
 
@@ -130,6 +143,10 @@ class AbstractAttributeHelper(ABC):
         vec[INDEX_SAME_STORAGE] = int(
             x.origin is not None
             and y.origin is not None
+            and x.origin.source_type is not None
+            and y.origin.source_type is not None
+            and x.origin.storage is not None
+            and y.origin.storage is not None
             and x.origin.source_type == y.origin.source_type
             and x.origin.storage == y.origin.storage
         )
@@ -168,6 +185,10 @@ class TrainingAttributeHelper(AbstractAttributeHelper):
                         or y.origin is None
                         or x.origin.source_name is None
                         or y.origin.source_name is None
+                        or x.origin.source_type is None
+                        or y.origin.source_type is None
+                        or x.origin.storage is None
+                        or y.origin.storage is None
                         or variablesAreInterfering(self._interference_graph, x, y)
                     ):
                         continue
