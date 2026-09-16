@@ -187,6 +187,264 @@ def test_trivial_2():
     ]
 
 
+def test_existing_subexpression_reused_with_downward_cast():
+    """
+    s2 = s1 + 0x1; ...; usage_of(s1 + 0x1)
+
+    If a later usage of a structurally identical expression only needs a type that is narrower than (or equal to) the
+    type an existing, dominating definition (s2) already has, the usage is replaced by an explicit downward cast of s2
+    instead of being recomputed -- reading the already-computed wider value and truncating it always yields exactly what
+    computing the narrower expression from scratch would have produced.
+    """
+    s1 = Variable("s1", ssa_label=0)
+    expr_wide = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer.int64_t())
+    expr_narrow = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer.int32_t())
+    cfg = ControlFlowGraph()
+    cfg.add_node(
+        node := BasicBlock(
+            0,
+            instructions=[
+                Assignment(Variable("s2"), expr_wide.copy()),
+                Assignment(ListOperation([]), Call(function_symbol("foo"), [expr_narrow.copy()])),
+            ],
+        )
+    )
+    _run_cse(cfg)
+    assert node.instructions == [
+        Assignment(Variable("s2"), expr_wide.copy()),
+        Assignment(
+            ListOperation([]),
+            Call(function_symbol("foo"), [UnaryOperation(OperationType.cast, [Variable("s2")], Integer.int32_t())]),
+        ),
+    ]
+
+
+def test_existing_subexpression_not_reused_when_definition_is_narrower():
+    """
+    The reverse of test_existing_subexpression_reused_with_downward_cast: if the existing, dominating definition (s2) is
+    narrower than what a later usage needs, the usage must NOT be replaced -- an upward cast could not safely reconstruct
+    bits that were never computed by the narrower definition, so the usage keeps computing its own (wider) expression.
+    """
+    s1 = Variable("s1", ssa_label=0)
+    expr_narrow = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer.int32_t())
+    expr_wide = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer.int64_t())
+    cfg = ControlFlowGraph()
+    cfg.add_node(
+        node := BasicBlock(
+            0,
+            instructions=[
+                Assignment(Variable("s2"), expr_narrow.copy()),
+                Assignment(ListOperation([]), Call(function_symbol("foo"), [expr_wide.copy()])),
+            ],
+        )
+    )
+    old_instructions = [i.copy() for i in node.instructions]
+    _run_cse(cfg)
+    assert node.instructions == old_instructions
+
+
+def test_existing_subexpression_multiple_narrower_usages_reuse_same_wide_definition():
+    """Several usages that each need a different, narrower type all reuse the same wide definition, each with its own cast."""
+    s1 = Variable("s1", ssa_label=0)
+    expr_wide = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer(64, True))
+    expr_32 = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer(32, True))
+    expr_16 = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer(16, True))
+    cfg = ControlFlowGraph()
+    cfg.add_node(
+        node := BasicBlock(
+            0,
+            instructions=[
+                Assignment(Variable("s2"), expr_wide.copy()),
+                Assignment(ListOperation([]), Call(function_symbol("foo"), [expr_32.copy()])),
+                Assignment(ListOperation([]), Call(function_symbol("bar"), [expr_16.copy()])),
+            ],
+        )
+    )
+    _run_cse(cfg)
+    assert node.instructions == [
+        Assignment(Variable("s2"), expr_wide.copy()),
+        Assignment(
+            ListOperation([]),
+            Call(function_symbol("foo"), [UnaryOperation(OperationType.cast, [Variable("s2")], Integer(32, True))]),
+        ),
+        Assignment(
+            ListOperation([]),
+            Call(function_symbol("bar"), [UnaryOperation(OperationType.cast, [Variable("s2")], Integer(16, True))]),
+        ),
+    ]
+
+
+def test_existing_subexpression_not_reused_for_operators_where_truncation_is_unsafe():
+    """
+    Unlike `plus`, truncating a wider, correctly computed `divide` result does not generally equal what a native division
+    at the narrower width would have produced (e.g. 0x100000006 // 4 truncated to 32 bit is 0x40000001, but dividing the
+    32-bit-truncated operand 0x6 // 4 gives 0x1) -- the low bits of a division depend on the high bits of the dividend,
+    which get lost when only the narrower expression is computed. `divide` is therefore not in
+    _SIZE_TRUNCATION_SAFE_OPERATIONS, and the narrower usage must keep computing its own expression instead of reusing s2.
+    """
+    s1 = Variable("s1", ssa_label=0)
+    expr_wide = BinaryOperation(OperationType.divide, [s1.copy(), Constant(4)], Integer(64, True))
+    expr_narrow = BinaryOperation(OperationType.divide, [s1.copy(), Constant(4)], Integer(32, True))
+    cfg = ControlFlowGraph()
+    cfg.add_node(
+        node := BasicBlock(
+            0,
+            instructions=[
+                Assignment(Variable("s2"), expr_wide.copy()),
+                Assignment(ListOperation([]), Call(function_symbol("foo"), [expr_narrow.copy()])),
+            ],
+        )
+    )
+    old_instructions = [i.copy() for i in node.instructions]
+    _run_cse(cfg)
+    assert node.instructions == old_instructions
+
+
+def test_existing_subexpression_multiple_simultaneous_candidates_picks_tightest():
+    """
+    A narrower definition (s2, 32-bit) that is registered before a wider one (s3, 64-bit) is NOT consumed by it -- s3's own
+    right-hand side needs 64 bit, which s2 (32-bit) can not satisfy, so s3 becomes its own, independent, additional
+    definition. Both s2 and s3 are therefore simultaneously live candidates for a later, even narrower usage; the
+    tightest sufficient one (s2) must be picked, not just "any" or the widest.
+    """
+    s1 = Variable("s1", ssa_label=0)
+    expr_32 = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer(32, True))
+    expr_64 = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer(64, True))
+    expr_16 = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer(16, True))
+    cfg = ControlFlowGraph()
+    cfg.add_node(
+        node := BasicBlock(
+            0,
+            instructions=[
+                Assignment(Variable("s2"), expr_32.copy()),
+                Assignment(Variable("s3"), expr_64.copy()),
+                Assignment(ListOperation([]), Call(function_symbol("foo"), [expr_16.copy()])),
+            ],
+        )
+    )
+    _run_cse(cfg)
+    assert node.instructions == [
+        Assignment(Variable("s2"), expr_32.copy()),
+        Assignment(Variable("s3"), expr_64.copy()),
+        Assignment(
+            ListOperation([]),
+            Call(function_symbol("foo"), [UnaryOperation(OperationType.cast, [Variable("s2")], Integer(16, True))]),
+        ),
+    ]
+
+
+def test_existing_subexpression_not_reused_across_a_relation_even_if_size_fits():
+    """
+    The pre-existing aliasing/relation safety check (_does_not_jump_over_relation) must still be respected for the new,
+    size-relaxed matching path: even though the wide, aliased definition's type is large enough to cover the narrower
+    usage, a Relation for that aliased variable lies between the definition and the usage, so it must NOT be reused.
+    """
+    s1 = Variable("s1", ssa_label=0)
+    var_wide_2 = Variable("var_18", Integer(64, True), 2, True, None)
+    var_wide_3 = Variable("var_18", Integer(64, True), 3, True, None)
+    expr_wide = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer(64, True))
+    expr_narrow = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer(32, True))
+    cfg = ControlFlowGraph()
+    cfg.add_node(
+        node := BasicBlock(
+            0,
+            instructions=[
+                Assignment(var_wide_2, expr_wide.copy()),
+                Relation(var_wide_3, var_wide_2),
+                Assignment(ListOperation([]), Call(function_symbol("foo"), [expr_narrow.copy()])),
+            ],
+        )
+    )
+    old_last_instruction = node.instructions[-1].copy()
+    _run_cse(cfg)
+    assert node.instructions[-1] == old_last_instruction
+
+
+def test_existing_subexpression_two_narrower_usages_in_one_instruction():
+    """Two differently-sized usages of the same structure occurring as separate operands of one instruction are both reused."""
+    s1 = Variable("s1", ssa_label=0)
+    expr_wide = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer(64, True))
+    expr_32 = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer(32, True))
+    expr_16 = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer(16, True))
+    cfg = ControlFlowGraph()
+    cfg.add_node(
+        node := BasicBlock(
+            0,
+            instructions=[
+                Assignment(Variable("s2"), expr_wide.copy()),
+                Assignment(ListOperation([]), Call(function_symbol("foo"), [expr_32.copy(), expr_16.copy()])),
+            ],
+        )
+    )
+    _run_cse(cfg)
+    assert node.instructions == [
+        Assignment(Variable("s2"), expr_wide.copy()),
+        Assignment(
+            ListOperation([]),
+            Call(
+                function_symbol("foo"),
+                [
+                    UnaryOperation(OperationType.cast, [Variable("s2")], Integer(32, True)),
+                    UnaryOperation(OperationType.cast, [Variable("s2")], Integer(16, True)),
+                ],
+            ),
+        ),
+    ]
+
+
+def test_existing_subexpression_divide_never_reused_even_with_multiple_size_candidates():
+    """
+    For an excluded operator (divide), no reuse must happen regardless of how many differently-sized definitions of the
+    same structure are simultaneously available -- the operator check, not just the absence of a size-matching candidate,
+    is what blocks the replacement.
+    """
+    s1 = Variable("s1", ssa_label=0)
+    expr_64 = BinaryOperation(OperationType.divide, [s1.copy(), Constant(4)], Integer(64, True))
+    expr_32 = BinaryOperation(OperationType.divide, [s1.copy(), Constant(4)], Integer(32, True))
+    expr_16 = BinaryOperation(OperationType.divide, [s1.copy(), Constant(4)], Integer(16, True))
+    cfg = ControlFlowGraph()
+    cfg.add_node(
+        node := BasicBlock(
+            0,
+            instructions=[
+                Assignment(Variable("s2"), expr_64.copy()),
+                Assignment(Variable("s3"), expr_32.copy()),
+                Assignment(ListOperation([]), Call(function_symbol("foo"), [expr_16.copy()])),
+            ],
+        )
+    )
+    old_last_instruction = node.instructions[-1].copy()
+    _run_cse(cfg)
+    assert node.instructions[-1] == old_last_instruction
+
+
+def test_existing_subexpression_exact_match_preferred_over_wider_structural_match():
+    """
+    When an exact-type candidate is available, it is used directly (no cast), exactly as before the size-relaxation was
+    added -- even though a wider, structurally identical definition is also simultaneously alive.
+    """
+    s1 = Variable("s1", ssa_label=0)
+    expr_32 = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer(32, True))
+    expr_64 = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer(64, True))
+    cfg = ControlFlowGraph()
+    cfg.add_node(
+        node := BasicBlock(
+            0,
+            instructions=[
+                Assignment(Variable("s2"), expr_32.copy()),
+                Assignment(Variable("s3"), expr_64.copy()),
+                Assignment(ListOperation([]), Call(function_symbol("foo"), [expr_32.copy()])),
+            ],
+        )
+    )
+    _run_cse(cfg)
+    assert node.instructions == [
+        Assignment(Variable("s2"), expr_32.copy()),
+        Assignment(Variable("s3"), expr_64.copy()),
+        Assignment(ListOperation([]), Call(function_symbol("foo"), [Variable("s2")])),
+    ]
+
+
 def test_eliminate_longest_common_subexpression_1():
     """CSE should always eliminate the subexpressions with the highest complexity,"""
     cfg = ControlFlowGraph()

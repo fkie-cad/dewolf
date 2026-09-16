@@ -13,7 +13,7 @@ from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.graphs.nxgraph import NetworkXGraph
 from decompiler.structures.pseudo.expressions import Constant, DataflowObject, Expression, Symbol, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, GenericBranch, Instruction, Phi, Relation
-from decompiler.structures.pseudo.operations import Call, ListOperation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.operations import Call, ListOperation, Operation, OperationType, UnaryOperation
 from decompiler.task import DecompilerTask
 from networkx import dfs_postorder_nodes
 
@@ -80,6 +80,26 @@ def _contains_call(expression: DataflowObject) -> bool:
     return False
 
 
+# Operators for which truncating a correctly computed wider result to N bits is guaranteed to equal what a native
+# computation at N bits would have produced -- i.e. the low N bits of the result depend only on the low N bits of the
+# operands. Used by ExistingSubexpressionReplacer to decide when reusing a wider, already-computed value via a downward
+# cast is safe. Every other OperationType is deliberately excluded; see the class docstring for the reasoning.
+_SIZE_TRUNCATION_SAFE_OPERATIONS = frozenset(
+    {
+        OperationType.plus,
+        OperationType.minus,
+        OperationType.multiply,
+        OperationType.multiply_us,
+        OperationType.negate,
+        OperationType.left_shift,
+        OperationType.bitwise_and,
+        OperationType.bitwise_or,
+        OperationType.bitwise_xor,
+        OperationType.bitwise_not,
+    }
+)
+
+
 class ExistingSubexpressionReplacer:
     """Class in charge of replacing subexpression that are already assigned to a variable, if these definition dominates the usage."""
 
@@ -140,13 +160,50 @@ class ExistingSubexpressionReplacer:
             sorted_subexpressions = sorted({expr for expr in _subexpression_dfs(instruction)}, key=lambda x: x.complexity)
             while sorted_subexpressions:
                 subexpr = sorted_subexpressions.pop()
-                if subexpr in self._defining_variable_of and self._does_not_jump_over_relation(instruction, node, subexpr):
-                    instruction.substitute(subexpr, self._defining_variable_of[subexpr].variable)
-                    sorted_subexpressions = sorted({expr for expr in _subexpression_dfs(instruction)}, key=lambda x: x.complexity)
+                match = self._matching_definition_for(subexpr)
+                if match is not None:
+                    key, defined_variable = match
+                    if self._does_not_jump_over_relation(instruction, node, key):
+                        replacement = (
+                            defined_variable.variable
+                            if key.type == subexpr.type
+                            else UnaryOperation(OperationType.cast, [defined_variable.variable], subexpr.type)
+                        )
+                        instruction.substitute(subexpr, replacement)
+                        sorted_subexpressions = sorted({expr for expr in _subexpression_dfs(instruction)}, key=lambda x: x.complexity)
             if self._is_definition_of_new_subexpression(instruction):
                 self._defining_variable_of[instruction.value] = DefinedVariable(instruction.destination, node)
                 new_keys.append(instruction.value)
         return new_keys
+
+    def _matching_definition_for(self, subexpr: Expression) -> Optional[Tuple[Expression, DefinedVariable]]:
+        """
+        Return the definition that should be used to replace `subexpr`, if any.
+
+        -> An exact match (same expression, including type) is always preferred, exactly as before.
+        -> Otherwise, if `subexpr` is an Operation whose operator is in _SIZE_TRUNCATION_SAFE_OPERATIONS, we also accept a
+           structurally identical definition (same operator and operands) whose type is at least as wide as `subexpr`'s:
+           reading such a wider, already-computed value and truncating it (a downward cast) to `subexpr`'s narrower type
+           is guaranteed, for exactly these operators, to yield the same result the narrower expression would have
+           computed itself, so no information is lost. A narrower definition is never used to replace a wider usage,
+           since the reverse (an upward cast) can not safely reconstruct bits that were never computed.
+        -> Among multiple sufficiently wide candidates we pick the tightest (smallest) one, to keep casts minimal.
+        """
+        if subexpr in self._defining_variable_of:
+            return subexpr, self._defining_variable_of[subexpr]
+        if not isinstance(subexpr, Operation) or subexpr.operation not in _SIZE_TRUNCATION_SAFE_OPERATIONS:
+            return None
+        candidates = [
+            (key, defined_variable)
+            for key, defined_variable in self._defining_variable_of.items()
+            if type(key) is type(subexpr)
+            and key.operation == subexpr.operation
+            and key.operands == subexpr.operands
+            and key.type.size >= subexpr.type.size
+        ]
+        if not candidates:
+            return None
+        return min(candidates, key=lambda candidate: candidate[0].type.size)
 
     def _is_definition_of_new_subexpression(self, instruction: Instruction) -> bool:
         """
