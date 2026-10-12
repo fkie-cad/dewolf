@@ -53,15 +53,21 @@ def get_all_kinds(data: list[dict]) -> list[str]:
                     kinds.add(kind)
     return sorted(kinds)
 
-def load_results(clip_path: Path) -> tuple[list[dict], list[dict]]:
+def load_results(clip_path: Path, excluded: set[str] | None = None) -> tuple[list[dict], list[dict]]:
     """
     Load data for a single setup/clip directory.
+
+    excluded: "binary::function" keys to drop entirely (from eval_dedup.py's exclusion list),
+    applied identically across every algorithm so they're all compared on the same
+    deduplicated function set -- a function that recurs across many binaries (e.g. the same
+    statically-linked library routine) shouldn't dominate the aggregate stats.
     Returns:
         success_rows: Functions common and successful across all algorithms.
         failure_rows: All failure records encountered across algorithms.
     """
     success_rows = []
     failure_rows = []
+    excluded = excluded or set()
     
     if not clip_path.exists() or not clip_path.is_dir():
         warnings.warn(f"Input directory not found or invalid: {clip_path}")
@@ -114,7 +120,7 @@ def load_results(clip_path: Path) -> tuple[list[dict], list[dict]]:
             
             successful_funcs = {
                 func_name for func_name, func_data in functions.items()
-                if func_data.get("status") != "failed"
+                if func_data.get("status") != "failed" and f"{binary_name}::{func_name}" not in excluded
             }
 
             if common_successful_funcs is None:
@@ -142,6 +148,9 @@ def load_results(clip_path: Path) -> tuple[list[dict], list[dict]]:
             
             functions = content.get("functions", {})
             for func_name, func_data in functions.items():
+                if f"{binary_name}::{func_name}" in excluded:
+                    continue
+
                 status = func_data.get("status", "unknown")
                 message = func_data.get("message") or ""
                 
@@ -779,16 +788,26 @@ def main():
     parser = argparse.ArgumentParser(description="Analyze and visualize variable-recovery evaluation results.")
     parser.add_argument("--indir", type=Path, required=True, help="Path to the input directory (e.g., Results/resLP)")
     parser.add_argument("--outdir", type=Path, required=False, help="Output directory for plots")
-    
+    parser.add_argument(
+        "--exclude-file", type=Path, required=False,
+        help="Exclusion-list JSON from eval_dedup.py; its 'excluded' binary::function entries are dropped from every algorithm.",
+    )
+
     args = parser.parse_args()
 
     if not args.outdir:
         args.outdir = args.indir.parent / f"Plots"
 
     args.outdir.mkdir(parents=True, exist_ok=True)
-    
+
+    excluded: set[str] = set()
+    if args.exclude_file:
+        with open(args.exclude_file, "r") as f:
+            excluded = set(json.load(f).get("excluded", []))
+        print(f"Loaded {len(excluded)} excluded duplicate functions from {args.exclude_file}.")
+
     print(f"Loading data from {args.indir}...")
-    success_data, failure_data = load_results(args.indir)
+    success_data, failure_data = load_results(args.indir, excluded)
     
     if not success_data:
         print("No data found or processed. Exiting.")

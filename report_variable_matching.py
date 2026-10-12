@@ -619,6 +619,13 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser.add_argument("output", nargs="?", default=None, help="output JSON path (default: variable_matching_<binary-name>.json)")
     parser.add_argument("-q", "--quiet", action="store_true", help="suppress all terminal output (still writes the JSON)")
     parser.add_argument("--ssa-algo", dest="ssa_algo", default="min", help="SSA elimination algorithm (default: variable renaming)")
+    parser.add_argument(
+        "--exclude-file",
+        dest="exclude_file",
+        default=None,
+        help="Exclusion-list JSON from eval_dedup.py; its 'excluded' binary::function entries are skipped before "
+        "decompiling at all, instead of being decompiled+scored here only for plot_dwarf.py to drop them later.",
+    )
     return parser.parse_args(argv)
 
 
@@ -634,6 +641,12 @@ def main(argv: List[str] | None = None) -> None:
     function_list = {name.strip() for name in args.functions.split(",")} if args.functions else None
     output_path = args.output or default_output_path(args.binary)
 
+    excluded: set[str] = set()
+    if args.exclude_file:
+        with open(args.exclude_file, "r") as f:
+            excluded = set(json.load(f).get("excluded", []))
+    binary_key = Path(args.binary).name
+
     options = Options.load_default_options()
     options.update({"out-of-ssa-translation.mode": args.ssa_algo})
     frontend = BinaryninjaFrontend.from_path(args.binary, options)
@@ -644,6 +657,8 @@ def main(argv: List[str] | None = None) -> None:
     functions: Dict[str, Dict[str, Any]] = {}
     for name in frontend.get_all_function_names():
         if function_list is not None and name not in function_list:
+            continue
+        if f"{binary_key}::{name}" in excluded:
             continue
         try:
             result = decompiler.run(name)
@@ -673,7 +688,7 @@ def main(argv: List[str] | None = None) -> None:
 
     Path(output_path).write_text(json.dumps({"binary": args.binary, "functions": functions}, indent=2))
     renderer.render_written(output_path)
-    result = True 
+    result = True
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@ from decompiler.pipeline.ssa.phi_dependency_resolver import PhiDependencyResolve
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
 from decompiler.structures.graphs.cfg import BasicBlock
 from decompiler.structures.interferencegraph import InterferenceGraph
-from decompiler.structures.pseudo.instructions import Phi 
+from decompiler.structures.pseudo.instructions import Phi
 from decompiler.task import DecompilerTask
 
 # Defines how many distinct SSA source variables should be in a function for it to be
@@ -37,7 +37,7 @@ class ConditionalOutOfSSATraining:
         PhiDependencyResolver(self._phi_functions_of).resolve()
         interference_graph = InterferenceGraph(self.task.cfg)
         PhiFunctionLifter(self.task.graph, interference_graph, self._phi_functions_of).lift()
- 
+
         # We always write SOME file for every task (a marker if there's no useful data)
         # so a function is never re-decompiled just to find out again that it has nothing.
         try:
@@ -45,36 +45,29 @@ class ConditionalOutOfSSATraining:
         except Exception as e:
             with open(self.error_log_path, "a") as error_file:
                 error_file.write(f"Error while processing task {self.task}: {e}\n")
-    
+
     def _extract_and_write(self, phi_pairs: PhiPairs, interference_graph: InterferenceGraph) -> None:
         helper = TrainingAttributeHelper(phi_pairs, interference_graph)
- 
-        tmp_path = self.result_path + ".tmp"
+
         source_names: set = set()
-        record_count = 0
- 
+        records: List[TrainingRecord] = []
+
         def log_instruction_error(assign, _) -> None:
             with open(self.error_log_path, "a") as error_file:
                 error_file.write(f"Error while processing instruction {assign}: {traceback.format_exc()}\n")
- 
-        with open(tmp_path, "w") as f:
-            f.write("{")
-            first = True
-            record: TrainingRecord
-            for record in helper.iter_training_data(self.task.cfg, on_error=log_instruction_error):
-                if not first:
-                    f.write(",")
-                key = json.dumps(str(record_count))
-                f.write(f"{key}:")
-                json.dump({"parameters": record.vector, "goal": record.training_goal}, f)
-                first = False
-                source_names.add(record.x_source_name)
-                source_names.add(record.y_source_name)
-                record_count += 1
-            f.write("}")
- 
-        if record_count > 0 and len(source_names) >= MIN_DISTINCT_SOURCE_NAMES:
+
+        for record in helper.iter_training_data(self.task.cfg, on_error=log_instruction_error):
+            records.append(record)
+            source_names.add(record.x_source_name)
+            source_names.add(record.y_source_name)
+
+        if len(records) > 0 and len(source_names) >= MIN_DISTINCT_SOURCE_NAMES:
+            tmp_path = self.result_path + ".tmp"
+            with open(tmp_path, "w") as f:
+                json.dump(
+                    {str(i): {"parameters": r.vector, "goal": r.training_goal} for i, r in enumerate(records)},
+                    f,
+                )
             os.replace(tmp_path, self.result_path)
         else:
-            os.remove(tmp_path)
             open(self.result_path + ".noTrainingData", "w").close()

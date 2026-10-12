@@ -7,9 +7,9 @@ from typing import List
 
 import binaryninja
 from binaryninja import BinaryView
-from binaryninja.types import SymbolType
 from decompiler.frontend.binaryninja.rust_string_detection import RustStringDetection
 from decompiler.task import DecompilerTask
+from decompiler.util.function_corpus import is_enumerable_function
 from decompiler.util.options import Options
 
 from ..frontend import Frontend
@@ -20,23 +20,6 @@ from .tagging import CompilerIdiomsTagging
 
 class BinaryninjaFrontend(Frontend):
     """Frontend implementation for binaryninja."""
-
-    BLACKLIST = {
-        "_init",
-        "_fini",
-        "_start",
-        "__cxa_finalize",
-        "__x86.get_pc_thunk.bx",
-        "deregister_tm_clones",
-        "register_tm_clones",
-        "__do_global_dtors_aux",
-        "frame_dummy",
-        "__x86.get_pc_thunk.dx",
-        "__libc_start_main",
-        "__libc_csu_init",
-        "__libc_csu_fini",
-        "__x86.get_pc_thunk.bp",
-    }
 
     def __init__(self, bv: BinaryView):
         """Create a new binaryninja view with the given path."""
@@ -101,14 +84,7 @@ class BinaryninjaFrontend(Frontend):
 
     def get_all_function_names(self):
         """Returns the entire list of all function names in the binary. Ignores blacklisted functions and imported functions."""
-        functions = list()
-        for function in self._bv.functions:
-            if function.name in BinaryninjaFrontend.BLACKLIST:
-                continue
-            if function.symbol.type == SymbolType.ImportedFunctionSymbol:
-                continue
-            functions.append(function.name)
-        return functions
+        return [function.name for function in self._bv.functions if is_enumerable_function(function)]
 
     def _get_binninja_function(self, function_identifier: object) -> binaryninja.function.Function:
         """
