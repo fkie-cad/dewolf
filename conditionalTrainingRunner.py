@@ -32,36 +32,39 @@ def workerFunction(binary_path: str, function_name: str, output_path: str, error
     options = Options.load_default_options()
     options.update({"out-of-ssa-translation.mode": "conditional_training"})
     frontend = BinaryninjaFrontend.from_path(binary_path, options)
-    decompiler = OutOfSsaDecompiler(frontend, options)
-
-    failed = False
     try:
-        result = decompiler.run(function_name)
+        decompiler = OutOfSsaDecompiler(frontend, options)
 
-    except Exception as e:
-        message = f"decompiling {binary_path}::{function_name} raised {traceback.format_exc()}: {e}"
-        with open(error_log_path, "a") as error_log:
-            error_log.write(message + "\n")
+        failed = False
+        try:
+            result = decompiler.run(function_name)
 
-        dct = DecompilerTask(function_name, function_name)
-        result = DecompilationResult(dct, [])
-        failed = True
+        except Exception as e:
+            message = f"decompiling {binary_path}::{function_name} raised {traceback.format_exc()}: {e}"
+            with open(error_log_path, "a") as error_log:
+                error_log.write(message + "\n")
 
-    if not failed and result.task.failure_origin is not None:
-        failed = True
+            dct = DecompilerTask(function_name, function_name)
+            result = DecompilationResult(dct, [])
+            failed = True
 
-    if failed:
-        message = f"decompiling {binary_path}::{function_name} failed at stage {result.task.failure_origin}"
-        with open(error_log_path, "a") as error_log:
-            error_log.write(message + "\n")
-        path = f"{os.environ['ConditionalResultPath']}" + ".fail" + ".noTrainingData"
-        with open(path, "w"):
-            pass
-        return
+        if not failed and result.task.failure_origin is not None:
+            failed = True
 
-    if os.path.exists(output_path) and fingerprint is not None:
-        with open(output_path + ".fingerprint", "w") as fp_file:
-            fp_file.write(fingerprint)
+        if failed:
+            message = f"decompiling {binary_path}::{function_name} failed at stage {result.task.failure_origin}"
+            with open(error_log_path, "a") as error_log:
+                error_log.write(message + "\n")
+            path = f"{os.environ['ConditionalResultPath']}" + ".fail" + ".noTrainingData"
+            with open(path, "w"):
+                pass
+            return
+
+        if os.path.exists(output_path) and fingerprint is not None:
+            with open(output_path + ".fingerprint", "w") as fp_file:
+                fp_file.write(fingerprint)
+    finally:
+        frontend._bv.file.close()
 
 
 def discover_projects(binary_folder: str) -> list[str]:

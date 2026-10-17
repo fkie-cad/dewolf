@@ -53,16 +53,19 @@ def scan_binaries_dir(bins_dir: str, member_prefix: str = "") -> tuple[int, int,
             skipped_binaries += 1
             continue
 
-        for function in bv.functions:
-            if not is_enumerable_function(function):
-                continue
-            total += 1
-            try:
-                fp = function_fingerprint(function)
-            except Exception:
-                failed += 1
-                continue
-            groups[fp].append(f"{member_prefix}{binary_file}::{function.name}")
+        try:
+            for function in bv.functions:
+                if not is_enumerable_function(function):
+                    continue
+                total += 1
+                try:
+                    fp = function_fingerprint(function)
+                except Exception:
+                    failed += 1
+                    continue
+                groups[fp].append(f"{member_prefix}{binary_file}::{function.name}")
+        finally:
+            bv.file.close()
 
     return total, failed, skipped_binaries, groups
 

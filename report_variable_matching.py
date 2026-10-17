@@ -795,43 +795,46 @@ def main(argv: List[str] | None = None) -> None:
     options = Options.load_default_options()
     options.update({"out-of-ssa-translation.mode": args.ssa_algo})
     frontend = BinaryninjaFrontend.from_path(args.binary, options)
-    decompiler = OutOfSsaDecompiler(frontend, options)
-    renderer = NullReportRenderer() if args.quiet else TextReportRenderer()
-    serializer = JsonReportSerializer()
-    checkpoint = Checkpoint(output_path)
+    try:
+        decompiler = OutOfSsaDecompiler(frontend, options)
+        renderer = NullReportRenderer() if args.quiet else TextReportRenderer()
+        serializer = JsonReportSerializer()
+        checkpoint = Checkpoint(output_path)
 
-    functions: Dict[str, Dict[str, Any]] = {}
-    for name in frontend.get_all_function_names():
-        if function_list is not None and name not in function_list:
-            continue
-        if f"{binary_key}::{name}" in excluded:
-            continue
+        functions: Dict[str, Dict[str, Any]] = {}
+        for name in frontend.get_all_function_names():
+            if function_list is not None and name not in function_list:
+                continue
+            if f"{binary_key}::{name}" in excluded:
+                continue
 
-        if name in checkpoint.done:  # finished in an earlier, killed run
-            functions[name] = checkpoint.done[name]
-            continue
+            if name in checkpoint.done:  # finished in an earlier, killed run
+                functions[name] = checkpoint.done[name]
+                continue
 
-        if checkpoint.killed_too_often(name):
-            message = (
-                f"decompiling {name} killed the process {checkpoint.attempts[name]} times "
-                "(native crash, out of memory or per-binary timeout); skipped"
-            )
-            renderer.render_skipped(name, message)
-            entry = {"status": "crashed", "message": message, "report": None}
-        else:
-            checkpoint.start(name)
-            entry = analyze_function(name, decompiler, renderer, serializer, args.function_timeout)
+            if checkpoint.killed_too_often(name):
+                message = (
+                    f"decompiling {name} killed the process {checkpoint.attempts[name]} times "
+                    "(native crash, out of memory or per-binary timeout); skipped"
+                )
+                renderer.render_skipped(name, message)
+                entry = {"status": "crashed", "message": message, "report": None}
+            else:
+                checkpoint.start(name)
+                entry = analyze_function(name, decompiler, renderer, serializer, args.function_timeout)
 
-        checkpoint.finish(name, entry)
-        functions[name] = entry
+            checkpoint.finish(name, entry)
+            functions[name] = entry
 
-    # Write to a temp file and rename, so a kill during the write can't leave a truncated JSON
-    # that later runs would mistake for a finished binary.
-    tmp_path = output_path + ".tmp"
-    Path(tmp_path).write_text(json.dumps({"binary": args.binary, "functions": functions}, indent=2))
-    os.replace(tmp_path, output_path)
-    checkpoint.close_and_remove()
-    renderer.render_written(output_path)
+        # Write to a temp file and rename, so a kill during the write can't leave a truncated JSON
+        # that later runs would mistake for a finished binary.
+        tmp_path = output_path + ".tmp"
+        Path(tmp_path).write_text(json.dumps({"binary": args.binary, "functions": functions}, indent=2))
+        os.replace(tmp_path, output_path)
+        checkpoint.close_and_remove()
+        renderer.render_written(output_path)
+    finally:
+        frontend._bv.file.close()
 
 
 if __name__ == "__main__":
