@@ -502,14 +502,13 @@ def plot_failure_stages(data: list[dict], outdir: Path, clip_name: str, algorith
     plt.close()
 
 
-def print_summary_table(success_data: list[dict], failure_data: list[dict], clip_name: str, algorithms: list) -> None:
+def print_summary_table(success_data: list[dict], failure_data: list[dict], clip_name: str, algorithms: list, outdir: Path) -> None:
     """Functions = common successful functions (identical across algorithms by construction);
     Failed = this algorithm's non-successful functions in the common binaries.
     Match % = matched (output name, SSA variable) records; Out vars / Out matched / Out % =
-    distinct output variables, how many have a source match, and the ratio."""
-    print("\n" + "=" * 140)
-    print(f"VARIABLE RECOVERY EVALUATION SUMMARY - FOLDER: {clip_name}")
-    print("=" * 140)
+    distinct output variables, how many have a source match, and the ratio.
+    Printed to the console and saved to <outdir>/summary.txt."""
+    lines = ["=" * 140, f"VARIABLE RECOVERY EVALUATION SUMMARY - FOLDER: {clip_name}", "=" * 140]
     max_algo_len = max(len(a) for a in algorithms)
     algo_col_width = max(15, max_algo_len + 2)
 
@@ -517,8 +516,8 @@ def print_summary_table(success_data: list[dict], failure_data: list[dict], clip
         f"{'Algorithm':<{algo_col_width}} {'Match %':>10} {'Binaries':>10} {'Functions':>10} {'Failed':>8} "
         f"{'Overmerge':>10} {'Undermerge':>10} {'Out vars':>10} {'Out matched':>12} {'Out %':>8}"
     )
-    print(header)
-    print("-" * len(header))
+    lines.append(header)
+    lines.append("-" * len(header))
 
     for algo in algorithms:
         success_group = [r for r in success_data if r["algorithm"] == algo]
@@ -534,12 +533,17 @@ def print_summary_table(success_data: list[dict], failure_data: list[dict], clip
         match_rate = compute_micro_avg(success_group)
         out_total, out_matched, out_ratio = output_variable_stats(success_group)
 
-        print(
+        lines.append(
             f"{algo:<{algo_col_width}} {match_rate:>9.1f}% {total_bins:>10} "
             f"{total_funcs:>10} {failed_funcs:>8} {total_overmerged:>10} "
             f"{total_undermerged:>10} {out_total:>10} {out_matched:>12} {out_ratio:>7.1f}%"
         )
-    print("=" * 140 + "\n")
+    lines.append("=" * 140)
+
+    text = "\n".join(lines)
+    print("\n" + text + "\n")
+    with open(outdir / "summary.txt", "w") as f:
+        f.write(text + "\n")
 
 
 def output_variable_stats(rows: list[dict]) -> tuple[int, int, float]:
@@ -1027,7 +1031,7 @@ def generate_plot_set(
     merged "overall" set) -- no logic changes from the original single-project main(), just
     factored out so it can be called once per project and once more for "overall"."""
     outdir.mkdir(parents=True, exist_ok=True)
-    print_summary_table(success_data, failure_data, clip_name, algorithms)
+    print_summary_table(success_data, failure_data, clip_name, algorithms, outdir)
 
     success_only = [row for row in success_data if row["status"] == "success"]
 
@@ -1055,6 +1059,7 @@ def generate_plot_set(
 
     plot_output_variable_matching(success_only, outdir, clip_name, algorithms)
     print("  - 21_output_variable_matching.png")
+
 
 def generate_dict_based_plots(result_dict: dict, total: dict, outdir: Path, precision_dict: dict, recall_dict: dict) -> None:
     """The 6 heatmaps + the grouped-metric plots, built from one evaluate_precision_recall()
