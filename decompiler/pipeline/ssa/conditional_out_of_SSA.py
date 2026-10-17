@@ -10,14 +10,31 @@ from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo.instructions import Phi
 from decompiler.task import DecompilerTask
 
-class ConditionalOutOfSSA:
 
+class ConditionalOutOfSSA:
     def __init__(
         self,
         task: DecompilerTask,
         _phi_fuctions_of: DefaultDict[BasicBlock, List[Phi]],
-        parms: list[float] = [-0.6253492760504956, 0.5951661423368272, 1.9944794993936195, 1.390527007986582, -0.002961881471296021, -0.6253505741850781, 1.3235157911840238, 0.7095078869498519, -0.18232889323310886, -0.4012665014235144, -0.26828521733590455, 0.0, 0.0, 0.0, 0.0, 0.0],
-        intercept: float = -1.1246830223693014,
+        parms: list[float] = [
+            0.01503987020997377, 
+            0.41540590717620035, 
+            1.3602003989877633, 
+            1.9777705400625902, 
+            0.5742951097396733, 
+            -1.0536650267354408, 
+            -0.13758028768914904, 
+            0.05617376449520245, 
+            0.4993614018565643, 
+            0.09050405693323627, 
+            0.13483824342778672, 
+            -0.5575677214819728, 
+            0.52412111735048, 
+            0.0, 
+            -0.8431282877532653, 
+            0.0
+        ],
+        intercept: float = -0.20635133227011618,
         strategy: int = 0,
     ):
         """
