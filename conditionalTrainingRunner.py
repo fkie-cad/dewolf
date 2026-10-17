@@ -47,6 +47,9 @@ def workerFunction(binary_path: str, function_name: str, output_path: str, error
         result = DecompilationResult(dct, [])
         failed = True
 
+    if not failed and result.task.failure_origin is not None:
+        failed = True
+
     if failed:
         message = f"decompiling {binary_path}::{function_name} failed at stage {result.task.failure_origin}"
         with open(error_log_path, "a") as error_log:
@@ -78,6 +81,27 @@ def is_valid_training_json(json_path: str, error_log_path: str) -> bool:
             error_log.write(f"Error while validating {json_path}: {e}\n")
         return False
     return True
+
+
+def classify_members(project_output: str, kept_members, error_log_path: str) -> tuple[list[str], int, int]:
+    """Splits kept_members into (valid_members, num_errors, num_skips). valid = has real
+    training json. skip = decompiled fine but a (non-fail) .noTrainingData marker was written
+    because MIN_DISTINCT_SOURCE_NAMES wasn't met. error = everything else -- a
+    .fail.noTrainingData marker (decompilation failed, whether raised or caught internally) or
+    no marker at all (e.g. the worker process crashed before writing anything)."""
+    valid_members = []
+    num_errors = 0
+    num_skips = 0
+    for member in kept_members:
+        binary, func_name = member.split("::", 1)
+        base = os.path.join(project_output, binary, func_name + ".json")
+        if is_valid_training_json(base, error_log_path):
+            valid_members.append(member)
+        elif os.path.exists(base + ".noTrainingData") and not os.path.exists(base + ".fail.noTrainingData"):
+            num_skips += 1
+        else:
+            num_errors += 1
+    return valid_members, num_errors, num_skips
 
 
 def compute_kept_members(
@@ -178,6 +202,7 @@ def FrankfurtAmMain():
         raise ValueError(f"Training percentage must be between 0 and 1. Got {args.trainingPercentage}.")
 
     ERROR_LOG_PATH = os.path.join(args.output, "error_log.txt")
+    FINGERPRINT_ERROR_LOG_PATH = os.path.join(args.output, "fingerprint_error_log.txt")
     os.makedirs(args.output, exist_ok=True)
 
     projects = discover_projects(args.binaryFolder)
@@ -189,11 +214,18 @@ def FrankfurtAmMain():
     all_validation_members: dict[str, list[str]] = {}
     tasks = []
     project_kept_members: dict[str, set[str]] = {}
+    total_errors = 0
+    total_skips = 0
 
     if args.skipDataCollection:
         print(f"--- Skipping data collection phase. ---")
         for project in projects:
             project_output = os.path.join(args.output, project)
+            with open(os.path.join(project_output, "dedup.json"), "r") as f:
+                kept_members = json.load(f)["kept"]
+            _, num_errors, num_skips = classify_members(project_output, kept_members, ERROR_LOG_PATH)
+            total_errors += num_errors
+            total_skips += num_skips
             split = load_or_create_project_split(project_output, [], args.trainingPercentage, True)
             all_train_members[project] = split["train"]
             all_validation_members[project] = split["validation"]
@@ -208,7 +240,7 @@ def FrankfurtAmMain():
             os.makedirs(project_output, exist_ok=True)
 
             print(f"--- [{project}] Start collecting tasks from {project_binary_folder} ---")
-            groups, functions_by_binary, failedFingerprints = build_function_groups(project_binary_folder, ERROR_LOG_PATH)
+            groups, functions_by_binary, failedFingerprints = build_function_groups(project_binary_folder, FINGERPRINT_ERROR_LOG_PATH)
             kept = compute_kept_members(groups, functions_by_binary, global_seen_fingerprints)
             project_kept_members[project] = kept
             member_to_fingerprint = {member: fp for fp, members in groups.items() for member in members}
@@ -283,13 +315,9 @@ def FrankfurtAmMain():
 
         for project in projects:
             project_output = os.path.join(args.output, project)
-            valid_members = []
-            for member in project_kept_members[project]:
-                binary, func_name = member.split("::", 1)
-                json_path = os.path.join(project_output, binary, func_name + ".json")
-                if not is_valid_training_json(json_path, ERROR_LOG_PATH):
-                    continue
-                valid_members.append(member)
+            valid_members, num_errors, num_skips = classify_members(project_output, project_kept_members[project], ERROR_LOG_PATH)
+            total_errors += num_errors
+            total_skips += num_skips
 
             try:
                 split = load_or_create_project_split(project_output, valid_members, args.trainingPercentage, False)
@@ -311,6 +339,16 @@ def FrankfurtAmMain():
     print(
         f"--- Train/validation split across all projects: {totalTrain} training functions, " f"{totalValidation} validation functions. ---"
     )
+
+    total_errors_plus_skips = total_errors + total_skips
+    print(
+        f"--- Total errors: {total_errors}, total skips (MIN_DISTINCT_SOURCE_NAMES): {total_skips}, "
+        f"total errors + skips: {total_errors_plus_skips} ---"
+    )
+    with open(os.path.join(args.output, "error_skip_counts.txt"), "w") as f:
+        f.write(f"total_errors: {total_errors}\n")
+        f.write(f"total_skips: {total_skips}\n")
+        f.write(f"total_errors_plus_skips: {total_errors_plus_skips}\n")
 
     print(f"--- Start training the model on {totalTrain} functions across {len(projects)} projects. ---")
     # Training Phase: Read the training data from the output folder and train a logistic regression model to predict the attribute coefficients.
