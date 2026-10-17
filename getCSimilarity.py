@@ -1,5 +1,6 @@
 import argparse
 import json
+import multiprocessing
 import os
 import resource
 import traceback
@@ -55,8 +56,13 @@ def remove_if_truncated(output_path: str) -> None:
 
 def run_round(tasks: list[dict], max_workers: int, mem_limit_gb: float, error_log_path: str, stats: dict) -> bool:
     """Run one batch of tasks. Returns True if interrupted with Ctrl+C."""
+    spawn_context = multiprocessing.get_context("spawn")
     with pebble.ProcessPool(
-        max_workers=max_workers, max_tasks=1, initializer=set_memory_limit, initargs=(int(mem_limit_gb * 1024 * 1024 * 1024),)
+        max_workers=max_workers,
+        max_tasks=1,
+        initializer=set_memory_limit,
+        initargs=(int(mem_limit_gb * 1024 * 1024 * 1024),),
+        context=spawn_context,
     ) as pool:
         futures = [(task, pool.schedule(main, args=(task["argv"],), timeout=TASK_TIMEOUT_SECONDS)) for task in tasks]
 
