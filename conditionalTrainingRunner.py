@@ -119,12 +119,8 @@ def FrankfurtAmMain():
     parser.add_argument("--binaryFolder", "-b", required=True, help="Input Path of the binaries to be analyzed.")
     parser.add_argument("--output", "-o", required=True, help="Output dicrectory where the results will be stored.")
     parser.add_argument("--max_workers", "-w", type=int, default=4, help="Maximum number of workers to use for processing.")
-    parser.add_argument(
-        "--trainingPercentage", "-t", type=float, default=0.3, help="Percentage of the data to be used for training (between 0 and 1)."
-    )
-    parser.add_argument(
-        "--skipDataCollection", action="store_true", help="Skip the data collection phase and only perform training and testing."
-    )
+    parser.add_argument("--trainingPercentage", "-t", type=float, default=0.7, help="Percentage of the data to be used for training (between 0 and 1).")
+    parser.add_argument("--skipDataCollection", action="store_true", help="Skip the data collection phase and only perform training and testing.")
     args = parser.parse_args()
 
     if (float(args.trainingPercentage) <= 0) or (float(args.trainingPercentage) >= 1):

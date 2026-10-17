@@ -48,7 +48,6 @@ def frankfurtAmMAIN():
             futures.append(future)
         for fut in futures:
             try:
-                print(f"{len(futures)}\t/{len(futures)} tasks completed.\r", end="")
                 time.sleep(1)  # Add a small delay to allow the print statement to be visible
                 fut.result()
             except Exception as e:
