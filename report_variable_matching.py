@@ -23,7 +23,8 @@ code snapshots and CFG edges, which are not printed) are written to a JSON file.
 JSON output: ``{"binary": <path>, "functions": {<name>: <entry>}}`` with exactly one entry per
 function, every entry sharing the same keys so the file is uniform to parse:
   * ``status``:  ``"success"`` (analyzed) | ``"failed"`` (pipeline failed at a stage) |
-    ``"decompilation-error"`` (decompiler.run raised) | ``"parsing-error"`` (building the report raised)
+    ``"decompilation-error"`` (decompiler.run raised) | ``"parsing-error"`` (building the report raised) |
+    ``"timeout"`` (exceeded --function-timeout) | ``"crashed"`` (killed the process twice; see Checkpoint)
   * ``message``: ``null`` when status is ``"success"``, otherwise why the function was skipped
   * ``report``:  the analysis (matches, tallies, over-/under-merges, conflicts, code snapshots,
     edges) when status is ``"success"``, otherwise ``null``
@@ -45,11 +46,15 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
+import signal
+import threading
 from collections import defaultdict
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, DefaultDict, Dict, Iterator, List, Set, Tuple
+from typing import Any, Callable, DefaultDict, Dict, Generator, Iterator, List, Set, Tuple
 
 from decompiler.frontend.binaryninja.frontend import BinaryninjaFrontend
 from decompiler.pipeline.default import CFG_STAGES
@@ -598,6 +603,99 @@ class JsonReportSerializer:
 
 
 # --------------------------------------------------------------------------------------------- #
+# Robustness (per-function time limit, crash-safe checkpointing)
+# --------------------------------------------------------------------------------------------- #
+
+
+class FunctionTimeout(BaseException):
+    """Raised by the per-function alarm. Derives from BaseException, not Exception, so dewolf's
+    own ``except Exception`` handlers (e.g. a pipeline stage marking the task as failed) can't
+    swallow it and misreport a timeout as a failure at whichever stage happened to be running."""
+
+
+@contextmanager
+def time_limit(seconds: float | None) -> Generator[None, None, None]:
+    """Raise FunctionTimeout in the enclosed block after ``seconds`` (None or 0: no limit).
+
+    Uses SIGALRM, so it only works in the main thread (true for a standalone run and for pebble
+    worker processes); anywhere else it silently does nothing. Python delivers the signal only
+    between bytecodes, so a stage stuck inside native code (Binary Ninja, z3) is interrupted only
+    once that call returns - the caller's per-binary timeout stays the backstop for that case.
+    """
+    if not seconds or threading.current_thread() is not threading.main_thread():
+        yield
+        return
+
+    def _raise_timeout(signum, frame):
+        raise FunctionTimeout()
+
+    previous_handler = signal.signal(signal.SIGALRM, _raise_timeout)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+
+
+class Checkpoint:
+    """Append-only JSON-lines log next to the output (``<output>.partial``) so a killed run can resume.
+
+    Every function gets a "start" line before it is decompiled and a "done" line (with its entry)
+    afterwards, flushed immediately. If the process dies - per-binary timeout, segfault in native
+    code, out of memory - the next run with the same output path reuses every finished function.
+    A function that was started but never finished is retried once (it may simply have been running
+    when the per-binary timeout hit); if it kills the process a second time it is recorded as
+    "crashed" instead of being retried forever.
+    """
+
+    MAX_ATTEMPTS = 2
+
+    def __init__(self, output_path: str) -> None:
+        self.path = output_path + ".partial"
+        self.done: Dict[str, Dict[str, Any]] = {}
+        self.attempts: DefaultDict[str, int] = defaultdict(int)
+        needs_newline = False
+        if os.path.exists(self.path):
+            with open(self.path, "r") as f:
+                content = f.read()
+            needs_newline = bool(content) and not content.endswith("\n")
+            for line in content.splitlines():
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue  # the last line can be cut off by the kill
+                if record.get("event") == "start":
+                    self.attempts[record["name"]] += 1
+                elif record.get("event") == "done":
+                    self.done[record["name"]] = record["entry"]
+        self._file = open(self.path, "a")
+        if needs_newline:
+            self._file.write("\n")  # keep the next record off the cut-off line
+
+    def killed_too_often(self, name: str) -> bool:
+        """True if decompiling ``name`` was started MAX_ATTEMPTS times without ever finishing."""
+        return name not in self.done and self.attempts[name] >= self.MAX_ATTEMPTS
+
+    def start(self, name: str) -> None:
+        self.attempts[name] += 1
+        self._write({"event": "start", "name": name})
+
+    def finish(self, name: str, entry: Dict[str, Any]) -> None:
+        self.done[name] = entry
+        self._write({"event": "done", "name": name, "entry": entry})
+
+    def close_and_remove(self) -> None:
+        """Called once the final JSON is written; the log is no longer needed."""
+        self._file.close()
+        os.remove(self.path)
+
+    def _write(self, record: Dict[str, Any]) -> None:
+        self._file.write(json.dumps(record) + "\n")
+        self._file.flush()  # survives the process being killed (not a power loss, which needs fsync)
+
+
+# --------------------------------------------------------------------------------------------- #
 # CLI orchestration
 # --------------------------------------------------------------------------------------------- #
 
@@ -626,14 +724,61 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         help="Exclusion-list JSON from eval_dedup.py; its 'excluded' binary::function entries are skipped before "
         "decompiling at all, instead of being decompiled+scored here only for plot_dwarf.py to drop them later.",
     )
+    parser.add_argument(
+        "--function-timeout",
+        dest="function_timeout",
+        type=float,
+        default=None,
+        help="per-function time limit in seconds; a function exceeding it is recorded with status 'timeout' "
+        "and the rest of the binary continues (default: no limit)",
+    )
     return parser.parse_args(argv)
+
+
+def analyze_function(
+    name: str, decompiler: OutOfSsaDecompiler, renderer, serializer: JsonReportSerializer, timeout: float | None
+) -> Dict[str, Any]:
+    """Decompile and report one function, returning its JSON entry. Never raises for a function-level
+    problem: every outcome becomes a status ("success", "failed", "decompilation-error",
+    "parsing-error", "timeout"), so one bad function cannot take the rest of the binary with it."""
+    try:
+        with time_limit(timeout):
+            try:
+                result = decompiler.run(name)
+            except Exception as exc:  # includes MemoryError from the worker's address-space limit
+                message = f"decompiling {name} raised {type(exc).__name__}: {exc}"
+                renderer.render_skipped(name, message)
+                return {"status": "decompilation-error", "message": message, "report": None}
+
+            if result.task.failed:
+                message = f"decompiling {name} failed at stage {result.task.failure_origin}"
+                renderer.render_skipped(name, message)
+                return {"status": "failed", "message": message, "report": None}
+
+            try:
+                report: FunctionReport = build_function_report(name, result)
+                serialized_report = serializer.function_to_dict(report)
+            except Exception as exc:
+                message = f"building the report for {name} failed after a successful decompilation: {type(exc).__name__}: {exc}"
+                renderer.render_skipped(name, message)
+                return {"status": "parsing-error", "message": message, "report": None}
+    except FunctionTimeout:
+        message = f"decompiling {name} exceeded the per-function time limit of {timeout}s"
+        renderer.render_skipped(name, message)
+        return {"status": "timeout", "message": message, "report": None}
+
+    renderer.render(report)  # I/O: pipe/print errors propagate, not miscategorized as a function error
+    return {"status": "success", "message": None, "report": serialized_report}
 
 
 def main(argv: List[str] | None = None) -> None:
     """Run the report for each requested function and write the combined JSON output.
 
     Decompiles each function up to out-of-SSA, printing a skip note for functions whose pipeline
-    failed or raised, and rendering plus serializing a FunctionReport for the rest.
+    failed, raised or timed out, and rendering plus serializing a FunctionReport for the rest.
+    Progress is checkpointed per function (see Checkpoint), so if the process is killed, running
+    the same command again resumes instead of starting over. The final JSON is written atomically:
+    it either exists complete or not at all.
     """
     args = parse_args(argv)
     # Silence pipeline logging (e.g. DeadLoopElimination "could not convert ... into z3 logic"),
@@ -653,6 +798,7 @@ def main(argv: List[str] | None = None) -> None:
     decompiler = OutOfSsaDecompiler(frontend, options)
     renderer = NullReportRenderer() if args.quiet else TextReportRenderer()
     serializer = JsonReportSerializer()
+    checkpoint = Checkpoint(output_path)
 
     functions: Dict[str, Dict[str, Any]] = {}
     for name in frontend.get_all_function_names():
@@ -660,35 +806,32 @@ def main(argv: List[str] | None = None) -> None:
             continue
         if f"{binary_key}::{name}" in excluded:
             continue
-        try:
-            result = decompiler.run(name)
-        except Exception as exc:
-            message = f"decompiling {name} raised {type(exc).__name__}: {exc}"
-            renderer.render_skipped(name, message)
-            functions[name] = {"status": "decompilation-error", "message": message, "report": None}
+
+        if name in checkpoint.done:  # finished in an earlier, killed run
+            functions[name] = checkpoint.done[name]
             continue
 
-        if result.task.failed:
-            message = f"decompiling {name} failed at stage {result.task.failure_origin}"
+        if checkpoint.killed_too_often(name):
+            message = (
+                f"decompiling {name} killed the process {checkpoint.attempts[name]} times "
+                "(native crash, out of memory or per-binary timeout); skipped"
+            )
             renderer.render_skipped(name, message)
-            functions[name] = {"status": "failed", "message": message, "report": None}
-            continue
+            entry = {"status": "crashed", "message": message, "report": None}
+        else:
+            checkpoint.start(name)
+            entry = analyze_function(name, decompiler, renderer, serializer, args.function_timeout)
 
-        try:
-            report: FunctionReport = build_function_report(name, result)
-            serialized_report = serializer.function_to_dict(report)
-        except Exception as exc:
-            message = f"building the report for {name} failed after a successful decompilation: {type(exc).__name__}: {exc}"
-            renderer.render_skipped(name, message)
-            functions[name] = {"status": "parsing-error", "message": message, "report": None}
-            continue
+        checkpoint.finish(name, entry)
+        functions[name] = entry
 
-        renderer.render(report)  # I/O: pipe/print errors propagate, not miscategorized as a function error
-        functions[name] = {"status": "success", "message": None, "report": serialized_report}
-
-    Path(output_path).write_text(json.dumps({"binary": args.binary, "functions": functions}, indent=2))
+    # Write to a temp file and rename, so a kill during the write can't leave a truncated JSON
+    # that later runs would mistake for a finished binary.
+    tmp_path = output_path + ".tmp"
+    Path(tmp_path).write_text(json.dumps({"binary": args.binary, "functions": functions}, indent=2))
+    os.replace(tmp_path, output_path)
+    checkpoint.close_and_remove()
     renderer.render_written(output_path)
-    result = True
 
 
 if __name__ == "__main__":
