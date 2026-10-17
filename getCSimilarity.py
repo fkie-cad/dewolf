@@ -127,6 +127,11 @@ def frankfurtAmMAIN():
     parser.add_argument("--mem-limit", "-l", default=8, type=float, help="Memory limit per worker in GB.")
     parser.add_argument("--ssa-algos", "-a", nargs="+", default=["conditional"], help="SSA elimination algorithms to evaluate")
     parser.add_argument(
+        "--recompute-exclusion",
+        action="store_true",
+        help="Recompute each project's exclusion.json instead of reusing an existing one.",
+    )
+    parser.add_argument(
         "--function-timeout",
         "-t",
         default=600,
@@ -153,11 +158,14 @@ def frankfurtAmMAIN():
         for algo in args.ssa_algos:
             Path(project_output + "/" + algo).mkdir(parents=True, exist_ok=True)
 
-        print(f"--- [{project}] Building exclusion list ---")
-        exclusion = build_exclusion_list(project_binary_folder, error_log_path)
         exclusion_path = os.path.join(project_output, "exclusion.json")
-        with open(exclusion_path, "w") as f:
-            json.dump(exclusion, f, indent=2)
+        if args.recompute_exclusion or not os.path.exists(exclusion_path):
+            print(f"--- [{project}] Building exclusion list ---")
+            exclusion = build_exclusion_list(project_binary_folder, error_log_path)
+            with open(exclusion_path, "w") as f:
+                json.dump(exclusion, f, indent=2)
+        else:
+            print(f"--- [{project}] Reusing existing exclusion list ({exclusion_path}) ---")
 
         print(f"--- [{project}] Start collecting tasks from {project_binary_folder} ---")
         rescheduled = 0
