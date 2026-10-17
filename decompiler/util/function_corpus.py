@@ -72,19 +72,22 @@ def build_function_groups(binary_folder: str, error_log_path: str) -> tuple[dict
                 error_log.write(f"Error while loading {binary_path}: not a loadable binary\n")
             continue
 
-        names = functions_by_binary.setdefault(binary_file, [])
-        for function in bv.functions:
-            if not is_enumerable_function(function):
-                continue
-            names.append(function.name)
-            key = f"{binary_file}::{function.name}"
-            try:
-                fp = function_fingerprint(function)
-            except Exception:
-                failed += 1
-                with open(error_log_path, "a") as error_log:
-                    error_log.write(f"Error while fingerprinting {key}: {traceback.format_exc()}\n")
-                continue
-            groups.setdefault(fp, []).append(key)
+        try:
+            names = functions_by_binary.setdefault(binary_file, [])
+            for function in bv.functions:
+                if not is_enumerable_function(function):
+                    continue
+                names.append(function.name)
+                key = f"{binary_file}::{function.name}"
+                try:
+                    fp = function_fingerprint(function)
+                except Exception:
+                    failed += 1
+                    with open(error_log_path, "a") as error_log:
+                        error_log.write(f"Error while fingerprinting {key}: {traceback.format_exc()}\n")
+                    continue
+                groups.setdefault(fp, []).append(key)
+        finally:
+            bv.file.close()
 
     return groups, functions_by_binary, failed
