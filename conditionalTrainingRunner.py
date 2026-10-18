@@ -134,6 +134,7 @@ def load_or_create_project_split(
     valid_members: list[str],
     training_percentage: float,
     skip_data_collection: bool,
+    seed: int | None = None,
 ) -> dict[str, list[str]]:
     """Split one project's confirmed-valid functions training_percentage/rest between train
     and validation, persisted to <project_output>/split.json so every later invocation reuses
@@ -167,7 +168,9 @@ def load_or_create_project_split(
         raise ValueError(f"Not enough functions with valid training data to split. Found only {len(valid_members)} in {project_output}.")
 
     members_sorted = sorted(valid_members)
-    random.seed("\n".join(members_sorted))  # content-dependent, not just the count, for a genuinely fresh shuffle each time the set changes
+    # content-dependent by default, so the split only changes when the member set changes -- a
+    # caller-provided seed overrides that to produce a different shuffle of the same members
+    random.seed(seed if seed is not None else "\n".join(members_sorted))
     scored = sorted(((random.random(), member) for member in members_sorted), key=lambda x: x[0])
     numTrain = int(math.floor(len(scored) * training_percentage))
     train = sorted(member for _, member in scored[:numTrain])
@@ -199,6 +202,19 @@ def FrankfurtAmMain():
     parser.add_argument(
         "--skipDataCollection", action="store_true", help="Skip the data collection phase and only perform training and testing."
     )
+    parser.add_argument(
+        "--seed",
+        "-s",
+        type=int,
+        default=None,
+        help="Override the train/validation split's random seed (default: derived from the member set, so reruns are reproducible).",
+    )
+    parser.add_argument(
+        "--C",
+        type=float,
+        default=1,
+        help="Inverse L2 regularization strength for the logistic regression model (lower = stronger regularization).",
+    )
     args = parser.parse_args()
 
     if (float(args.trainingPercentage) <= 0) or (float(args.trainingPercentage) >= 1):
@@ -229,7 +245,7 @@ def FrankfurtAmMain():
             _, num_errors, num_skips = classify_members(project_output, kept_members, ERROR_LOG_PATH)
             total_errors += num_errors
             total_skips += num_skips
-            split = load_or_create_project_split(project_output, [], args.trainingPercentage, True)
+            split = load_or_create_project_split(project_output, [], args.trainingPercentage, True, args.seed)
             all_train_members[project] = split["train"]
             all_validation_members[project] = split["validation"]
     else:
@@ -323,7 +339,7 @@ def FrankfurtAmMain():
             total_skips += num_skips
 
             try:
-                split = load_or_create_project_split(project_output, valid_members, args.trainingPercentage, False)
+                split = load_or_create_project_split(project_output, valid_members, args.trainingPercentage, False, args.seed)
             except ValueError as e:
                 print(f"--- WARNING [{project}]: skipping this project entirely -- {e} ---", file=sys.stderr)
                 all_train_members[project] = []
@@ -395,7 +411,7 @@ def FrankfurtAmMain():
     df = pd.DataFrame({feature: trainingData[i] for i, feature in enumerate(FEATURES)})
     df[TARGET] = trainingData[len(FEATURES)]
 
-    model = LogisticRegression(C=1, max_iter=1000)  # Du noch viel lernen musst, junger Padawan. XD
+    model = LogisticRegression(C=args.C, max_iter=1000)  # Du noch viel lernen musst, junger Padawan. XD
     model.fit(df[FEATURES], df[TARGET])
 
     w = dict(zip(FEATURES, model.coef_[0]))
