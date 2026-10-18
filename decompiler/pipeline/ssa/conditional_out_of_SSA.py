@@ -17,24 +17,24 @@ class ConditionalOutOfSSA:
         task: DecompilerTask,
         _phi_fuctions_of: DefaultDict[BasicBlock, List[Phi]],
         parms: list[float] = [
-            0.01503987020997377, 
-            0.41540590717620035, 
-            1.3602003989877633, 
-            1.9777705400625902, 
-            0.5742951097396733, 
-            -1.0536650267354408, 
-            -0.13758028768914904, 
-            0.05617376449520245, 
-            0.4993614018565643, 
-            0.09050405693323627, 
-            0.13483824342778672, 
-            -0.5575677214819728, 
-            0.52412111735048, 
-            0.0, 
-            -0.8431282877532653, 
-            0.0
+            -0.14254326745979062,
+            0.3320831141616175,
+            1.5271139949880213,
+            1.991088101974919,
+            0.516479465908587,
+            -1.5734535975921078,
+            0.1989580731918738,
+            0.39415666158123647,
+            -0.16202441485769442,
+            -0.1600031357442977,
+            0.15216994527078326,
+            0.0,
+            0.020523316541731576,
+            0.0,
+            -0.5209695240054403,
+            0.0,
         ],
-        intercept: float = -0.20635133227011618,
+        intercept: float = -0.7731497659886425,
         strategy: int = 0,
     ):
         """
@@ -52,7 +52,7 @@ class ConditionalOutOfSSA:
         phi_pairs = get_phi_pairs(self.task.cfg)
         PhiDependencyResolver(self._phi_functions_of).resolve()
         self.interference_graph = InterferenceGraph(self.task.cfg)
-        PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift() #no more phi functions from this point on
-        ConditionalVariableRenamer(
-            self.task, self.interference_graph, self.params, self.intercept, phi_pairs, self.strategy
-        ).rename()
+        PhiFunctionLifter(
+            self.task.graph, self.interference_graph, self._phi_functions_of
+        ).lift()  # no more phi functions from this point on
+        ConditionalVariableRenamer(self.task, self.interference_graph, self.params, self.intercept, phi_pairs, self.strategy).rename()
