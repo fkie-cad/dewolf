@@ -138,6 +138,21 @@ def frankfurtAmMAIN():
         type=float,
         help="Per-function time limit in seconds; slower functions are recorded as 'timeout' and the binary continues.",
     )
+    parser.add_argument(
+        "--include-split-dir",
+        default=None,
+        help="A conditionalTrainingRunner.py output directory (contains <project>/split.json per project); if given, "
+        "evaluation for each project is restricted to that project's split.json entries under --include-split-key. "
+        "Reuse a fresh -o directory per distinct --include-split-key/--include-split-dir combination -- results are "
+        "cached per binary regardless of which filter produced them, so switching the filter against an existing -o "
+        "silently keeps the old, differently-filtered results.",
+    )
+    parser.add_argument(
+        "--include-split-key",
+        choices=["train", "validation"],
+        default="validation",
+        help="Which half of split.json to restrict to when --include-split-dir is given (default: validation).",
+    )
 
     args = parser.parse_args()
 
@@ -167,6 +182,15 @@ def frankfurtAmMAIN():
         else:
             print(f"--- [{project}] Reusing existing exclusion list ({exclusion_path}) ---")
 
+        split_path = None
+        if args.include_split_dir:
+            split_path = os.path.join(args.include_split_dir, project, "split.json")
+            if not os.path.exists(split_path):
+                raise FileNotFoundError(
+                    f"--include-split-dir was given but {split_path} does not exist. "
+                    "Run conditionalTrainingRunner.py on this project first so its split.json gets written."
+                )
+
         print(f"--- [{project}] Start collecting tasks from {project_binary_folder} ---")
         rescheduled = 0
         for algo in args.ssa_algos:
@@ -181,22 +205,25 @@ def frankfurtAmMAIN():
                     # Left half-written by a worker killed in an earlier run: redo it.
                     os.remove(output_path)
                     rescheduled += 1
+                argv = [
+                    input_path,
+                    "",
+                    output_path,
+                    "--ssa-algo",
+                    algo,
+                    "--exclude-file",
+                    exclusion_path,
+                    "--function-timeout",
+                    str(args.function_timeout),
+                    "-q",
+                ]
+                if split_path is not None:
+                    argv += ["--include-split-file", split_path, "--include-split-key", args.include_split_key]
                 tasks.append(
                     {
                         "label": f"{project}/{algo}/{file}",
                         "output_path": output_path,
-                        "argv": [
-                            input_path,
-                            "",
-                            output_path,
-                            "--ssa-algo",
-                            algo,
-                            "--exclude-file",
-                            exclusion_path,
-                            "--function-timeout",
-                            str(args.function_timeout),
-                            "-q",
-                        ],
+                        "argv": argv,
                         "progress": partial_size(output_path),
                     }
                 )

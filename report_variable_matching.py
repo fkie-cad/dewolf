@@ -725,6 +725,20 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "decompiling at all, instead of being decompiled+scored here only for plot_dwarf.py to drop them later.",
     )
     parser.add_argument(
+        "--include-split-file",
+        dest="include_split_file",
+        default=None,
+        help="A conditionalTrainingRunner.py split.json; only this binary's binary::function entries under "
+        "--include-split-key are decompiled+scored, everything else is skipped before decompiling at all.",
+    )
+    parser.add_argument(
+        "--include-split-key",
+        dest="include_split_key",
+        choices=["train", "validation"],
+        default="validation",
+        help="Which half of split.json to restrict to when --include-split-file is given (default: validation).",
+    )
+    parser.add_argument(
         "--function-timeout",
         dest="function_timeout",
         type=float,
@@ -786,11 +800,20 @@ def main(argv: List[str] | None = None) -> None:
     function_list = {name.strip() for name in args.functions.split(",")} if args.functions else None
     output_path = args.output or default_output_path(args.binary)
 
+    binary_key = Path(args.binary).name
+
     excluded: set[str] = set()
     if args.exclude_file:
         with open(args.exclude_file, "r") as f:
             excluded = set(json.load(f).get("excluded", []))
-    binary_key = Path(args.binary).name
+
+    included: set[str] | None = None
+    if args.include_split_file:
+        with open(args.include_split_file, "r") as f:
+            split = json.load(f)
+        included = {
+            member.split("::", 1)[1] for member in split[args.include_split_key] if member.split("::", 1)[0] == binary_key
+        }
 
     options = Options.load_default_options()
     options.update({"out-of-ssa-translation.mode": args.ssa_algo})
@@ -804,6 +827,8 @@ def main(argv: List[str] | None = None) -> None:
         functions: Dict[str, Dict[str, Any]] = {}
         for name in frontend.get_all_function_names():
             if function_list is not None and name not in function_list:
+                continue
+            if included is not None and name not in included:
                 continue
             if f"{binary_key}::{name}" in excluded:
                 continue
