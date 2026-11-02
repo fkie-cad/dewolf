@@ -11,9 +11,13 @@ from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo.instructions import Phi
 from decompiler.task import DecompilerTask
 
-# Defines how many distinct SSA source variables should be in a function for it to be
-# useful training data
-MIN_DISTINCT_SOURCE_NAMES = 2
+# A function is useful training data only if it contains an actual decision: at least this many
+# records whose variables come from the same source (training goal 1) and at least this many whose
+# variables come from different sources (training goal 0). A function with only one kind of pair
+# carries no information about how to tell them apart. (A record with goal 0 already involves two
+# distinct source names, so the former MIN_DISTINCT_SOURCE_NAMES = 2 criterion is implied.)
+MIN_SAME_SOURCE_RECORDS = 1
+MIN_DIFFERENT_SOURCE_RECORDS = 1
 
 class ConditionalOutOfSSATraining:
     """
@@ -49,19 +53,15 @@ class ConditionalOutOfSSATraining:
     def _extract_and_write(self, phi_pairs: PhiPairs, interference_graph: InterferenceGraph) -> None:
         helper = TrainingAttributeHelper(phi_pairs, interference_graph)
 
-        source_names: set = set()
-        records: List[TrainingRecord] = []
-
         def log_instruction_error(assign, _) -> None:
             with open(self.error_log_path, "a") as error_file:
                 error_file.write(f"Error while processing instruction {assign}: {traceback.format_exc()}\n")
 
-        for record in helper.iter_training_data(self.task.cfg, on_error=log_instruction_error):
-            records.append(record)
-            source_names.add(record.x_source_name)
-            source_names.add(record.y_source_name)
+        records: List[TrainingRecord] = list(helper.iter_training_data(self.task.cfg, on_error=log_instruction_error))
+        same_source_records = sum(1 for record in records if record.training_goal == 1)
+        different_source_records = len(records) - same_source_records
 
-        if len(records) > 0 and len(source_names) >= MIN_DISTINCT_SOURCE_NAMES:
+        if same_source_records >= MIN_SAME_SOURCE_RECORDS and different_source_records >= MIN_DIFFERENT_SOURCE_RECORDS:
             tmp_path = self.result_path + ".tmp"
             with open(tmp_path, "w") as f:
                 json.dump(
