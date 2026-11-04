@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import itertools
 from collections import defaultdict
-from typing import Any, Generator, Iterable, List, NamedTuple, Optional, Set, cast
+from typing import Any, Generator, Iterable, Iterator, List, NamedTuple, Optional, Set, cast
 
 from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
 from decompiler.structures.graphs.basicblock import BasicBlock
@@ -27,9 +27,15 @@ class NameHandler:
             self._ssa_names[v.name] = v.ssa_label
 
     def get_name(self, req_name: str) -> str:
+
         c = self._name_map[req_name]
+        name = req_name if c == 0 else f"{req_name}_{c}"
+        while self._name_map.get(name, 0) > 0:
+            c += 1
+            name = f"{req_name}_{c}"
+        self._name_map[name] = 1  # mark as used (it was unused, so its count was 0)
         self._name_map[req_name] = c + 1
-        return req_name if c == 0 else f"{req_name}_{c}"
+        return name
 
     def get_ssa_label(self, name: str) -> int:
         self._ssa_names[name] += 1
@@ -88,6 +94,7 @@ class SreedharOutOfSSA:
     """Implements Sreedhar's Out-of-SSA algorithm to translate SSA form back to normal form."""
 
     _PHI_COPY_NAME = "v_phi"
+    _TMP_COPY_NAME = "v_tmp"
 
     _KIND_GLOBAL   = 1 << 4  # 16
     _KIND_ALIASED  = 1 << 3  # 8
@@ -192,8 +199,15 @@ class SreedharOutOfSSA:
 
             return master_class
 
-        def generate_renaming_map(self, name_handler: NameHandler) -> dict[Variable, Variable]:
+        def generate_renaming_map(self, name_handler: NameHandler, param_entry_vars: Iterable[Variable]) -> dict[Variable, Variable]:
             groups: dict[int, tuple[Optional[Variable], list[Variable]]] = {}
+            # The class holding the entry version of a function parameter must carry exactly the parameter's name,
+            # otherwise the body reads a different variable than the one declared in the signature.
+            # Insert these groups first so they are named before any other class can take the name.
+            for var in param_entry_vars:
+                if var in self._element_to_class:
+                    groups[id(self._element_to_class[var])] = (var, [])
+
             for k, v in self._element_to_class.items():
                 entry = groups.get(id(v))
                 if entry is None:
@@ -247,11 +261,15 @@ class SreedharOutOfSSA:
             if old_req != req and old_req in self.req_map:
                 self.req_map[req] = self.req_map.pop(old_req)
 
+        def substitute_block(self, old_block: BasicBlock | None, block: BasicBlock) -> None:
+            for origin_blocks in self.req_map.values():
+                origin_blocks[:] = [block if b is old_block else b for b in origin_blocks]
+
     class Resource(NamedTuple):
         var: Variable
         block: BasicBlock | None
 
-    def __init__(self, task: DecompilerTask, debug_check = True):
+    def __init__(self, task: DecompilerTask, debug_check = False):
         self._task = task
         self._debug_check = debug_check
         self._name_handler = NameHandler()
@@ -260,7 +278,7 @@ class SreedharOutOfSSA:
         self._phi_to_orig_map: dict[int, SreedharOutOfSSA.OriginMap] = {}
         self._block_to_phi: dict[BasicBlock, list[Phi]] = defaultdict(list)
         self._assignment_helpers: dict[BasicBlock, SreedharOutOfSSA.AssignmentHelper] = defaultdict(self.AssignmentHelper)
-        
+
         function_arg_names = {var.name for var in self._task.function_parameters}
         self._phi_congruence_map = self.PhiCongruenceMap(function_arg_names)
 
@@ -316,16 +334,16 @@ class SreedharOutOfSSA:
 
                merged_class = self._phi_congruence_map.merge_classes([anchor, var])
 
-        # Find latest SSA version of function arguments
-        func_args: dict[str, Variable] = {}
+        # Find the entry (smallest) SSA version of each function argument
+        self._func_args: dict[str, Variable] = {}
         for var in all_vars:
             if var.name in function_arg_names:
-                if var.name not in func_args or var.ssa_label < func_args[var.name].ssa_label:
-                    func_args[var.name] = var
- 
+                if var.name not in self._func_args or var.ssa_label < self._func_args[var.name].ssa_label:
+                    self._func_args[var.name] = var
+
         # Add edges between function args
         self._interference_graph.add_edges_from((
-            itertools.combinations(func_args.values(),2)
+            itertools.combinations(self._func_args.values(),2)
         ))
 
         # Init liveness sets
@@ -333,7 +351,11 @@ class SreedharOutOfSSA:
         self._live_in: dict[BasicBlock | None, set[Variable]] = {}
         self._live_out: dict[BasicBlock | None, set[Variable]] = {}
 
-        self._live_out[None] = liveness.live_out_of(None) #type: ignore
+        # The liveness analysis only puts the phi arguments coming from the function entry into live_out[None].
+        # Variables live through the root (e.g. parameters used later) are only in live_in[root], since None is
+        # no predecessor in the cfg. Add them, so None is treated like a real entry block.
+        root = self._cfg.root
+        self._live_out[None] = liveness.live_out_of(None) | (liveness.live_in_of(root) - liveness.defs_phi_of(root)) #type: ignore
         for block in self._cfg:
             self._live_in[block] = liveness.live_in_of(block) #type: ignore
             self._live_out[block] = liveness.live_out_of(block) #type: ignore
@@ -407,14 +429,14 @@ class SreedharOutOfSSA:
         candidates: InsertionOrderedSet[SreedharOutOfSSA.Resource], 
         unresolved: dict[SreedharOutOfSSA.Resource, set[SreedharOutOfSSA.Resource]]) -> None:
 
-        resolved: InsertionOrderedSet[SreedharOutOfSSA.Resource] = InsertionOrderedSet()
+        added: list[SreedharOutOfSSA.Resource] = []
         for x in sorted(unresolved.keys(), key=lambda k: len(unresolved[k]), reverse=True):
-            if not unresolved[x].issubset(resolved): 
+            if x not in candidates and not unresolved[x].issubset(candidates):
                 candidates.add(x)
-                resolved.add(x)
+                added.append(x)
 
-        for x in resolved:
-            if unresolved[x].issubset(resolved):
+        for x in added:
+            if unresolved[x].issubset(candidates):
                 candidates.discard(x)
 
     def _create_copy_var(self, original: Variable) -> Variable:
@@ -438,16 +460,30 @@ class SreedharOutOfSSA:
         self._live_in[orig_block].add(x_new)
         self._interference_graph.add_edges_from((x_new, v) for v in self._live_in[orig_block] if x_new is not v)
 
+    def _create_entry_block(self, phi_block: BasicBlock) -> BasicBlock:
+        if phi_block is not self._cfg.root:
+            raise AssertionError(
+                f"Phi argument without origin block in non-root block {phi_block.name}: a copy for it would be unreachable"
+            )
+
+        entry_block = self._cfg.create_block([])
+        self._cfg.add_edge(UnconditionalEdge(entry_block, phi_block))
+        self._cfg.root = entry_block
+
+        # The new block takes over the role of None as the function entry, including its live-out set
+        self._live_out[entry_block] = self._live_out.pop(None)
+
+        for p in self._block_to_phi[phi_block]:
+            if None in p.origin_block:
+                p.origin_block[entry_block] = p.origin_block.pop(None)
+            self._phi_to_orig_map[id(p)].substitute_block(None, entry_block)
+
+        return entry_block
+
     def _insert_req_copy(self, phi: Phi, x: Variable, x_new: Variable) -> None:
         for orig_block in self._phi_to_orig_map[id(phi)].req_map[x]:
             if orig_block is None:
-                orig_block = self._cfg.create_block([])
-                self._live_in[orig_block] = set()
-                self._live_out[orig_block] = set()
-                phi_block = cast(BasicBlock, self._phi_to_orig_map[id(phi)].dest_bb)
-                self._cfg.add_edge(UnconditionalEdge(orig_block, phi_block)) 
-                if phi_block is self._cfg.root:
-                    self._cfg.root = orig_block
+                orig_block = self._create_entry_block(cast(BasicBlock, self._phi_to_orig_map[id(phi)].dest_bb))
 
             phi.substitute(x, x_new)
             self._phi_to_orig_map[id(phi)].substitute_req(x, x_new)
@@ -526,7 +562,7 @@ class SreedharOutOfSSA:
                         self._phi_congruence_map.merge_classes([assign.destination, assign.value])
 
 
-    def _process_and_rename(self, instrs: Iterable[Instruction], renaming_map: dict[Variable, Variable]) -> Generator[Instruction, None, None]:
+    def _process_and_rename(self, instrs: Iterable[Instruction], renaming_map: dict[Variable, Variable]) -> Iterator[Instruction]:
         for instr in instrs:
             if isinstance(instr, (Phi, Relation)):
                 continue
@@ -542,8 +578,27 @@ class SreedharOutOfSSA:
 
             yield instr
 
+    def _sequentialize_parallel_copies(self, copies: Iterable[Assignment]) -> Iterator[Assignment]:
+        copies = list(copies)
+        self._debug_check_parallel_copy_destinations(copies)
+        pending: dict[str, Assignment] = {cast(Variable, a.destination).name: a for a in copies}
+        while pending:
+            used = {a.value.name for a in pending.values() if isinstance(a.value, Variable)}
+            ready = [d for d in pending if d not in used]
+            if ready:
+                for d in ready:
+                    yield pending.pop(d)
+                continue
+
+            victim = cast(Variable, next(iter(pending.values())).destination)
+            tmp = Variable(self._name_handler.get_name(self._TMP_COPY_NAME), victim.type)
+            yield Assignment(tmp, victim.copy())
+            for a in pending.values():
+                if isinstance(a.value, Variable) and a.value.name == victim.name:
+                    a.substitute(a.value, tmp.copy())
+
     def _variable_rename(self) -> None:
-        renaming_map = self._phi_congruence_map.generate_renaming_map(self._name_handler)
+        renaming_map = self._phi_congruence_map.generate_renaming_map(self._name_handler, self._func_args.values())
 
         for bb in self._cfg:
             has_branch = bool(bb.instructions) and isinstance(bb.instructions[-1], GenericBranch)
@@ -552,9 +607,11 @@ class SreedharOutOfSSA:
             helper = self._assignment_helpers[bb]
             
             new_instructions: list[Instruction] = []
-            new_instructions.extend(self._process_and_rename(helper.after_phis, renaming_map))
+            new_instructions.extend(self._sequentialize_parallel_copies(
+                cast(Iterator[Assignment], self._process_and_rename(helper.after_phis, renaming_map))))
             new_instructions.extend(self._process_and_rename(core_instrs, renaming_map))
-            new_instructions.extend(self._process_and_rename(helper.before_branch, renaming_map))
+            new_instructions.extend(self._sequentialize_parallel_copies(
+                cast(Iterator[Assignment], self._process_and_rename(helper.before_branch, renaming_map))))
 
             if branch_instr:
                 # Branch instructions just need variables substituted, never discarded
@@ -577,6 +634,23 @@ class SreedharOutOfSSA:
                 raise AssertionError(
                     f"The classes of two elements in a phi function interfere after lifting: {a} and {b}"
                 )
+
+    def _debug_check_parallel_copy_destinations(self, copies: List[Assignment]) -> None:
+        """
+        The copies of one parallel copy must write distinct variables, otherwise one value is silently lost.
+        This holds as long as the interference graph is correct: the destinations are all defined at the same point.
+        """
+        if not self._debug_check:
+            return
+
+        seen: set[str] = set()
+        for a in copies:
+            name = cast(Variable, a.destination).name
+            if name in seen:
+                raise AssertionError(
+                    f"Parallel copy writes {name} more than once: {[str(c) for c in copies]}"
+                )
+            seen.add(name)
 
     def _debug_check_phi_classes_content(self) -> None:
         if not self._debug_check:
