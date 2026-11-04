@@ -2,7 +2,7 @@
 second invocation that must resume without recomputing anything.
 
 Needs BinaryNinja (skipped otherwise) and takes a few minutes. Run explicitly with
-``pytest tests/cvpipeline/test_smoke.py -p no:xdist``.
+``pytest tests/cvpipeline/test_smoke.py -n 0``.
 """
 
 import shutil
@@ -41,18 +41,27 @@ def test_full_pipeline_and_resume(projects, tmp_path):
         assert (out / "params" / split / "params.json").exists()
         assert "auc:" in (out / "params" / split / "auc.txt").read_text()
         assert (out / "eval" / split / "holdout.json").exists()
-    averaged = read_json(out / "params" / "averaged.json")
-    assert averaged["splits"] == 3 and len(averaged["coef"]) == 16
-    for plots in (out / "plots" / "averaged", out / "plots" / "final"):
-        assert {"micro_metrics.png", "averaged_metrics.png", "overmerged.png", "undermerged.png", "inserted.png", "output_variables.png"} <= {
-            p.name for p in plots.iterdir()
-        }
-        assert set(read_json(plots / "metrics.json")) == {"conditional", "min"}
-    assert any((out / "final_eval" / "chstone" / "conditional").glob("*.json"))
+    plots = ["micro_metrics.png", "averaged_metrics.png", "overmerged.png", "undermerged.png", "inserted.png", "output_variables.png"]
+    for folder in [out / "plots" / "averaged"] + [out / "plots" / "splits" / f"split_{i:03d}" for i in range(3)]:
+        assert set(plots) <= {p.name for p in folder.iterdir()}, folder
+        metrics = read_json(folder / "metrics.json")
+        assert {"conditional", "min"} <= set(metrics)
+        if folder.parent.name == "splits":  # a split's own plots carry its blocks and AUC
+            assert metrics["split"]["split"] == folder.name and "auc" in metrics["split"] and metrics["split"]["train_blocks"]
+        else:
+            assert "split" not in metrics
+    assert not (out / "params" / "averaged.json").exists() and not (out / "final_eval").exists() and not (out / "plots" / "final").exists()
 
-    # Resume: nothing may be recomputed, so no result file may change (averaged.json is cheap and
-    # deliberately rewritten from the split params every run).
-    results = [p for p in out.rglob("*.json") if "plots" not in p.parts and p.name != "averaged.json"]
+    summary = read_json(out / "training_data.json")["total"]
+    kept_functions = len(read_json(out / "work" / "dedup.json")["kept"])
+    categories = ["kept", "dropped_no_pairs", "dropped_only_same_source", "dropped_only_different_source", "dropped_reason_unknown", "not_extracted", "missing"]
+    assert summary["functions"] == kept_functions == sum(summary[c] for c in categories)
+    assert summary["kept"] > 0 and summary["dropped_reason_unknown"] == 0 and summary["missing"] == 0
+    assert "TOTAL" in (out / "training_data.csv").read_text()
+
+    # Resume: nothing may be recomputed, so no result file may change (training_data.json is cheap
+    # and deliberately recomputed from the feature files every run).
+    results = [p for p in out.rglob("*.json") if "plots" not in p.parts and p.name != "training_data.json"]
     before = {p: p.stat().st_mtime_ns for p in results}
     assert cv_pipeline.main(argv) == 0
     assert {p: p.stat().st_mtime_ns for p in results} == before

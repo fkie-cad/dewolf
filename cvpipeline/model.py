@@ -1,4 +1,4 @@
-"""The logistic-regression model: fitting, AUC, the ``params.json`` format and averaging.
+"""The logistic-regression model: fitting, AUC and the ``params.json`` format (one per split).
 
 ``params.json`` has the same shape as the legacy ``koeffizienten.json``:
 ``{"intercept": float, "coef": {feature: float, ...}}`` (plus optional metadata keys).
@@ -75,15 +75,6 @@ def auc(params: Params, X: np.ndarray, y: np.ndarray) -> float | None:
     if len(np.unique(y)) < 2:
         return None
     return float(roc_auc_score(y, predict_proba(params, X)))
-
-
-def average(params_list: Sequence[Params]) -> Params:
-    """Arithmetic mean of every coefficient and the intercept."""
-    if not params_list:
-        raise ValueError("no params to average")
-    coef = {name: float(np.mean([p.coef[name] for p in params_list])) for name in FEATURES}
-    intercept = float(np.mean([p.intercept for p in params_list]))
-    return Params(coef=coef, intercept=intercept)
 
 
 def mean_and_std(values: Sequence[float]) -> Tuple[float, float]:

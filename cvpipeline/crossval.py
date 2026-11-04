@@ -1,11 +1,13 @@
-"""Orchestration of the k-fold cross-validation: dedup -> blocks -> features -> per split
-training + AUC -> evaluation of every split's holdout (+ baselines once) -> averaged params.
+"""Orchestration of the k-fold cross-validation: dedup -> blocks -> features (+ kept/dropped
+report) -> per split training + AUC -> evaluation of every split's holdout with that split's
+params (+ baselines once).
 
 Resume: every stage persists its result and is skipped if that result already exists -
 ``work/dedup.json``, ``work/blocks.json``, the per-binary feature and evaluation files (with
 per-function checkpoints inside a binary) and ``params/<split>/params.json`` (written last for a
-split, so its existence means the split is trained). The run manifest guards against resuming
-with different parameters (config.py).
+split, so its existence means the split is trained). ``training_data.json/csv`` are recomputed
+from the feature files on every run. The run manifest guards against resuming with different
+parameters (config.py).
 """
 
 from __future__ import annotations
@@ -17,9 +19,9 @@ from typing import Dict, List, Optional, Sequence
 from cvpipeline import config, folds
 from cvpipeline.corpus import DedupResult, FunctionKey, load_or_deduplicate
 from cvpipeline.evaluation import Algorithm, make_jobs
-from cvpipeline.features import extract_features, iter_rows
+from cvpipeline.features import CATEGORIES, describe_training_data, extract_features, iter_rows, training_data_summary
 from cvpipeline.logs import error_log_path, get_logger
-from cvpipeline.model import Params, auc, average, fit, mean_and_std, rows_to_arrays
+from cvpipeline.model import Params, auc, fit, mean_and_std, rows_to_arrays
 from cvpipeline.storage import read_json, write_json_atomic, write_text_atomic
 from cvpipeline.workers import PoolSettings, run_jobs
 
@@ -47,7 +49,8 @@ class OutputLayout:
         self.work = output_dir / "work"
         self.blocks = self.work / "blocks.json"
         self.params = output_dir / "params"
-        self.averaged = self.params / "averaged.json"
+        self.training_data = output_dir / "training_data.json"
+        self.training_data_csv = output_dir / "training_data.csv"
         self.eval = output_dir / "eval"
         self.baselines = self.eval / "baselines"
 
@@ -64,8 +67,8 @@ class OutputLayout:
         return self.split_eval(split) / "holdout.json"
 
 
-def run_cross_validation(settings: CrossValidationSettings) -> Params:
-    """Run (or resume) the whole cross-validation and return the averaged params."""
+def run_cross_validation(settings: CrossValidationSettings) -> Dict[folds.Split, Params]:
+    """Run (or resume) the whole cross-validation and return the params of every trained split."""
     folds.validate_k_t(settings.k, settings.t)
     layout = OutputLayout(settings.output_dir)
     projects_dir = settings.projects_dir.resolve()
@@ -85,8 +88,12 @@ def run_cross_validation(settings: CrossValidationSettings) -> Params:
     dedup = load_or_deduplicate(projects_dir, layout.work, settings.pool, error_log)
     blocks = _load_or_assign_blocks(layout, dedup, settings.k, settings.seed)
     extract_features(projects_dir, layout.work, dedup.kept, settings.pool, error_log, settings.function_timeout_s)
+    _report_training_data(layout, dedup.kept)
 
     trained = {split: params for split in splits if (params := _load_or_train_split(layout, split, blocks, settings.C)) is not None}
+    if not trained:
+        raise RuntimeError("no split could be trained; see logs/errors.log")
+    _log_aucs(trained)
 
     jobs = []
     for split, params in trained.items():
@@ -110,8 +117,30 @@ def run_cross_validation(settings: CrossValidationSettings) -> Params:
         # at plotting time (cv_plot.py reads each split's holdout.json).
         jobs += make_jobs(projects_dir, layout.baselines, dedup.kept, baseline, error_log, settings.function_timeout_s, "baselines/")
     run_jobs(jobs, settings.pool, "evaluation")
+    return trained
 
-    return _write_averaged(layout, trained)
+
+def _report_training_data(layout: OutputLayout, keys) -> None:
+    """Write how many functions have training data and why the others were dropped (json + csv) and log it."""
+    summary = training_data_summary(layout.work, keys)
+    write_json_atomic(layout.training_data, summary)
+    columns = ["functions", *CATEGORIES, "rows", "positive_rows"]
+    statuses = sorted(summary["total"]["not_extracted_by_status"])
+    lines = [",".join(["project", *columns, *(f"not_extracted_{status}" for status in statuses)])]
+    for name, counts in [*summary["projects"].items(), ("TOTAL", summary["total"])]:
+        values = [counts[column] for column in columns] + [counts["not_extracted_by_status"].get(status, 0) for status in statuses]
+        lines.append(",".join([name, *map(str, values)]))
+    write_text_atomic(layout.training_data_csv, "\n".join(lines) + "\n")
+    log.info(f"training data: {describe_training_data(summary['total'])}")
+    for name, counts in summary["projects"].items():
+        log.info(f"training data [{name}]: {describe_training_data(counts)}")
+
+
+def _log_aucs(trained: Dict[folds.Split, Params]) -> None:
+    aucs: List[Optional[float]] = [params.metadata.get("auc") for params in trained.values()]
+    auc_mean, auc_std = mean_and_std(aucs)
+    per_split = ", ".join(f"{split.name} {'n/a' if a is None else f'{a:.4f}'}" for split, a in zip(trained, aucs))
+    log.info(f"{len(trained)} splits trained; AUC {auc_mean:.4f} ± {auc_std:.4f} ({per_split})")
 
 
 def _load_or_assign_blocks(layout: OutputLayout, dedup: DedupResult, k: int, seed: int) -> Dict[FunctionKey, int]:
@@ -163,20 +192,3 @@ def _load_or_train_split(layout: OutputLayout, split: folds.Split, blocks: Dict[
     params.save(layout.split_params(split))  # written last: its existence marks the split as trained
     log.info(f"{split.name}: train blocks {split.train_blocks}, AUC {auc_text} ({len(holdout_rows)} holdout rows)")
     return params
-
-
-def _write_averaged(layout: OutputLayout, trained: Dict[folds.Split, Params]) -> Params:
-    if not trained:
-        raise RuntimeError("no split could be trained; see logs/errors.log")
-    averaged = average(list(trained.values()))
-    aucs: List[Optional[float]] = [params.metadata.get("auc") for params in trained.values()]
-    auc_mean, auc_std = mean_and_std(aucs)
-    averaged.metadata = {
-        "auc_mean": auc_mean,
-        "auc_std": auc_std,
-        "splits": len(trained),
-        "split_aucs": {split.name: params.metadata.get("auc") for split, params in trained.items()},
-    }
-    averaged.save(layout.averaged)
-    log.info(f"averaged params over {len(trained)} splits written to {layout.averaged} (AUC {auc_mean:.4f} ± {auc_std:.4f})")
-    return averaged

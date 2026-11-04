@@ -70,4 +70,14 @@ class ConditionalOutOfSSATraining:
                 )
             os.replace(tmp_path, self.result_path)
         else:
-            open(self.result_path + ".noTrainingData", "w").close()
+            # The marker records why the function was dropped, for the pipeline's kept/dropped report.
+            with open(self.result_path + ".noTrainingData", "w") as f:
+                json.dump(
+                    {
+                        "same_source": same_source_records,
+                        "different_source": different_source_records,
+                        "min_same_source": MIN_SAME_SOURCE_RECORDS,
+                        "min_different_source": MIN_DIFFERENT_SOURCE_RECORDS,
+                    },
+                    f,
+                )

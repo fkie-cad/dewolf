@@ -3,16 +3,20 @@
 Two input layouts are recognised automatically:
   * cross-validation: ``<eval>/split_*/<project>/conditional/<binary>.json`` plus
     ``<eval>/split_*/holdout.json`` and optionally ``<eval>/baselines/<project>/<algo>/...``.
-    Metrics are computed per split - the baselines restricted to that split's holdout functions -
-    and then averaged arithmetically over the splits (error bars: standard deviation).
-  * single evaluation: ``<eval>/<project>/<algorithm>/<binary>.json`` (e.g. cv_evaluate.py output).
+    Metrics are computed per split - the conditional results come from that split's model on its
+    holdout, the baselines are restricted to the same holdout functions. Written to
+    ``<plots>/averaged/`` (arithmetic mean over the splits, error bars: standard deviation) and
+    ``<plots>/splits/<split>/`` (that split alone; its blocks, AUC and params - read from
+    ``<eval>/../params/<split>/params.json`` if present - appear in the titles and metrics.json).
+  * single evaluation: ``<eval>/<project>/<algorithm>/<binary>.json`` (e.g. cv_evaluate.py output),
+    plotted directly into ``<plots>/``.
 """
 
 from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import Dict, List, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from cvpipeline.logs import get_logger
 from cvpipeline.metrics import (
@@ -33,32 +37,47 @@ def split_dirs(eval_dir: Path) -> List[Path]:
     return sorted(p for p in eval_dir.iterdir() if p.is_dir() and p.name.startswith("split_") and (p / "holdout.json").exists())
 
 
-def summarize(eval_dir: Path) -> Dict[str, MetricSummary]:
-    splits = split_dirs(eval_dir)
-    if not splits:
-        log.info(f"{eval_dir}: no split folders, plotting a single evaluation")
-        return single(compute_metrics(load_results(eval_dir)))
-
-    log.info(f"{eval_dir}: averaging over {len(splits)} splits")
-    per_split: List[Dict[str, AlgorithmMetrics]] = []
-    for split in splits:
+def per_split_metrics(eval_dir: Path) -> Dict[str, Dict[str, AlgorithmMetrics]]:
+    """{split name: {algorithm: metrics}} on each split's holdout functions (splits without any
+    evaluable result are left out)."""
+    per_split: Dict[str, Dict[str, AlgorithmMetrics]] = {}
+    for split in split_dirs(eval_dir):
         # One split at a time, so only that split's results are in memory.
         holdout = set(read_json(split / "holdout.json")["functions"])
         results = merge(load_results(split, allowed=holdout), load_results(eval_dir / "baselines", allowed=holdout))
         metrics = compute_metrics(results)
         if not metrics:
-            log.warning(f"{split.name}: no evaluable results, left out of the average")
+            log.warning(f"{split.name}: no evaluable results, left out")
             continue
-        per_split.append(metrics)
+        per_split[split.name] = metrics
         log.info(f"{split.name}: " + ", ".join(f"{a} micro-F1 {m.micro_f1:.2f}" for a, m in metrics.items()))
-    return average_over_splits(per_split)
+    return per_split
 
 
-def write_tables(summaries: Dict[str, MetricSummary], output_dir: Path) -> None:
-    write_json_atomic(
-        output_dir / "metrics.json",
-        {algorithm: {"splits": s.splits, "mean": s.mean, "std": s.std} for algorithm, s in summaries.items()},
-    )
+def split_info(eval_dir: Path, split: str) -> Dict[str, Any]:
+    """Blocks of a split (holdout.json) and, if the params folder sits next to the eval folder,
+    its AUC, intercept and coefficients."""
+    holdout = read_json(eval_dir / split / "holdout.json")
+    info: Dict[str, Any] = {"split": split, "train_blocks": holdout.get("train_blocks"), "holdout_blocks": holdout.get("holdout_blocks")}
+    params_path = eval_dir.parent / "params" / split / "params.json"
+    if params_path.exists():
+        params = read_json(params_path)
+        info.update(auc=params.get("auc"), intercept=params.get("intercept"), coef=params.get("coef"))
+    return info
+
+
+def _split_subtitle(info: Dict[str, Any]) -> str:
+    text = f"{info['split']}: train blocks {info.get('train_blocks')}"
+    if "auc" in info:
+        text += ", AUC " + ("n/a" if info["auc"] is None else f"{info['auc']:.3f}")
+    return text
+
+
+def write_tables(summaries: Dict[str, MetricSummary], output_dir: Path, info: Optional[Dict[str, Any]] = None) -> None:
+    table: Dict[str, Any] = {algorithm: {"splits": s.splits, "mean": s.mean, "std": s.std} for algorithm, s in summaries.items()}
+    if info is not None:
+        table["split"] = info
+    write_json_atomic(output_dir / "metrics.json", table)
     keys = sorted(next(iter(summaries.values())).mean) if summaries else []
     with open(output_dir / "metrics.csv", "w", newline="") as f:
         writer = csv.writer(f)
@@ -107,13 +126,14 @@ def _subtitle(summaries: Dict[str, MetricSummary]) -> str:
     return f"mean over {splits} splits (error bars: std)" if splits > 1 else "single evaluation"
 
 
-def plot_all(summaries: Dict[str, MetricSummary], output_dir: Path) -> None:
+def plot_all(summaries: Dict[str, MetricSummary], output_dir: Path, info: Optional[Dict[str, Any]] = None) -> None:
+    """All plots plus metrics.json/csv; ``info`` (a split's blocks/AUC/params) goes into the titles and metrics.json."""
     output_dir.mkdir(parents=True, exist_ok=True)
     if not summaries:
         log.error("nothing to plot")
         return
-    write_tables(summaries, output_dir)
-    subtitle = _subtitle(summaries)
+    write_tables(summaries, output_dir, info)
+    subtitle = _split_subtitle(info) if info is not None else _subtitle(summaries)
     prf = ["Precision", "Recall", "F1"]
     _grouped_bars(
         summaries,
@@ -150,6 +170,18 @@ def plot_all(summaries: Dict[str, MetricSummary], output_dir: Path) -> None:
 
 
 def plot_eval_dir(eval_dir: Path, output_dir: Path) -> Dict[str, MetricSummary]:
-    summaries = summarize(eval_dir)
-    plot_all(summaries, output_dir)
+    """Plot an evaluation folder (see the module docstring for the layouts and output folders).
+    Returns the summaries that were plotted: the averaged ones for a cross-validation folder."""
+    if not split_dirs(eval_dir):
+        log.info(f"{eval_dir}: no split folders, plotting a single evaluation")
+        summaries = single(compute_metrics(load_results(eval_dir)))
+        plot_all(summaries, output_dir)
+        return summaries
+
+    per_split = per_split_metrics(eval_dir)
+    log.info(f"{eval_dir}: averaging over {len(per_split)} splits")
+    summaries = average_over_splits(list(per_split.values()))
+    plot_all(summaries, output_dir / "averaged")
+    for split, metrics in per_split.items():
+        plot_all(single(metrics), output_dir / "splits" / split, split_info(eval_dir, split))
     return summaries

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Plot micro/averaged precision, recall, F1 and the over-/undermerged and inserted variables.
-Given a cross-validation eval folder (<out>/eval) the metrics are averaged over the splits;
-given a single evaluation folder (e.g. cv_evaluate.py output) they are plotted directly."""
+Given a cross-validation eval folder (<out>/eval), the metrics are plotted averaged over the splits
+into <output>/averaged/ and for every split into <output>/splits/<split>/; given a single evaluation
+folder (e.g. cv_evaluate.py output) they are plotted directly into <output>/."""
 
 import argparse
 import sys
@@ -14,7 +15,7 @@ from cvpipeline.plotting import plot_eval_dir
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("-e", "--eval-dir", type=Path, required=True, help="<out>/eval of cv_train.py, or a cv_evaluate.py output folder")
-    parser.add_argument("-o", "--output", type=Path, required=True, help="folder for the plots")
+    parser.add_argument("-o", "--output", type=Path, required=True, help="folder for the plots (for a cross-validation eval folder: contains averaged/ and splits/)")
     args = parser.parse_args(argv)
 
     log = setup_logging(args.output)
