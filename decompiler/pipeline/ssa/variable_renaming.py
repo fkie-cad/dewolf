@@ -473,27 +473,66 @@ class ConditionalVariableRenamer(VariableRenamer):
                 res.add_edge(u, v, score=d["score"])
         return res
 
+    def _must_separate(self, var1: Tuple[Variable], var2: Tuple[Variable]) -> bool:
+        """True iff the two (contracted) nodes may not share a name: they interfere, differ in type or
+        aliasing, or mix (different) globals."""
+        if (var1[0].type == None) or (var2[0].type == None):
+            raise Exception("Encountered a None type variable in the SSA-Stage!")
+        if self.interference_graph.are_interfering(*var1, *var2):
+            return True
+        if var1[0].type != var2[0].type:
+            return True
+        if (var1[0].is_aliased != var2[0].is_aliased) or (var1[0].is_aliased and var2[0].is_aliased and (var1[0].name != var2[0].name)):
+            return True
+        if isinstance(var1[0], GlobalVariable) != isinstance(var2[0], GlobalVariable):
+            return True
+        if isinstance(var1[0], GlobalVariable) and isinstance(var2[0], GlobalVariable) and (var1[0].name != var2[0].name):
+            return True
+        return False
+
     def getInterferingPairs(self, dependency_graph: Graph):
         interferingPairs = list()
         for zhk in connected_components(dependency_graph):
             for var1, var2 in combinations(zhk, 2):
-                var1: Tuple[Variable] 
+                var1: Tuple[Variable]
                 var2: Tuple[Variable]
-                if self.interference_graph.are_interfering(*var1, *var2):
+                if self._must_separate(var1, var2):
                     interferingPairs.append((var1, var2))
-                elif var1[0].type != var2[0].type:
-                    interferingPairs.append((var1,var2))
-                elif (var1[0].is_aliased != var2[0].is_aliased) or (var1[0].is_aliased and var2[0].is_aliased and (var1[0].name != var2[0].name)):
-                    interferingPairs.append((var1,var2))
-                elif isinstance(var1[0], GlobalVariable) != isinstance(var2[0], GlobalVariable):
-                    interferingPairs.append((var1,var2))
-                elif (isinstance(var1[0],GlobalVariable) and  isinstance(var2[0],GlobalVariable) and (var1[0].name != var2[0].name)):
-                    interferingPairs.append((var1,var2))
-
-                if(var1[0].type == None) or (var2[0].type == None):
-                    raise Exception("Encountered a None type variable in the SSA-Stage!")
-
         return interferingPairs
+
+    def _greedy_merge(self, dependency_graph: MultiGraph) -> Graph:
+        """Strategy 4: agglomerative merging. Starting from singletons, merge along the edges in order of
+        decreasing score (relations first, they carry the huge helper weight) whenever the two current classes
+        contain no pair that must be separated. Returns a forest whose components are the classes."""
+        dependency_graph.remove_edges_from(list(selfloop_edges(dependency_graph)))
+        graph = self.multiGraphToGraph(dependency_graph)
+        parent = {node: node for node in graph.nodes}
+        members = {node: [node] for node in graph.nodes}
+
+        def find(node):
+            while parent[node] != node:
+                parent[node] = parent[parent[node]]
+                node = parent[node]
+            return node
+
+        result = Graph()
+        result.add_nodes_from(graph.nodes)
+        ordered = sorted(
+            graph.edges(data="score"),
+            key=lambda e: (-e[2], sorted((f"{e[0][0].name}#{e[0][0].ssa_label}", f"{e[1][0].name}#{e[1][0].ssa_label}"))),
+        )
+        for u, v, score in ordered:
+            root_u, root_v = find(u), find(v)
+            if root_u == root_v:
+                continue
+            if any(self._must_separate(a, b) for a in members[root_u] for b in members[root_v]):
+                continue
+            if len(members[root_u]) < len(members[root_v]):
+                root_u, root_v = root_v, root_u
+            parent[root_v] = root_u
+            members[root_u].extend(members.pop(root_v))
+            result.add_edge(u, v, score=score)
+        return result
 
     def create_variable_classes(self, dependency_graph: MultiGraph):
         """Create the variable classes based on the given dependency graph.
@@ -502,6 +541,7 @@ class ConditionalVariableRenamer(VariableRenamer):
            - second strategy: simple application of s-t-cuts one after another, no sorting by weight --> lower runtime, but worse approximation factor
            - third strategy: use LP-Solver to calculate MultiCut. Due to runtime constraints only paths up to a certain dynamic lenght are considred, the remaining variables (connected by long paths) are devided by sepperate s-t-cuts.
            - fourth strategy: optimized version of strategy 3. Iterating all possible pairs is expensive, solving the LP is comparatively cheap, therefore we do a round-based approach, to reduce the paths we have to iterate.
+           - fifth strategy (4): greedy merging. Merge along the edges in order of decreasing score (union-find) whenever the two classes contain no pair that must be separated. No cuts, no LP.
            """
         match self.strat:
 
@@ -708,6 +748,9 @@ class ConditionalVariableRenamer(VariableRenamer):
                         edges.extend([(u, v) for u in part2 for v in dependency_graph.neighbors(u) if v in part1])
                         dependency_graph.remove_edges_from(edges)
                 return dependency_graph
+
+            case 4:
+                return self._greedy_merge(dependency_graph)
 
             case _:
                 raise Exception("This Multicut Algorithm is currently not implemented")
