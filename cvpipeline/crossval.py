@@ -36,6 +36,7 @@ class CrossValidationSettings:
     t: int
     seed: int = 0
     C: float = 1.0
+    strategy: int = config.DEFAULT_CONDITIONAL_STRATEGY
     baselines: Sequence[str] = ()
     pool: PoolSettings = PoolSettings()
     function_timeout_s: Optional[float] = 600.0
@@ -74,7 +75,9 @@ def run_cross_validation(settings: CrossValidationSettings) -> Dict[folds.Split,
     projects_dir = settings.projects_dir.resolve()
     config.check_or_write(
         settings.output_dir,
-        config.RunConfig(projects_dir=str(projects_dir), k=settings.k, t=settings.t, seed=settings.seed, C=settings.C),
+        config.RunConfig(
+            projects_dir=str(projects_dir), k=settings.k, t=settings.t, seed=settings.seed, C=settings.C, strategy=settings.strategy
+        ),
     )
     baselines = [Algorithm.baseline(name) for name in settings.baselines]  # validate early
     error_log = str(error_log_path(settings.output_dir))
@@ -107,7 +110,7 @@ def run_cross_validation(settings: CrossValidationSettings) -> Dict[folds.Split,
             projects_dir,
             layout.split_eval(split),
             holdout,
-            Algorithm.conditional(params),
+            Algorithm.conditional(params, settings.strategy),
             error_log,
             settings.function_timeout_s,
             label_prefix=f"{split.name}/",

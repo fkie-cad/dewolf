@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from cvpipeline import config
 from cvpipeline.crossval import CrossValidationSettings
 from cvpipeline.evaluation import BASELINE_ALGORITHMS
 from cvpipeline.workers import PoolSettings
@@ -29,6 +30,16 @@ def add_baseline_arg(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def add_strategy_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--strategy",
+        type=int,
+        default=config.DEFAULT_CONDITIONAL_STRATEGY,
+        choices=config.CONDITIONAL_STRATEGIES,
+        help=f"variable-class strategy of the conditional renamer (default: {config.DEFAULT_CONDITIONAL_STRATEGY}, greedy merging)",
+    )
+
+
 def add_training_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("-i", "--projects", type=Path, required=True, help="folder with one subfolder of binaries per project")
     parser.add_argument("-o", "--output", type=Path, required=True, help="output folder")
@@ -36,6 +47,7 @@ def add_training_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("-t", type=int, default=None, help="training blocks per split (default: k-1)")
     parser.add_argument("--seed", type=int, default=0, help="seed for the block assignment (default: 0)")
     parser.add_argument("--C", type=float, default=1.0, help="inverse L2 regularization strength (default: 1.0)")
+    add_strategy_arg(parser)
     add_baseline_arg(parser)
     add_worker_args(parser)
 
@@ -57,6 +69,7 @@ def crossval_settings(args: argparse.Namespace) -> CrossValidationSettings:
         t=args.k - 1 if args.t is None else args.t,
         seed=args.seed,
         C=args.C,
+        strategy=args.strategy,
         baselines=tuple(args.baselines),
         pool=pool_settings(args),
         function_timeout_s=function_timeout(args),

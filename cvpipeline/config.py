@@ -1,7 +1,7 @@
 """The run manifest ``<out>/run_config.json``.
 
 It records every parameter that influences the cached results (blocks, params, per-split
-evaluations) - not worker counts, timeouts or the baseline list (baselines can be added on a later
+evaluations, conditional renaming strategy) - not worker counts, timeouts or the baseline list (baselines can be added on a later
 run; their results are independent of the splits). A rerun into an existing output folder must
 use the same values, otherwise results from the old configuration would silently be mixed with
 new ones, so the run aborts.
@@ -26,6 +26,11 @@ BN_LOAD_OPTIONS = {"analysis.debugInfo.internal": False}
 # when the DWARF matching changes.
 GROUND_TRUTH = "dwarf-v2-nodebuginfo"
 
+# Variable-class strategy of ConditionalVariableRenamer used when evaluating the conditional mode
+# (0-3: s-t-cut / LP based, 4: greedy merging; see its create_variable_classes).
+CONDITIONAL_STRATEGIES = (0, 1, 2, 3, 4)
+DEFAULT_CONDITIONAL_STRATEGY = 4
+
 
 class ConfigMismatch(RuntimeError):
     pass
@@ -38,6 +43,7 @@ class RunConfig:
     t: int
     seed: int
     C: float
+    strategy: int = DEFAULT_CONDITIONAL_STRATEGY
     ground_truth: str = GROUND_TRUTH
 
     def to_json(self) -> dict:

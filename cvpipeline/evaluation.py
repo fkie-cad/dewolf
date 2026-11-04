@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Tuple
 
+from cvpipeline import config
 from cvpipeline.corpus import FunctionKey, group_by_binary, load_or_deduplicate
 from cvpipeline.logs import get_logger
 from cvpipeline.model import Params
@@ -30,14 +31,18 @@ BASELINE_ALGORITHMS = ("simple", "min", "lift_minimal", "sreedhar", "boissinot20
 
 @dataclass(frozen=True)
 class Algorithm:
-    """What to evaluate: an out-of-SSA mode, plus fixed weights for the conditional mode."""
+    """What to evaluate: an out-of-SSA mode, plus fixed weights and the variable-class strategy
+    for the conditional mode."""
 
     name: str
     weights: Optional[Tuple[Tuple[float, ...], float]] = None  # (coefficients in FEATURES order, intercept)
+    strategy: Optional[int] = None
 
     @classmethod
-    def conditional(cls, params: Params) -> "Algorithm":
-        return cls(CONDITIONAL, (tuple(params.coefficients()), params.intercept))
+    def conditional(cls, params: Params, strategy: int = config.DEFAULT_CONDITIONAL_STRATEGY) -> "Algorithm":
+        if strategy not in config.CONDITIONAL_STRATEGIES:
+            raise ValueError(f"unknown conditional strategy {strategy}, choose from {config.CONDITIONAL_STRATEGIES}")
+        return cls(CONDITIONAL, (tuple(params.coefficients()), params.intercept), strategy)
 
     @classmethod
     def baseline(cls, name: str) -> "Algorithm":
@@ -65,7 +70,7 @@ def evaluate_binary(
 
     if algorithm.weights is not None:
         coefficients, intercept = algorithm.weights
-        install_conditional_weights(list(coefficients), intercept)
+        install_conditional_weights(list(coefficients), intercept, algorithm.strategy)
     process_binary(
         binary_path=binary_path,
         functions=functions,
@@ -74,7 +79,7 @@ def evaluate_binary(
         analyze=lambda _name, task: build_report(task),
         timeout_s=timeout_s,
         error_log=error_log,
-        metadata={"binary": binary_path, "project": project, "algorithm": algorithm.name},
+        metadata={"binary": binary_path, "project": project, "algorithm": algorithm.name, "strategy": algorithm.strategy},
     )
 
 
@@ -111,12 +116,13 @@ def evaluate_corpus(
     baselines: Sequence[str] = (),
     timeout_s: float | None = None,
     work_dir: Optional[Path] = None,
+    strategy: int = config.DEFAULT_CONDITIONAL_STRATEGY,
 ) -> None:
     """Evaluate every deduplicated function of ``projects_dir`` with fixed weights (and optional
     baselines). Results go to ``<output_dir>/<project>/<algorithm>/<binary>.json`` (single-eval
     layout for cv_plot.py); the dedup cache to ``work_dir`` (default ``<output_dir>/work``)."""
     dedup = load_or_deduplicate(projects_dir, work_dir or output_dir / "work", settings, error_log)
-    algorithms = [Algorithm.conditional(params)] + [Algorithm.baseline(name) for name in baselines]
+    algorithms = [Algorithm.conditional(params, strategy)] + [Algorithm.baseline(name) for name in baselines]
     jobs = []
     for algorithm in algorithms:
         jobs += make_jobs(projects_dir, output_dir, dedup.kept, algorithm, error_log, timeout_s)

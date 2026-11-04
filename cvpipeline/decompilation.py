@@ -43,15 +43,16 @@ CRASHED = "crashed"  # killed the worker process FunctionCheckpoint.MAX_ATTEMPTS
 Analyzer = Callable[[str, DecompilerTask], Any]
 
 
-def install_conditional_weights(coefficients: list[float], intercept: float) -> None:
-    """Make every ConditionalOutOfSSA created in this process use the given weights.
+def install_conditional_weights(coefficients: list[float], intercept: float, strategy: int) -> None:
+    """Make every ConditionalOutOfSSA created in this process use the given weights and
+    variable-class strategy (ConditionalVariableRenamer.create_variable_classes).
 
     OutOfSsaTranslation._conditional_out_of_ssa looks ``ConditionalOutOfSSA`` up in its module's
     globals at call time, so rebinding that module attribute to a partial with fixed keyword
     arguments overrides the hard-coded defaults in conditional_out_of_SSA.py without editing it.
     """
     out_of_ssa_module.ConditionalOutOfSSA = functools.partial(
-        _ORIGINAL_CONDITIONAL_OUT_OF_SSA, parms=list(coefficients), intercept=float(intercept)
+        _ORIGINAL_CONDITIONAL_OUT_OF_SSA, parms=list(coefficients), intercept=float(intercept), strategy=int(strategy)
     )
 
 

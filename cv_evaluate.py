@@ -17,6 +17,7 @@ def main(argv=None) -> int:
     parser.add_argument("-i", "--projects", type=Path, required=True, help="folder with one subfolder of binaries per project")
     parser.add_argument("-p", "--params", type=Path, required=True, help="params.json with the weights to evaluate")
     parser.add_argument("-o", "--output", type=Path, required=True, help="output folder")
+    cli.add_strategy_arg(parser)
     cli.add_baseline_arg(parser)
     cli.add_worker_args(parser)
     args = parser.parse_args(argv)
@@ -31,6 +32,7 @@ def main(argv=None) -> int:
             error_log=str(error_log_path(args.output)),
             baselines=args.baselines,
             timeout_s=cli.function_timeout(args),
+            strategy=args.strategy,
         )
     except Exception:
         log.exception("evaluation aborted")

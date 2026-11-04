@@ -35,7 +35,7 @@ class ConditionalOutOfSSA:
             0.0,
         ],
         intercept: float = -0.7731497659886425,
-        strategy: int = 0,
+        strategy: int = 4,
     ):
         """
         params: List of parameters from the logistic regression model
