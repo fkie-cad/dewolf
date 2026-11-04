@@ -126,10 +126,15 @@ class RegisterPairHandling(PipelineStage):
         variable split across two registers, so carry that source name onto the replacement. A synthetic
         pair (e.g. a 64-bit multiplication result) has no shared name and its replacement stays unset.
         """
-        source_names = {
-            half.origin.source_name for half in register_pair if half.origin is not None and half.origin.source_name is not None
+        sources = {
+            (half.origin.source_id, half.origin.source_name)
+            for half in register_pair
+            if half.origin is not None and half.origin.source_name is not None
         }
-        origin = VariableProvenance(source_name=source_names.pop()) if len(source_names) == 1 else None
+        origin = None
+        if len(sources) == 1:
+            ((source_id, source_name),) = sources
+            origin = VariableProvenance(source_name=source_name, source_id=source_id)
         return Variable(f"loc_{counter}", register_pair.type, 0, origin=origin)
 
     def _replace_definition_of_register_pair(

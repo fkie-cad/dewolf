@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
+from cvpipeline.config import BN_LOAD_OPTIONS
 from cvpipeline.logs import append_worker_error, get_logger
 from cvpipeline.storage import read_json, write_json_atomic
 from cvpipeline.workers import Job, PoolSettings, run_jobs
@@ -66,7 +67,7 @@ def fingerprint_binary(binary_path: str, output_path: str, error_log: str) -> No
     fingerprints: Dict[str, Optional[str]] = {}
     load_error = None
     try:
-        bv = binaryninja.load(binary_path)
+        bv = binaryninja.load(binary_path, options=dict(BN_LOAD_OPTIONS))
     except Exception:
         bv = None
     if bv is None:

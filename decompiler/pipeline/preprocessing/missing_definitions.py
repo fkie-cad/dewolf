@@ -155,10 +155,11 @@ class InsertMissingDefinitions(PipelineStage):
         all_variables = self._use_map.used_variables | self._def_map.defined_variables
         aliased_variables = {variable for variable in all_variables if variable.is_aliased}
 
-        source_names: DefaultDict[str, Set[str]] = defaultdict(set)
+        # distinct DWARF sources (identity, name) per aliased variable name
+        source_names: DefaultDict[str, Set[Tuple[Optional[int], str]]] = defaultdict(set)
         for variable in aliased_variables:
             if variable.origin is not None and variable.origin.source_name is not None:
-                source_names[variable.name].add(variable.origin.source_name)
+                source_names[variable.name].add((variable.origin.source_id, variable.origin.source_name))
 
         for memory_version in self._node_of_memory_version.keys():
             for variable in aliased_variables:

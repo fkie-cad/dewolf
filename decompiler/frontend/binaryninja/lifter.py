@@ -10,6 +10,7 @@ from decompiler.structures.pseudo import DataflowObject, Tag, UnknownExpression,
 from ...structures.pseudo.complextypes import ComplexTypeMap, UniqueNameProvider
 from .dwarf import DwarfVariableResolver
 from .handlers import HANDLERS
+from .parameter_sources import SysVAbiParameterSource, make_parameter_source
 
 
 class BinaryninjaLifter(ObserverLifter):
@@ -23,6 +24,8 @@ class BinaryninjaLifter(ObserverLifter):
         # Resolves the C source-variable name for lifted variables from DWARF (if present);
         # inert when the binary has no debug info or pyelftools is unavailable.
         self.dwarf: DwarfVariableResolver = DwarfVariableResolver.for_path(bv.file.filename if bv is not None else None)
+        # Names register parameters at function entry from the DWARF signatures (see parameter_sources.py).
+        self.parameter_source: SysVAbiParameterSource = make_parameter_source(bv)
         for handler in HANDLERS:
             handler(self).register()
 

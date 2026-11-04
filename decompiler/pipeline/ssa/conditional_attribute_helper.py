@@ -195,7 +195,8 @@ class TrainingAttributeHelper(AbstractAttributeHelper):
 
                     vec = template.copy()
                     self._fill_pair_attrs(vec, x, y)
-                    t_goal = int(x.origin.source_name == y.origin.source_name)
+                    # same source variable = same DWARF identity (two distinct variables may share a name)
+                    t_goal = int((x.origin.source_id, x.origin.source_name) == (y.origin.source_id, y.origin.source_name))
                     yield TrainingRecord(vec, t_goal, x.origin.source_name, y.origin.source_name)
 
             except Exception as exc:

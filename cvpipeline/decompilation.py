@@ -24,6 +24,7 @@ from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
+from cvpipeline import config
 from cvpipeline.logs import append_worker_error
 from cvpipeline.storage import FunctionCheckpoint, write_json_atomic
 
@@ -55,8 +56,15 @@ def install_conditional_weights(coefficients: list[float], intercept: float) -> 
 
 
 def make_options(out_of_ssa_mode: str) -> Options:
+    """Default dewolf options with the given out-of-SSA mode, loading binaries without Binary Ninja's
+    debug-info import (config.BN_LOAD_OPTIONS)."""
     options = Options.load_default_options()
-    options.update({"out-of-ssa-translation.mode": out_of_ssa_mode})
+    options.update(
+        {
+            "out-of-ssa-translation.mode": out_of_ssa_mode,
+            "binaryninja.use_debug_info": config.BN_LOAD_OPTIONS["analysis.debugInfo.internal"],
+        }
+    )
     return options
 
 

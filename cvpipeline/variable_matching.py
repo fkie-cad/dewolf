@@ -29,23 +29,38 @@ class MatchKind(Enum):
 class VariableMatch:
     variable: str  # output (post-out-of-SSA) name
     lifted: str | None  # "name#ssa_label" of the SSA variable this occurrence replaced
-    source: str | None  # matched source variable / constant value, None if unmatched
+    source: str | None  # matched source variable (unique key, see source_key) / constant value, None if unmatched
     kind: MatchKind
+    source_name: str | None = None  # the matched source variable's C name, for display
 
     def to_json(self) -> Dict[str, Any]:
-        return {"variable": self.variable, "lifted": self.lifted, "source": self.source, "kind": self.kind.value}
+        return {
+            "variable": self.variable,
+            "lifted": self.lifted,
+            "source": self.source,
+            "source_name": self.source_name,
+            "kind": self.kind.value,
+        }
+
+
+def source_key(origin) -> str:
+    """The key identifying a matched DWARF source variable: its name plus its identity (DIE offset),
+    so two distinct source variables sharing a name (e.g. two loops' ``i``) stay distinct."""
+    if origin.source_id is None:
+        return origin.source_name
+    return f"{origin.source_name}@{origin.source_id:#x}"
 
 
 def classify_source(variable) -> Tuple[str | None, MatchKind]:
     """The (source, kind) an out-of-SSA variable was matched to. variable_renaming copies the
-    lifted variable's origin onto its replacement, so the source name is read directly off it."""
+    lifted variable's origin onto its replacement, so the source is read directly off it."""
     from decompiler.structures.pseudo import Constant, GlobalVariable
 
     if variable.origin is not None and variable.origin.source_name is not None:
         # Globals are matched by address and are not renamed like locals, so they get their own
         # kind and stay out of the over-/under-merge analysis.
         kind = MatchKind.DWARF_GLOBAL if isinstance(variable, GlobalVariable) else MatchKind.DWARF_LOCAL
-        return variable.origin.source_name, kind
+        return source_key(variable.origin), kind
     if isinstance(variable, GlobalVariable) and variable.is_constant:
         initial = variable.initial_value
         value = initial.value if isinstance(initial, Constant) else initial
@@ -76,7 +91,8 @@ def collect_matches(graph) -> List[VariableMatch]:
     for instruction in graph.instructions:
         for variable in _variables_of(instruction):
             source, kind = classify_source(variable)
-            matches.add(VariableMatch(variable=str(variable), lifted=_lifted_id(variable), source=source, kind=kind))
+            source_name = variable.origin.source_name if kind in (MatchKind.DWARF_LOCAL, MatchKind.DWARF_GLOBAL) else None
+            matches.add(VariableMatch(variable=str(variable), lifted=_lifted_id(variable), source=source, kind=kind, source_name=source_name))
     return sorted(matches, key=lambda match: (match.variable, match.lifted or "", match.source or ""))
 
 

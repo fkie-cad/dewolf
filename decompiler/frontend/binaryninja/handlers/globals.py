@@ -157,10 +157,10 @@ class GlobalHandler(Handler):
         """
         try:
             load_base = self._view.start if self._view is not None else None
-            source_name = self._lifter.dwarf.global_source_name(addr, load_base)
+            match = self._lifter.dwarf.global_match(addr, load_base)
         except Exception:
             return None
-        return VariableProvenance(source_name=source_name) if source_name is not None else None
+        return VariableProvenance(source_name=match.name, source_id=match.die_offset) if match is not None else None
 
     def lift_global_variable(
         self,

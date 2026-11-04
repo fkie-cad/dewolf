@@ -29,7 +29,10 @@ class BinaryninjaFrontend(Frontend):
     @classmethod
     def from_path(cls, path: str, options: Options) -> "BinaryninjaFrontend":
         """Create a frontend object by invoking binaryninja on the given sample."""
-        file_options = {"analysis.limits.maxFunctionSize": options.getint("binaryninja.max_function_size")}
+        file_options = {
+            "analysis.limits.maxFunctionSize": options.getint("binaryninja.max_function_size"),
+            "analysis.debugInfo.internal": options.getboolean("binaryninja.use_debug_info", fallback=True),
+        }
         if (bv := binaryninja.load(path, options=file_options)) is not None:
             return cls(bv)
         raise RuntimeError("Failed to create binary view")

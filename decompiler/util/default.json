@@ -634,6 +634,16 @@
                 "argument_name": "--max-function-size"
             },
             {
+                "dest": "binaryninja.use_debug_info",
+                "default": true,
+                "title": "Use debug information",
+                "type": "boolean",
+                "description": "Let Binary Ninja import the binary's own debug information (DWARF) into its analysis (analysis.debugInfo.internal); applies only when dewolf loads the binary itself",
+                "is_hidden_from_gui": true,
+                "is_hidden_from_cli": false,
+                "argument_name": "--use-debug-info"
+            },
+            {
                 "dest": "lifter.report_threshold",
                 "default": 5,
                 "title": "Lifter report threshold",

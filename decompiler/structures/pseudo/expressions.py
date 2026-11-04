@@ -68,6 +68,9 @@ class VariableProvenance:
     function: Optional[int] = None  # BN function start address
     has_real_def: bool = False  # False for version-0 / parameters (no defining instruction)
     source_name: Optional[str] = None  # matched C source-variable name from DWARF (None if unknown)
+    # identity of the matched source variable (offset of its DWARF DIE, unique per binary); two distinct
+    # source variables may share a name, so "same source variable" is decided by this, not by source_name
+    source_id: Optional[int] = None
 
 
 class DataflowObject(ABC):

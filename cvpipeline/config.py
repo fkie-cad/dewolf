@@ -16,6 +16,16 @@ from cvpipeline.storage import read_json, write_json_atomic
 
 MANIFEST = "run_config.json"
 
+# The pipeline's CFGs must not depend on debug symbols: Binary Ninja never imports the binaries' own
+# DWARF into its analysis (fingerprinting for dedup, feature extraction and evaluation alike). DWARF
+# is only read by decompiler/frontend/binaryninja/dwarf.py to label the lifted variables' origins.
+BN_LOAD_OPTIONS = {"analysis.debugInfo.internal": False}
+
+# How the ground-truth labels are produced; recorded in the manifest so results built with older
+# labels (or with Binary Ninja's debug-info import) are never mixed with new ones. Bump the version
+# when the DWARF matching changes.
+GROUND_TRUTH = "dwarf-v2-nodebuginfo"
+
 
 class ConfigMismatch(RuntimeError):
     pass
@@ -28,6 +38,7 @@ class RunConfig:
     t: int
     seed: int
     C: float
+    ground_truth: str = GROUND_TRUTH
 
     def to_json(self) -> dict:
         return asdict(self)

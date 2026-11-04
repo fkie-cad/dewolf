@@ -7,6 +7,7 @@ from binaryninja import (
     MediumLevelILInstruction,
     MediumLevelILVar,
     MediumLevelILVarAliased,
+    MediumLevelILVarPhi,
     MediumLevelILVarSplitSsa,
     MediumLevelILVarSsa,
     SSAVariable,
@@ -16,6 +17,9 @@ from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import RegisterPair
 from decompiler.structures.pseudo import Variable as Variable
 from decompiler.structures.pseudo import VariableProvenance
+
+from ..dwarf import SourceMatch
+from ..parameter_sources import canonical_register
 
 
 class VariableHandler(Handler):
@@ -73,7 +77,8 @@ class VariableHandler(Handler):
         and never breaks lifting.
 
         Consumed by external tooling that maps dewolf variables to DWARF source variables using the
-        variable NAME as a join key, so do not rename lifted variables without coordinating.
+        variable NAME as a join key, so do not rename lifted variables without coordinating. The
+        matched source variable is stored as source_name (its C name) and source_id (its identity).
         """
         try:
             function = bnv.function.start if bnv.function else None
@@ -81,7 +86,7 @@ class VariableHandler(Handler):
             storage = bnv.storage
         except Exception:
             return None
-        def_address, has_real_def = None, False
+        def_address, has_real_def, definition = None, False, None
         if ssa_variable is not None and bnv.function is not None:
             try:
                 definition = bnv.function.mlil.ssa_form.get_ssa_var_definition(ssa_variable)
@@ -94,40 +99,47 @@ class VariableHandler(Handler):
         origin = VariableProvenance(
             source_type=source_type, storage=storage, def_address=def_address, function=function, has_real_def=has_real_def
         )
-        origin.source_name = self._resolve_source_name(origin, bnv)
+        match = self._resolve_source(origin, bnv, self._lookup_pc(origin, definition))
+        if match is not None:
+            origin.source_name, origin.source_id = match.name, match.die_offset
         return origin
 
-    def _resolve_source_name(self, origin: VariableProvenance, bnv: bVariable) -> Optional[str]:
-        """Look up the matching C source-variable name for this variable via DWARF."""
+    def _lookup_pc(self, origin: VariableProvenance, definition) -> Optional[int]:
+        """The address at which the variable's DWARF location is looked up.
+
+        A real definition is looked up right after its defining instruction: that is where a DWARF
+        location-list range for the newly written value begins, while at the instruction itself
+        DWARF still describes the register's previous occupant. A phi is no instruction - its value
+        is live at the start of its block, which is where it is looked up. Without a real definition
+        (version 0) it is the function entry.
+        """
+        if not origin.has_real_def or origin.def_address is None or isinstance(definition, MediumLevelILVarPhi):
+            return origin.def_address
+        try:
+            return origin.def_address + (self._lifter.bv.get_instruction_length(origin.def_address) or 0)
+        except Exception:
+            return origin.def_address
+
+    def _resolve_source(self, origin: VariableProvenance, bnv: bVariable, lookup_pc: Optional[int]) -> Optional[SourceMatch]:
+        """Look up the C source variable of this variable via DWARF (by location, see dwarf.py).
+
+        A register without a real definition (version 0) that matches nothing is a value arriving at
+        function entry and is named by the entry-parameter source (see parameter_sources.py).
+        """
         try:
             function = bnv.function
             if function is None:
                 return None
-            name = self._lifter.dwarf.source_name(origin, function.name, self._lifter.bv.arch.get_reg_name)
-            if name is not None:
-                return name
-            return self._parameter_source_name_by_index(origin, bnv, function)
+            bv = self._lifter.bv
+            match = self._lifter.dwarf.source_match(origin, bv.start, lookup_pc, bv.arch.get_reg_name)
+            if match is not None:
+                return match
+            if origin.source_type == "RegisterVariableSourceType" and origin.def_address is not None and not origin.has_real_def:
+                register = canonical_register(bv.arch, bv.arch.get_reg_name(origin.storage))
+                return self._lifter.parameter_source.entry_parameter(function.start, register, function.name)
+            return None
         except Exception:
             return None
-
-    def _parameter_source_name_by_index(self, origin: VariableProvenance, bnv: bVariable, function) -> Optional[str]:
-        """Name a register parameter by its position among the function's parameters.
-
-        Applies to register-typed parameters. Binary Ninja resolves the calling convention, so the
-        parameter's index in function.parameter_vars lines up with the DWARF formal-parameter order and
-        the position gives its source name. The parameter is identified by Binary Ninja variable
-        equality, so this fires for the parameter itself and not for later reuses of the same register;
-        the count-equality guard lives in DwarfVariableResolver.parameter_name_by_index.
-        """
-        if origin.source_type != "RegisterVariableSourceType":
-            return None
-        parameters = list(function.parameter_vars)
-        for index, parameter in enumerate(parameters):
-            # BN equality distinguishes the parameter from later reuses of the same register (which
-            # share its storage but are distinct variables), so this fires only for the parameter itself.
-            if parameter == bnv:
-                return self._lifter.dwarf.parameter_name_by_index(function.name, index, len(parameters))
-        return None
 
     def lift_variable_aliased(self, variable: MediumLevelILVarAliased, **kwargs) -> Variable:
         """Lift the given MediumLevelILVar_aliased operation."""

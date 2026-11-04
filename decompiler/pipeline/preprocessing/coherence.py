@@ -78,26 +78,28 @@ class Coherence(PipelineStage):
         source variable; a version resolving to None is usually just a per-def-site DWARF lookup gap.
         So if the resolved source names among a name's versions all agree, propagate that name onto the
         versions that lack it. If they conflict (BN merged what DWARF splits), leave them untouched - we
-        do not fabricate a source name. Only source_name is shared; the per-version origin fields
-        (e.g. def_address) stay as they were, and a version with no origin at all gets a minimal one
-        carrying just the name (its location fields remain unknown/None).
+        do not fabricate a source name. Source variables are compared by identity (source_id), so two
+        distinct source variables sharing a name count as a conflict. Only source_name and source_id
+        are shared; the per-version origin fields (e.g. def_address) stay as they were, and a version
+        with no origin at all gets a minimal one carrying just the source (its location fields remain
+        unknown/None).
         """
         for variable_name in variables.keys():
             instances = [instance for variable_instances in variables[variable_name].values() for instance in variable_instances]
-            source_names = {
-                instance.origin.source_name
+            sources = {
+                (instance.origin.source_id, instance.origin.source_name)
                 for instance in instances
                 if instance.origin is not None and instance.origin.source_name is not None
             }
-            if len(source_names) != 1:
+            if len(sources) != 1:
                 continue
-            (source_name,) = source_names
+            ((source_id, source_name),) = sources
             for instance in instances:
                 if instance.origin is None:
-                    instance.origin = VariableProvenance(source_name=source_name)
+                    instance.origin = VariableProvenance(source_name=source_name, source_id=source_id)
                 elif instance.origin.source_name is None:
-                    instance.origin.source_name = source_name
-            info(f"[{self.name}] Harmonized source name of {variable_name} to '{source_name}' across its versions.")
+                    instance.origin.source_name, instance.origin.source_id = source_name, source_id
+            info(f"[{self.name}] Harmonized source of {variable_name} to '{source_name}' across its versions.")
 
     def _set_variables_type(self, variables: List[Variable]) -> None:
         """Harmonize the variable type of the given non-empty list of variables."""
