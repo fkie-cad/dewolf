@@ -23,8 +23,9 @@ conditionalTrainingRunner.py:
 """
 
 from abc import ABC
-from itertools import permutations, product
+from itertools import permutations, product, combinations
 from typing import Dict, Iterator, List, NamedTuple, Set, Tuple
+from collections import defaultdict
 
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.pseudo.instructions import Assignment, Phi
@@ -42,7 +43,9 @@ INDEX_DEF_BY_USAGE = 4
 INDEX_FUNC_CALL = 5
 INDEX_IN_SAME_PHI = 6 
 INDEX_USAGE_BASE = 7  # usage_1..usage_9 live at INDEX_USAGE_BASE + (n - 1)
-VECTOR_LENGTH = 16 
+INDEX_FOLOWING_DEFINITIONS = 16
+INDEX_SAME_SOURCE = 17
+VECTOR_LENGTH = 18
 
 
 def variablesAreInterfering(interference_graph: InterferenceGraph, var_X: Variable,var_Y: Variable) -> bool:
@@ -123,19 +126,26 @@ class AbstractAttributeHelper(ABC):
 
         return self.ExprInfo(c_c, is_call,has_bad_op_strong, has_bad_op_mid, c_v)
 
-    def _common_template(self, lhs: ExprInfo, rhs: ExprInfo) -> List[int]:
+    def _common_template(self, lhs: ExprInfo, rhs: ExprInfo, is_following_definitions: bool = False, is_same_source: bool = False) -> List[int]:
         n_rhs_vars = len(rhs.c_v)
         single_rhs_var_once = n_rhs_vars == 1 and next(iter(rhs.c_v.values())) == 1
         no_bad_ops_strong = not lhs.has_bad_op_strong and not rhs.has_bad_op_strong
         no_bad_ops_mid = not lhs.has_bad_op_mid and not rhs.has_bad_op_mid
 
         vec = [0] * VECTOR_LENGTH
-        vec[INDEX_IS_STRONG] = int(single_rhs_var_once and rhs.c_c == 0 and no_bad_ops_strong)
-        vec[INDEX_IS_MID] = int(single_rhs_var_once and rhs.c_c == 1 and no_bad_ops_mid)
-        vec[INDEX_DEF_BY_USAGE] = int(n_rhs_vars == 1 and no_bad_ops_mid)
-        vec[INDEX_FUNC_CALL] = int(rhs.is_call)
-        if 1 <= n_rhs_vars <= 9:
-            vec[INDEX_USAGE_BASE + n_rhs_vars - 1] = 1
+        if not (is_following_definitions or is_same_source):
+            vec[INDEX_IS_STRONG] = int(single_rhs_var_once and rhs.c_c == 0 and no_bad_ops_strong)
+            vec[INDEX_IS_MID] = int(single_rhs_var_once and rhs.c_c == 1 and no_bad_ops_mid)
+            vec[INDEX_DEF_BY_USAGE] = int(n_rhs_vars == 1 and no_bad_ops_mid)
+            vec[INDEX_FUNC_CALL] = int(rhs.is_call)
+            if 1 <= n_rhs_vars <= 9:
+                vec[INDEX_USAGE_BASE + n_rhs_vars - 1] = 1
+
+        if is_same_source and not is_following_definitions:
+            vec[INDEX_FUNC_CALL] = (int(rhs.is_call or lhs.is_call))
+
+        vec[INDEX_FOLOWING_DEFINITIONS] = int(is_following_definitions)
+        vec[INDEX_SAME_SOURCE] = int(is_same_source)
         return vec
 
     def _fill_pair_attrs(self, vec: List[int], x: Variable, y: Variable) -> None:
@@ -173,10 +183,42 @@ class TrainingAttributeHelper(AbstractAttributeHelper):
 
     def iter_training_data(self, cfg: ControlFlowGraph, on_error=None) -> Iterator[TrainingRecord]:
         """on_error(assign, exc) is called (if given) when a single assignment fails to process"""
+        sameSourceDict = defaultdict(list)
+        lastOccurrenceDict : dict[str, list[AbstractAttributeHelper.ExprInfo]] = defaultdict(list)
         for assign in self._assignments_in_cfg(cfg):
             try:
                 lhs = self._get_expression_info(assign.destination)
                 rhs = self._get_expression_info(assign.value)
+
+                if (not rhs.has_bad_op_strong) and (len(rhs.c_v) == 1) and (len(lhs.c_v) == 1):
+                    sameSourceDict[list(rhs.c_v.keys())[0]].append(lhs)
+
+                if (not lhs.has_bad_op_strong) and (len(lhs.c_v) == 1):
+                    if len(lastOccurrenceDict[list(lhs.c_v.keys())[0].name]) == 0:
+                        lastOccurrenceDict[list(lhs.c_v.keys())[0].name].append(lhs)
+                    else:
+                        lastOccurence = lastOccurrenceDict[list(lhs.c_v.keys())[0].name].pop()
+                        lastOccurrenceDict[list(lhs.c_v.keys())[0].name].append(lhs)
+                        template = self._common_template(lastOccurence, lhs, is_following_definitions=True)
+                        for x, y in product(lastOccurence.c_v, lhs.c_v):
+                            if (
+                                x.origin is None
+                                or y.origin is None
+                                or x.origin.source_name is None
+                                or y.origin.source_name is None
+                                or x.origin.source_type is None
+                                or y.origin.source_type is None
+                                or x.origin.storage is None
+                                or y.origin.storage is None
+                                or variablesAreInterfering(self._interference_graph, x, y)
+                            ):
+                                continue
+
+                            vec = template.copy()
+                            self._fill_pair_attrs(vec, x, y)
+                            t_goal = int(x.origin.source_name == y.origin.source_name)
+                            yield TrainingRecord(vec, t_goal, x.origin.source_name, y.origin.source_name)
+
 
                 template = self._common_template(lhs, rhs)
                 for x, y in product(lhs.c_v, rhs.c_v):
@@ -202,6 +244,29 @@ class TrainingAttributeHelper(AbstractAttributeHelper):
                 if on_error is not None:
                     on_error(assign, exc)
                 continue
+
+        for varRight in list(sameSourceDict.keys()):
+            if len(sameSourceDict[varRight]) > 1:
+                for x,y in combinations(sameSourceDict[varRight],2):
+                    var1 : Variable = list(x.c_v.keys())[0]
+                    var2 : Variable = list(y.c_v.keys())[0]
+                    if (
+                        var1.origin is None
+                        or var2.origin is None
+                        or var1.origin.source_name is None
+                        or var2.origin.source_name is None
+                        or var1.origin.source_type is None
+                        or var2.origin.source_type is None
+                        or var1.origin.storage is None
+                        or var2.origin.storage is None
+                        or variablesAreInterfering(self._interference_graph, var1, var2)
+                    ):
+                        continue
+
+                    vec = self._common_template(x,y,is_same_source=True)
+                    self._fill_pair_attrs(vec, var1, var2)
+                    t_goal = int(var1.origin.source_name == var2.origin.source_name)
+                    yield TrainingRecord(vec, t_goal, var1.origin.source_name, var2.origin.source_name)
 
 
 class ConditionalAttributeHelper(AbstractAttributeHelper):
