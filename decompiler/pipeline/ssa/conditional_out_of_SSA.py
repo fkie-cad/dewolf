@@ -9,6 +9,9 @@ from decompiler.structures.graphs.cfg import BasicBlock
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo.instructions import Phi
 from decompiler.task import DecompilerTask
+from decompiler.util.decoration import DecoratedCFG
+import traceback
+import time
 
 
 class ConditionalOutOfSSA:
@@ -50,9 +53,13 @@ class ConditionalOutOfSSA:
 
     def perform(self):
         phi_pairs = get_phi_pairs(self.task.cfg)
+        #DecoratedCFG.from_cfg(self.task.cfg).export_plot(f"./Graphs/beforePDR_{time.time_ns()}.png","png")
         PhiDependencyResolver(self._phi_functions_of).resolve()
+        #DecoratedCFG.from_cfg(self.task.cfg).export_plot(f"./Graphs/afterPDR_{time.time_ns()}.png","png")
         self.interference_graph = InterferenceGraph(self.task.cfg)
-        PhiFunctionLifter(
-            self.task.graph, self.interference_graph, self._phi_functions_of
-        ).lift()  # no more phi functions from this point on
-        ConditionalVariableRenamer(self.task, self.interference_graph, self.params, self.intercept, phi_pairs, self.strategy).rename()
+        PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift() #no more phi functions from this point on
+        #DecoratedCFG.from_cfg(self.task.cfg).export_plot(f"./Graphs/withoutPhi_{time.time_ns()}.png","png")
+
+        ConditionalVariableRenamer(
+            self.task, self.interference_graph, self.params, self.intercept, phi_pairs, self.strategy
+        ).rename()

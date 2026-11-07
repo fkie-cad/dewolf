@@ -60,6 +60,7 @@ def dependency_graph_from_cfg(
 
     helper = ConditionalAttributeHelper(phi_pairs)
     for vector, (a, b) in helper.iter_edge_data(cfg):
+        #print(a,"<->",b," ",vector," ",round(sum(p * v for p, v in zip(parameters, vector)),2),sep="")
         score = sum(p * v for p, v in zip(parameters, vector)) + intercept
         if score <= 0 or variablesAreInterfering(ifg, a, b):
             continue
