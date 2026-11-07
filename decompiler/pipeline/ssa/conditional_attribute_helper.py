@@ -196,7 +196,9 @@ class TrainingAttributeHelper(AbstractAttributeHelper):
                 if (not lhs.has_bad_op_strong) and (len(lhs.c_v) == 1):
                     if len(lastOccurrenceDict[list(lhs.c_v.keys())[0].name]) == 0:
                         lastOccurrenceDict[list(lhs.c_v.keys())[0].name].append(lhs)
-                    else:
+                    elif len(lastOccurrenceDict[list(lhs.c_v.keys())[0].name]) >= 1:
+                        lastOccurrenceDict[list(lhs.c_v.keys())[0].name].clear()
+                    elif len(lastOccurrenceDict[list(lhs.c_v.keys())[0].name]) == 1:
                         lastOccurence = lastOccurrenceDict[list(lhs.c_v.keys())[0].name].pop()
                         lastOccurrenceDict[list(lhs.c_v.keys())[0].name].append(lhs)
                         template = self._common_template(lastOccurence, lhs, is_following_definitions=True)
@@ -246,27 +248,32 @@ class TrainingAttributeHelper(AbstractAttributeHelper):
                 continue
 
         for varRight in list(sameSourceDict.keys()):
-            if len(sameSourceDict[varRight]) > 1:
-                for x,y in combinations(sameSourceDict[varRight],2):
-                    var1 : Variable = list(x.c_v.keys())[0]
-                    var2 : Variable = list(y.c_v.keys())[0]
-                    if (
-                        var1.origin is None
-                        or var2.origin is None
-                        or var1.origin.source_name is None
-                        or var2.origin.source_name is None
-                        or var1.origin.source_type is None
-                        or var2.origin.source_type is None
-                        or var1.origin.storage is None
-                        or var2.origin.storage is None
-                        or variablesAreInterfering(self._interference_graph, var1, var2)
-                    ):
-                        continue
+            try:
+                if len(sameSourceDict[varRight]) > 1:
+                    for x,y in combinations(sameSourceDict[varRight],2):
+                        var1 : Variable = list(x.c_v.keys())[0]
+                        var2 : Variable = list(y.c_v.keys())[0]
+                        if (
+                            var1.origin is None
+                            or var2.origin is None
+                            or var1.origin.source_name is None
+                            or var2.origin.source_name is None
+                            or var1.origin.source_type is None
+                            or var2.origin.source_type is None
+                            or var1.origin.storage is None
+                            or var2.origin.storage is None
+                            or variablesAreInterfering(self._interference_graph, var1, var2)
+                        ):
+                            continue
 
-                    vec = self._common_template(x,y,is_same_source=True)
-                    self._fill_pair_attrs(vec, var1, var2)
-                    t_goal = int(var1.origin.source_name == var2.origin.source_name)
-                    yield TrainingRecord(vec, t_goal, var1.origin.source_name, var2.origin.source_name)
+                        vec = self._common_template(x,y,is_same_source=True)
+                        self._fill_pair_attrs(vec, var1, var2)
+                        t_goal = int(var1.origin.source_name == var2.origin.source_name)
+                        yield TrainingRecord(vec, t_goal, var1.origin.source_name, var2.origin.source_name)
+            except Exception as exc:
+                if on_error is not None:
+                    on_error(assign, exc)
+                continue
 
 
 class ConditionalAttributeHelper(AbstractAttributeHelper):
