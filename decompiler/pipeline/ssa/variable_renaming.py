@@ -421,15 +421,10 @@ class ConditionalVariableRenamer(VariableRenamer):
         """
 
         dependency_graph = dependency_graph_from_cfg(cfg, self.params, self.intercept, self.phi_pairs, self.interference_graph)
-        #for x in dependency_graph.edges(data=True):
-        #    print(x[0][0].name +"#"+ str(x[0][0].ssa_label),  x[1][0].name + "#" + str(x[1][0].ssa_label), round(float(x[2]["score"]), 2))
         dependency_graph = self.merge_contracted_variables(dependency_graph)
 
         dependency_graph = self.create_variable_classes(dependency_graph)
-        #print("-------------------------")
-        #for x in dependency_graph.edges(data=True):
-        #    print(x[0][0].name +"#"+ str(x[0][0].ssa_label),  x[1][0].name + "#" + str(x[1][0].ssa_label), round(float(x[2]["score"]), 2))
-
+        
         #The following assert is very useful for debugging, therefore it still has its place in the code
         # assert (self.checkResult(dependency_graph))
 
