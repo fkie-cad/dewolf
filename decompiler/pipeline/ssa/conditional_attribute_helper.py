@@ -166,6 +166,22 @@ class AbstractAttributeHelper(ABC):
             if isinstance(instr, Assignment):
                 yield instr
 
+    def _assignments_in_dominator_order(self, cfg: ControlFlowGraph) -> Iterator[Tuple[Assignment, Dict[str, ExprInfo]]]:
+        """Yields every assignment together with the last dominating definition per variable name.
+        The caller updates the dict; changes are only visible to blocks dominated by the current one."""
+        if cfg.root is None:
+            return
+        tree = cfg.dominator_tree
+        stack = [(cfg.root, {})]
+        while stack:
+            block, inherited = stack.pop()
+            last_def = dict(inherited)
+            for instr in block:
+                if isinstance(instr, Assignment):
+                    yield instr, last_def
+            for child in tree.get_successors(block):
+                stack.append((child, last_def))
+
 
 class TrainingRecord(NamedTuple):
     vector: List[int]
@@ -183,8 +199,7 @@ class TrainingAttributeHelper(AbstractAttributeHelper):
     def iter_training_data(self, cfg: ControlFlowGraph, on_error=None) -> Iterator[TrainingRecord]:
         """on_error(assign, exc) is called (if given) when a single assignment fails to process"""
         sameSourceDict = defaultdict(list)
-        lastOccurrenceDict : dict[str, list[AbstractAttributeHelper.ExprInfo]] = defaultdict(list)
-        for assign in self._assignments_in_cfg(cfg):
+        for assign, last_def in self._assignments_in_dominator_order(cfg):
             try:
                 lhs = self._get_expression_info(assign.destination)
                 rhs = self._get_expression_info(assign.value)
@@ -192,14 +207,11 @@ class TrainingAttributeHelper(AbstractAttributeHelper):
                 if (not rhs.has_bad_op_strong) and (len(rhs.c_v) == 1) and (len(lhs.c_v) == 1):
                     sameSourceDict[list(rhs.c_v.keys())[0]].append(lhs)
 
-                if (not lhs.has_bad_op_strong) and (len(lhs.c_v) == 1):
-                    if len(lastOccurrenceDict[list(lhs.c_v.keys())[0].name]) == 0:
-                        lastOccurrenceDict[list(lhs.c_v.keys())[0].name].append(lhs)
-                    elif len(lastOccurrenceDict[list(lhs.c_v.keys())[0].name]) > 1:
-                        lastOccurrenceDict[list(lhs.c_v.keys())[0].name].clear()
-                    elif len(lastOccurrenceDict[list(lhs.c_v.keys())[0].name]) == 1:
-                        lastOccurence = lastOccurrenceDict[list(lhs.c_v.keys())[0].name].pop()
-                        lastOccurrenceDict[list(lhs.c_v.keys())[0].name].append(lhs)
+                if (not lhs.has_bad_op_strong) and (len(lhs.c_v) == 1): #hande last occurrence
+                    name = next(iter(lhs.c_v)).name
+                    lastOccurence = last_def.get(name)
+                    last_def[name] = lhs
+                    if lastOccurence is not None:
                         template = self._common_template(lastOccurence, lhs, is_following_definitions=True)
                         for x, y in product(lastOccurence.c_v, lhs.c_v):
                             if (
@@ -280,23 +292,19 @@ class ConditionalAttributeHelper(AbstractAttributeHelper):
 
     def iter_edge_data(self, cfg: ControlFlowGraph) -> Iterator[Tuple[List[int], Tuple[Variable, Variable]]]:
         sameSourceDict = defaultdict(list)
-        lastOccurrenceDict : dict[str, list[AbstractAttributeHelper.ExprInfo]] = defaultdict(list)
-        
-        for assign in self._assignments_in_cfg(cfg):
+
+        for assign, last_def in self._assignments_in_dominator_order(cfg):
             lhs = self._get_expression_info(assign.destination)
             rhs = self._get_expression_info(assign.value)
 
             if (not rhs.has_bad_op_strong) and (len(rhs.c_v) == 1) and (len(lhs.c_v) == 1):
                 sameSourceDict[list(rhs.c_v.keys())[0]].append(lhs)
-            
+
             if (not lhs.has_bad_op_strong) and (len(lhs.c_v) == 1):
-                if len(lastOccurrenceDict[list(lhs.c_v.keys())[0].name]) == 0:
-                    lastOccurrenceDict[list(lhs.c_v.keys())[0].name].append(lhs)
-                elif len(lastOccurrenceDict[list(lhs.c_v.keys())[0].name]) > 1:
-                    lastOccurrenceDict[list(lhs.c_v.keys())[0].name].clear()
-                elif len(lastOccurrenceDict[list(lhs.c_v.keys())[0].name]) == 1:
-                    lastOccurence = lastOccurrenceDict[list(lhs.c_v.keys())[0].name].pop()
-                    lastOccurrenceDict[list(lhs.c_v.keys())[0].name].append(lhs)
+                name = next(iter(lhs.c_v)).name
+                lastOccurence = last_def.get(name)
+                last_def[name] = lhs
+                if lastOccurence is not None:
                     template = self._common_template(lastOccurence, lhs, is_following_definitions=True)
                     for x, y in product(lastOccurence.c_v, lhs.c_v):
                         vec = template.copy()
