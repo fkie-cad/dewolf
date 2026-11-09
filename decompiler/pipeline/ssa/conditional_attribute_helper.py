@@ -20,6 +20,8 @@ conditionalTrainingRunner.py:
   13 usage_7            rhs has exactly 7 distinct variables
   14 usage_8            rhs has exactly 8 distinct variables
   15 usage_9            rhs has exactly 9 distinct variables
+  16 following_definitions  x is the last occurrence of a variable, y is the next occurrence
+  17 same_rhs_source        x and y have the same ssa origin's source_name
 """
 
 from abc import ABC
@@ -43,7 +45,7 @@ INDEX_DEF_BY_USAGE = 4
 INDEX_FUNC_CALL = 5
 INDEX_IN_SAME_PHI = 6 
 INDEX_USAGE_BASE = 7  # usage_1..usage_9 live at INDEX_USAGE_BASE + (n - 1)
-INDEX_FOLOWING_DEFINITIONS = 16
+INDEX_FOLLOWING_DEFINITIONS = 16
 INDEX_SAME_SOURCE = 17
 VECTOR_LENGTH = 18
 
@@ -141,10 +143,7 @@ class AbstractAttributeHelper(ABC):
             if 1 <= n_rhs_vars <= 9:
                 vec[INDEX_USAGE_BASE + n_rhs_vars - 1] = 1
 
-        if is_same_source and not is_following_definitions:
-            vec[INDEX_FUNC_CALL] = (int(rhs.is_call or lhs.is_call))
-
-        vec[INDEX_FOLOWING_DEFINITIONS] = int(is_following_definitions)
+        vec[INDEX_FOLLOWING_DEFINITIONS] = int(is_following_definitions)
         vec[INDEX_SAME_SOURCE] = int(is_same_source)
         return vec
 
@@ -196,7 +195,7 @@ class TrainingAttributeHelper(AbstractAttributeHelper):
                 if (not lhs.has_bad_op_strong) and (len(lhs.c_v) == 1):
                     if len(lastOccurrenceDict[list(lhs.c_v.keys())[0].name]) == 0:
                         lastOccurrenceDict[list(lhs.c_v.keys())[0].name].append(lhs)
-                    elif len(lastOccurrenceDict[list(lhs.c_v.keys())[0].name]) >= 1:
+                    elif len(lastOccurrenceDict[list(lhs.c_v.keys())[0].name]) > 1:
                         lastOccurrenceDict[list(lhs.c_v.keys())[0].name].clear()
                     elif len(lastOccurrenceDict[list(lhs.c_v.keys())[0].name]) == 1:
                         lastOccurence = lastOccurrenceDict[list(lhs.c_v.keys())[0].name].pop()
@@ -272,7 +271,7 @@ class TrainingAttributeHelper(AbstractAttributeHelper):
                         yield TrainingRecord(vec, t_goal, var1.origin.source_name, var2.origin.source_name)
             except Exception as exc:
                 if on_error is not None:
-                    on_error(assign, exc)
+                    on_error(varRight, exc)
                 continue
 
 
@@ -280,15 +279,45 @@ class ConditionalAttributeHelper(AbstractAttributeHelper):
     """Used during conditional out-of-SSA dependency-graph construction to score every candidate variable pair."""
 
     def iter_edge_data(self, cfg: ControlFlowGraph) -> Iterator[Tuple[List[int], Tuple[Variable, Variable]]]:
+        sameSourceDict = defaultdict(list)
+        lastOccurrenceDict : dict[str, list[AbstractAttributeHelper.ExprInfo]] = defaultdict(list)
+        
         for assign in self._assignments_in_cfg(cfg):
             lhs = self._get_expression_info(assign.destination)
             rhs = self._get_expression_info(assign.value)
+
+            if (not rhs.has_bad_op_strong) and (len(rhs.c_v) == 1) and (len(lhs.c_v) == 1):
+                sameSourceDict[list(rhs.c_v.keys())[0]].append(lhs)
+            
+            if (not lhs.has_bad_op_strong) and (len(lhs.c_v) == 1):
+                if len(lastOccurrenceDict[list(lhs.c_v.keys())[0].name]) == 0:
+                    lastOccurrenceDict[list(lhs.c_v.keys())[0].name].append(lhs)
+                elif len(lastOccurrenceDict[list(lhs.c_v.keys())[0].name]) > 1:
+                    lastOccurrenceDict[list(lhs.c_v.keys())[0].name].clear()
+                elif len(lastOccurrenceDict[list(lhs.c_v.keys())[0].name]) == 1:
+                    lastOccurence = lastOccurrenceDict[list(lhs.c_v.keys())[0].name].pop()
+                    lastOccurrenceDict[list(lhs.c_v.keys())[0].name].append(lhs)
+                    template = self._common_template(lastOccurence, lhs, is_following_definitions=True)
+                    for x, y in product(lastOccurence.c_v, lhs.c_v):
+                        vec = template.copy()
+                        self._fill_pair_attrs(vec, x, y)
+                        yield vec, (x, y)
+            
             if not lhs.c_v or not rhs.c_v:
                 continue
-
             template = self._common_template(lhs, rhs)
 
             for x, y in product(lhs.c_v, rhs.c_v):
                 vec = template.copy()
                 self._fill_pair_attrs(vec, x, y)
                 yield vec, (x, y)
+
+        for varRight in list(sameSourceDict.keys()):
+            if len(sameSourceDict[varRight]) > 1:
+                for x,y in combinations(sameSourceDict[varRight],2):
+                    var1 : Variable = list(x.c_v.keys())[0]
+                    var2 : Variable = list(y.c_v.keys())[0]
+
+                    vec = self._common_template(x,y,is_same_source=True)
+                    self._fill_pair_attrs(vec, var1, var2)
+                    yield vec, (var1, var2)

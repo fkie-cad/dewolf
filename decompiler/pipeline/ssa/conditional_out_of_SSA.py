@@ -36,6 +36,8 @@ class ConditionalOutOfSSA:
             0.0,
             -0.5209695240054403,
             0.0,
+            0.5, #dummy value for the parameter, since we don't have a model for it yet. 
+            0.5, #dummy value for the parameter, since we don't have a model for it yet.
         ],
         intercept: float = -0.7731497659886425,
         strategy: int = 0,
