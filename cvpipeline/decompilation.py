@@ -15,6 +15,7 @@ import traceback
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, Generator, Iterable
 
+import binaryninja
 import decompiler.pipeline.ssa.outofssatranslation as out_of_ssa_module
 from decompiler.frontend.binaryninja.frontend import BinaryninjaFrontend
 from decompiler.pipeline.default import CFG_STAGES
@@ -25,6 +26,7 @@ from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
 from cvpipeline import config
+from cvpipeline.corpus import corpus_functions, settle_analysis
 from cvpipeline.logs import append_worker_error
 from cvpipeline.storage import FunctionCheckpoint, write_json_atomic
 
@@ -64,6 +66,7 @@ def make_options(out_of_ssa_mode: str) -> Options:
         {
             "out-of-ssa-translation.mode": out_of_ssa_mode,
             "binaryninja.use_debug_info": config.BN_LOAD_OPTIONS["analysis.debugInfo.internal"],
+            "binaryninja.max_function_size": config.BN_LOAD_OPTIONS["analysis.limits.maxFunctionSize"],
         }
     )
     return options
@@ -106,9 +109,19 @@ def time_limit(seconds: float | None) -> Generator[None, None, None]:
 
 @contextmanager
 def open_frontend(binary_path: str, options: Options) -> Generator[BinaryninjaFrontend, None, None]:
-    """Open a binary and always close its BinaryView again (it otherwise leaks native memory)."""
-    frontend = BinaryninjaFrontend.from_path(binary_path, options)
+    """Open a binary with the pipeline's Binary Ninja options (config.BN_LOAD_OPTIONS), let the
+    analysis settle (corpus.settle_analysis) and always close its BinaryView again (it otherwise
+    leaks native memory).
+
+    The view is loaded here instead of through BinaryninjaFrontend.from_path, which only passes the
+    function size limit and the debug-info switch on to Binary Ninja; ``options`` is used for
+    lifting and the pipeline stages as before."""
+    view = binaryninja.load(binary_path, options=dict(config.BN_LOAD_OPTIONS))
+    if view is None:
+        raise RuntimeError("Failed to create binary view")
+    frontend = BinaryninjaFrontend(view)
     try:
+        settle_analysis(frontend._bv)
         yield frontend
     finally:
         frontend._bv.file.close()
@@ -120,19 +133,23 @@ def _entry(status: str, message: str | None = None, result: Any = None) -> Dict[
 
 def _analyze_one(
     name: str,
+    function: Any,
     frontend: BinaryninjaFrontend,
     options: Options,
     analyze: Analyzer,
     timeout_s: float | None,
     prepare: Callable[[str], None] | None,
 ) -> Dict[str, Any]:
-    """Decompile one function and hand the finished task to ``analyze``. Never raises for a
-    function-level problem; every outcome becomes a status."""
+    """Decompile one function (``name`` is its identifier, ``function`` the Binary Ninja function)
+    and hand the finished task to ``analyze``. Never raises for a function-level problem; every
+    outcome becomes a status."""
     try:
         with time_limit(timeout_s):
             if prepare is not None:
                 prepare(name)
-            task = DecompilerTask(name, name, options)
+            # The function object, not its name, identifies what is lifted: a name can be shared
+            # by several functions of a binary (corpus.function_identifiers).
+            task = DecompilerTask(name, function, options)
             try:
                 frontend.lift(task)
                 build_pipeline(options).run(task)
@@ -159,7 +176,8 @@ def process_binary(
     metadata: Dict[str, Any],
     prepare: Callable[[str], None] | None = None,
 ) -> None:
-    """Analyze ``functions`` of one binary and write ``{**metadata, "functions": {name: entry}}``.
+    """Analyze ``functions`` of one binary (identifiers as in corpus.function_identifiers) and write
+    ``{**metadata, "functions": {identifier: entry}}``.
 
     ``prepare(name)`` runs right before a function is decompiled (e.g. to point a pipeline stage
     at a per-function output file). Progress is checkpointed per function, so a rerun after a
@@ -171,7 +189,7 @@ def process_binary(
     checkpoint = FunctionCheckpoint(output_path)
     try:
         with open_frontend(binary_path, options) as frontend:
-            available = set(frontend.get_all_function_names())
+            available = corpus_functions(frontend._bv)
             for name in wanted:
                 if name in checkpoint.done:
                     continue
@@ -184,7 +202,7 @@ def process_binary(
                     checkpoint.finish(name, _entry(CRASHED, message))
                     continue
                 checkpoint.start(name)
-                entry = _analyze_one(name, frontend, options, analyze, timeout_s, prepare)
+                entry = _analyze_one(name, available[name], frontend, options, analyze, timeout_s, prepare)
                 if entry["status"] != SUCCESS:
                     append_worker_error(error_log, f"{binary_path}::{name}: {entry['status']}: {entry['message']}")
                 checkpoint.finish(name, entry)

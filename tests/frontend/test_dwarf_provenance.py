@@ -202,7 +202,7 @@ def test_entry_parameter_source_on_signatures(no_debug_frontend):
     from decompiler.frontend.binaryninja.parameter_sources import make_parameter_source
 
     view = no_debug_frontend._bv
-    abi = make_parameter_source(view)
+    abi = make_parameter_source(view, "abi")
     starts = {function.name: function.start for function in view.functions}
     named = lambda name, register: getattr(abi.entry_parameter(starts[name], register, name), "name", None)
     assert [named("f", register) for register in ("rdi", "xmm0", "rsi")] == ["a", "b", "c"]
@@ -217,6 +217,31 @@ def test_entry_parameter_source_on_signatures(no_debug_frontend):
         assert abi.entry_parameter(starts["h"], register, "h").name == name
 
 
+def test_debug_view_parameter_source_on_signatures(no_debug_frontend):
+    """The registers of a second view with Binary Ninja's debug-info import; the lifted view stays without it."""
+    from decompiler.frontend.binaryninja.debug_view_parameters import STOP_RESULT_POINTER, STOP_TWO_REGISTERS
+    from decompiler.frontend.binaryninja.parameter_sources import make_parameter_source
+
+    view = no_debug_frontend._bv
+    source = make_parameter_source(view, "debug_view")
+    starts = {function.name: function.start for function in view.functions}
+    named = lambda name, register: getattr(source.entry_parameter(starts[name], register, name), "name", None)
+    assert [named("f", register) for register in ("rdi", "xmm0", "rsi")] == ["a", "b", "c"]
+    assert [named("main", register) for register in ("rdi", "rsi", "rdx")] == [None, None, None]
+    # h(struct small s, int a): Binary Ninja places the 8-byte struct in one register, as gcc does
+    assert [named("h", register) for register in ("rdi", "rsi")] == ["s", "a"]
+    # g returns a 24-byte struct: Binary Ninja would name rdi `a`, but rdi carries the hidden result pointer
+    assert [named("g", register) for register in ("rdi", "rsi", "rdx")] == [None, None, None]
+    assert source.stopped[starts["g"]] == STOP_RESULT_POINTER
+    # bf(long a, long b, struct pair p, cmp): Binary Ninja puts p on the stack and cmp in rdx, where p arrives
+    assert [named("bf", register) for register in ("rdi", "rsi", "rdx", "r8")] == ["a", "b", None, None]
+    assert source.stopped[starts["bf"]] == STOP_TWO_REGISTERS
+    # the same identities as the System V source
+    abi = make_parameter_source(view, "abi")
+    assert source.entry_parameter(starts["f"], "xmm0", "f") == abi.entry_parameter(starts["f"], "xmm0", "f")
+    assert binaryninja.Settings().get_bool("analysis.debugInfo.internal", view) is False
+
+
 def _entry_labels_by_register(frontend, function_name):
     view = frontend._bv
     return {
@@ -226,13 +251,26 @@ def _entry_labels_by_register(frontend, function_name):
     }
 
 
-def test_struct_arguments_label_their_first_register(no_debug_frontend):
+def test_struct_arguments_label_their_first_register(no_debug_frontend, monkeypatch):
     """Lifted without debug info: the registers the prologue stores are named per the System V classification."""
+    from decompiler.frontend.binaryninja import parameter_sources
+
+    monkeypatch.setattr(parameter_sources, "PARAMETER_SOURCE", "abi")
     bf = _entry_labels_by_register(no_debug_frontend, "bf")
     assert {bf.get(register) for register in ("rdi", "rsi", "rdx", "r8")} == {"a", "b", "p", "cmp"}
     assert bf.get("rdx") == "p" and bf.get("r8") == "cmp" and "rcx" not in bf  # second half of p unnamed
     mx = _entry_labels_by_register(no_debug_frontend, "mx")
     assert mx.get("xmm0", mx.get("zmm0")) == "m" and mx.get("rsi") == "k"
+
+
+def test_lifter_uses_the_selected_parameter_source(no_debug_frontend, monkeypatch):
+    """With the debug-view source the lifter names the scalars in front of a two-register struct and nothing behind it."""
+    from decompiler.frontend.binaryninja import parameter_sources
+
+    monkeypatch.setattr(parameter_sources, "PARAMETER_SOURCE", "debug_view")
+    bf = _entry_labels_by_register(no_debug_frontend, "bf")
+    assert bf.get("rdi") == "a" and bf.get("rsi") == "b" and not {"rdx", "rcx", "r8"} & set(bf), bf
+    assert {"a", "b", "c"} <= set(_entry_labels(_lift(no_debug_frontend, "f")).values())
 
 
 # --------------------------------------------------------------------------------------------- #

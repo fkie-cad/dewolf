@@ -12,14 +12,18 @@ parameters (config.py).
 
 from __future__ import annotations
 
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
+import numpy as np
+
 from cvpipeline import config, folds
 from cvpipeline.corpus import DedupResult, FunctionKey, load_or_deduplicate
-from cvpipeline.evaluation import Algorithm, make_jobs
-from cvpipeline.features import CATEGORIES, describe_training_data, extract_features, iter_rows, training_data_summary
+from cvpipeline.evaluation import CONDITIONAL, Algorithm, make_jobs
+from cvpipeline.edge_labels import describe_edge_labels, edge_label_counts
+from cvpipeline.features import COLUMNS, describe_training_data, extract_features, iter_training_rows, training_data_summary
 from cvpipeline.logs import error_log_path, get_logger
 from cvpipeline.model import Params, auc, fit, mean_and_std, rows_to_arrays
 from cvpipeline.storage import read_json, write_json_atomic, write_text_atomic
@@ -37,6 +41,8 @@ class CrossValidationSettings:
     seed: int = 0
     C: float = 1.0
     strategy: int = config.DEFAULT_CONDITIONAL_STRATEGY
+    function_filter: str = config.DEFAULT_FUNCTION_FILTER
+    pair_weighting: str = config.DEFAULT_PAIR_WEIGHTING
     baselines: Sequence[str] = ()
     pool: PoolSettings = PoolSettings()
     function_timeout_s: Optional[float] = 600.0
@@ -76,7 +82,14 @@ def run_cross_validation(settings: CrossValidationSettings) -> Dict[folds.Split,
     config.check_or_write(
         settings.output_dir,
         config.RunConfig(
-            projects_dir=str(projects_dir), k=settings.k, t=settings.t, seed=settings.seed, C=settings.C, strategy=settings.strategy
+            projects_dir=str(projects_dir),
+            k=settings.k,
+            t=settings.t,
+            seed=settings.seed,
+            C=settings.C,
+            strategy=settings.strategy,
+            function_filter=settings.function_filter,
+            pair_weighting=settings.pair_weighting,
         ),
     )
     baselines = [Algorithm.baseline(name) for name in settings.baselines]  # validate early
@@ -91,9 +104,13 @@ def run_cross_validation(settings: CrossValidationSettings) -> Dict[folds.Split,
     dedup = load_or_deduplicate(projects_dir, layout.work, settings.pool, error_log)
     blocks = _load_or_assign_blocks(layout, dedup, settings.k, settings.seed)
     extract_features(projects_dir, layout.work, dedup.kept, settings.pool, error_log, settings.function_timeout_s)
-    _report_training_data(layout, dedup.kept)
+    _report_training_data(layout, dedup.kept, settings.function_filter)
 
-    trained = {split: params for split in splits if (params := _load_or_train_split(layout, split, blocks, settings.C)) is not None}
+    trained = {
+        split: params
+        for split in splits
+        if (params := _load_or_train_split(layout, split, blocks, settings.C, settings.function_filter, settings.pair_weighting)) is not None
+    }
     if not trained:
         raise RuntimeError("no split could be trained; see logs/errors.log")
     _log_aucs(trained)
@@ -123,20 +140,20 @@ def run_cross_validation(settings: CrossValidationSettings) -> Dict[folds.Split,
     return trained
 
 
-def _report_training_data(layout: OutputLayout, keys) -> None:
+def _report_training_data(layout: OutputLayout, keys, function_filter: str) -> None:
     """Write how many functions have training data and why the others were dropped (json + csv) and log it."""
-    summary = training_data_summary(layout.work, keys)
-    write_json_atomic(layout.training_data, summary)
-    columns = ["functions", *CATEGORIES, "rows", "positive_rows"]
+    summary = training_data_summary(layout.work, keys, function_filter)
+    write_json_atomic(layout.training_data, {"function_filter": function_filter, **summary})
+    columns = list(COLUMNS)
     statuses = sorted(summary["total"]["not_extracted_by_status"])
     lines = [",".join(["project", *columns, *(f"not_extracted_{status}" for status in statuses)])]
     for name, counts in [*summary["projects"].items(), ("TOTAL", summary["total"])]:
         values = [counts[column] for column in columns] + [counts["not_extracted_by_status"].get(status, 0) for status in statuses]
         lines.append(",".join([name, *map(str, values)]))
     write_text_atomic(layout.training_data_csv, "\n".join(lines) + "\n")
-    log.info(f"training data: {describe_training_data(summary['total'])}")
+    log.info(f"training data: {describe_training_data(summary['total'], function_filter)}")
     for name, counts in summary["projects"].items():
-        log.info(f"training data [{name}]: {describe_training_data(counts)}")
+        log.info(f"training data [{name}]: {describe_training_data(counts, function_filter)}")
 
 
 def _log_aucs(trained: Dict[folds.Split, Params]) -> None:
@@ -156,24 +173,54 @@ def _load_or_assign_blocks(layout: OutputLayout, dedup: DedupResult, k: int, see
     return assignment
 
 
-def _load_or_train_split(layout: OutputLayout, split: folds.Split, blocks: Dict[FunctionKey, int], C: float) -> Optional[Params]:
-    """Train on the split's training blocks, compute the AUC on its holdout blocks. Returns None
-    (and logs) if the split cannot be trained, e.g. because a side has only one class."""
+def _rows_and_weights(rows) -> tuple:
+    """(X, y, weights) of (key, row, weight) triples; the weights are scaled to mean 1, so the L2
+    regularization (C) has the same strength relative to the data as without weighting."""
+    X, y = rows_to_arrays(row for _, row, _ in rows)
+    weights = np.asarray([weight for _, _, weight in rows], dtype=float)
+    if weights.size:
+        weights *= weights.size / weights.sum()
+    return X, y, weights
+
+
+def _discard_conditional_evaluation(layout: OutputLayout, split: folds.Split) -> None:
+    """Remove the split's conditional evaluation results (and checkpoints). Called when the split is
+    (re)trained: results left from earlier weights, e.g. after its params.json was deleted, would
+    otherwise count as done and be reused for the new weights. holdout.json and the baselines stay."""
+    stale = [path for path in layout.split_eval(split).glob(f"*/{CONDITIONAL}") if path.is_dir()]
+    for path in stale:
+        shutil.rmtree(path)
+    if stale:
+        log.warning(f"{split.name}: retrained, discarded the evaluation results of its previous weights ({len(stale)} projects)")
+
+
+def _load_or_train_split(
+    layout: OutputLayout,
+    split: folds.Split,
+    blocks: Dict[FunctionKey, int],
+    C: float,
+    function_filter: str = config.DEFAULT_FUNCTION_FILTER,
+    pair_weighting: str = config.DEFAULT_PAIR_WEIGHTING,
+) -> Optional[Params]:
+    """Train on the split's training blocks, compute the AUC on its holdout blocks (with the same
+    function filter and weighting) and count the unlabeled edges of its holdout functions. Returns
+    None (and logs) if the split cannot be trained, e.g. because a side has only one class."""
     if layout.split_params(split).exists():
         return Params.load(layout.split_params(split))
 
     train_keys = folds.members_of(blocks, split.train_blocks)
     holdout_keys = folds.members_of(blocks, split.holdout_blocks)
-    train_rows = list(iter_rows(layout.work, train_keys))
-    holdout_rows = list(iter_rows(layout.work, holdout_keys))
-    X_train, y_train = rows_to_arrays(row for _, row in train_rows)
-    X_holdout, y_holdout = rows_to_arrays(row for _, row in holdout_rows)
+    train_rows = list(iter_training_rows(layout.work, train_keys, function_filter, pair_weighting))
+    holdout_rows = list(iter_training_rows(layout.work, holdout_keys, function_filter, pair_weighting))
+    X_train, y_train, w_train = _rows_and_weights(train_rows)
+    X_holdout, y_holdout, w_holdout = _rows_and_weights(holdout_rows)
     try:
-        params = fit(X_train, y_train, C)
+        params = fit(X_train, y_train, C, w_train)
     except ValueError as error:
         log.error(f"{split.name}: cannot train ({error}); split skipped")
         return None
-    split_auc = auc(params, X_holdout, y_holdout)
+    split_auc = auc(params, X_holdout, y_holdout, w_holdout)
+    edge_counts = edge_label_counts(layout.work, holdout_keys, params)
 
     metadata = {
         "split": split.name,
@@ -181,17 +228,22 @@ def _load_or_train_split(layout: OutputLayout, split: folds.Split, blocks: Dict[
         "holdout_blocks": list(split.holdout_blocks),
         "auc": split_auc,
         "train_functions": len(train_keys),
-        "train_functions_with_data": len({key for key, _ in train_rows}),
+        "train_functions_with_data": len({key for key, _, _ in train_rows}),
         "train_rows": len(train_rows),
         "holdout_functions": len(holdout_keys),
-        "holdout_functions_with_data": len({key for key, _ in holdout_rows}),
+        "holdout_functions_with_data": len({key for key, _, _ in holdout_rows}),
         "holdout_rows": len(holdout_rows),
+        "function_filter": function_filter,
+        "pair_weighting": pair_weighting,
+        "holdout_edges": edge_counts,
     }
     auc_text = "n/a (holdout has a single class)" if split_auc is None else f"{split_auc:.4f}"
     write_text_atomic(
         layout.split_auc(split), f"auc: {auc_text}\n" + "".join(f"{key}: {value}\n" for key, value in metadata.items() if key != "auc")
     )
     params.metadata = metadata
+    _discard_conditional_evaluation(layout, split)
     params.save(layout.split_params(split))  # written last: its existence marks the split as trained
     log.info(f"{split.name}: train blocks {split.train_blocks}, AUC {auc_text} ({len(holdout_rows)} holdout rows)")
+    log.info(f"{split.name}: holdout {describe_edge_labels(edge_counts)}")
     return params

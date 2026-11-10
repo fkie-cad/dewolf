@@ -498,6 +498,97 @@ def test_sysv_parameters_beyond_the_registers_are_on_the_stack():
     assert table["r9"] == "p5" and "p6" not in table.values()
 
 
+# --------------------------------------------------------------------------------------------- #
+# Entry registers from Binary Ninja's parameter variables (debug_view_parameters._entry_registers),
+# with stubs for the Binary Ninja objects: a placement is a register name, or None for the stack.
+# --------------------------------------------------------------------------------------------- #
+
+
+def _debug_view(parameters, placements, returns_in_memory=False):
+    """Registers -> names (and the stop reason) for DWARF parameters as in _sysv and Binary Ninja's placement of each."""
+    from types import SimpleNamespace
+
+    from decompiler.frontend.binaryninja.debug_view_parameters import _entry_registers
+    from decompiler.frontend.binaryninja.dwarf import DwarfFunction, DwarfParameter
+    from decompiler.frontend.binaryninja.parameter_sources import SYSV_INTEGER_REGISTERS, SYSV_SSE_REGISTERS
+
+    dwarf_function = DwarfFunction(
+        0x1000,
+        (),
+        tuple(
+            DwarfParameter(name, offset, eightbytes=_EIGHTBYTES[kind] if isinstance(kind, str) else kind)
+            for offset, (name, kind) in enumerate(parameters, start=1)
+        ),
+        "f",
+        returns_in_memory,
+    )
+    arch = SimpleNamespace(get_reg_name=lambda storage: storage, regs={})
+    variables = [
+        SimpleNamespace(source_type=SimpleNamespace(name="StackVariableSourceType" if register is None else "RegisterVariableSourceType"), storage=register)
+        for register in placements
+    ]
+    convention = SimpleNamespace(int_arg_regs=list(SYSV_INTEGER_REGISTERS), float_arg_regs=list(SYSV_SSE_REGISTERS))
+    table, reason = _entry_registers(arch, SimpleNamespace(parameter_vars=variables, calling_convention=convention), dwarf_function)
+    return {register: match.name for register, match in table.items()}, reason
+
+
+def test_debug_view_names_scalars_by_position():
+    parameters = [("a", "integer"), ("b", "sse"), ("c", "integer")]
+    assert _debug_view(parameters, ["rdi", "xmm0", "rsi"]) == ({"rdi": "a", "xmm0": "b", "rsi": "c"}, None)
+
+
+def test_debug_view_needs_equal_parameter_counts():
+    """Binary Ninja's own analysis saw another parameter list than the source declares: nothing is named."""
+    from decompiler.frontend.binaryninja.debug_view_parameters import STOP_COUNT
+
+    assert _debug_view([("a", "integer"), ("b", "integer")], ["rdi", "rsi", "rdx"]) == ({}, STOP_COUNT)
+
+
+@pytest.mark.parametrize("returns_in_memory", [True, None])
+def test_debug_view_names_nothing_behind_a_hidden_result_pointer(returns_in_memory):
+    """Binary Ninja starts at rdi although the result pointer is there (or may be)."""
+    from decompiler.frontend.binaryninja.debug_view_parameters import STOP_RESULT_POINTER
+
+    assert _debug_view([("a", "integer"), ("b", "integer")], ["rdi", "rsi"], returns_in_memory) == ({}, STOP_RESULT_POINTER)
+
+
+def test_debug_view_stops_at_a_value_in_two_registers():
+    """Binary Ninja puts a 16-byte struct on the stack and hands its registers to the parameters behind it."""
+    from decompiler.frontend.binaryninja.debug_view_parameters import STOP_TWO_REGISTERS
+
+    parameters = [("a", "integer"), ("p", ("integer", "integer")), ("cmp", "integer")]
+    assert _debug_view(parameters, ["rdi", None, "rsi"]) == ({"rdi": "a"}, STOP_TWO_REGISTERS)
+
+
+def test_debug_view_stops_at_a_misplaced_parameter():
+    """A float-only struct in an integer register, a packed struct given a register: the rest is shifted."""
+    from decompiler.frontend.binaryninja.debug_view_parameters import STOP_PLACEMENT
+
+    assert _debug_view([("a", "integer"), ("w", "sse"), ("k", "integer")], ["rdi", "rsi", "rdx"]) == ({"rdi": "a"}, STOP_PLACEMENT)
+    assert _debug_view([("p", "memory"), ("k", "integer")], ["rdi", "rsi"]) == ({}, STOP_PLACEMENT)
+
+
+def test_debug_view_accepts_values_passed_in_memory_on_the_stack():
+    assert _debug_view([("big", "memory"), ("a", "integer")], [None, "rdi"]) == ({"rdi": "a"}, None)
+
+
+def test_debug_view_accepts_the_stack_once_the_registers_are_used_up():
+    parameters = [(f"p{index}", "integer") for index in range(7)] + [("x", "sse")]
+    table, reason = _debug_view(parameters, ["rdi", "rsi", "rdx", "rcx", "r8", "r9", None, "xmm0"])
+    assert reason is None and table["r9"] == "p5" and table["xmm0"] == "x" and "p6" not in table.values()
+
+
+def test_debug_view_checks_the_register_order_of_a_guessed_parameter_list():
+    """Right length, but Binary Ninja's analysis skipped rsi: the second register is not the second parameter."""
+    from decompiler.frontend.binaryninja.debug_view_parameters import STOP_PLACEMENT
+
+    assert _debug_view([("a", "integer"), ("b", "integer")], ["rdi", "rdx"]) == ({"rdi": "a"}, STOP_PLACEMENT)
+
+
+def test_debug_view_unnamed_parameter_consumes_its_register():
+    assert _debug_view([(None, "integer"), ("b", "integer")], ["rdi", "rsi"]) == ({"rsi": "b"}, None)
+
+
 def test_canonical_register_names():
     from decompiler.frontend.binaryninja.parameter_sources import canonical_register
 
@@ -687,3 +778,57 @@ def test_aggregates_are_classified_like_gcc_passes_them(tmp_path_factory):
     assert names("em") == {"rdi": "a"}  # an empty struct (GNU C, size 0) takes no register
     classes = {p.name: p.eightbytes for p in functions["mx"].parameters}
     assert classes == {"m": ("sse", "integer"), "k": ("integer",), "q": ("sse", "sse"), "s": ("integer",)}
+
+
+# --------------------------------------------------------------------------------------------- #
+# Location expressions pyelftools cannot parse (unknown operations such as DW_OP_reinterpret).
+# --------------------------------------------------------------------------------------------- #
+
+
+def test_unparsable_location_expression_has_no_storage_instead_of_failing():
+    """One expression with an operation unknown to pyelftools must not cost the binary its whole DWARF model."""
+    pytest.importorskip("elftools")
+    from elftools.dwarf.dwarf_expr import DWARFExprParser
+    from elftools.dwarf.structs import DWARFStructs
+
+    from decompiler.frontend.binaryninja.dwarf import _parse_expression
+
+    parser = DWARFExprParser(DWARFStructs(little_endian=True, dwarf_format=32, address_size=8))
+    with pytest.raises(KeyError):
+        parser.parse_expr([0x75, 0x00, 0xA9, 0x30, 0x9F])  # DW_OP_breg5 0; DW_OP_reinterpret <type>; DW_OP_stack_value
+    assert _parse_expression(parser, [0x75, 0x00, 0xA9, 0x30, 0x9F]) == []
+    assert [operation.op for operation in _parse_expression(parser, [0x91, 0x6C])] == [0x91]  # DW_OP_fbreg -20 still parses
+
+
+# --------------------------------------------------------------------------------------------- #
+# Entry address of a function split into several parts (DW_AT_ranges instead of DW_AT_low_pc).
+# --------------------------------------------------------------------------------------------- #
+
+
+def _entry_address(attributes, ranges=()):
+    from types import SimpleNamespace
+
+    from decompiler.frontend.binaryninja.dwarf import _DwarfParser
+
+    parser = _DwarfParser.__new__(_DwarfParser)  # only _pc_ranges is used, replaced by the given ranges
+    parser._pc_ranges = lambda die, compilation_unit, base: tuple(ranges)
+    die = SimpleNamespace(attributes={name: SimpleNamespace(value=value, form=form) for name, (value, form) in attributes.items()})
+    return parser._entry_address(die, None, 0)
+
+
+def test_entry_of_a_contiguous_function_is_its_low_pc():
+    assert _entry_address({"DW_AT_low_pc": (0x1000, "DW_FORM_addr")}) == 0x1000
+
+
+def test_entry_of_a_split_function_is_the_start_of_its_first_range():
+    """GCC lists the hot part first and places the cold part below it: the entry is not the lowest address."""
+    assert _entry_address({"DW_AT_ranges": (0x40, "DW_FORM_sec_offset")}, [(0x60F0, 0x6338), (0x24A7, 0x24B5)]) == 0x60F0
+
+
+def test_entry_pc_given_as_an_address_wins_over_the_first_range():
+    attributes = {"DW_AT_ranges": (0x40, "DW_FORM_sec_offset"), "DW_AT_entry_pc": (0x6100, "DW_FORM_addr")}
+    assert _entry_address(attributes, [(0x60F0, 0x6338)]) == 0x6100
+
+
+def test_subprogram_without_code_has_no_entry():
+    assert _entry_address({}) is None

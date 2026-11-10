@@ -4,15 +4,18 @@ Folder layout (unchanged from the legacy scripts): ``<projects>/<project>/<binar
 directly inside a project folder is an ELF binary with DWARF info.
 
 Functions are identified throughout the pipeline by a ``FunctionKey`` string
-``"<project>/<binary>::<function>"``.
+``"<project>/<binary>::<function>"``, where ``<function>`` is the function's identifier within its
+binary (see ``function_identifiers``): its name, or ``<name>@<start address>`` if several functions
+of the binary share that name.
 """
 
 from __future__ import annotations
 
 import traceback
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from cvpipeline.config import BN_LOAD_OPTIONS
 from cvpipeline.logs import append_worker_error, get_logger
@@ -36,6 +39,94 @@ def parse_key(key: FunctionKey) -> Tuple[str, str, str]:
     return project, binary, function
 
 
+def function_identifiers(functions: Iterable[Any]) -> Dict[str, Any]:
+    """{identifier: function} for the functions of one binary (objects with ``name`` and ``start``),
+    in the given order.
+
+    The identifier is the function's name. Several functions of a binary can share a name (a static
+    function from a header compiled into several files); each of those is identified by
+    ``<name>@<start address>`` instead, so none of them shadows the others. The address is that of
+    the binary file, so the identifier is stable across runs.
+    """
+    functions = list(functions)
+    occurrences = Counter(function.name for function in functions)
+    return {
+        (function.name if occurrences[function.name] == 1 else f"{function.name}@{function.start:#x}"): function for function in functions
+    }
+
+
+def is_cold_fragment(function_name: str) -> bool:
+    """True for the cold part GCC splits off a function at -O2 (``foo.cold``, ``foo.cold.1``).
+
+    It is no function of the source but the rarely executed tail of one, entered by a jump in the
+    middle of the frame of its parent. Binary Ninja lists it as a function of its own, with stack
+    offsets that do not correspond to the parent's, and it has no DWARF entry, so its variables can
+    never be labelled. Other GCC variants (``.isra``, ``.constprop``, ``.part``) are complete
+    functions and are not meant here.
+    """
+    return function_name.endswith(".cold") or ".cold." in function_name
+
+
+def has_generated_name(function: Any) -> bool:
+    """True for a function without a symbol, which Binary Ninja found by itself and named after its
+    address (``sub_401000``).
+
+    In binaries with symbols, as the corpus requires, these are stubs without code of their own: in
+    a sample they had no candidate pairs and no labels at all. They are also the functions Binary
+    Ninja discovers on one load of a binary and not on another, so a later pipeline stage would not
+    find them. (Binary Ninja's "auto" flag of the symbol cannot be used for this: without its
+    debug-info import every symbol of the symbol table is flagged auto.)
+    """
+    return function.name == f"sub_{function.start:x}"
+
+
+def analysis_was_skipped(function: Any) -> bool:
+    """True if Binary Ninja gave up analysing the function (it exceeded the analysis time or size
+    limit). Its IL is then whatever state the analysis was cut off in: incomplete, different from
+    load to load, sometimes missing. Only meaningful once the analysis has settled."""
+    return bool(getattr(function, "analysis_skipped", False))
+
+
+def corpus_functions(view: Any) -> Dict[str, Any]:
+    """{identifier: function} for the functions of a Binary Ninja view that belong to the corpus:
+    every enumerable function (no imports, no linker scaffolding) that has a symbol, was analysed
+    completely and is no cold fragment. Call ``settle_analysis`` on the view first.
+    Fingerprinting and decompilation both list a binary's functions through this, so they agree
+    on the functions and on their identifiers (see ``function_identifiers``)."""
+    from decompiler.util.function_corpus import is_enumerable_function
+
+    return function_identifiers(
+        function
+        for function in view.functions
+        if is_enumerable_function(function)
+        and not is_cold_fragment(function.name)
+        and not has_generated_name(function)
+        and not analysis_was_skipped(function)
+    )
+
+
+def settle_analysis(view: Any) -> None:
+    """Bring a freshly loaded Binary Ninja view into a stable state before anything is read from it.
+
+    Binary Ninja generates a function's IL on first access and may still revise it afterwards (e.g.
+    a zero extension that appears once a callee has been analysed). What the first read of a function
+    returns therefore differs between loads of the same binary: of luac's 764 functions, up to 13
+    had another fingerprint on a reload. Reading every function's MLIL SSA once and then waiting
+    for the analysis removes that, apart from single very large functions. Fingerprinting, feature
+    extraction and every evaluation load a binary on their own, so all of them settle it first to
+    see the same code.
+
+    Not covered: the set of functions Binary Ninja discovers by itself (``sub_...``) can also differ
+    between loads; such a function is then reported as not found by the load that lacks it.
+    """
+    for function in view.functions:
+        try:
+            function.mlil.ssa_form
+        except Exception:
+            pass  # no IL for this function; whoever needs it reports that
+    view.update_analysis_and_wait()
+
+
 def discover_projects(projects_dir: str | Path) -> List[str]:
     root = Path(projects_dir)
     projects = sorted(entry.name for entry in root.iterdir() if entry.is_dir())
@@ -55,13 +146,13 @@ def list_binaries(projects_dir: str | Path, project: str) -> List[str]:
 
 
 def fingerprint_binary(binary_path: str, output_path: str, error_log: str) -> None:
-    """Worker: write ``{"functions": {name: fingerprint | null}, "load_error": str | null}``.
+    """Worker: write ``{"functions": {identifier: fingerprint | null}, "load_error": str | null}``
+    (identifiers as in ``function_identifiers``).
 
     A function whose fingerprint cannot be computed (e.g. BinaryNinja produced no MLIL for it)
     gets ``null``; it is then always kept, never deduplicated.
     """
     import binaryninja
-    from decompiler.util.function_corpus import is_enumerable_function
     from decompiler.util.function_fingerprint_mlil import function_fingerprint
 
     fingerprints: Dict[str, Optional[str]] = {}
@@ -75,14 +166,13 @@ def fingerprint_binary(binary_path: str, output_path: str, error_log: str) -> No
         append_worker_error(error_log, f"fingerprinting {binary_path}: {load_error}")
     else:
         try:
-            for function in bv.functions:
-                if not is_enumerable_function(function):
-                    continue
+            settle_analysis(bv)
+            for identifier, function in corpus_functions(bv).items():
                 try:
-                    fingerprints[function.name] = function_fingerprint(function)
+                    fingerprints[identifier] = function_fingerprint(function)
                 except Exception:
-                    fingerprints[function.name] = None
-                    append_worker_error(error_log, f"fingerprinting {binary_path}::{function.name}: {traceback.format_exc()}")
+                    fingerprints[identifier] = None
+                    append_worker_error(error_log, f"fingerprinting {binary_path}::{identifier}: {traceback.format_exc()}")
         finally:
             bv.file.close()
     write_json_atomic(output_path, {"functions": fingerprints, "load_error": load_error})

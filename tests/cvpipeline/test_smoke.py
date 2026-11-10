@@ -54,9 +54,11 @@ def test_full_pipeline_and_resume(projects, tmp_path):
 
     summary = read_json(out / "training_data.json")["total"]
     kept_functions = len(read_json(out / "work" / "dedup.json")["kept"])
-    categories = ["kept", "dropped_no_pairs", "dropped_only_same_source", "dropped_only_different_source", "dropped_reason_unknown", "not_extracted", "missing"]
+    categories = ["kept", "dropped_no_labeled_pairs", "dropped_by_filter", "not_extracted", "missing"]
     assert summary["functions"] == kept_functions == sum(summary[c] for c in categories)
-    assert summary["kept"] > 0 and summary["dropped_reason_unknown"] == 0 and summary["missing"] == 0
+    assert summary["kept"] > 0 and summary["missing"] == 0
+    split_params = read_json(out / "params" / "split_000" / "params.json")
+    assert split_params["function_filter"] == "source-names" and split_params["holdout_edges"]["edges"] > 0
     assert "TOTAL" in (out / "training_data.csv").read_text()
 
     # Resume: nothing may be recomputed, so no result file may change (training_data.json is cheap

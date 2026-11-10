@@ -54,13 +54,13 @@ def rows_to_arrays(rows: Iterable[Sequence[float]]) -> Tuple[np.ndarray, np.ndar
     return data[:, : len(FEATURES)], data[:, len(FEATURES)]
 
 
-def fit(X: np.ndarray, y: np.ndarray, C: float) -> Params:
+def fit(X: np.ndarray, y: np.ndarray, C: float, sample_weight: np.ndarray | None = None) -> Params:
     from sklearn.linear_model import LogisticRegression
 
     if len(np.unique(y)) < 2:
         raise ValueError(f"training data has only one class ({len(y)} rows); cannot fit")
     model = LogisticRegression(C=C, max_iter=1000)
-    model.fit(X, y)
+    model.fit(X, y, sample_weight=sample_weight)
     return Params(coef=dict(zip(FEATURES, map(float, model.coef_[0]))), intercept=float(model.intercept_[0]))
 
 
@@ -68,13 +68,13 @@ def predict_proba(params: Params, X: np.ndarray) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-(X @ np.asarray(params.coefficients()) + params.intercept)))
 
 
-def auc(params: Params, X: np.ndarray, y: np.ndarray) -> float | None:
-    """ROC-AUC on (X, y); None if y has a single class (AUC undefined)."""
+def auc(params: Params, X: np.ndarray, y: np.ndarray, sample_weight: np.ndarray | None = None) -> float | None:
+    """(Weighted) ROC-AUC on (X, y); None if y has a single class (AUC undefined)."""
     from sklearn.metrics import roc_auc_score
 
     if len(np.unique(y)) < 2:
         return None
-    return float(roc_auc_score(y, predict_proba(params, X)))
+    return float(roc_auc_score(y, predict_proba(params, X), sample_weight=sample_weight))
 
 
 def mean_and_std(values: Sequence[float]) -> Tuple[float, float]:

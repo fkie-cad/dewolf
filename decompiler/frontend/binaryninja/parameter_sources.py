@@ -2,11 +2,16 @@
 
 At -O0, DWARF describes a parameter by the stack slot the prologue spills it to, not by the
 register it arrives in, so the entry version of that register (e.g. rdi#0) cannot be matched by
-location like everything else in dwarf.py. SysVAbiParameterSource provides the missing table
-"register at entry -> formal parameter" per function: it derives the registers from the DWARF
-parameter types with the x86-64 System V calling convention, including the classification of
-structs of at most 16 bytes. It needs no Binary Ninja analysis of its own, so it works the same
-whether or not Binary Ninja imported the debug information.
+location like everything else in dwarf.py. An entry-parameter source provides the missing table
+"register at entry -> formal parameter" per function. There are two, interchangeable behind
+entry_parameter(); PARAMETER_SOURCE picks the one the lifter uses:
+
+- "abi": SysVAbiParameterSource derives the registers from the DWARF parameter types with the
+  x86-64 System V calling convention, including the classification of structs of at most 16 bytes.
+  It needs no Binary Ninja analysis of its own, so it works the same whether or not Binary Ninja
+  imported the debug information.
+- "debug_view": DebugViewParameterSource (debug_view_parameters.py) reads the registers Binary Ninja
+  assigns in a second view of the binary that imported the debug information.
 """
 
 from __future__ import annotations
@@ -15,6 +20,10 @@ from functools import lru_cache
 from typing import Dict, Optional
 
 from .dwarf import CLASS_INTEGER, DwarfFunction, DwarfVariableResolver, SourceMatch
+
+# The entry-parameter source the lifter uses: "abi" or "debug_view" (see the module docstring).
+# The two label differently: after changing it, do not resume a cv pipeline run labelled with the other one.
+PARAMETER_SOURCE = "abi"
 
 # x86-64 System V argument registers, in assignment order.
 SYSV_INTEGER_REGISTERS = ("rdi", "rsi", "rdx", "rcx", "r8", "r9")
@@ -106,13 +115,29 @@ class SysVAbiParameterSource:
 
 
 @lru_cache(maxsize=None)
-def _cached_source(path: Optional[str], load_base: Optional[int]) -> SysVAbiParameterSource:
-    return SysVAbiParameterSource(DwarfVariableResolver.for_path(path), load_base)
+def _cached_source(kind: str, path: Optional[str], load_base: Optional[int], max_function_size: Optional[int]):
+    dwarf = DwarfVariableResolver.for_path(path)
+    if kind == "abi":
+        return SysVAbiParameterSource(dwarf, load_base)
+    if kind == "debug_view":
+        from .debug_view_parameters import DebugViewParameterSource  # imports this module
+
+        return DebugViewParameterSource(dwarf, path, load_base, max_function_size)
+    raise ValueError(f"unknown entry-parameter source '{kind}'")
 
 
-def make_parameter_source(bv) -> SysVAbiParameterSource:
-    """Return the entry-parameter source for the binary of view `bv`, built at most once per binary
-    (inert without a view or DWARF)."""
+def make_parameter_source(bv, kind: Optional[str] = None):
+    """Return the entry-parameter source of the given kind (default: PARAMETER_SOURCE) for the binary
+    of view `bv`, built at most once per binary (inert without a view or DWARF)."""
+    kind = kind or PARAMETER_SOURCE
     if bv is None:
-        return SysVAbiParameterSource(DwarfVariableResolver(None), None)
-    return _cached_source(bv.file.filename, bv.start)
+        return _cached_source(kind, None, None, None)
+    max_function_size = None
+    if kind == "debug_view":
+        try:  # analyse the second view with the same function size limit as the lifted one
+            from binaryninja import Settings
+
+            max_function_size = Settings().get_integer("analysis.limits.maxFunctionSize", bv)
+        except Exception:
+            max_function_size = None
+    return _cached_source(kind, bv.file.filename, bv.start, max_function_size)

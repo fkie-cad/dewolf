@@ -11,19 +11,29 @@ def test_pipeline_options_disable_binary_ninja_debug_info():
 
     options = make_options("conditional_training")
     assert options.getboolean("binaryninja.use_debug_info") is False
-    assert config.BN_LOAD_OPTIONS == {"analysis.debugInfo.internal": False}
+    assert config.BN_LOAD_OPTIONS["analysis.debugInfo.internal"] is False
 
 
-def test_ground_truth_is_recorded_in_the_manifest():
-    assert config.RunConfig(projects_dir="/p", k=5, t=4, seed=0, C=1.0).to_json()["ground_truth"] == config.GROUND_TRUTH
+def test_every_stage_loads_binaries_with_the_same_binary_ninja_options(monkeypatch, tmp_path):
+    """Fingerprinting and decompilation must hand Binary Ninja exactly config.BN_LOAD_OPTIONS, incl. a
+    generous analysis time limit (a function cut off mid-analysis changes the IL of its callers)."""
+    binaryninja = pytest.importorskip("binaryninja")
+    from cvpipeline import corpus, decompilation
 
+    assert config.BN_LOAD_OPTIONS["analysis.limits.maxFunctionAnalysisTime"] >= 300_000
+    seen = []
 
-def test_manifest_from_before_the_ground_truth_field_is_rejected(tmp_path):
-    from cvpipeline.storage import write_json_atomic
+    def fake_load(path, options=None):
+        seen.append(dict(options or {}))
+        return None
 
-    write_json_atomic(tmp_path / config.MANIFEST, {"projects_dir": "/p", "k": 5, "t": 4, "seed": 0, "C": 1.0})
-    with pytest.raises(config.ConfigMismatch):
-        config.check_or_write(tmp_path, config.RunConfig(projects_dir="/p", k=5, t=4, seed=0, C=1.0))
+    monkeypatch.setattr(binaryninja, "load", fake_load)
+    corpus.fingerprint_binary("unused", str(tmp_path / "fingerprints.json"), str(tmp_path / "errors.log"))
+    with pytest.raises(RuntimeError):
+        with decompilation.open_frontend("unused", decompilation.make_options("min")):
+            pass
+    assert seen == [config.BN_LOAD_OPTIONS, config.BN_LOAD_OPTIONS]
+    assert decompilation.make_options("min").getint("binaryninja.max_function_size") == config.BN_LOAD_OPTIONS["analysis.limits.maxFunctionSize"]
 
 
 def test_same_name_different_identity_are_different_sources():

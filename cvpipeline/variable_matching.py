@@ -61,6 +61,7 @@ def classify_source(variable) -> Tuple[str | None, MatchKind]:
         # kind and stay out of the over-/under-merge analysis.
         kind = MatchKind.DWARF_GLOBAL if isinstance(variable, GlobalVariable) else MatchKind.DWARF_LOCAL
         return source_key(variable.origin), kind
+
     if isinstance(variable, GlobalVariable) and variable.is_constant:
         initial = variable.initial_value
         value = initial.value if isinstance(initial, Constant) else initial
@@ -100,7 +101,14 @@ def _grouped_locals(
     matches: Sequence[VariableMatch], key: Callable[[VariableMatch], str], value: Callable[[VariableMatch], str]
 ) -> DefaultDict[str, Set[str]]:
     """Group matched DWARF locals only: a string constant living under two globals is not a split
-    variable and must not count as a collision."""
+    variable and must not count as a collision.
+
+    Checked via the record's kind, which classify_source sets: a variable with a DWARF source is
+    DWARF_GLOBAL if the lifter produced a GlobalVariable for it, else DWARF_LOCAL; a constant
+    GlobalVariable without a DWARF source is CONST_STRING (its content is the "source"); everything
+    else is UNMATCHED. Only DWARF_LOCAL records are grouped here. There is no separate address or
+    scope check: local vs. global rests on the GlobalVariable type alone. metrics.load_results
+    filters on the same kinds (SCORED_KINDS)."""
     grouped: DefaultDict[str, Set[str]] = defaultdict(set)
     for match in matches:
         if match.kind is MatchKind.DWARF_LOCAL and match.source is not None:
@@ -112,8 +120,8 @@ def overmerged(matches: Sequence[VariableMatch]) -> Dict[str, List[str]]:
     """Output names mapping to several sources via *different* SSA variables (precision error)."""
     sources = _grouped_locals(matches, key=lambda m: m.variable, value=lambda m: m.source or "")
     lifted = _grouped_locals(matches, key=lambda m: m.variable, value=lambda m: m.lifted or "")
+    # len(lifted[name]) > 1: a single SSA variable labelled with two sources is no merge, it is reported by conflicts()
     return {name: sorted(values) for name, values in sources.items() if len(values) > 1 and len(lifted[name]) > 1}
-
 
 def undermerged(matches: Sequence[VariableMatch]) -> Dict[str, List[str]]:
     """Source variables spread over several output names (recall error)."""

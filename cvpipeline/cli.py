@@ -48,6 +48,21 @@ def add_training_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--seed", type=int, default=0, help="seed for the block assignment (default: 0)")
     parser.add_argument("--C", type=float, default=1.0, help="inverse L2 regularization strength (default: 1.0)")
     add_strategy_arg(parser)
+    parser.add_argument(
+        "--function-filter",
+        choices=config.FUNCTION_FILTERS,
+        default=config.DEFAULT_FUNCTION_FILTER,
+        help="which functions contribute training rows: all with labeled pairs (none), those with at least two DWARF source "
+        "variables (source-names) or with same- and different-source pairs (both-classes) "
+        f"(default: {config.DEFAULT_FUNCTION_FILTER})",
+    )
+    parser.add_argument(
+        "--pair-weighting",
+        choices=config.PAIR_WEIGHTINGS,
+        default=config.DEFAULT_PAIR_WEIGHTING,
+        help="weight of a training row: 1/n for each of the n occurrences of a variable pair, i.e. one per dependency-graph "
+        f"edge (edge), or 1 (row) (default: {config.DEFAULT_PAIR_WEIGHTING})",
+    )
     add_baseline_arg(parser)
     add_worker_args(parser)
 
@@ -70,6 +85,8 @@ def crossval_settings(args: argparse.Namespace) -> CrossValidationSettings:
         seed=args.seed,
         C=args.C,
         strategy=args.strategy,
+        function_filter=args.function_filter,
+        pair_weighting=args.pair_weighting,
         baselines=tuple(args.baselines),
         pool=pool_settings(args),
         function_timeout_s=function_timeout(args),

@@ -539,6 +539,20 @@ def _parameters(die) -> Tuple[DwarfParameter, ...]:
     return tuple(parameters)
 
 
+def _parse_expression(expr_parser, expression) -> list:
+    """Parse a DWARF location expression into its operations; [] if pyelftools cannot parse it.
+
+    pyelftools raises on operations it does not know (e.g. DW_OP_reinterpret, 0xa9, which GCC emits at
+    -O2 for values converted between types). Such an expression computes a value (or a piece of one)
+    and names no storage, so it is treated like an empty one (no matchable storage) instead of failing
+    the whole binary.
+    """
+    try:
+        return expr_parser.parse_expr(expression)
+    except Exception:
+        return []
+
+
 class _DwarfParser:
     """Turns a binary's DWARF into the in-memory model, isolating all elftools coupling."""
 
@@ -590,11 +604,29 @@ class _DwarfParser:
         """Parse one DW_TAG_subprogram DIE with a code address into a DwarfFunction, else None."""
         if die.tag != "DW_TAG_subprogram":
             return None
-        low_pc = die.attributes.get("DW_AT_low_pc")
-        if low_pc is None:
+        entry = self._entry_address(die, compilation_unit, loclist_base)
+        if entry is None:
             return None
         variables = tuple(self._parse_locals(die, compilation_unit, expr_parser, dwarf_version, loclist_base))
-        return DwarfFunction(low_pc.value, variables, _parameters(die), _die_name(die), _returns_in_memory(die))
+        return DwarfFunction(entry, variables, _parameters(die), _die_name(die), _returns_in_memory(die))
+
+    def _entry_address(self, die, compilation_unit, base: int) -> Optional[int]:
+        """The entry address of a subprogram with code, else None.
+
+        A contiguous function has a DW_AT_low_pc. A function the compiler split into several parts
+        (GCC at -O2: the hot part and a `.cold` part) has DW_AT_ranges instead; its entry is its
+        DW_AT_entry_pc if given as an address, else the start of its first range - GCC lists the part
+        holding the entry first (checked against the function symbols of the corpus), and it is not
+        the lowest address, as the cold part is placed below the hot one.
+        """
+        low_pc = die.attributes.get("DW_AT_low_pc")
+        if low_pc is not None:
+            return low_pc.value
+        entry_pc = die.attributes.get("DW_AT_entry_pc")
+        if entry_pc is not None and entry_pc.form == "DW_FORM_addr":
+            return entry_pc.value
+        ranges = self._pc_ranges(die, compilation_unit, base)
+        return ranges[0][0] if ranges else None
 
     def _parse_locals(self, die, compilation_unit, expr_parser, dwarf_version, loclist_base) -> Iterator[DwarfVariable]:
         """Yield the named local variables and parameters of a subprogram that have a resolvable location."""
@@ -690,7 +722,7 @@ class _DwarfParser:
             return None
         parsed_location = self._location_parser.parse_from_attribute(location_attr, dwarf_version, die=die)
         if isinstance(parsed_location, LocationExpr):
-            storage = self._decode_storage(expr_parser.parse_expr(parsed_location.loc_expr), frame_base_register)
+            storage = self._decode_storage(_parse_expression(expr_parser, parsed_location.loc_expr), frame_base_register)
             return FixedLocation(storage) if storage is not None else None
         return RangedLocation(tuple(self._parse_ranges(parsed_location, expr_parser, loclist_base, frame_base_register)))
 
@@ -705,7 +737,7 @@ class _DwarfParser:
                 low, high = entry.begin_offset, entry.end_offset
             else:
                 low, high = base_address + entry.begin_offset, base_address + entry.end_offset
-            yield PcRange(low, high, self._decode_storage(expr_parser.parse_expr(entry.loc_expr), frame_base_register))
+            yield PcRange(low, high, self._decode_storage(_parse_expression(expr_parser, entry.loc_expr), frame_base_register))
 
     def _decode_storage(self, parsed_opcodes, frame_base_register: Optional[str] = None) -> Optional[StorageLocation]:
         """Decode a parsed DWARF location expression into a StorageLocation, or None if it has no matchable storage.
@@ -783,7 +815,7 @@ class _DwarfParser:
         location_attr = die.attributes.get("DW_AT_location")
         if location_attr is None or location_attr.form not in ("DW_FORM_exprloc", "DW_FORM_block1"):
             return None
-        opcodes = expr_parser.parse_expr(location_attr.value)
+        opcodes = _parse_expression(expr_parser, location_attr.value)
         if len(opcodes) != 1:
             return None
         operation = opcodes[0]

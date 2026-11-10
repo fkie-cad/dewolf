@@ -44,3 +44,14 @@ def test_average_over_splits_is_arithmetic_mean():
     assert summary.splits == 2
     assert summary.mean["micro_precision"] == pytest.approx(75)
     assert summary.std["micro_precision"] == pytest.approx(25)
+
+
+def test_only_locals_and_unmatched_variables_are_scored(tmp_path):
+    """Globals and string constants are never renamed by out-of-SSA, so their records are left out."""
+    from cvpipeline.metrics import load_results
+    from cvpipeline.storage import write_json_atomic
+
+    records = [("x", "a@0x1", "dwarf-local"), ("tmp", None, "unmatched"), ("g", "g@0x9", "dwarf-global"), ("data_1", "%d", "const-string")]
+    variables = [{"variable": v, "lifted": None, "source": s, "kind": k} for v, s, k in records]
+    write_json_atomic(tmp_path / "p" / "conditional" / "b.json", {"functions": {"f": {"status": "success", "result": {"variables": variables}}}})
+    assert load_results(tmp_path) == {"conditional": {("p", "b"): {"f": [("x", "a@0x1"), ("tmp", None)]}}}

@@ -15,6 +15,10 @@ For an element e of cluster C the score is |{x in C : label(x) = label(e)}| / |C
   * output variables: distinct output names per function (summed), and how many of them have at
     least one source-matched record.
 
+Only local variables are scored: records of globals and string constants (kinds "dwarf-global" and
+"const-string") are left out. Out-of-SSA never renames those, so they would match perfectly for
+every algorithm and only inflate the scores.
+
 Only functions that succeeded for *every* algorithm being compared are used (and only binaries
 present for every algorithm), so the algorithms are compared on identical code.
 """
@@ -36,6 +40,9 @@ Record = Tuple[str, Optional[str]]  # (output variable, source or None)
 BinaryId = Tuple[str, str]  # (project, binary)
 # {algorithm: {(project, binary): {function: [records]}}}  -- successful functions only
 Results = Dict[str, Dict[BinaryId, Dict[str, List[Record]]]]
+
+# Record kinds (variable_matching.MatchKind) that are scored: matched locals and unmatched ("inserted") variables.
+SCORED_KINDS = {"dwarf-local", "unmatched"}
 
 # Folders that can sit next to project folders in an evaluation directory but are not projects.
 NON_PROJECT_DIRS = {"work", "logs", "baselines", "plots"}
@@ -96,7 +103,7 @@ def project_dirs(root: Path) -> List[Path]:
 def load_results(root: Path, allowed: Optional[Set[FunctionKey]] = None, algorithms: Optional[Set[str]] = None) -> Results:
     """Read ``<root>/<project>/<algorithm>/<binary>.json``, keeping only successful functions
     (and, if given, only functions in ``allowed`` / algorithms in ``algorithms``). Only the
-    (variable, source) pairs are kept in memory."""
+    (variable, source) pairs of the scored kinds (SCORED_KINDS) are kept in memory."""
     results: Results = defaultdict(dict)
     for project_dir in project_dirs(root):
         for algorithm_dir in sorted(p for p in project_dir.iterdir() if p.is_dir()):
@@ -115,7 +122,9 @@ def load_results(root: Path, allowed: Optional[Set[FunctionKey]] = None, algorit
                         continue
                     if allowed is not None and make_key(project_dir.name, binary, function) not in allowed:
                         continue
-                    functions[function] = [(v["variable"], v["source"]) for v in entry["result"]["variables"] if v.get("variable") is not None]
+                    functions[function] = [(v["variable"], v["source"]) for v in entry["result"]["variables"]
+                        if v.get("variable") is not None and v.get("kind") in SCORED_KINDS
+                    ]
                 results[algorithm_dir.name][(project_dir.name, binary)] = functions
     return dict(results)
 
@@ -186,6 +195,7 @@ def _f1(p: float, r: float) -> float:
 def compute_algorithm_metrics(binaries: Dict[BinaryId, Dict[str, List[Record]]]) -> Optional[AlgorithmMetrics]:
     if not binaries:
         return None
+
     per_binary: List[Tuple[float, float, float]] = []
     micro_p = [0.0, 0]
     micro_r = [0.0, 0]
@@ -251,7 +261,6 @@ def compute_metrics(results: Results) -> Dict[str, AlgorithmMetrics]:
 @dataclass
 class MetricSummary:
     """Arithmetic mean (and standard deviation) of every metric over splits."""
-
     mean: Dict[str, float]
     std: Dict[str, float]
     splits: int

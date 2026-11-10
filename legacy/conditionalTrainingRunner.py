@@ -376,8 +376,8 @@ def FrankfurtAmMain():
     # Otherwise the results will be very confusing. XD
     # If the parameters get changed, this List needs to be adapted as well
     FEATURES = ["is_strong", "is_mid", "same_base_name", "same_storage", "def_by_usage", "func_call", "same_phi"] + [
-        f"usage_{i+1}" for i in range(9)
-    ]
+        f"usage_{i+1}" for i in range(9)] + ["following_definitions", "same_rhs_source"]
+
     TARGET = "same_source"
 
     def collect_rows(members_by_project: dict[str, list[str]]) -> list[list]:
