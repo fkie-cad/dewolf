@@ -17,7 +17,7 @@ from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
 from decompiler.pipeline.ssa.variable_renaming import remove_interference_between_related_variables
 from decompiler.structures.graphs.cfg import BasicBlock
 from decompiler.structures.interferencegraph import InterferenceGraph
-from decompiler.structures.pseudo.expressions import Variable
+from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import Phi
 from decompiler.task import DecompilerTask
 
@@ -37,11 +37,17 @@ class ConditionalOutOfSSATraining:
          "pairs": [[x index, y index, f_1, ..., f_18], ...],
          "interfering": [[i, j], ...] or null}
 
-    ``pairs`` are all pairs the conditional renamer would score, one per occurrence, labeled or not:
-    a pair is labeled iff both variables have a source (goal 1 iff the sources are equal).
+    ``pairs`` are all pairs between local variables the conditional renamer would score, one per
+    occurrence, labeled or not: a pair is labeled iff both variables have a source (goal 1 iff the
+    sources are equal).
     ``interfering`` are the variable pairs that may not share a name (variablesAreInterfering), among
     variables that are connected by candidate pairs. Which functions are used for training, and how
     the rows are weighted, is decided by the pipeline (cvpipeline/features.py).
+
+    Pairs with a global variable are left out. The renamer scores them too, but they are no training
+    data: a global never counts as labeled (it has no storage location from the lifter) and
+    out-of-SSA does not rename it. They are the bulk of a function's pairs (over 80 % in a sample),
+    so keeping them would make every count of unlabeled pairs a count of globals.
     """
 
     def __init__(
@@ -78,7 +84,11 @@ class ConditionalOutOfSSATraining:
             with open(self.error_log_path, "a") as error_file:
                 error_file.write(f"Error while processing instruction {assign}: {traceback.format_exc()}\n")
 
-        pairs: List[CandidatePair] = list(helper.iter_candidate_pairs(self.task.cfg, on_error=log_instruction_error))
+        pairs: List[CandidatePair] = [
+            pair
+            for pair in helper.iter_candidate_pairs(self.task.cfg, on_error=log_instruction_error)
+            if not isinstance(pair.x, GlobalVariable) and not isinstance(pair.y, GlobalVariable)
+        ]
         index: Dict[Variable, int] = {}
         for pair in pairs:
             for variable in (pair.x, pair.y):

@@ -6,7 +6,8 @@ and their scores are extrapolated. This module rebuilds, from the cached candida
 (features.FunctionData) and a split's params, the edges dependency_graph_from_cfg creates (one edge
 per distinct pair whose best occurrence scores > 0) and counts the unlabeled ones - in total and in
 the "contested" components, those containing a pair that must stay separate, where the renamer
-actually has to cut or refuse merges. Relation edges the renamer adds on top are not included.
+actually has to cut or refuse merges. Relation edges the renamer adds on top are not included, and
+neither are edges with a global variable: the cached pairs are those between local variables.
 """
 
 from __future__ import annotations

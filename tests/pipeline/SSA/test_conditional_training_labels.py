@@ -114,3 +114,32 @@ def test_candidate_pairs_and_the_renamer_separate_the_same_pairs():
     cfg = ControlFlowGraph()
     cfg.add_node(BasicBlock(0, [Assignment(a, c), Return([a])]))
     assert list(TrainingAttributeHelper(set(), InterferenceGraph(cfg)).iter_candidate_pairs(cfg)) == []
+
+
+def test_training_stage_writes_no_pairs_with_a_global(tmp_path, monkeypatch):
+    """The renamer scores pairs with a global too, but they are no training data and would make every
+    count of unlabeled pairs a count of globals."""
+    import json
+
+    from decompiler.pipeline.ssa.conditionalSSATraining import ConditionalOutOfSSATraining
+    from decompiler.structures.pseudo import Constant, GlobalVariable
+    from decompiler.task import DecompilerTask
+    from decompiler.util.options import Options
+
+    int32 = Integer.int32_t()
+    x, y = _variable("x", "i", 0x40, -20), _variable("y", "i", 0x40, -24)
+    g1, g2 = (GlobalVariable("counter", int32, Constant(0, int32), ssa_label=label) for label in (1, 2))
+    cfg = ControlFlowGraph()
+    cfg.add_node(BasicBlock(0, [Assignment(x, y), Assignment(g2, g1), Return([x, g2])]))
+    helper = TrainingAttributeHelper(set(), InterferenceGraph(cfg))
+    all_pairs = [{pair.x.name, pair.y.name} for pair in helper.iter_candidate_pairs(cfg)]
+    assert {"counter"} in all_pairs and {"x", "y"} in all_pairs  # the helper itself still yields the global pair
+
+    monkeypatch.setenv("ConditionalResultPath", str(tmp_path / "result.json"))
+    monkeypatch.setenv("ConditionalErrorLogPath", str(tmp_path / "errors.log"))
+    task = DecompilerTask(name="f", function_identifier="", cfg=cfg, options=Options())
+    ConditionalOutOfSSATraining(task, {})._extract_and_write(set(), InterferenceGraph(cfg))
+    result = json.loads((tmp_path / "result.json").read_text())
+    names = [name.split("#")[0] for name, _ in result["variables"]]
+    assert "counter" not in names and set(names) == {"x", "y"}
+    assert [[names[a], names[b]] for a, b, *_ in result["pairs"]] == [["x", "y"]]

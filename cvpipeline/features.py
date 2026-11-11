@@ -1,8 +1,9 @@
-"""Extracting the training data (every candidate variable pair) for every deduplicated function.
+"""Extracting the training data (every candidate pair of local variables) for every deduplicated function.
 
 Uses dewolf's own ``conditional_training`` out-of-SSA mode (decompiler/pipeline/ssa/
-conditionalSSATraining.py), which writes a function's candidate pairs - the pairs the conditional
-renamer scores, labeled or not, with their variables' DWARF sources and the variable pairs that
+conditionalSSATraining.py), which writes a function's candidate pairs - the pairs between local
+variables the conditional renamer scores, labeled or not (pairs with a global are left out), with
+their variables' DWARF sources and the variable pairs that
 must stay separate - to the path given in the ``ConditionalResultPath`` environment variable. The
 data does not depend on the split, so it is extracted exactly once and cached per binary in
 ``<work>/features/<project>/<binary>.json``.
