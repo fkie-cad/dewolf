@@ -152,6 +152,10 @@ def _analyze_one(
             task = DecompilerTask(name, function, options)
             try:
                 frontend.lift(task)
+                # Only the frontend needs the function object. It wraps a native handle that cannot be
+                # copied, and a stage may deep-copy the task (Boissinot's out-of-SSA does), so the task
+                # carries the identifier string from here on.
+                task.function_identifier = name
                 build_pipeline(options).run(task)
             except Exception as error:  # includes MemoryError from the worker's address-space limit
                 return _entry(DECOMPILATION_ERROR, f"{type(error).__name__}: {error}")

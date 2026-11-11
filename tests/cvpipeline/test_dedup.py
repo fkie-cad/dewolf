@@ -106,15 +106,39 @@ def test_same_named_static_functions_are_fingerprinted_and_decompiled_separately
         functions=helpers,
         output_path=str(tmp_path / "result.json"),
         options=make_options("min"),
-        analyze=lambda _name, task: {"start": task.function_identifier.start, "blocks": len(task.graph.nodes)},
+        analyze=lambda _name, task: {"identifier": task.function_identifier, "blocks": len(task.graph.nodes)},
         timeout_s=None,
         error_log=str(tmp_path / "errors.log"),
         metadata={},
     )
     results = read_json(tmp_path / "result.json")["functions"]
     assert [results[identifier]["status"] for identifier in helpers] == ["success", "success"]
-    assert [f"helper@{results[identifier]['result']['start']:#x}" for identifier in helpers] == helpers
-    assert results[helpers[0]]["result"]["blocks"] != results[helpers[1]]["result"]["blocks"]  # straight-line vs. loop
+    # after lifting the task carries the identifier string, not Binary Ninja's function object
+    assert [results[identifier]["result"]["identifier"] for identifier in helpers] == helpers
+    # each identifier was lifted as its own function: one is straight-line code, the other a loop
+    assert results[helpers[0]]["result"]["blocks"] != results[helpers[1]]["result"]["blocks"]
+
+
+@pytest.mark.parametrize("mode", ["conditional", "simple", "min", "lift_minimal", "sreedhar", "boissinot2008"])
+def test_every_out_of_ssa_mode_runs_through_the_pipeline_entry_point(mode, corpus_sample, tmp_path):
+    """Each algorithm the pipeline can evaluate decompiles the sample's functions via process_binary.
+    (Boissinot's stage deep-copies the task, which fails if the task holds Binary Ninja's function object.)"""
+    pytest.importorskip("binaryninja")
+    from cvpipeline.decompilation import make_options, process_binary
+    from cvpipeline.storage import read_json
+
+    process_binary(
+        binary_path=corpus_sample,
+        functions=["main", "count_lines"],
+        output_path=str(tmp_path / "result.json"),
+        options=make_options(mode),
+        analyze=lambda _name, task: len(task.graph.nodes),
+        timeout_s=None,
+        error_log=str(tmp_path / "errors.log"),
+        metadata={},
+    )
+    results = read_json(tmp_path / "result.json")["functions"]
+    assert {name: entry["status"] for name, entry in results.items()} == {"main": "success", "count_lines": "success"}, results
 
 
 # --------------------------------------------------------------------------------------------- #
