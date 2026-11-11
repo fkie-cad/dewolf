@@ -22,7 +22,8 @@ class MatchKind(Enum):
     DWARF_LOCAL = "dwarf-local"  # DWARF local/parameter, matched via provenance
     DWARF_GLOBAL = "dwarf-global"  # DWARF global, matched by address
     CONST_STRING = "const-string"  # read-only global; its constant value is the ground truth
-    UNMATCHED = "unmatched"  # no source could be attributed ("inserted" variable)
+    UNMATCHED = "unmatched"  # local without a source ("inserted" variable)
+    UNMATCHED_GLOBAL = "unmatched-global"  # global without a source; like all globals not renamed by out-of-SSA
 
 
 @dataclass(frozen=True)
@@ -68,7 +69,7 @@ def classify_source(variable) -> Tuple[str | None, MatchKind]:
         # string literals are stored as a list of single characters
         text = "".join(str(character) for character in value) if isinstance(value, list) else str(value)
         return text, MatchKind.CONST_STRING
-    return None, MatchKind.UNMATCHED
+    return None, MatchKind.UNMATCHED_GLOBAL if isinstance(variable, GlobalVariable) else MatchKind.UNMATCHED
 
 
 def _variables_of(instruction) -> Iterator:

@@ -194,7 +194,9 @@ def process_binary(
                 if name in checkpoint.done:
                     continue
                 if name not in available:
-                    checkpoint.finish(name, _entry(DECOMPILATION_ERROR, "function not found in binary"))
+                    message = "function not found in binary"  # e.g. Binary Ninja skipped its analysis on this load
+                    append_worker_error(error_log, f"{binary_path}::{name}: {message}")
+                    checkpoint.finish(name, _entry(DECOMPILATION_ERROR, message))
                     continue
                 if checkpoint.killed_too_often(name):
                     message = f"killed the worker {checkpoint.attempts[name]} times; skipped"

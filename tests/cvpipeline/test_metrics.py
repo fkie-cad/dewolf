@@ -43,7 +43,28 @@ def test_average_over_splits_is_arithmetic_mean():
     summary = average_over_splits([s1, s2])["c"]
     assert summary.splits == 2
     assert summary.mean["micro_precision"] == pytest.approx(75)
-    assert summary.std["micro_precision"] == pytest.approx(25)
+    # sample standard deviation of (100, 50): sqrt(((25)^2 + (25)^2) / (2 - 1))
+    assert summary.std["micro_precision"] == pytest.approx(35.3553, abs=1e-3)
+    # a single split has no spread
+    assert average_over_splits([s1])["c"].std["micro_precision"] == 0.0
+
+
+def test_mean_and_std_is_the_sample_standard_deviation():
+    from cvpipeline.model import mean_and_std
+
+    mean, std = mean_and_std([0.5, 0.7, None, float("nan"), 0.9])
+    assert mean == pytest.approx(0.7) and std == pytest.approx(0.2)
+    assert mean_and_std([0.8]) == (pytest.approx(0.8), 0.0)
+
+
+def test_unmatched_globals_get_their_own_kind():
+    """A global without a source is no variable out-of-SSA inserted: it must not count as "unmatched"."""
+    from cvpipeline.variable_matching import MatchKind, classify_source
+    from decompiler.structures.pseudo import Constant, GlobalVariable, Integer, Variable
+
+    int32 = Integer.int32_t()
+    assert classify_source(Variable("tmp", int32)) == (None, MatchKind.UNMATCHED)
+    assert classify_source(GlobalVariable("counter", int32, Constant(0, int32))) == (None, MatchKind.UNMATCHED_GLOBAL)
 
 
 def test_only_locals_and_unmatched_variables_are_scored(tmp_path):
@@ -51,7 +72,13 @@ def test_only_locals_and_unmatched_variables_are_scored(tmp_path):
     from cvpipeline.metrics import load_results
     from cvpipeline.storage import write_json_atomic
 
-    records = [("x", "a@0x1", "dwarf-local"), ("tmp", None, "unmatched"), ("g", "g@0x9", "dwarf-global"), ("data_1", "%d", "const-string")]
+    records = [
+        ("x", "a@0x1", "dwarf-local"),
+        ("tmp", None, "unmatched"),
+        ("g", "g@0x9", "dwarf-global"),
+        ("h", None, "unmatched-global"),
+        ("data_1", "%d", "const-string"),
+    ]
     variables = [{"variable": v, "lifted": None, "source": s, "kind": k} for v, s, k in records]
     write_json_atomic(tmp_path / "p" / "conditional" / "b.json", {"functions": {"f": {"status": "success", "result": {"variables": variables}}}})
     assert load_results(tmp_path) == {"conditional": {("p", "b"): {"f": [("x", "a@0x1"), ("tmp", None)]}}}

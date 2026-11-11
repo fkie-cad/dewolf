@@ -326,6 +326,51 @@ def test_generated_names_are_recognised_by_their_address():
     assert not has_generated_name(SimpleNamespace(name="sub_matrix", start=0x401000))
     assert not has_generated_name(SimpleNamespace(name="sub_401000", start=0x402000))
     assert not has_generated_name(SimpleNamespace(name="main", start=0x401000))
+    # a thunk Binary Ninja named after its target; a real function that merely starts with "j_" is none
+    assert has_generated_name(SimpleNamespace(name="j_luaE_warning", start=0x401000, is_thunk=True))
+    assert not has_generated_name(SimpleNamespace(name="j_index", start=0x401000, is_thunk=False))
+    assert not has_generated_name(SimpleNamespace(name="wrapper", start=0x401000, is_thunk=True))
+
+
+def test_identifiers_do_not_depend_on_which_copy_a_corpus_rule_leaves_out():
+    """Two functions share a name and Binary Ninja skipped the analysis of one: the other keeps the
+    identifier it has when both are analysed, so every load of the binary names it the same."""
+    binaryninja = pytest.importorskip("binaryninja")
+    from types import SimpleNamespace
+
+    from cvpipeline.corpus import corpus_functions
+
+    def function(name, start, skipped=False):
+        symbol = SimpleNamespace(type=binaryninja.SymbolType.FunctionSymbol)
+        return SimpleNamespace(name=name, start=start, symbol=symbol, analysis_skipped=skipped, is_thunk=False)
+
+    both = corpus_functions(SimpleNamespace(functions=[function("main", 0x1000), function("helper", 0x1100), function("helper", 0x1200)]))
+    one = corpus_functions(SimpleNamespace(functions=[function("main", 0x1000), function("helper", 0x1100), function("helper", 0x1200, skipped=True)]))
+    assert list(both) == ["main", "helper@0x1100", "helper@0x1200"]
+    assert list(one) == ["main", "helper@0x1100"]
+
+
+def test_function_missing_on_this_load_is_reported(tmp_path, monkeypatch):
+    """A wanted function the binary does not have on this load gets its status and a line in the error log."""
+    pytest.importorskip("binaryninja")
+    from contextlib import contextmanager
+    from types import SimpleNamespace
+
+    from cvpipeline import decompilation
+    from cvpipeline.storage import read_json
+
+    @contextmanager
+    def fake_frontend(_path, _options):
+        yield SimpleNamespace(_bv=SimpleNamespace(functions=[]))
+
+    monkeypatch.setattr(decompilation, "open_frontend", fake_frontend)
+    error_log = tmp_path / "worker_errors.log"
+    decompilation.process_binary(
+        binary_path="bin", functions=["gone"], output_path=str(tmp_path / "out.json"), options=None,
+        analyze=lambda _name, _task: None, timeout_s=None, error_log=str(error_log), metadata={},
+    )
+    assert read_json(tmp_path / "out.json")["functions"]["gone"]["status"] == decompilation.DECOMPILATION_ERROR
+    assert "bin::gone: function not found in binary" in error_log.read_text()
 
 
 def test_skipped_analysis_is_read_from_binary_ninja():
@@ -354,3 +399,27 @@ def test_corpus_functions_have_symbols_and_complete_analysis(corpus_sample):
         assert not any(has_generated_name(function) or function.analysis_skipped for function in kept.values())
     finally:
         view.file.close()
+
+
+def test_binary_whose_analysis_cannot_be_settled_is_left_out_with_a_reason(tmp_path, monkeypatch):
+    """Fingerprinting writes its result with a load error instead of failing the job without one."""
+    binaryninja = pytest.importorskip("binaryninja")
+    from types import SimpleNamespace
+
+    from cvpipeline import corpus
+    from cvpipeline.storage import read_json
+
+    closed = []
+    view = SimpleNamespace(functions=[], file=SimpleNamespace(close=lambda: closed.append(True)))
+
+    def failing_settle(_view):
+        raise RuntimeError("analysis aborted")
+
+    monkeypatch.setattr(binaryninja, "load", lambda path, options=None: view)
+    monkeypatch.setattr(corpus, "settle_analysis", failing_settle)
+    error_log = tmp_path / "worker_errors.log"
+    corpus.fingerprint_binary("bin", str(tmp_path / "fingerprints.json"), str(error_log))
+    result = read_json(tmp_path / "fingerprints.json")
+    assert result["functions"] == {} and "could not be settled" in result["load_error"] and "analysis aborted" in result["load_error"]
+    assert "fingerprinting bin: Binary Ninja's analysis could not be settled" in error_log.read_text()
+    assert closed == [True]

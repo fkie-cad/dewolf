@@ -68,8 +68,8 @@ def is_cold_fragment(function_name: str) -> bool:
 
 
 def has_generated_name(function: Any) -> bool:
-    """True for a function without a symbol, which Binary Ninja found by itself and named after its
-    address (``sub_401000``).
+    """True for a function without a symbol, which Binary Ninja found by itself and named: after its
+    address (``sub_401000``) or, for a thunk, after the function it jumps to (``j_luaE_warning``).
 
     In binaries with symbols, as the corpus requires, these are stubs without code of their own: in
     a sample they had no candidate pairs and no labels at all. They are also the functions Binary
@@ -77,7 +77,9 @@ def has_generated_name(function: Any) -> bool:
     find them. (Binary Ninja's "auto" flag of the symbol cannot be used for this: without its
     debug-info import every symbol of the symbol table is flagged auto.)
     """
-    return function.name == f"sub_{function.start:x}"
+    if function.name == f"sub_{function.start:x}":
+        return True
+    return function.name.startswith("j_") and bool(getattr(function, "is_thunk", False))
 
 
 def analysis_was_skipped(function: Any) -> bool:
@@ -92,17 +94,20 @@ def corpus_functions(view: Any) -> Dict[str, Any]:
     every enumerable function (no imports, no linker scaffolding) that has a symbol, was analysed
     completely and is no cold fragment. Call ``settle_analysis`` on the view first.
     Fingerprinting and decompilation both list a binary's functions through this, so they agree
-    on the functions and on their identifiers (see ``function_identifiers``)."""
+    on the functions and on their identifiers (see ``function_identifiers``).
+
+    The identifiers are assigned before the corpus rules are applied: whether a function is called
+    ``name`` or ``name@address`` then depends only on the binary, not on which of its same-named
+    copies a rule happens to leave out on this load (a skipped analysis depends on the machine's load).
+    """
     from decompiler.util.function_corpus import is_enumerable_function
 
-    return function_identifiers(
-        function
-        for function in view.functions
-        if is_enumerable_function(function)
-        and not is_cold_fragment(function.name)
-        and not has_generated_name(function)
-        and not analysis_was_skipped(function)
-    )
+    identified = function_identifiers(function for function in view.functions if is_enumerable_function(function))
+    return {
+        identifier: function
+        for identifier, function in identified.items()
+        if not is_cold_fragment(function.name) and not has_generated_name(function) and not analysis_was_skipped(function)
+    }
 
 
 def settle_analysis(view: Any) -> None:
@@ -166,8 +171,15 @@ def fingerprint_binary(binary_path: str, output_path: str, error_log: str) -> No
         append_worker_error(error_log, f"fingerprinting {binary_path}: {load_error}")
     else:
         try:
-            settle_analysis(bv)
-            for identifier, function in corpus_functions(bv).items():
+            try:
+                settle_analysis(bv)
+                functions = corpus_functions(bv)
+            except Exception as error:
+                # Without a settled analysis the binary cannot be read reliably: leave it out, saying why.
+                functions = {}
+                load_error = f"Binary Ninja's analysis could not be settled: {type(error).__name__}: {error}"
+                append_worker_error(error_log, f"fingerprinting {binary_path}: {load_error}\n{traceback.format_exc()}")
+            for identifier, function in functions.items():
                 try:
                     fingerprints[identifier] = function_fingerprint(function)
                 except Exception:

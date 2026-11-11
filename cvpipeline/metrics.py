@@ -15,9 +15,13 @@ For an element e of cluster C the score is |{x in C : label(x) = label(e)}| / |C
   * output variables: distinct output names per function (summed), and how many of them have at
     least one source-matched record.
 
-Only local variables are scored: records of globals and string constants (kinds "dwarf-global" and
-"const-string") are left out. Out-of-SSA never renames those, so they would match perfectly for
-every algorithm and only inflate the scores.
+Only local variables are scored: records of globals and string constants (kinds "dwarf-global",
+"unmatched-global" and "const-string") are left out. Out-of-SSA never renames those, so they would
+match perfectly for every algorithm and only inflate the scores, and a global without a source is
+no variable an algorithm inserted.
+
+The spread over splits is the sample standard deviation (ddof = 1), as "mean ± standard deviation"
+is usually read; with a single split it is 0.
 
 Only functions that succeeded for *every* algorithm being compared are used (and only binaries
 present for every algorithm), so the algorithms are compared on identical code.
@@ -41,7 +45,7 @@ BinaryId = Tuple[str, str]  # (project, binary)
 # {algorithm: {(project, binary): {function: [records]}}}  -- successful functions only
 Results = Dict[str, Dict[BinaryId, Dict[str, List[Record]]]]
 
-# Record kinds (variable_matching.MatchKind) that are scored: matched locals and unmatched ("inserted") variables.
+# Record kinds (variable_matching.MatchKind) that are scored: matched locals and unmatched ("inserted") locals.
 SCORED_KINDS = {"dwarf-local", "unmatched"}
 
 # Folders that can sit next to project folders in an evaluation directory but are not projects.
@@ -275,7 +279,7 @@ def average_over_splits(per_split: List[Dict[str, AlgorithmMetrics]]) -> Dict[st
         keys = values[0].keys()
         summaries[algorithm] = MetricSummary(
             mean={key: float(np.mean([v[key] for v in values])) for key in keys},
-            std={key: float(np.std([v[key] for v in values])) for key in keys},
+            std={key: float(np.std([v[key] for v in values], ddof=1)) if len(values) > 1 else 0.0 for key in keys},
             splits=len(values),
         )
     return summaries

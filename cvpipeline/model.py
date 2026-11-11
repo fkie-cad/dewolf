@@ -78,7 +78,8 @@ def auc(params: Params, X: np.ndarray, y: np.ndarray, sample_weight: np.ndarray 
 
 
 def mean_and_std(values: Sequence[float]) -> Tuple[float, float]:
+    """Mean and sample standard deviation (ddof = 1; 0 for a single value) of the values that are not None/NaN."""
     clean = [v for v in values if v is not None and not math.isnan(v)]
     if not clean:
         return float("nan"), float("nan")
-    return float(np.mean(clean)), float(np.std(clean))
+    return float(np.mean(clean)), float(np.std(clean, ddof=1)) if len(clean) > 1 else 0.0
