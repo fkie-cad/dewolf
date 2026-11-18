@@ -74,6 +74,38 @@ def test_manifest_mismatch_aborts(tmp_path):
         config.check_or_write(tmp_path, config.RunConfig(projects_dir="/x", k=6, t=4, seed=0, C=1.0))
 
 
+def test_min_kept_score_is_disabled_by_default_and_guarded_by_the_manifest(tmp_path):
+    run = config.RunConfig(projects_dir="/x", k=5, t=4, seed=0, C=1.0)
+    assert run.min_kept_score is None
+    config.check_or_write(tmp_path, run)
+    with pytest.raises(config.ConfigMismatch, match="min_kept_score: was None, now 0.05"):
+        config.check_or_write(tmp_path, config.RunConfig(projects_dir="/x", k=5, t=4, seed=0, C=1.0, min_kept_score=0.05))
+
+
+def test_manifest_without_min_kept_score_counts_as_dewolf_default(tmp_path):
+    """A manifest written before the setting existed: those runs used dewolf's hard-coded 0.05."""
+    legacy = config.RunConfig(projects_dir="/x", k=5, t=4, seed=0, C=1.0).to_json()
+    del legacy["min_kept_score"]
+    write_json_atomic(tmp_path / config.MANIFEST, legacy)
+    config.check_or_write(tmp_path, config.RunConfig(projects_dir="/x", k=5, t=4, seed=0, C=1.0, min_kept_score=0.05))
+    with pytest.raises(config.ConfigMismatch, match="min_kept_score: was 0.05, now None"):
+        config.check_or_write(tmp_path, config.RunConfig(projects_dir="/x", k=5, t=4, seed=0, C=1.0))
+
+
+def test_min_kept_score_cli_flag():
+    import argparse
+
+    from cvpipeline import cli
+
+    parser = argparse.ArgumentParser()
+    cli.add_training_args(parser)
+    base = ["-i", "in", "-o", "out", "-k", "5"]
+    assert cli.crossval_settings(parser.parse_args(base)).min_kept_score is None
+    assert cli.crossval_settings(parser.parse_args(base + ["--min-kept-score", "0.05"])).min_kept_score == 0.05
+    with pytest.raises(SystemExit):
+        parser.parse_args(base + ["--min-kept-score", "-1"])
+
+
 # --------------------------------------------------------------------------------------------- #
 # finished splits are not retrained
 # --------------------------------------------------------------------------------------------- #
@@ -137,3 +169,19 @@ def test_run_jobs_skips_done_and_resumes_progressing_jobs(tmp_path):
     assert not marker.exists(), "a finished job must not run again"
     assert is_valid_json(tmp_path / "p.json")
     assert [job.label for job in unfinished] == ["stuck"]
+
+
+def test_install_conditional_weights_sets_min_kept_score():
+    pytest.importorskip("binaryninja")
+    import decompiler.pipeline.ssa.dependency_graph as dependency_graph
+
+    from cvpipeline.decompilation import install_conditional_weights
+
+    original = dependency_graph._MIN_KEPT_SCORE
+    try:
+        install_conditional_weights([0.0] * len(FEATURES), 0.0, 4, 0.05)
+        assert dependency_graph._MIN_KEPT_SCORE == 0.05
+        install_conditional_weights([0.0] * len(FEATURES), 0.0, 4)  # default: disabled
+        assert dependency_graph._MIN_KEPT_SCORE == 0.0
+    finally:
+        dependency_graph._MIN_KEPT_SCORE = original

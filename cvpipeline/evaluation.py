@@ -31,18 +31,26 @@ BASELINE_ALGORITHMS = ("simple", "min", "lift_minimal", "sreedhar", "boissinot20
 
 @dataclass(frozen=True)
 class Algorithm:
-    """What to evaluate: an out-of-SSA mode, plus fixed weights and the variable-class strategy
-    for the conditional mode."""
+    """What to evaluate: an out-of-SSA mode, plus fixed weights, the variable-class strategy and the
+    lower bound for kept edge scores (config.DEFAULT_MIN_KEPT_SCORE) for the conditional mode."""
 
     name: str
     weights: Optional[Tuple[Tuple[float, ...], float]] = None  # (coefficients in FEATURES order, intercept)
     strategy: Optional[int] = None
+    min_kept_score: Optional[float] = None
 
     @classmethod
-    def conditional(cls, params: Params, strategy: int = config.DEFAULT_CONDITIONAL_STRATEGY) -> "Algorithm":
+    def conditional(
+        cls,
+        params: Params,
+        strategy: int = config.DEFAULT_CONDITIONAL_STRATEGY,
+        min_kept_score: Optional[float] = config.DEFAULT_MIN_KEPT_SCORE,
+    ) -> "Algorithm":
         if strategy not in config.CONDITIONAL_STRATEGIES:
             raise ValueError(f"unknown conditional strategy {strategy}, choose from {config.CONDITIONAL_STRATEGIES}")
-        return cls(CONDITIONAL, (tuple(params.coefficients()), params.intercept), strategy)
+        if min_kept_score is not None and min_kept_score < 0:
+            raise ValueError(f"min_kept_score must be at least 0 (or None to disable it), got {min_kept_score}")
+        return cls(CONDITIONAL, (tuple(params.coefficients()), params.intercept), strategy, min_kept_score)
 
     @classmethod
     def baseline(cls, name: str) -> "Algorithm":
@@ -70,7 +78,7 @@ def evaluate_binary(
 
     if algorithm.weights is not None:
         coefficients, intercept = algorithm.weights
-        install_conditional_weights(list(coefficients), intercept, algorithm.strategy)
+        install_conditional_weights(list(coefficients), intercept, algorithm.strategy, algorithm.min_kept_score)
     process_binary(
         binary_path=binary_path,
         functions=functions,
@@ -79,7 +87,13 @@ def evaluate_binary(
         analyze=lambda _name, task: build_report(task),
         timeout_s=timeout_s,
         error_log=error_log,
-        metadata={"binary": binary_path, "project": project, "algorithm": algorithm.name, "strategy": algorithm.strategy},
+        metadata={
+            "binary": binary_path,
+            "project": project,
+            "algorithm": algorithm.name,
+            "strategy": algorithm.strategy,
+            "min_kept_score": algorithm.min_kept_score,
+        },
     )
 
 
@@ -117,12 +131,13 @@ def evaluate_corpus(
     timeout_s: float | None = None,
     work_dir: Optional[Path] = None,
     strategy: int = config.DEFAULT_CONDITIONAL_STRATEGY,
+    min_kept_score: Optional[float] = config.DEFAULT_MIN_KEPT_SCORE,
 ) -> None:
     """Evaluate every deduplicated function of ``projects_dir`` with fixed weights (and optional
     baselines). Results go to ``<output_dir>/<project>/<algorithm>/<binary>.json`` (single-eval
     layout for cv_plot.py); the dedup cache to ``work_dir`` (default ``<output_dir>/work``)."""
     dedup = load_or_deduplicate(projects_dir, work_dir or output_dir / "work", settings, error_log)
-    algorithms = [Algorithm.conditional(params, strategy)] + [Algorithm.baseline(name) for name in baselines]
+    algorithms = [Algorithm.conditional(params, strategy, min_kept_score)] + [Algorithm.baseline(name) for name in baselines]
     jobs = []
     for algorithm in algorithms:
         jobs += make_jobs(projects_dir, output_dir, dedup.kept, algorithm, error_log, timeout_s)

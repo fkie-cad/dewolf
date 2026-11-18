@@ -1,7 +1,7 @@
 """The run manifest ``<out>/run_config.json``.
 
 It records every parameter that influences the cached results (blocks, features, params, per-split
-evaluations, conditional renaming strategy, function filter, pair weighting) - not worker counts, timeouts or the baseline list (baselines can be added on a later
+evaluations, conditional renaming strategy, lower bound for kept edge scores, function filter, pair weighting) - not worker counts, timeouts or the baseline list (baselines can be added on a later
 run; their results are independent of the splits). A rerun into an existing output folder must
 use the same values, otherwise results from the old configuration would silently be mixed with
 new ones, so the run aborts.
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Optional
 
 from cvpipeline.storage import read_json, write_json_atomic
 
@@ -42,6 +43,13 @@ BN_LOAD_OPTIONS = {
 # (0-3: s-t-cut / LP based, 4: greedy merging; see its create_variable_classes).
 CONDITIONAL_STRATEGIES = (0, 1, 2, 3, 4)
 DEFAULT_CONDITIONAL_STRATEGY = 4
+
+# Lower bound for the score of every dependency-graph edge the conditional renamer keeps
+# (decompiler/pipeline/ssa/dependency_graph.py, _MIN_KEPT_SCORE): a kept edge (score > 0) gets
+# max(score, min_kept_score). None disables it, i.e. kept edges keep their own score. It only acts
+# when renaming (evaluation), not on the training data. dewolf's own default is 0.05; runs whose
+# manifest predates this setting used that value (see MANIFEST_VALUES_BEFORE_FIELD).
+DEFAULT_MIN_KEPT_SCORE = None
 
 # Which functions contribute training rows (features.passes_filter), among those with labeled pairs:
 #   none          every function
@@ -72,9 +80,16 @@ class RunConfig:
     strategy: int = DEFAULT_CONDITIONAL_STRATEGY
     function_filter: str = DEFAULT_FUNCTION_FILTER
     pair_weighting: str = DEFAULT_PAIR_WEIGHTING
+    min_kept_score: Optional[float] = DEFAULT_MIN_KEPT_SCORE
 
     def to_json(self) -> dict:
         return asdict(self)
+
+
+# The value a setting had in runs whose manifest was written before the setting existed. Such a
+# manifest lacks the key, but its results were computed with this value, so a resume is only
+# accepted with the same value.
+MANIFEST_VALUES_BEFORE_FIELD = {"min_kept_score": 0.05}
 
 
 def check_or_write(output_dir: Path, config: RunConfig) -> None:
@@ -84,7 +99,11 @@ def check_or_write(output_dir: Path, config: RunConfig) -> None:
         return
     previous = read_json(path)
     current = config.to_json()
-    differences = {key: (previous.get(key), value) for key, value in current.items() if previous.get(key) != value}
+
+    def previous_value(key: str):
+        return previous[key] if key in previous else MANIFEST_VALUES_BEFORE_FIELD.get(key)
+
+    differences = {key: (previous_value(key), value) for key, value in current.items() if previous_value(key) != value}
     if differences:
         details = ", ".join(f"{key}: was {old!r}, now {new!r}" for key, (old, new) in differences.items())
         raise ConfigMismatch(

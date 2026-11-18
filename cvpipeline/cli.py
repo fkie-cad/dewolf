@@ -40,6 +40,23 @@ def add_strategy_arg(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def non_negative_float(text: str) -> float:
+    value = float(text)
+    if value < 0:
+        raise argparse.ArgumentTypeError(f"must be at least 0, got {value}")
+    return value
+
+
+def add_min_kept_score_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--min-kept-score",
+        type=non_negative_float,
+        default=config.DEFAULT_MIN_KEPT_SCORE,
+        help="raise the score of every edge the conditional renamer keeps (score > 0) to at least this value, as "
+        "dewolf does with 0.05 (default: disabled, kept edges keep their own score)",
+    )
+
+
 def add_training_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("-i", "--projects", type=Path, required=True, help="folder with one subfolder of binaries per project")
     parser.add_argument("-o", "--output", type=Path, required=True, help="output folder")
@@ -48,6 +65,7 @@ def add_training_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--seed", type=int, default=0, help="seed for the block assignment (default: 0)")
     parser.add_argument("--C", type=float, default=1.0, help="inverse L2 regularization strength (default: 1.0)")
     add_strategy_arg(parser)
+    add_min_kept_score_arg(parser)
     parser.add_argument(
         "--function-filter",
         choices=config.FUNCTION_FILTERS,
@@ -85,6 +103,7 @@ def crossval_settings(args: argparse.Namespace) -> CrossValidationSettings:
         seed=args.seed,
         C=args.C,
         strategy=args.strategy,
+        min_kept_score=args.min_kept_score,
         function_filter=args.function_filter,
         pair_weighting=args.pair_weighting,
         baselines=tuple(args.baselines),

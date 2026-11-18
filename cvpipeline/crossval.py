@@ -41,6 +41,7 @@ class CrossValidationSettings:
     seed: int = 0
     C: float = 1.0
     strategy: int = config.DEFAULT_CONDITIONAL_STRATEGY
+    min_kept_score: Optional[float] = config.DEFAULT_MIN_KEPT_SCORE
     function_filter: str = config.DEFAULT_FUNCTION_FILTER
     pair_weighting: str = config.DEFAULT_PAIR_WEIGHTING
     baselines: Sequence[str] = ()
@@ -90,6 +91,7 @@ def run_cross_validation(settings: CrossValidationSettings) -> Dict[folds.Split,
             strategy=settings.strategy,
             function_filter=settings.function_filter,
             pair_weighting=settings.pair_weighting,
+            min_kept_score=settings.min_kept_score,
         ),
     )
     baselines = [Algorithm.baseline(name) for name in settings.baselines]  # validate early
@@ -127,7 +129,7 @@ def run_cross_validation(settings: CrossValidationSettings) -> Dict[folds.Split,
             projects_dir,
             layout.split_eval(split),
             holdout,
-            Algorithm.conditional(params, settings.strategy),
+            Algorithm.conditional(params, settings.strategy, settings.min_kept_score),
             error_log,
             settings.function_timeout_s,
             label_prefix=f"{split.name}/",

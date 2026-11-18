@@ -1,7 +1,7 @@
 """Running the dewolf pipeline up to out-of-SSA for selected functions of one binary.
 
 Only used inside worker processes. Nothing in ``decompiler/`` is modified: weights are injected by
-replacing a module-level name (see ``install_conditional_weights``), and the BinaryView is closed
+replacing module-level names (see ``install_conditional_weights``), and the BinaryView is closed
 by reaching into the frontend's ``_bv`` from here.
 """
 
@@ -13,9 +13,10 @@ import signal
 import threading
 import traceback
 from contextlib import contextmanager
-from typing import Any, Callable, Dict, Generator, Iterable
+from typing import Any, Callable, Dict, Generator, Iterable, Optional
 
 import binaryninja
+import decompiler.pipeline.ssa.dependency_graph as dependency_graph_module
 import decompiler.pipeline.ssa.outofssatranslation as out_of_ssa_module
 from decompiler.frontend.binaryninja.frontend import BinaryninjaFrontend
 from decompiler.pipeline.default import CFG_STAGES
@@ -45,17 +46,23 @@ CRASHED = "crashed"  # killed the worker process FunctionCheckpoint.MAX_ATTEMPTS
 Analyzer = Callable[[str, DecompilerTask], Any]
 
 
-def install_conditional_weights(coefficients: list[float], intercept: float, strategy: int) -> None:
-    """Make every ConditionalOutOfSSA created in this process use the given weights and
-    variable-class strategy (ConditionalVariableRenamer.create_variable_classes).
+def install_conditional_weights(
+    coefficients: list[float], intercept: float, strategy: int, min_kept_score: Optional[float] = config.DEFAULT_MIN_KEPT_SCORE
+) -> None:
+    """Make every ConditionalOutOfSSA created in this process use the given weights, variable-class
+    strategy (ConditionalVariableRenamer.create_variable_classes) and lower bound for the scores of
+    kept edges (config.DEFAULT_MIN_KEPT_SCORE; None disables it).
 
     OutOfSsaTranslation._conditional_out_of_ssa looks ``ConditionalOutOfSSA`` up in its module's
     globals at call time, so rebinding that module attribute to a partial with fixed keyword
     arguments overrides the hard-coded defaults in conditional_out_of_SSA.py without editing it.
+    Likewise dependency_graph_from_cfg reads ``_MIN_KEPT_SCORE`` from its module at call time. A
+    bound of 0 disables it: only edges with a score > 0 are kept, so max(score, 0) is the score.
     """
     out_of_ssa_module.ConditionalOutOfSSA = functools.partial(
         _ORIGINAL_CONDITIONAL_OUT_OF_SSA, parms=list(coefficients), intercept=float(intercept), strategy=int(strategy)
     )
+    dependency_graph_module._MIN_KEPT_SCORE = 0.0 if min_kept_score is None else float(min_kept_score)
 
 
 def make_options(out_of_ssa_mode: str) -> Options:

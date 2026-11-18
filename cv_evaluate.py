@@ -18,6 +18,7 @@ def main(argv=None) -> int:
     parser.add_argument("-p", "--params", type=Path, required=True, help="params.json with the weights to evaluate")
     parser.add_argument("-o", "--output", type=Path, required=True, help="output folder")
     cli.add_strategy_arg(parser)
+    cli.add_min_kept_score_arg(parser)
     cli.add_baseline_arg(parser)
     cli.add_worker_args(parser)
     args = parser.parse_args(argv)
@@ -33,6 +34,7 @@ def main(argv=None) -> int:
             baselines=args.baselines,
             timeout_s=cli.function_timeout(args),
             strategy=args.strategy,
+            min_kept_score=args.min_kept_score,
         )
     except Exception:
         log.exception("evaluation aborted")
