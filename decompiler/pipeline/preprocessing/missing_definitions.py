@@ -7,10 +7,11 @@ from typing import DefaultDict, Dict, List, Optional, Set, Tuple, Union
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.pointers import Pointers
-from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
+from decompiler.structures.pseudo.expressions import GlobalVariable, Variable, VariableProvenance
 from decompiler.structures.pseudo.instructions import Assignment, Instruction, Phi, Relation
 from decompiler.structures.pseudo.operations import Call, ListOperation, OperationType, UnaryOperation
 from decompiler.task import DecompilerTask
+from decompiler.util.name_inheritance import synthesized_version_origin
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 from networkx import DiGraph
 
@@ -107,6 +108,7 @@ class InsertMissingDefinitions(PipelineStage):
     def run(self, task: DecompilerTask):
         """Insert all missing definitions."""
         self._setup(task.graph)
+        self._lifted_origins = task.aliased_version_origins
         self._check_ssa_label_for_all_variables()
         self.insert_missing_definitions()
 
@@ -119,6 +121,10 @@ class InsertMissingDefinitions(PipelineStage):
         self._node_of_memory_version: Dict[int, Tuple[BasicBlock, Assignment]] = self._compute_node_of_memory_version()
         self._dominator_tree: DiGraph = self.cfg.dominator_tree
         self._pointers_info: Optional[Pointers] = Pointers().from_cfg(self.cfg)
+        # provenance bookkeeping (evaluation-only, never read by the algorithm), filled in _get_undefined_variables
+        self._version_origins: Dict[Tuple[str, Optional[int]], VariableProvenance] = {}
+        self._source_names: Dict[str, Set[str]] = {}
+        self._lifted_origins: Dict[Tuple[str, int], VariableProvenance] = {}
 
     def insert_missing_definitions(self):
         """
@@ -159,18 +165,22 @@ class InsertMissingDefinitions(PipelineStage):
         for variable in aliased_variables:
             if variable.origin is not None and variable.origin.source_name is not None:
                 source_names[variable.name].add(variable.origin.source_name)
+                self._version_origins.setdefault((variable.name, variable.ssa_label), variable.origin)
+        self._source_names = source_names
 
         for memory_version in self._node_of_memory_version.keys():
             for variable in aliased_variables:
                 aliased_variable = variable.copy(ssa_label=memory_version)
-                if len(source_names[aliased_variable.name]) > 1:
-                    # versions disagree on their DWARF source (reused slot); we cannot know which applies
-                    # to this synthesized memory version, so leave it unattributed rather than guessing.
-                    # (rebind, don't mutate: copy() shares the origin object with the real occurrence.)
-                    aliased_variable.origin = None
+                # Provenance only (rebind, don't mutate: copy() shares the origin object with the real occurrence).
+                aliased_variable.origin = self._origin_of_version(aliased_variable, aliased_variable.origin)
                 if aliased_variable not in all_variables:
                     undefined_variables.add(aliased_variable)
         return undefined_variables
+
+    def _origin_of_version(self, variable: Variable, fallback: Optional[VariableProvenance]) -> Optional[VariableProvenance]:
+        """Provenance (evaluation-only metadata) for a synthesized occurrence of an aliased SSA version."""
+        key = (variable.name, variable.ssa_label)
+        return synthesized_version_origin(key, self._version_origins, self._lifted_origins, self._source_names.get(variable.name, set()), fallback)
 
     def _insert_definition_if_undefined(
         self, variable: Variable, previous_ssa_labels: Set[int], undefined_variables: InsertionOrderedSet[Variable]
@@ -200,6 +210,8 @@ class InsertMissingDefinitions(PipelineStage):
         position_insert_definition = self._find_position_to_insert_aliased_definition(basicblock_for_definition, memory_instruction)
         ssa_label_rhs_variable = self._get_ssa_label_of_rhs_variable(basicblock_for_definition, prev_ssa_labels)
         rhs_variable = variable.copy(ssa_label=ssa_label_rhs_variable, is_aliased=True)
+        # rhs is a different SSA version than `variable`: give it its own provenance, not variable's
+        rhs_variable.origin = self._origin_of_version(rhs_variable, variable.origin)
 
         if self._memory_instruction_changes_variable(memory_instruction, rhs_variable):
             definition = Relation(variable, rhs_variable)

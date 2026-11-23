@@ -633,6 +633,16 @@
                 "argument_name": "--max-function-size"
             },
             {
+                "dest": "binaryninja.use_debug_info",
+                "default": true,
+                "title": "Use debug information",
+                "type": "boolean",
+                "description": "Import debug information embedded in the binary (e.g. DWARF) when loading it from the command line (sets analysis.debugInfo.internal).",
+                "is_hidden_from_gui": true,
+                "is_hidden_from_cli": false,
+                "argument_name": "--use-debug-info"
+            },
+            {
                 "dest": "lifter.report_threshold",
                 "default": 5,
                 "title": "Lifter report threshold",

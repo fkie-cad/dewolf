@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 from abc import ABC, abstractmethod
 
 from decompiler.backend.cexpressiongenerator import CExpressionGenerator
@@ -23,6 +24,7 @@ from decompiler.structures.ast.ast_nodes import CodeNode
 from decompiler.structures.pseudo import Instruction, Operation
 from decompiler.structures.visitors.substitute_visitor import SubstituteVisitor
 from decompiler.task import DecompilerTask
+from decompiler.util.name_inheritance import PropagatedValueRegistry
 
 
 class _ExpressionSimplificationBase(PipelineStage, ABC):
@@ -30,18 +32,26 @@ class _ExpressionSimplificationBase(PipelineStage, ABC):
         max_iterations = task.options.getint("expression-simplification.max_iterations")
         debug = task.options.getboolean("pipeline.debug", fallback=False)
 
-        self._simplify_instructions(self._get_instructions(task), max_iterations, debug)
+        registry = getattr(task, "propagated_source_values", None)
+        self._simplify_instructions(
+            self._get_instructions(task),
+            max_iterations,
+            debug,
+            registry if isinstance(registry, PropagatedValueRegistry) else None,
+        )
 
     @abstractmethod
     def _get_instructions(self, task: DecompilerTask) -> list[Instruction]:
         pass
 
     @classmethod
-    def _simplify_instructions(cls, instructions: list[Instruction], max_iterations: int, debug: bool):
+    def _simplify_instructions(
+        cls, instructions: list[Instruction], max_iterations: int, debug: bool, registry: Optional[PropagatedValueRegistry] = None
+    ):
         rule_sets = [("pre-rules", _pre_rules), ("rules", _rules), ("post-rules", _post_rules)]
         for rule_name, rule_set in rule_sets:
             # max_iterations is counted per rule_set
-            iteration_count = cls._simplify_instructions_with_rule_set(instructions, rule_set, max_iterations, debug)
+            iteration_count = cls._simplify_instructions_with_rule_set(instructions, rule_set, max_iterations, debug, registry)
             if iteration_count <= max_iterations:
                 logging.info(f"Expression simplification took {iteration_count} iterations for {rule_name}")
             else:
@@ -49,7 +59,12 @@ class _ExpressionSimplificationBase(PipelineStage, ABC):
 
     @classmethod
     def _simplify_instructions_with_rule_set(
-        cls, instructions: list[Instruction], rule_set: list[SimplificationRule], max_iterations: int, debug: bool
+        cls,
+        instructions: list[Instruction],
+        rule_set: list[SimplificationRule],
+        max_iterations: int,
+        debug: bool,
+        registry: Optional[PropagatedValueRegistry] = None,
     ) -> int:
         iteration_count = 0
 
@@ -59,7 +74,9 @@ class _ExpressionSimplificationBase(PipelineStage, ABC):
 
             for rule in rule_set:
                 for instruction in instructions:
-                    additional_iterations = cls._simplify_instruction_with_rule(instruction, rule, max_iterations - iteration_count, debug)
+                    additional_iterations = cls._simplify_instruction_with_rule(
+                        instruction, rule, max_iterations - iteration_count, debug, registry
+                    )
                     if additional_iterations > 0:
                         changes = True
 
@@ -70,7 +87,14 @@ class _ExpressionSimplificationBase(PipelineStage, ABC):
         return iteration_count
 
     @classmethod
-    def _simplify_instruction_with_rule(cls, instruction: Instruction, rule: SimplificationRule, max_iterations: int, debug: bool) -> int:
+    def _simplify_instruction_with_rule(
+        cls,
+        instruction: Instruction,
+        rule: SimplificationRule,
+        max_iterations: int,
+        debug: bool,
+        registry: Optional[PropagatedValueRegistry] = None,
+    ) -> int:
         iteration_count = 0
         for expression in instruction.subexpressions():
             while True:
@@ -109,6 +133,10 @@ class _ExpressionSimplificationBase(PipelineStage, ABC):
                     # instruction.accept should never replace itself and consequently return none, because replacee is
                     # of type Expression and doesn't permit Instruction
                     assert instruction_repl is None
+                    if registry is not None:
+                        # evaluation-only: a simplification is value-preserving, so the rewritten expression stands
+                        # for the same (propagated) variables as the replaced one (DWARF source-name provenance)
+                        registry.same_value(replacee, replacement)
 
                     # This is modifying the expression tree, while we are iterating over it.
                     # This works because we are iterating depth first and only

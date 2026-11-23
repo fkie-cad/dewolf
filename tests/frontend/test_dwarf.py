@@ -210,7 +210,7 @@ def _function_bodies(path: str):
 
 
 def test_location_list_ranges_are_relative_to_cu_base(inline_binary):
-    """A function's location-list PC ranges must fall inside its own body (checked on non-CU-base functions).
+    """A function's location-list address ranges must fall inside its own body (checked on non-CU-base functions).
 
     Regression guard for the base-address bug: offsets are relative to the CU base, not the function's,
     so using the function's low_pc shifted ranges outside the body and broke matching off the CU base.
@@ -227,10 +227,10 @@ def test_location_list_ranges_are_relative_to_cu_base(inline_binary):
         for variable in function.variables:
             if not isinstance(variable.location, RangedLocation):
                 continue
-            for pc_range in variable.location.ranges:
+            for address_range in variable.location.ranges:
                 checked += 1
-                assert low <= pc_range.low < high, (
-                    f"{name}.{variable.name} range [{pc_range.low:#x},{pc_range.high:#x}) lies outside the "
+                assert low <= address_range.low < high, (
+                    f"{name}.{variable.name} range [{address_range.low:#x},{address_range.high:#x}) lies outside the "
                     f"function body [{low:#x},{high:#x}) - location-list base address is wrong"
                 )
     if checked == 0:
@@ -273,7 +273,7 @@ def test_decode_frame_pointer_relative_stack_slot():
 
 
 def test_decode_stack_pointer_relative_is_unmatched():
-    """DW_OP_breg7 (rsp) needs per-PC frame-unwind state we do not track, so it decodes to None."""
+    """DW_OP_breg7 (rsp) needs per-address frame-unwind state we do not track, so it decodes to None."""
     parser = _x64_parser()
     assert parser._decode_storage([_Op(0x77, (24,))]) is None  # DW_OP_breg7 +24
 
@@ -410,3 +410,146 @@ def test_global_source_name_zero_bias_when_load_base_matches_image_base():
     resolver = _resolver_with_globals({0x400500: "g"}, image_base=0x400000)
     assert resolver.global_source_name(0x400500, load_base=0x400000) == "g"
     assert resolver.parameter_name_by_index("f", 5, 2) is None
+
+
+# --------------------------------------------------------------------------------------------- #
+# Lexical scopes and ambiguity: two source variables sharing one stack slot in disjoint blocks.
+# --------------------------------------------------------------------------------------------- #
+
+
+def _shared_slot_resolver(scope_a, scope_b):
+    from decompiler.frontend.binaryninja.dwarf import DwarfFunction, DwarfVariable, DwarfVariableResolver, FixedLocation, AddressRange, StackSlot
+
+    resolver = DwarfVariableResolver(None)  # inert: no binary is opened
+    slot = FixedLocation(StackSlot(-0x24))
+    a = DwarfVariable("a", slot, tuple(AddressRange(low, high, None) for low, high in scope_a) if scope_a else None)
+    b = DwarfVariable("b", slot, tuple(AddressRange(low, high, None) for low, high in scope_b) if scope_b else None)
+    resolver._functions = {"f": DwarfFunction(0x1000, (a, b))}
+    return resolver
+
+
+def _stack_origin(value_address):
+    from decompiler.structures.pseudo.expressions import VariableProvenance
+
+    return VariableProvenance(source_type="StackVariableSourceType", storage=-0x24, value_address=value_address, function=0x1000)
+
+
+def test_shared_slot_is_resolved_by_lexical_scope():
+    resolver = _shared_slot_resolver([(0x1010, 0x1020)], [(0x1020, 0x1030)])
+    assert resolver.source_name(_stack_origin(0x1018), "f") == "a"
+    assert resolver.source_name(_stack_origin(0x1028), "f") == "b"
+
+
+def test_shared_slot_outside_both_scopes_is_unnamed():
+    resolver = _shared_slot_resolver([(0x1010, 0x1020)], [(0x1020, 0x1030)])
+    assert resolver.source_name(_stack_origin(0x1040), "f") is None
+    assert resolver.source_names(_stack_origin(0x1040), "f") == set()
+
+
+def test_shared_slot_without_scopes_is_ambiguous():
+    """Both variables match: never pick the first one, give no name."""
+    resolver = _shared_slot_resolver(None, None)
+    assert resolver.source_name(_stack_origin(0x1018), "f") is None
+    assert resolver.source_names(_stack_origin(0x1018), "f") == {"a", "b"}
+
+
+def test_shared_slot_without_address_is_ambiguous():
+    """Without a value_address the scopes cannot rule a variable out."""
+    resolver = _shared_slot_resolver([(0x1010, 0x1020)], [(0x1020, 0x1030)])
+    assert resolver.source_name(_stack_origin(None), "f") is None
+
+
+_SHARED_SLOT_SOURCE = """
+void fill(int *p, int n) { *p += n; }
+int use(int *p) { return *p; }
+__attribute__((noinline)) int shared(int n) {
+    int total = 0;
+    if (n > 3) { int a = n * 2; fill(&a, n); total += use(&a); }
+    else { int b = n + 7; fill(&b, n); total -= use(&b); }
+    return total;
+}
+int main(int argc, char **argv) { return shared(argc); }
+"""
+
+
+def test_lexical_block_scopes_are_parsed(tmp_path):
+    """gcc -O1 puts a and b into the same slot; each gets the address range of its own block."""
+    pytest.importorskip("elftools")
+    if shutil.which("gcc") is None:
+        pytest.skip("gcc not available")
+    source = tmp_path / "shared.c"
+    source.write_text(_SHARED_SLOT_SOURCE)
+    out = tmp_path / "shared"
+    result = subprocess.run(["gcc", "-g", "-O1", "-fno-inline", "-o", str(out), str(source)], capture_output=True)
+    if result.returncode != 0 or out.read_bytes()[:4] != b"\x7fELF":
+        pytest.skip("could not build an ELF sample")
+    from decompiler.frontend.binaryninja.dwarf import _parse_dwarf
+
+    variables = {variable.name: variable for variable in _parse_dwarf(str(out))["shared"].variables}
+    a, b = variables["a"], variables["b"]
+    if a.location != b.location:
+        pytest.skip("compiler did not share the slot")
+    assert a.scope and b.scope
+    assert not any(ra.low < rb.high and rb.low < ra.high for ra in a.scope for rb in b.scope)
+    assert variables["total"].scope is None
+
+
+class _AddressResolver:
+    """Fake DWARF resolver: the names matching at each address."""
+
+    def __init__(self, names_at):
+        self._names_at = names_at
+
+    def source_names(self, origin, function_name, register_name=None):
+        return set(self._names_at.get(origin.value_address, ()))
+
+
+def _dwarf_names(names_at, value_address, uses):
+    from types import SimpleNamespace
+
+    from decompiler.frontend.binaryninja.handlers.variables import VariableHandler
+    from decompiler.structures.pseudo import VariableProvenance
+
+    lifter = SimpleNamespace(dwarf=_AddressResolver(names_at), bv=SimpleNamespace(arch=SimpleNamespace(get_reg_name=str)))
+    return VariableHandler(lifter)._dwarf_names(VariableProvenance(storage=1, value_address=value_address), "f", uses)
+
+
+def test_use_addresses_resolve_ambiguity():
+    """{i, max} at the definition, {max} at a use: the value can only be max."""
+    assert _dwarf_names({0x10: {"i", "max"}, 0x20: {"max"}}, 0x10, [0x20]) == {"max"}
+
+
+def test_use_address_without_match_is_a_gap():
+    assert _dwarf_names({0x10: {"a"}}, 0x10, [0x20]) == {"a"}
+    assert _dwarf_names({0x20: {"a"}}, 0x10, [0x20]) == {"a"}
+
+
+def test_disagreeing_addresses_are_ambiguous():
+    assert _dwarf_names({0x10: {"a"}, 0x20: {"b"}}, 0x10, [0x20]) == {"a", "b"}
+
+
+def test_storage_names_collects_every_variable_in_the_storage_ignoring_address_and_scope():
+    from decompiler.frontend.binaryninja.dwarf import DwarfFunction, DwarfVariable, FixedLocation, AddressRange, RangedLocation, RegisterSlot, StackSlot
+    from decompiler.structures.pseudo.expressions import VariableProvenance
+
+    moving = RangedLocation((AddressRange(0, 4, RegisterSlot("rdi")), AddressRange(4, 8, StackSlot(-8)), AddressRange(8, 9, None)))
+    variables = (
+        DwarfVariable("i", FixedLocation(RegisterSlot("rdi")), scope=(AddressRange(100, 200, None),)),
+        DwarfVariable("max", moving),
+        DwarfVariable("local", FixedLocation(StackSlot(-16))),
+    )
+    resolver = _resolver_with("f", ())
+    resolver._functions = {"f": DwarfFunction(0, variables)}
+    reg = lambda index: "rdi"
+    register = VariableProvenance(source_type="RegisterVariableSourceType", storage=1, value_address=0x1000, function=0)
+    stack = VariableProvenance(source_type="StackVariableSourceType", storage=-8, function=0)
+    assert resolver.storage_names(register, "f", reg) == {"i", "max"}
+    assert resolver.storage_names(stack, "f", reg) == {"max"}
+    assert resolver.storage_names(replace_storage(stack, -99), "f", reg) == frozenset()
+    assert resolver.storage_names(stack, "unknown", reg) == frozenset()
+
+
+def replace_storage(origin, storage):
+    from dataclasses import replace
+
+    return replace(origin, storage=storage)

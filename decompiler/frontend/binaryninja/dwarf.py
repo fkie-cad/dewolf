@@ -2,11 +2,11 @@
 
 For a binary compiled with -g, DWARF records which machine location holds which
 *source* variable. This module parses that information and, given a lifted
-variable's provenance (source_type + storage + def_address), returns the name of
-the C source variable occupying the same location at the definition site.
+variable's provenance (source_type + storage + value_address), returns the name of
+the C source variable occupying the same location where the value is live.
 
 The matching is location based, not name based: DWARF identifies a variable by
-where it lives (a stack slot, or a register over a range of PC values), so a
+where it lives (a stack slot, or a register over a range of addresses), so a
 Binary Ninja / dewolf SSA variable is matched to its source variable by having
 the same location - never by name (Binary Ninja's heuristic names are unrelated).
 
@@ -25,12 +25,13 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Dict, Iterator, Optional, Tuple
+from typing import Dict, FrozenSet, Iterator, Optional, Set, Tuple
 
 try:
     from elftools.dwarf.descriptions import describe_reg_name
     from elftools.dwarf.dwarf_expr import DWARFExprParser
     from elftools.dwarf.locationlists import BaseAddressEntry, LocationExpr, LocationParser
+    from elftools.dwarf.ranges import BaseAddressEntry as RangeBaseAddressEntry
     from elftools.elf.elffile import ELFFile
 
     _DWARF_AVAILABLE = True
@@ -110,11 +111,11 @@ class RegisterSlot(StorageLocation):
 
 
 class VariableLocation(ABC):
-    """Where a source variable lives across its lifetime: fixed, or varying by PC range."""
+    """Where a source variable lives across its lifetime: fixed, or varying by address range."""
 
     @abstractmethod
-    def storage_at(self, pc: Optional[int]) -> Optional[StorageLocation]:
-        """Return the storage location in effect at `pc` (or the fixed one), else None."""
+    def storage_at(self, address: Optional[int]) -> Optional[StorageLocation]:
+        """Return the storage location in effect at the DWARF address (or the fixed one), else None."""
 
 
 @dataclass(frozen=True)
@@ -123,13 +124,13 @@ class FixedLocation(VariableLocation):
 
     storage: StorageLocation
 
-    def storage_at(self, pc: Optional[int]) -> Optional[StorageLocation]:
+    def storage_at(self, address: Optional[int]) -> Optional[StorageLocation]:
         return self.storage
 
 
 @dataclass(frozen=True)
-class PcRange:
-    """A storage location valid over the half-open PC range [low, high)."""
+class AddressRange:
+    """A storage location valid over the half-open address range [low, high)."""
 
     low: int
     high: int
@@ -138,16 +139,16 @@ class PcRange:
 
 @dataclass(frozen=True)
 class RangedLocation(VariableLocation):
-    """A variable that moves between locations, each valid over a PC range (a DWARF location list)."""
+    """A variable that moves between locations, each valid over an address range (a DWARF location list)."""
 
-    ranges: Tuple[PcRange, ...]
+    ranges: Tuple[AddressRange, ...]
 
-    def storage_at(self, pc: Optional[int]) -> Optional[StorageLocation]:
-        if pc is None:
+    def storage_at(self, address: Optional[int]) -> Optional[StorageLocation]:
+        if address is None:
             return None
-        for pc_range in self.ranges:
-            if pc_range.storage is not None and pc_range.low <= pc < pc_range.high:
-                return pc_range.storage
+        for address_range in self.ranges:
+            if address_range.storage is not None and address_range.low <= address < address_range.high:
+                return address_range.storage
         return None
 
 
@@ -157,6 +158,13 @@ class DwarfVariable:
 
     name: str
     location: VariableLocation
+    scope: Optional[Tuple[AddressRange, ...]] = None  # address ranges of its innermost lexical block; None: whole function
+
+    def in_scope(self, address: Optional[int]) -> bool:
+        """Whether the variable is visible at the DWARF address (True if unknown, since it cannot be ruled out)."""
+        if address is None or self.scope is None:
+            return True
+        return any(scope_range.low <= address < scope_range.high for scope_range in self.scope)
 
 
 @dataclass(frozen=True)
@@ -207,11 +215,17 @@ def _parameter_names(die) -> Tuple[Optional[str], ...]:
 
 def _walk_locals(die) -> Iterator:
     """Yield the variable and parameter DIEs under a subprogram, descending into lexical blocks."""
+    for child, _ in _walk_locals_with_blocks(die):
+        yield child
+
+
+def _walk_locals_with_blocks(die, blocks: Tuple = ()) -> Iterator:
+    """Yield (DIE, enclosing lexical-block DIEs from outermost to innermost) for every variable and parameter."""
     for child in die.iter_children():
         if child.tag in ("DW_TAG_variable", "DW_TAG_formal_parameter"):
-            yield child
+            yield child, blocks
         elif child.tag == "DW_TAG_lexical_block":
-            yield from _walk_locals(child)
+            yield from _walk_locals_with_blocks(child, blocks + (child,))
 
 
 class _DwarfParser:
@@ -275,11 +289,45 @@ class _DwarfParser:
     def _parse_locals(self, die, expr_parser, dwarf_version, loclist_base) -> Iterator[DwarfVariable]:
         """Yield the named local variables and parameters of a subprogram that have a resolvable location."""
         frame_base_register = self._frame_base_register(die, expr_parser)
-        for local_die in _walk_locals(die):
+        for local_die, blocks in _walk_locals_with_blocks(die):
             location = self._location_of(local_die, expr_parser, dwarf_version, loclist_base, frame_base_register)
             name = _die_name(local_die)
             if name is not None and location is not None:
-                yield DwarfVariable(name, location)
+                yield DwarfVariable(name, location, self._scope_of(blocks, loclist_base))
+
+    def _scope_of(self, blocks: Tuple, base_address: int) -> Optional[Tuple[AddressRange, ...]]:
+        """The address ranges of the innermost lexical block that has any, or None (whole function).
+
+        An unreadable block is skipped: the variable is then treated as visible in a wider scope, which
+        can only add candidates and never hide one (an ambiguous lookup yields no name).
+        """
+        for block in reversed(blocks):
+            ranges = self._block_ranges(block, base_address)
+            if ranges:
+                return ranges
+        return None
+
+    def _block_ranges(self, block, base_address: int) -> Optional[Tuple[AddressRange, ...]]:
+        """The address ranges of a lexical block (DW_AT_low_pc/DW_AT_high_pc or DW_AT_ranges), or None if absent/unreadable."""
+        attributes = block.attributes
+        try:
+            if "DW_AT_low_pc" in attributes and "DW_AT_high_pc" in attributes:
+                low, high = attributes["DW_AT_low_pc"].value, attributes["DW_AT_high_pc"]
+                # DWARF4+: a non-address form of DW_AT_high_pc is the length, not the end address
+                return (AddressRange(low, high.value if high.form == "DW_FORM_addr" else low + high.value, None),)
+            if "DW_AT_ranges" in attributes and (range_lists := self._dwarf.range_lists()) is not None:
+                ranges = []
+                for entry in range_lists.get_range_list_at_offset(attributes["DW_AT_ranges"].value, cu=block.cu):
+                    if isinstance(entry, RangeBaseAddressEntry):
+                        base_address = entry.base_address
+                    elif getattr(entry, "is_absolute", False):
+                        ranges.append(AddressRange(entry.begin_offset, entry.end_offset, None))
+                    else:
+                        ranges.append(AddressRange(base_address + entry.begin_offset, base_address + entry.end_offset, None))
+                return tuple(ranges) or None
+        except Exception:
+            return None
+        return None
 
     def _frame_base_register(self, die, expr_parser) -> Optional[str]:
         """Return the register a subprogram's DW_AT_frame_base is expressed off, or None for a CFA frame base.
@@ -310,7 +358,7 @@ class _DwarfParser:
         """Parse a variable's DW_AT_location into a VariableLocation, or None if it has no matchable storage.
 
         A DW_AT_location is either a single expression (one location for the whole function) or a
-        location list (the variable moves between locations over PC ranges, made absolute against the
+        location list (the variable moves between locations over address ranges, made absolute against the
         compilation-unit base address - see _compilation_unit_base).
         """
         location_attr = die.attributes.get("DW_AT_location")
@@ -322,8 +370,8 @@ class _DwarfParser:
             return FixedLocation(storage) if storage is not None else None
         return RangedLocation(tuple(self._parse_ranges(parsed_location, expr_parser, loclist_base, frame_base_register)))
 
-    def _parse_ranges(self, parsed_location, expr_parser, loclist_base, frame_base_register) -> Iterator[PcRange]:
-        """Yield the PC ranges of a location list, resolving each range's storage descriptor."""
+    def _parse_ranges(self, parsed_location, expr_parser, loclist_base, frame_base_register) -> Iterator[AddressRange]:
+        """Yield the address ranges of a location list, resolving each range's storage descriptor."""
         base_address = loclist_base
         for entry in parsed_location:
             if isinstance(entry, BaseAddressEntry):
@@ -333,7 +381,7 @@ class _DwarfParser:
                 low, high = entry.begin_offset, entry.end_offset
             else:
                 low, high = base_address + entry.begin_offset, base_address + entry.end_offset
-            yield PcRange(low, high, self._decode_storage(expr_parser.parse_expr(entry.loc_expr), frame_base_register))
+            yield AddressRange(low, high, self._decode_storage(expr_parser.parse_expr(entry.loc_expr), frame_base_register))
 
     def _decode_storage(self, parsed_opcodes, frame_base_register: Optional[str] = None) -> Optional[StorageLocation]:
         """Decode a parsed DWARF location expression into a StorageLocation, or None if it has no matchable storage.
@@ -366,7 +414,7 @@ class _DwarfParser:
 
         With the standard prologue the frame pointer sits one pointer-slot (== _cfa_delta) below
         SP-at-entry, so frame_pointer + off is at SP-at-entry + (off - _cfa_delta). Off any other
-        register (e.g. sp-relative) we do not track the per-PC frame state, so it stays unmatched.
+        register (e.g. sp-relative) we do not track the per-address frame state, so it stays unmatched.
         """
         if self._frame_pointer is None or register_name != self._frame_pointer:
             return None
@@ -414,6 +462,14 @@ class _DwarfParser:
         return None
 
 
+def _storages(location: VariableLocation) -> Iterator[StorageLocation]:
+    """Every storage location a variable occupies at any point (its fixed location or each location-list entry)."""
+    if isinstance(location, RangedLocation):
+        return (address_range.storage for address_range in location.ranges if address_range.storage is not None)
+    storage = location.storage_at(None)
+    return iter(() if storage is None else (storage,))
+
+
 class DwarfVariableResolver:
     """Matches lifted variables to their DWARF source-variable names by storage location."""
 
@@ -450,7 +506,7 @@ class DwarfVariableResolver:
         :param load_base: the disassembler's image load address; when given, the load bias
             (load_base - the DWARF image base) is subtracted so a PIE mapped at a different address
             still lines up with the DWARF addresses, mirroring the function-address translation in
-            _dwarf_pc. When None the address is looked up as-is.
+            _dwarf_address. When None the address is looked up as-is.
         """
         if address is None:
             return None
@@ -459,24 +515,40 @@ class DwarfVariableResolver:
         return self._globals.get(address)
 
     def source_name(self, origin, function_name: str, register_name=None) -> Optional[str]:
-        """Return the C source-variable name matching a lifted variable's provenance.
+        """Return the C source-variable name matching a lifted variable's provenance, or None if none or several match."""
+        names = self.source_names(origin, function_name, register_name)
+        return next(iter(names)) if len(names) == 1 else None  # several source variables match: ambiguous, no name
 
-        :param origin: the variable's VariableProvenance (source_type, storage, def_address, function)
+    def source_names(self, origin, function_name: str, register_name=None) -> Set[str]:
+        """Return the names of all C source variables matching a lifted variable's provenance.
+
+        :param origin: the variable's VariableProvenance (source_type, storage, value_address, function)
         :param function_name: the (BN) function name the variable belongs to
         :param register_name: callable BN-register-index -> name, for register variables
         """
         if origin is None or origin.storage is None:
-            return None
+            return set()
         function = self._functions.get(function_name)
         if function is None:
-            return None
+            return set()
         lifted = LiftedLocation.from_provenance(origin, register_name)
-        dwarf_pc = self._dwarf_pc(origin, function.low_pc)
+        dwarf_address = self._dwarf_address(origin, function.low_pc)
+        names = set()
         for variable in function.variables:
-            storage = variable.location.storage_at(dwarf_pc)
-            if storage is not None and storage.matches(lifted):
-                return variable.name
-        return None
+            storage = variable.location.storage_at(dwarf_address)
+            if storage is not None and storage.matches(lifted) and variable.in_scope(dwarf_address):
+                names.add(variable.name)
+        return names
+
+    def storage_names(self, origin, function_name: str, register_name=None) -> FrozenSet[str]:
+        """Return all source variables DWARF places in the origin's storage anywhere in the function (any address or scope)."""
+        if origin is None or origin.storage is None:
+            return frozenset()
+        function = self._functions.get(function_name)
+        if function is None:
+            return frozenset()
+        lifted = LiftedLocation.from_provenance(origin, register_name)
+        return frozenset(variable.name for variable in function.variables if any(storage.matches(lifted) for storage in _storages(variable.location)))
 
     def parameter_name_by_index(self, function_name: str, index: int, parameter_count: int) -> Optional[str]:
         """Return the DWARF name of the parameter at position `index`, or None.
@@ -494,14 +566,11 @@ class DwarfVariableResolver:
         return None
 
     @staticmethod
-    def _dwarf_pc(origin, low_pc: int) -> Optional[int]:
-        """Translate a variable's BN definition address into the corresponding DWARF PC, or None.
-
-        The DWARF PC is where this SSA version is defined; it is used to index location lists.
-        """
-        if origin.def_address is None or origin.function is None:
-            return None
-        return origin.def_address - (origin.function - low_pc)  # BN address -> DWARF pc
+    def _dwarf_address(origin, low_pc: int) -> Optional[int]:
+        """Translate the address where the variable's value is live into the corresponding DWARF address, or None."""
+        if origin.value_address is None or origin.function is None:
+            return None  # location lists cannot match, fixed locations still can
+        return origin.value_address - (origin.function - low_pc)  # BN address -> DWARF address
 
 
 def _parse_dwarf(path: str) -> Dict[str, DwarfFunction]:

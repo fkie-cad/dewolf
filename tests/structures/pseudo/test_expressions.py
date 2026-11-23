@@ -88,7 +88,7 @@ class TestVariable:
 
     def test_origin_not_part_of_identity(self):
         """Provenance must NOT participate in equality/hash (Variable identity is name/label/type/aliased)."""
-        origin = VariableProvenance(source_type="StackVariableSourceType", storage=-24, def_address=0x1151, has_real_def=True)
+        origin = VariableProvenance(source_type="StackVariableSourceType", storage=-24, value_address=0x1151, has_real_def=True)
         with_origin = Variable("v", i32, 0, origin=origin)
         without_origin = Variable("v", i32, 0)
         other_origin = Variable("v", i32, 0, origin=VariableProvenance(storage=-999))

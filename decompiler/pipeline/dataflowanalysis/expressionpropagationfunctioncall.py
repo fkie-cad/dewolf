@@ -40,7 +40,7 @@ class ExpressionPropagationFunctionCall(ExpressionPropagationBase):
                 for var in instruction.requirements:
                     if var_definition := self._def_map.get(var):
                         if self._definition_can_be_propagated_into_target(var_definition, instruction):
-                            instruction.substitute(var, var_definition.value.copy())
+                            self._substitute_by_definition_value(instruction, var, var_definition)
                             self._replace_call_assignment_with_const(var_definition)  # differs from base
                             self._update_block_map(old, str(instruction), basic_block, index)
                             if not is_changed:

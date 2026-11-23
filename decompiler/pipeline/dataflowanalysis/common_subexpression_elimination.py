@@ -11,10 +11,23 @@ from typing import DefaultDict, Deque, Dict, Iterable, Iterator, List, Optional,
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.graphs.nxgraph import NetworkXGraph
-from decompiler.structures.pseudo.expressions import Constant, DataflowObject, Expression, Symbol, Variable
+from decompiler.structures.pseudo.expressions import Constant, DataflowObject, Expression, Symbol, Variable, VariableProvenance
 from decompiler.structures.pseudo.instructions import Assignment, Branch, GenericBranch, Instruction, Phi, Relation
 from decompiler.structures.pseudo.operations import Call, ListOperation, OperationType, UnaryOperation
 from decompiler.task import DecompilerTask
+from decompiler.util.name_inheritance import (
+    NameCandidates,
+    NameChain,
+    PropagatedValueRegistry,
+    SsaKey,
+    apply_names,
+    collect_occurrences,
+    is_name_target,
+    iter_subexpressions,
+    name_chain_of,
+    resolve_candidates,
+    ssa_key,
+)
 from networkx import dfs_postorder_nodes
 
 
@@ -80,6 +93,75 @@ def _contains_call(expression: DataflowObject) -> bool:
     return False
 
 
+class _CseSourceNames:
+    """
+    Evaluation-only DWARF source-name inheritance for CSE (never influences any CSE decision).
+
+    A replacement (new temporary cN, or an existing variable substituted for an expression) takes over a source name if
+    the occurrences it replaces stand for a named variable that no longer exists:
+    - an occurrence is a value registered by expression propagation for an eliminated variable x (see
+      PropagatedValueRegistry), or
+    - (new temporaries only) an occurrence is the whole right-hand side of a definition `y = E` of a named y, which becomes
+      `y = cN` (cN is then a plain copy source of y).
+    The name chain is the source's chain + ("cse",). Candidates that disagree on the name -> no name. Existing names are
+    never overwritten.
+    """
+
+    def __init__(self, cfg: ControlFlowGraph, registry: Optional[PropagatedValueRegistry]):
+        self._cfg = cfg
+        self._registry = registry
+        self._existing = set(collect_occurrences(cfg.instructions))
+        self._candidates = NameCandidates()
+
+    def _vanished(self, key: SsaKey) -> bool:
+        return key not in self._existing
+
+    def _registered_candidates(self, expression: Expression, instructions: Iterable[Instruction]) -> List[NameChain]:
+        if self._registry is None or not len(self._registry):
+            return []
+        occurrences = [
+            sub
+            for instruction in instructions
+            for sub in iter_subexpressions(instruction)
+            if self._registry.replaced_variables_of(sub) and sub == expression
+        ]
+        return self._registry.name_candidates_of(occurrences, self._vanished)
+
+    def note_existing_replacement(self, expression: Expression, instructions: Iterable[Instruction], replacement: Variable) -> None:
+        """An existing variable replaces expression in the given instructions."""
+        if is_name_target(replacement):
+            for name, chain in self._registered_candidates(expression, instructions):
+                self._candidates.add(ssa_key(replacement), (name, chain + ("cse",)))
+
+    def name_for_new_temporary(self, temporary: Variable, expression: Expression, instructions: Iterable[Instruction]) -> Optional[NameChain]:
+        """The (name, chain) the new temporary for expression inherits, or None (a conflict is recorded in the registry)."""
+        instructions = list(instructions)
+        candidates = self._registered_candidates(expression, instructions)
+        for instruction in instructions:
+            if (
+                isinstance(instruction, Assignment)
+                and not isinstance(instruction, Phi)
+                and is_name_target(instruction.destination)
+                and instruction.value == expression
+                and (name_chain := name_chain_of(instruction.destination)) is not None
+            ):
+                candidates.append(name_chain)
+        if (resolved := resolve_candidates(candidates)) is None:
+            if candidates and self._registry is not None:
+                self._registry.conflicts.add(ssa_key(temporary))
+            return None
+        return resolved[0], resolved[1] + ("cse",)
+
+    def apply(self) -> None:
+        """Apply the names collected for existing variables (all occurrences of each SSA variable)."""
+        blocked = set()
+        if self._registry is not None:
+            self._registry.conflicts |= self._candidates.conflicts()
+            blocked = self._registry.conflicts
+        for key in apply_names(self._cfg.instructions, names := self._candidates.resolve(), blocked):
+            info(f"[common-subexpression-elimination] {key[0]}#{key[1]} inherits source name '{names[key][0]}' via cse")
+
+
 class ExistingSubexpressionReplacer:
     """Class in charge of replacing subexpression that are already assigned to a variable, if these definition dominates the usage."""
 
@@ -88,11 +170,13 @@ class ExistingSubexpressionReplacer:
         cfg: ControlFlowGraph,
         dominator_tree: NetworkXGraph,
         defining_var_of: Optional[Dict[Expression, DefinedVariable]] = None,
+        source_names: Optional[_CseSourceNames] = None,
     ):
         """Generate a new instance based on data parsed from a cfg."""
         self._cfg = cfg
         self._dominator_tree = dominator_tree
         self._defining_variable_of = defining_var_of if defining_var_of else dict()
+        self._source_names = source_names
         self._initialize_reachable_nodes_from_relation_defining()
 
     def _initialize_reachable_nodes_from_relation_defining(self) -> None:
@@ -141,6 +225,8 @@ class ExistingSubexpressionReplacer:
             while sorted_subexpressions:
                 subexpr = sorted_subexpressions.pop()
                 if subexpr in self._defining_variable_of and self._does_not_jump_over_relation(instruction, node, subexpr):
+                    if self._source_names is not None:
+                        self._source_names.note_existing_replacement(subexpr, [instruction], self._defining_variable_of[subexpr].variable)
                     instruction.substitute(subexpr, self._defining_variable_of[subexpr].variable)
                     sorted_subexpressions = sorted({expr for expr in _subexpression_dfs(instruction)}, key=lambda x: x.complexity)
             if self._is_definition_of_new_subexpression(instruction):
@@ -314,14 +400,22 @@ class CommonSubexpressionElimination(PipelineStage):
         )
         self._string_threshold = max(task.options.getint(f"{self.name}.string_threshold"), 2)
         self._min_string_length = task.options.getint(f"{self.name}.min_string_length", fallback=8)
-        ExistingSubexpressionReplacer(task.graph, task.graph.dominator_tree).replace(task.graph.root)
+        registry = getattr(task, "propagated_source_values", None)
+        source_names = _CseSourceNames(task.graph, registry if isinstance(registry, PropagatedValueRegistry) else None)
+        ExistingSubexpressionReplacer(task.graph, task.graph.dominator_tree, source_names=source_names).replace(task.graph.root)
         definition_generator = DefinitionGenerator.from_cfg(task.graph)
-        self.eliminate_common_subexpressions(definition_generator)
+        self.eliminate_common_subexpressions(definition_generator, source_names)
+        source_names.apply()
 
-    def eliminate_common_subexpressions(self, definition_generator: DefinitionGenerator):
+    def eliminate_common_subexpressions(self, definition_generator: DefinitionGenerator, source_names: Optional[_CseSourceNames] = None):
         """Function which does the actual heavy lifting."""
         for index, replacee in enumerate(self._find_elimination_candidates(definition_generator.usages)):
             replacement = Variable(f"c{index}", replacee.type, ssa_label=0)
+            if source_names is not None and (
+                name_chain := source_names.name_for_new_temporary(replacement, replacee, (usage.instruction for usage in definition_generator.usages[replacee]))
+            ):
+                # evaluation-only provenance; not part of Variable identity, never rendered
+                replacement.origin = VariableProvenance(source_name=name_chain[0], name_via=name_chain[1])
             try:
                 definition_generator.define(replacee, replacement)
                 info(f"[{self.name}] Eliminated {replacee} with {replacement}")

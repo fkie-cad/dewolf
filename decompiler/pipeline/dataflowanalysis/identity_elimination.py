@@ -12,6 +12,7 @@ from decompiler.structures.graphs.cfg import BasicBlock
 from decompiler.structures.pseudo.expressions import Constant, GlobalVariable, UnknownExpression, Variable
 from decompiler.structures.pseudo.instructions import Assignment, BaseAssignment, Instruction, Phi, Relation
 from decompiler.task import DecompilerTask
+from decompiler.util.name_inheritance import NameCandidates, PropagatedValueRegistry, apply_names, collect_occurrences, is_name_target, name_chain_of, ssa_key
 from networkx import DiGraph, node_disjoint_paths, weakly_connected_components
 from networkx.exception import NetworkXNoPath
 
@@ -304,6 +305,45 @@ class _VariableReplacer:
         return False
 
 
+class _IdentitySourceNames:
+    """
+    Evaluation-only DWARF source-name inheritance for identity elimination (never influences any IE decision).
+
+    When an identity group is merged into its replacement variable and the replacement carries no source name, it
+    inherits the name of the replaced group members if all named members agree on one name; name_via = that member's
+    chain + ("identity",). Any disagreement -> no name. Existing names are never overwritten.
+    This is a deliberate, separately tagged mechanism: the replacement may be a
+    different entity (e.g. a compiler temporary) the named variable was merely copied from, so the evaluation can
+    include or exclude names obtained this way.
+    """
+
+    def __init__(self, task: DecompilerTask):
+        self._task = task
+        registry = getattr(task, "propagated_source_values", None)
+        self._registry = registry if isinstance(registry, PropagatedValueRegistry) else None
+        # names before any merge (the replaced variables vanish during the stage)
+        self._names = {key: {nc for v in occurrences if (nc := name_chain_of(v)) is not None} for key, occurrences in collect_occurrences(task.graph.instructions).items()}
+        self._candidates = NameCandidates()
+
+    def note_merge(self, identity_group: Set[Variable], replacement) -> None:
+        if not is_name_target(replacement) or self._names.get(ssa_key(replacement)):
+            return
+        replaced_names = set()
+        for variable in identity_group:
+            if isinstance(variable, Variable) and variable != replacement:
+                replaced_names |= self._names.get(ssa_key(variable), set())
+        for name, chain in replaced_names:
+            self._candidates.add(ssa_key(replacement), (name, chain + ("identity",)))
+
+    def apply(self) -> None:
+        blocked = set()
+        if self._registry is not None:
+            self._registry.conflicts |= self._candidates.conflicts()
+            blocked = self._registry.conflicts
+        for key in apply_names(self._task.graph.instructions, names := self._candidates.resolve(), blocked):
+            info(f"[identity-elimination] {key[0]}#{key[1]} inherits source name '{names[key][0]}' via identity")
+
+
 class IdentityElimination(PipelineStage):
     """Analysis stage eliminating identities between variables by merging them."""
 
@@ -313,9 +353,12 @@ class IdentityElimination(PipelineStage):
         """Find all congruent variables in the given graph and merge them."""
         identity_graph, dataflow = self._parse_cfg(task)
         variable_replacer = _VariableReplacer(dataflow)
+        source_names = _IdentitySourceNames(task)
         for identity_group in identity_graph.yield_identities():
             if replacement_variable := identity_graph.find_replacement_variable_of_group(identity_group):
+                source_names.note_merge(identity_group, replacement_variable)
                 variable_replacer.replace_variables(identity_group, replacement_variable)
+        source_names.apply()
 
     @staticmethod
     def _parse_cfg(task: DecompilerTask) -> Tuple[_IdentityGraph, _IdentityDataflow]:

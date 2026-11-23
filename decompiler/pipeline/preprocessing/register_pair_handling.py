@@ -124,12 +124,16 @@ class RegisterPairHandling(PipelineStage):
 
         When both register halves resolve to the same DWARF source variable, the pair is one source
         variable split across two registers, so carry that source name onto the replacement. A synthetic
-        pair (e.g. a 64-bit multiplication result) has no shared name and its replacement stays unset.
+        pair (e.g. a 64-bit multiplication result) has no shared name and its replacement stays unset;
+        so does a pair where only one half is named (the other half may be an unrelated value).
+        name_via: the halves' common chain (this stage runs before Coherence, so in practice ("dwarf",));
+        if the halves agree on the name but were named differently, the name is dropped (conflict -> no name).
         """
-        source_names = {
-            half.origin.source_name for half in register_pair if half.origin is not None and half.origin.source_name is not None
-        }
-        origin = VariableProvenance(source_name=source_names.pop()) if len(source_names) == 1 else None
+        origins = [half.origin for half in register_pair]
+        origin = None
+        if all(o is not None and o.source_name is not None for o in origins):
+            if len({o.source_name for o in origins}) == 1 and len({o.name_via for o in origins}) == 1:
+                origin = VariableProvenance(source_name=origins[0].source_name, name_via=origins[0].name_via)
         return Variable(f"loc_{counter}", register_pair.type, 0, origin=origin)
 
     def _replace_definition_of_register_pair(

@@ -32,7 +32,7 @@ from __future__ import annotations
 import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Generic, Iterator, List, Optional, Tuple, TypeVar, Union, final
+from typing import TYPE_CHECKING, FrozenSet, Generic, Iterator, List, Optional, Tuple, TypeVar, Union, final
 
 from ...util.insertion_ordered_set import InsertionOrderedSet
 from .complextypes import Enum
@@ -55,19 +55,17 @@ class Tag:
 
 @dataclass
 class VariableProvenance:
-    """
-    Where a Variable came from in the analysed binary: its storage location (source_type + storage),
-    the instruction and function that define it, and the matched DWARF source name.
-
-    Stamped at lift time. This is metadata only: it is NOT part of Variable identity (see __eq__/__hash__) and is NOT rendered in output.
-    """
+    """Where a Variable came from in the binary. Metadata only: not part of identity, not printed."""
 
     source_type: Optional[str] = None  # BN Variable.source_type.name, e.g. 'StackVariableSourceType'
     storage: Optional[int] = None  # stack: signed offset rel. SP-at-entry; register: BN register index
-    def_address: Optional[int] = None  # binary address of the defining instruction (not an IL index)
+    value_address: Optional[int] = None  # first address where the value is live (DWARF lookup address)
     function: Optional[int] = None  # BN function start address
-    has_real_def: bool = False  # False for version-0 / parameters (no defining instruction)
+    has_real_def: bool = False  # False for version-0 / parameters (no variable or memory definition)
     source_name: Optional[str] = None  # matched C source-variable name from DWARF (None if unknown)
+    name_via: Tuple[str, ...] = ()  # how source_name was obtained, e.g. ("dwarf", "cse")
+    dwarf_ambiguous: bool = False  # several DWARF variables matched: no name may be inferred for it
+    dwarf_storage_names: FrozenSet[str] = frozenset()  # source variables DWARF places in this storage anywhere in the function
 
 
 class DataflowObject(ABC):

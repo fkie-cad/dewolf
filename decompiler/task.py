@@ -2,14 +2,15 @@
 
 from dataclasses import dataclass, field
 from logging import error
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.pseudo import Integer
 from decompiler.structures.pseudo.complextypes import ComplexTypeMap
-from decompiler.structures.pseudo.expressions import Variable
+from decompiler.structures.pseudo.expressions import Variable, VariableProvenance
 from decompiler.structures.pseudo.typing import Type
+from decompiler.util.name_inheritance import PropagatedValueRegistry
 from decompiler.util.options import Options
 
 
@@ -28,6 +29,8 @@ class DecompilerTask:
     function_parameters: List[Variable] = field(default_factory=list)
     function_parameter_locations: List[str | None] = field(default_factory=list)
     complex_types: ComplexTypeMap = field(default_factory=ComplexTypeMap)
+    propagated_source_values: PropagatedValueRegistry = field(default_factory=PropagatedValueRegistry, repr=False)  # DWARF evaluation only
+    aliased_version_origins: Dict[Tuple[str, int], VariableProvenance] = field(default_factory=dict, repr=False)  # DWARF evaluation only
 
     _failure_origin: str | None = field(default=None, init=False)
 

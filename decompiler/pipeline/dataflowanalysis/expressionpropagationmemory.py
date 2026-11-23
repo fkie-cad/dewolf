@@ -105,6 +105,6 @@ class ExpressionPropagationMemory(ExpressionPropagationBase):
                         continue
                     old_instr = str(instruction)
                     block, index = self._blocks_map.get(old_instr).pop()
-                    instruction.substitute(var, definition.value.copy())
+                    self._substitute_by_definition_value(instruction, var, definition)
                     self._update_use_map(var, instruction)
                     self._update_block_map(old_instr, str(instruction), block, index)

@@ -28,8 +28,11 @@ function, every entry sharing the same keys so the file is uniform to parse:
   * ``report``:  the analysis (matches, tallies, over-/under-merges, conflicts, code snapshots,
     edges) when status is ``"success"``, otherwise ``null``
 
+Merge-quality metrics per certainty level (``metrics`` per function and in total) are described in
+README_DWARF.md, section 4.
+
 Usage (dewolf venv, binaryninja importable, cwd = dewolf repo):
-  python3 report_variable_matching.py BINARY [fn1,fn2,...] [output.json] [-q/--quiet]
+  python3 report_variable_matching.py BINARY [fn1,fn2,...] [output.json] [-q/--quiet] [--mechanisms dwarf,cse]
 
 Pass -q/--quiet to suppress all terminal output (still writes the JSON) - useful for larger
 evaluations. To view any field (including the code snapshots and edges) back out of the JSON
@@ -49,7 +52,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, DefaultDict, Dict, Iterator, List, Set, Tuple
+from itertools import combinations
+from typing import Any, Callable, DefaultDict, Dict, FrozenSet, Iterable, Iterator, List, Set, Tuple
 
 from decompiler.frontend.binaryninja.frontend import BinaryninjaFrontend
 from decompiler.pipeline.default import CFG_STAGES
@@ -57,6 +61,7 @@ from decompiler.pipeline.pipeline import PREPROCESSING_STAGES, DecompilerPipelin
 from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.structures.graphs.branches import SwitchCase
 from decompiler.structures.graphs.cfg import ControlFlowGraph
+from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo import Constant, GlobalVariable, Instruction, Variable
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
@@ -134,6 +139,7 @@ class FunctionReport:
     code_preprocessed: List[CodeBlock]  # CFG after preprocessing; lines annotated with DWARF source names
     code: List[CodeBlock]  # post-out-of-SSA CFG; lines annotated with SSA origins
     edges: List[CfgEdge]
+    metrics: "FunctionMetrics | None" = None  # merge-quality metrics per certainty level
 
     @property
     def matched(self) -> int:
@@ -256,6 +262,240 @@ class FunctionReport:
 
 
 # --------------------------------------------------------------------------------------------- #
+# Merge-quality metrics (pure functions on plain data; see README_DWARF.md, section 4)
+# --------------------------------------------------------------------------------------------- #
+
+
+@dataclass(frozen=True)
+class Level:
+    """A certainty level: a name counts if every mechanism of its chain is in ``mechanisms``."""
+
+    name: str
+    mechanisms: FrozenSet[str]
+
+    def admits(self, via: Tuple[str, ...]) -> bool:
+        return bool(via) and set(via) <= self.mechanisms
+
+
+_L1 = frozenset({"dwarf"})
+_L2 = _L1 | {"propagation", "cse"}
+_L3 = _L2 | {"coherence"}
+_L4 = _L3 | {"copy"}
+_L5 = _L4 | {"identity"}
+DEFAULT_LEVELS: Tuple[Level, ...] = (
+    Level("L1 observed", _L1),
+    Level("L2 +inherited", _L2),
+    Level("L3 +coherence", _L3),
+    Level("L4 +copy (value of)", _L4),
+    Level("L5 +identity", _L5),
+)
+
+
+@dataclass(frozen=True)
+class Unit:
+    """One SSA variable: its id ("name#label"), output name after out-of-SSA, and source label."""
+
+    id: str
+    output: str
+    source: str | None = None
+    via: Tuple[str, ...] = ()
+
+
+def format_chain(via: Tuple[str, ...]) -> str:
+    """Compact rendering of a chain, e.g. ``dwarf>propagation``."""
+    return ">".join(via)
+
+
+def first_level(via: Tuple[str, ...], levels: Iterable[Level] = DEFAULT_LEVELS) -> str:
+    """The first (most certain) level that admits a name with this chain."""
+    return next((level.name for level in levels if level.admits(via)), "-")
+
+
+def labeled_units(units: Iterable[Unit], level: Level) -> List[Unit]:
+    """The units that carry a source name admitted by ``level``, sorted by id."""
+    return sorted((unit for unit in units if unit.source is not None and level.admits(unit.via)), key=lambda unit: unit.id)
+
+
+def _ratio(numerator: float, denominator: float) -> float | None:
+    return numerator / denominator if denominator else None
+
+
+@dataclass(frozen=True)
+class ErrorPair:
+    """FP (different source, same output name) or FN (same source, different output names)."""
+
+    kind: str  # "FP" | "FN"
+    a: Unit
+    b: Unit
+    interfering: bool  # both SSA variables are live at the same time
+
+
+@dataclass
+class LevelMetrics:
+    """Pair counts of one level (for one function, or summed over functions)."""
+
+    level: str
+    units: int = 0  # all SSA-variable units
+    labeled: int = 0  # units labeled at this level
+    sources: int = 0  # distinct source names among the labeled units (summed per function)
+    tp: int = 0
+    fp: int = 0
+    fn: int = 0
+    fn_interfering: int = 0  # FN pairs that interfere, left out of the achievable recall
+
+    @property
+    def precision(self) -> float | None:
+        return _ratio(self.tp, self.tp + self.fp)
+
+    @property
+    def recall(self) -> float | None:
+        return _ratio(self.tp, self.tp + self.fn)
+
+    @property
+    def recall_achievable(self) -> float | None:
+        return _ratio(self.tp, self.tp + self.fn - self.fn_interfering)
+
+    @property
+    def f1(self) -> float | None:
+        return _ratio(2 * self.tp, 2 * self.tp + self.fp + self.fn)
+
+    @property
+    def f1_achievable(self) -> float | None:
+        return _ratio(2 * self.tp, 2 * self.tp + self.fp + self.fn - self.fn_interfering)
+
+    def add(self, other: LevelMetrics) -> None:
+        for name in ("units", "labeled", "sources", "tp", "fp", "fn", "fn_interfering"):
+            setattr(self, name, getattr(self, name) + getattr(other, name))
+
+    def to_dict(self) -> Dict[str, Any]:
+        names = ("level", "units", "labeled", "sources", "tp", "fp", "fn", "fn_interfering")
+        names += ("precision", "recall", "recall_achievable", "f1", "f1_achievable")
+        return {name: getattr(self, name) for name in names}
+
+
+def pairwise_errors(labeled: List[Unit], interference: Set[FrozenSet[str]] | None) -> Tuple[int, List[ErrorPair]]:
+    """(#TP pairs, FP and FN pairs) over all unordered pairs of the given units."""
+    tp = 0
+    errors: List[ErrorPair] = []
+    for a, b in combinations(labeled, 2):
+        same_source, same_output = a.source == b.source, a.output == b.output
+        interfering = interference is not None and frozenset((a.id, b.id)) in interference
+        if same_source and same_output:
+            tp += 1
+        elif same_output:
+            errors.append(ErrorPair("FP", a, b, interfering))
+        elif same_source:
+            errors.append(ErrorPair("FN", a, b, interfering))
+    return tp, errors
+
+
+def level_metrics(units: List[Unit], level: Level, interference: Set[FrozenSet[str]] | None) -> Tuple[LevelMetrics, List[ErrorPair]]:
+    """All counts of one level for one function, plus its FP/FN pairs."""
+    labeled = labeled_units(units, level)
+    tp, errors = pairwise_errors(labeled, interference)
+    metrics = LevelMetrics(
+        level=level.name,
+        units=len(units),
+        labeled=len(labeled),
+        sources=len({unit.source for unit in labeled}),
+        tp=tp,
+        fp=sum(1 for error in errors if error.kind == "FP"),
+        fn=sum(1 for error in errors if error.kind == "FN"),
+        fn_interfering=sum(1 for error in errors if error.kind == "FN" and error.interfering),
+    )
+    return metrics, errors
+
+
+def error_to_dict(error: ErrorPair, levels: Iterable[Level]) -> Dict[str, Any]:
+    """An error pair with the chain of both names and the first level at which the pair counts."""
+    in_levels = [level.name for level in levels if level.admits(error.a.via) and level.admits(error.b.via)]
+    side = lambda unit: {"ssa": unit.id, "output": unit.output, "source": unit.source, "via": list(unit.via)}
+    return {"kind": error.kind, "interfering": error.interfering, "first_level": in_levels[0] if in_levels else None, "a": side(error.a), "b": side(error.b)}
+
+
+@dataclass
+class FunctionMetrics:
+    """Merge-quality metrics of one function at every level, plus coverage and the error pairs."""
+
+    levels: List[LevelMetrics]
+    errors: List[ErrorPair]  # FP/FN pairs over the union of all levels
+    units: int
+    named_units: int  # units with any source name
+    conflicts: Dict[str, List[str]]  # unit id -> differing labels/outputs seen on its occurrences
+    lost: List[str]  # DWARF variables of the function that are the source of no unit
+    interference_available: bool
+
+
+def compute_function_metrics(
+    units: List[Unit],
+    levels: Iterable[Level],
+    interference: Set[FrozenSet[str]] | None,
+    dwarf_variables: Iterable[str] = (),
+    conflicts: Dict[str, List[str]] | None = None,
+) -> FunctionMetrics:
+    """Every level's metrics; the error pairs come from the union of all levels."""
+    levels = list(levels)
+    per_level = [level_metrics(units, level, interference)[0] for level in levels]
+    _, errors = level_metrics(units, Level("union", frozenset().union(*(level.mechanisms for level in levels))), interference)
+    seen_sources = {unit.source for unit in units if unit.source is not None}
+    return FunctionMetrics(
+        levels=per_level,
+        errors=errors,
+        units=len(units),
+        named_units=sum(1 for unit in units if unit.source is not None),
+        conflicts=dict(conflicts or {}),
+        lost=sorted(set(dwarf_variables) - seen_sources),
+        interference_available=interference is not None,
+    )
+
+
+def total_metrics(functions: Iterable[FunctionMetrics], levels: Iterable[Level]) -> List[LevelMetrics]:
+    """Per level: the counts summed over all functions."""
+    total = [LevelMetrics(level=level.name) for level in levels]
+    for function in functions:
+        for summed, metrics in zip(total, function.levels):
+            summed.add(metrics)
+    return total
+
+
+def _mechanisms(level: Level) -> List[str]:
+    return sorted(level.mechanisms)
+
+
+def function_metrics_to_dict(metrics: FunctionMetrics, levels: Iterable[Level]) -> Dict[str, Any]:
+    levels = list(levels)
+    return {
+        "levels": [level_data.to_dict() | {"mechanisms": _mechanisms(level)} for level_data, level in zip(metrics.levels, levels)],
+        "coverage": {
+            "units": metrics.units,
+            "named_units": metrics.named_units,
+            "conflicts": metrics.conflicts,
+            "lost_dwarf_variables": metrics.lost,
+        },
+        "interference_available": metrics.interference_available,
+        "fp_pairs": [error_to_dict(error, levels) for error in metrics.errors if error.kind == "FP"],
+        "fn_pairs": [error_to_dict(error, levels) for error in metrics.errors if error.kind == "FN"],
+    }
+
+
+def total_metrics_to_dict(total: List[LevelMetrics], functions: Iterable[FunctionMetrics], levels: Iterable[Level]) -> Dict[str, Any]:
+    functions = list(functions)
+    return {
+        "functions": len(functions),
+        "levels": [level_data.to_dict() | {"mechanisms": _mechanisms(level)} for level_data, level in zip(total, levels)],
+        "lost_dwarf_variables": sum(len(function.lost) for function in functions),
+    }
+
+
+def parse_levels(mechanisms: str | None) -> List[Level]:
+    """The default levels, plus a "custom" level when ``--mechanisms a,b,...`` is given."""
+    levels = list(DEFAULT_LEVELS)
+    if mechanisms:
+        levels.append(Level("custom", frozenset(name.strip() for name in mechanisms.split(",") if name.strip())))
+    return levels
+
+
+# --------------------------------------------------------------------------------------------- #
 # Variable matching (classify each dewolf Variable's source, then collect matches across the CFG)
 # --------------------------------------------------------------------------------------------- #
 
@@ -295,6 +535,47 @@ def _lifted_id(variable: Variable) -> str | None:
     """The "name#label" identifier of the SSA variable this occurrence replaced, if any."""
     lifted = variable.ssa_name
     return f"{lifted.name}#{lifted.ssa_label}" if lifted is not None else None
+
+
+def collect_units(graph: ControlFlowGraph) -> Tuple[List[Unit], Dict[str, List[str]]]:
+    """One Unit per SSA variable (the ssa_name of its occurrences), plus the units whose occurrences disagree.
+
+    Different source names: unlabeled, reported as conflict. Same name, different chains: the most certain chain.
+    """
+    outputs: DefaultDict[str, Set[str]] = defaultdict(set)
+    labels: DefaultDict[str, Set[Tuple[str, Tuple[str, ...]]]] = defaultdict(set)
+    for instruction in graph.instructions:
+        for variable in _variables_of(instruction):
+            if isinstance(variable, GlobalVariable) or variable.ssa_name is None:
+                continue
+            unit_id = _lifted_id(variable)
+            outputs[unit_id].add(variable.name)
+            origin = variable.origin
+            if origin is not None and origin.source_name is not None:
+                labels[unit_id].add((origin.source_name, tuple(origin.name_via)))
+    level_rank = {level.name: index for index, level in enumerate(DEFAULT_LEVELS)}
+    units: List[Unit] = []
+    conflicts: Dict[str, List[str]] = {}
+    for unit_id in sorted(outputs):
+        names = sorted(outputs[unit_id])
+        sources = {source for source, _ in labels[unit_id]}
+        source, via = None, ()
+        if len(sources) == 1:
+            source = next(iter(sources))
+            via = min((chain for _, chain in labels[unit_id]), key=lambda chain: (level_rank.get(first_level(chain), len(level_rank)), chain))
+        elif len(sources) > 1:
+            conflicts[unit_id] = sorted(f"{name}[{format_chain(chain)}]" for name, chain in labels[unit_id])
+        if len(names) > 1:
+            conflicts[unit_id] = conflicts.get(unit_id, []) + [f"output names: {', '.join(names)}"]
+        units.append(Unit(id=unit_id, output=names[0], source=source, via=via))
+    return units, conflicts
+
+
+def interference_pairs(graph: ControlFlowGraph) -> Set[FrozenSet[str]]:
+    """The interfering SSA-variable pairs ({"name#label", "name#label"}) of an SSA CFG, computed with
+    dewolf's own InterferenceGraph (the one out-of-SSA uses). Must be called right before out-of-SSA."""
+    graph_interference = InterferenceGraph(graph)
+    return {frozenset((f"{a.name}#{a.ssa_label}", f"{b.name}#{b.ssa_label}")) for a, b in graph_interference.edges}
 
 
 def classify_source(variable: Variable) -> Tuple[str | None, MatchKind]:
@@ -384,15 +665,19 @@ def extract_edges(graph: ControlFlowGraph) -> List[CfgEdge]:
 # --------------------------------------------------------------------------------------------- #
 
 
-def build_function_report(name: str, result: DecompilationResult) -> FunctionReport:
-    """Assemble the matches, code snapshots, and edges into a FunctionReport from a decompiled task's CFG."""
+def build_function_report(
+    name: str, result: DecompilationResult, levels: Iterable[Level] = DEFAULT_LEVELS, dwarf_variables: Iterable[str] = ()
+) -> FunctionReport:
+    """Assemble the matches, code snapshots, edges, and merge-quality metrics into a FunctionReport."""
     graph = result.task.graph  # post-out-of-SSA CFG
+    units, conflicts = collect_units(graph)
     return FunctionReport(
         name=name,
         matches=collect_matches(graph),
         code_preprocessed=result.code_preprocessed,
         code=extract_code(graph, describe=ssa_origin),
         edges=extract_edges(graph),
+        metrics=compute_function_metrics(units, levels, result.interference, dwarf_variables, conflicts),
     )
 
 
@@ -413,6 +698,8 @@ class DecompilationResult:
 
     task: DecompilerTask
     code_preprocessed: List[CodeBlock]
+    # interfering SSA-variable pairs right before out-of-SSA (None if it could not be computed)
+    interference: Set[FrozenSet[str]] | None = None
 
 
 class OutOfSsaDecompiler:
@@ -420,7 +707,8 @@ class OutOfSsaDecompiler:
 
     The pipeline is split at the preprocessing boundary so the CFG can be snapshot in between:
     preprocessing runs, the source-name-annotated code is captured, then the CFG stages and
-    out-of-SSA run. Two DecompilerPipeline.run calls are equivalent to one combined run - run()
+    out-of-SSA run; right before out-of-SSA the interference graph is captured (achievable recall).
+    Several DecompilerPipeline.run calls are equivalent to one combined run - run()
     early-returns on task.failed, and no CFG/out-of-SSA stage depends on a preprocessing stage
     (the only declared dependency, bitfield-comparison-unrolling -> expression-propagation, is
     within the post-preprocessing phase), so each pipeline validates on its own.
@@ -429,13 +717,14 @@ class OutOfSsaDecompiler:
     _frontend: BinaryninjaFrontend
     _options: Options
     _preprocessing: DecompilerPipeline
-    _post_preprocessing: DecompilerPipeline
+    _cfg_stages: DecompilerPipeline
+    _out_of_ssa: DecompilerPipeline
 
     def __init__(self, frontend: BinaryninjaFrontend, options: Options) -> None:
         """Store the frontend/options and build the preprocessing and post-preprocessing pipelines."""
         self._frontend = frontend
         self._options = options
-        self._preprocessing, self._post_preprocessing = self._build_pipelines(options)
+        self._preprocessing, self._cfg_stages, self._out_of_ssa = self._build_pipelines(options)
 
     def run(self, name: str) -> DecompilationResult:
         """Lift, run preprocessing, snapshot the source-name-annotated code, then run the rest."""
@@ -443,12 +732,19 @@ class OutOfSsaDecompiler:
         self._frontend.lift(task)
         self._preprocessing.run(task)
         code_preprocessed = extract_code(task.graph, describe=source_name)
-        self._post_preprocessing.run(task)
-        return DecompilationResult(task=task, code_preprocessed=code_preprocessed)
+        self._cfg_stages.run(task)
+        interference = None
+        if not task.failed:
+            try:
+                interference = interference_pairs(task.graph)
+            except Exception as exc:  # evaluation only: fall back to raw recall
+                logging.warning(f"{name}: interference graph failed ({type(exc).__name__}: {exc}); achievable recall = raw recall")
+        self._out_of_ssa.run(task)
+        return DecompilationResult(task=task, code_preprocessed=code_preprocessed, interference=interference)
 
     @staticmethod
-    def _build_pipelines(options: Options) -> Tuple[DecompilerPipeline, DecompilerPipeline]:
-        """Build the (preprocessing, post-preprocessing) pipeline pair.
+    def _build_pipelines(options: Options) -> Tuple[DecompilerPipeline, DecompilerPipeline, DecompilerPipeline]:
+        """Build the (preprocessing, CFG stages, out-of-SSA) pipelines.
 
         decompile.py does NOT run the full default.CFG_STAGES list: it selects CFG stages BY NAME
         from the ``pipeline.cfg_stages`` option (via DecompilerPipeline.from_strings), which omits
@@ -459,8 +755,8 @@ class OutOfSsaDecompiler:
         """
         name_to_stage = {stage.name: stage for stage in CFG_STAGES}
         post_stages = [name_to_stage[name] for name in options.getlist("pipeline.cfg_stages") if name in name_to_stage]
-        post_stages.append(OutOfSsaTranslation)
-        return DecompilerPipeline(PREPROCESSING_STAGES.copy()), DecompilerPipeline(post_stages)
+        return DecompilerPipeline(PREPROCESSING_STAGES.copy()), DecompilerPipeline(post_stages), DecompilerPipeline([OutOfSsaTranslation])
+
 
 
 # --------------------------------------------------------------------------------------------- #
@@ -489,6 +785,45 @@ class TextReportRenderer:
         self._render_collisions("over-merged variables (one name -> multiple source variables)", report.overmerged())
         self._render_collisions("under-merged variables (one source variable -> multiple names)", report.undermerged())
         self._render_collisions("conflicts (one SSA variable -> multiple source variables)", report.conflicts())
+        if report.metrics is not None:
+            self.render_metrics(report.metrics)
+
+    @staticmethod
+    def _fmt(value: float | None) -> str:
+        return f"{value:6.3f}" if value is not None else f"{'-':>6}"
+
+    def _render_metric_table(self, rows: List[LevelMetrics], indent: str = "    ") -> None:
+        print(f"{indent}{'level':15} {'labeled':>9} {'P':>6} {'R':>6} {'R_ach':>6} {'F1':>6} {'F1_ach':>6}   TP/FP/FN (FN interfering)")
+        for row in rows:
+            ratio = f"{row.labeled}/{row.units}"
+            values = " ".join(self._fmt(value) for value in (row.precision, row.recall, row.recall_achievable, row.f1, row.f1_achievable))
+            print(f"{indent}{row.level:15} {ratio:>9} {values}   {row.tp}/{row.fp}/{row.fn} ({row.fn_interfering})")
+
+    def render_metrics(self, metrics: FunctionMetrics) -> None:
+        """Print the per-level metric table, coverage, and the FP/FN pairs."""
+        interference = "" if metrics.interference_available else "; interference UNAVAILABLE, R_ach = R"
+        print(f"  ### merge quality (pairs of labeled SSA variables; {metrics.units} units, {metrics.named_units} named{interference})")
+        self._render_metric_table(metrics.levels)
+        if metrics.conflicts:
+            print(f"    unit conflicts: " + "; ".join(f"{unit}: {', '.join(values)}" for unit, values in metrics.conflicts.items()))
+        if metrics.lost:
+            print(f"    DWARF variables on no unit (lost): {', '.join(metrics.lost)}")
+        if metrics.errors:
+            print("    errors (level = first level at which the pair counts):")
+            for error in sorted(metrics.errors, key=lambda error: (error.kind, error.a.source or "", error.a.output, error.a.id, error.b.id)):
+                print(f"      {self._format_error(error)}")
+
+    @staticmethod
+    def _format_error(error: ErrorPair) -> str:
+        level = first_level(error.a.via + error.b.via)
+        side = lambda unit: f"{unit.id}->{unit.output} {unit.source}[{format_chain(unit.via)}]"
+        flag = "  (interfering)" if error.interfering else ""
+        return f"{error.kind} [{level}] {side(error.a)}  vs  {side(error.b)}{flag}"
+
+    def render_total(self, total: List[LevelMetrics], functions: int) -> None:
+        """Print the table summed over all functions."""
+        print(f"\n## TOTAL over {functions} analyzed function(s) (summed pair counts)")
+        self._render_metric_table(total, indent="  ")
 
     @staticmethod
     def render_written(output_path: str) -> None:
@@ -547,9 +882,15 @@ class NullReportRenderer:
     def render_written(self, output_path: str) -> None:
         pass
 
+    def render_total(self, total: List[LevelMetrics], functions: int) -> None:
+        pass
+
 
 class JsonReportSerializer:
     """Serializes a FunctionReport to a JSON-ready dict."""
+
+    def __init__(self, levels: Iterable[Level] = DEFAULT_LEVELS) -> None:
+        self._levels = list(levels)
 
     def function_to_dict(self, report: FunctionReport) -> Dict[str, Any]:
         """Convert a FunctionReport into a JSON-serializable dict of all its fields and analyses."""
@@ -566,6 +907,7 @@ class JsonReportSerializer:
             "code_preprocessed": [self._block_to_dict(block) for block in report.code_preprocessed],
             "code": [self._block_to_dict(block) for block in report.code],
             "edges": [self._edge_to_dict(edge) for edge in report.edges],
+            "metrics": function_metrics_to_dict(report.metrics, self._levels) if report.metrics is not None else None,
         }
 
     @staticmethod
@@ -617,7 +959,25 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser.add_argument("output", nargs="?", default=None, help="output JSON path (default: variable_matching_<binary-name>.json)")
     parser.add_argument("-q", "--quiet", action="store_true", help="suppress all terminal output (still writes the JSON)")
     parser.add_argument("--ssa-algo", dest="ssa_algo", default="min", help="SSA elimination algorithm (default: variable renaming)")
+    parser.add_argument(
+        "--mechanisms",
+        default=None,
+        help="extra 'custom' certainty level: comma-separated name_via mechanisms that count "
+        "(dwarf, propagation, cse, coherence, copy, identity), e.g. dwarf,cse",
+    )
     return parser.parse_args(argv)
+
+
+def _dwarf_variables(binary: str) -> Dict[str, List[str]]:
+    """{function: [DWARF local/parameter names]}; empty if unavailable."""
+    try:
+        from decompiler.frontend.binaryninja.dwarf import DwarfVariableResolver
+
+        functions = DwarfVariableResolver.for_path(binary)._functions
+        return {name: [variable.name for variable in function.variables] for name, function in functions.items()}
+    except Exception as exc:  # evaluation only: report without the lost-variable list
+        logging.warning(f"DWARF inventory unavailable ({type(exc).__name__}: {exc}); lost variables are not reported")
+        return {}
 
 
 def main(argv: List[str] | None = None) -> None:
@@ -637,7 +997,10 @@ def main(argv: List[str] | None = None) -> None:
     frontend = BinaryninjaFrontend.from_path(args.binary, options)
     decompiler = OutOfSsaDecompiler(frontend, options)
     renderer = NullReportRenderer() if args.quiet else TextReportRenderer()
-    serializer = JsonReportSerializer()
+    levels = parse_levels(args.mechanisms)
+    serializer = JsonReportSerializer(levels)
+    dwarf_variables = _dwarf_variables(args.binary)
+    all_metrics: List[FunctionMetrics] = []
 
     functions: Dict[str, Dict[str, Any]] = {}
     for name in frontend.get_all_function_names():
@@ -658,7 +1021,7 @@ def main(argv: List[str] | None = None) -> None:
             continue
 
         try:
-            report: FunctionReport = build_function_report(name, result)
+            report: FunctionReport = build_function_report(name, result, levels, dwarf_variables.get(name, ()))
             serialized_report = serializer.function_to_dict(report)
         except Exception as exc:
             message = f"building the report for {name} failed after a successful decompilation: {type(exc).__name__}: {exc}"
@@ -668,8 +1031,14 @@ def main(argv: List[str] | None = None) -> None:
 
         renderer.render(report)  # I/O: pipe/print errors propagate, not miscategorized as a function error
         functions[name] = {"status": "success", "message": None, "report": serialized_report}
+        if report.metrics is not None:
+            all_metrics.append(report.metrics)
 
-    Path(output_path).write_text(json.dumps({"binary": args.binary, "functions": functions}, indent=2))
+    total = total_metrics(all_metrics, levels)
+    renderer.render_total(total, len(all_metrics))
+    metrics = total_metrics_to_dict(total, all_metrics, levels)
+    output = {"binary": args.binary, "functions": functions, "metrics": metrics}
+    Path(output_path).write_text(json.dumps(output, indent=2))
     renderer.render_written(output_path)
 
 

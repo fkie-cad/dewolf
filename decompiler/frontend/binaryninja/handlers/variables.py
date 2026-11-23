@@ -1,12 +1,15 @@
 """Module implementing variable lifting for the binaryninja observer lifer."""
 
-from typing import Optional
+from dataclasses import replace
+from typing import Dict, List, Optional, Set, Tuple
 
 from binaryninja import (
     FunctionParameter,
     MediumLevelILInstruction,
+    MediumLevelILMemPhi,
     MediumLevelILVar,
     MediumLevelILVarAliased,
+    MediumLevelILVarPhi,
     MediumLevelILVarSplitSsa,
     MediumLevelILVarSsa,
     SSAVariable,
@@ -20,6 +23,10 @@ from decompiler.structures.pseudo import VariableProvenance
 
 class VariableHandler(Handler):
     """Handler for binaryninja's variable objects."""
+
+    def __init__(self, lifter):
+        super().__init__(lifter)
+        self._aliased_vars: Dict[int, Set[bVariable]] = {}  # function start -> its aliased variables
 
     def register(self):
         """Register the handler at the parent lifter."""
@@ -36,17 +43,21 @@ class VariableHandler(Handler):
         )
         self._lifter.lift_variable = self.lift_variable
         self._lifter.lift_variable_ssa = self.lift_variable_ssa
+        self._lifter.aliased_version_origins = self.aliased_version_origins
 
     def lift_variable(
         self, variable: bVariable, is_aliased: bool = True, parent: Optional[MediumLevelILInstruction] = None, **kwargs
     ) -> Variable:
         """Lift the given non-ssa variable, annotating the memory version of the parent instruction, if available."""
+        ssa_label = parent.ssa_memory_version if parent else 0
+        # an aliased variable (e.g. in &x) is the SSA version x#ssa_label: give it that version's provenance
+        ssa_variable = SSAVariable(variable, ssa_label) if parent and self._is_aliased(variable) else None
         return Variable(
             variable.name,
             self._lifter.lift(variable.type),
-            ssa_label=parent.ssa_memory_version if parent else 0,
+            ssa_label=ssa_label,
             is_aliased=is_aliased,
-            origin=self._variable_provenance(variable)
+            origin=self._variable_provenance(variable, ssa_variable)
         )
 
     def lift_function_parameter(self, variable: FunctionParameter) -> Variable:
@@ -66,11 +77,8 @@ class VariableHandler(Handler):
     def _variable_provenance(self, bnv: bVariable, ssa_variable: Optional[SSAVariable] = None) -> Optional[VariableProvenance]:
         """Build provenance (storage location + DWARF source name) from a Binary Ninja variable.
 
-        def_address is the binary address of the SSA version's defining instruction, so it is set
-        only when ssa_variable is given: the real def address (has_real_def=True) if one exists,
-        else the function start as a fallback for version-0/parameters (has_real_def=False). It
-        stays None for the non-SSA case. Provenance is optional metadata: any failure returns None
-        and never breaks lifting.
+        value_address is set only when ssa_variable is given (see _value_address); it stays None for
+        the non-SSA case. Provenance is optional metadata: any failure returns None and never breaks lifting.
 
         Consumed by external tooling that maps dewolf variables to DWARF source variables using the
         variable NAME as a join key, so do not rename lifted variables without coordinating.
@@ -81,34 +89,136 @@ class VariableHandler(Handler):
             storage = bnv.storage
         except Exception:
             return None
-        def_address, has_real_def = None, False
+        def_address, has_real_def, definition = None, False, None
         if ssa_variable is not None and bnv.function is not None:
             try:
                 definition = bnv.function.mlil.ssa_form.get_ssa_var_definition(ssa_variable)
             except Exception:
                 definition = None
+            if definition is None and ssa_variable.version > 0 and self._is_aliased(bnv):
+                # aliased versions written through memory (call, store, mem-phi) only have a memory definition
+                definition = self._memory_definition(bnv.function, ssa_variable.version)
             if definition is not None:
                 def_address, has_real_def = definition.address, True
             else:
                 def_address = function  # version 0 / parameter: no defining instruction
         origin = VariableProvenance(
-            source_type=source_type, storage=storage, def_address=def_address, function=function, has_real_def=has_real_def
+            source_type=source_type,
+            storage=storage,
+            function=function,
+            has_real_def=has_real_def,
+            value_address=self._value_address(def_address, definition if has_real_def else None),
         )
-        origin.source_name = self._resolve_source_name(origin, bnv)
+        uses = self._use_addresses(bnv, ssa_variable, def_address, origin.value_address)
+        origin.source_name = self._resolve_source_name(origin, bnv, uses)
+        origin.name_via = ("dwarf",) if origin.source_name is not None else ()
+        try:
+            origin.dwarf_storage_names = self._lifter.dwarf.storage_names(origin, bnv.function.name, self._lifter.bv.arch.get_reg_name)
+        except Exception:
+            origin.dwarf_storage_names = frozenset()
         return origin
 
-    def _resolve_source_name(self, origin: VariableProvenance, bnv: bVariable) -> Optional[str]:
+    def _value_address(self, def_address: Optional[int], definition) -> Optional[int]:
+        """Return the first address at which the value defined at def_address is live.
+
+        DWARF describes the state before an instruction executes, so a written value only exists from the
+        next instruction on. Phis and parameters already hold their value at def_address.
+        """
+        if def_address is None:
+            return None
+        if definition is None or isinstance(definition, (MediumLevelILVarPhi, MediumLevelILMemPhi)):
+            return def_address
+        try:
+            length = self._lifter.bv.get_instruction_length(def_address)
+        except Exception:
+            return None
+        return def_address + length if length else None
+
+    @staticmethod
+    def _use_addresses(bnv: bVariable, ssa_variable: Optional[SSAVariable], def_address, value_address) -> List[int]:
+        """Addresses of the instructions reading this SSA version; the value is in its storage right before each.
+
+        Skipped: phi uses (the value only flows along an edge), uses in the defining instruction itself
+        (there the storage still holds the previous value) and uses where the storage already holds another
+        version (Binary Ninja may place a use after the instruction that actually reads it).
+        """
+        if ssa_variable is None or bnv.function is None:
+            return []
+        try:
+            uses = bnv.function.mlil.ssa_form.get_ssa_var_uses(ssa_variable)
+        except Exception:
+            return []
+        skip = {value_address} if def_address == value_address else {def_address, value_address}
+        return sorted({use.address for use in uses if VariableHandler._holds_version(use, ssa_variable)} - skip)
+
+    @staticmethod
+    def _holds_version(use: MediumLevelILInstruction, ssa_variable: SSAVariable) -> bool:
+        """Return whether the storage holds exactly this SSA version right before the (non-phi) use."""
+        if isinstance(use, (MediumLevelILVarPhi, MediumLevelILMemPhi)):
+            return False
+        try:
+            return use.get_ssa_var_version(ssa_variable.var) == ssa_variable.version
+        except Exception:
+            return False
+
+    def aliased_version_origins(self, function) -> Dict[Tuple[str, int], VariableProvenance]:
+        """Provenance of each aliased variable at each memory version, also for versions only preprocessing creates."""
+        try:
+            ssa = function.mlil.ssa_form
+            versions = {k for i in ssa.instructions for k in (i.ssa_memory_version, i.ssa_memory_version_after)}
+            origins = {(v.name, k): self._variable_provenance(v, SSAVariable(v, k)) for v in self._aliased(function) for k in versions}
+        except Exception:
+            return {}
+        return {key: origin for key, origin in origins.items() if origin is not None}
+
+    def _is_aliased(self, bnv: bVariable) -> bool:
+        """Return whether the variable lives in memory, i.e. its SSA versions are memory versions."""
+        try:
+            return bnv.function is not None and bnv in self._aliased(bnv.function)
+        except Exception:
+            return False
+
+    def _aliased(self, function) -> Set[bVariable]:
+        if function.start not in self._aliased_vars:
+            self._aliased_vars[function.start] = set(function.mlil.ssa_form.aliased_vars)
+        return self._aliased_vars[function.start]
+
+    @staticmethod
+    def _memory_definition(function, version: int) -> Optional[MediumLevelILInstruction]:
+        try:
+            return function.mlil.ssa_form.get_ssa_memory_definition(version)
+        except Exception:
+            return None
+
+    def _resolve_source_name(self, origin: VariableProvenance, bnv: bVariable, uses: List[int] = ()) -> Optional[str]:
         """Look up the matching C source-variable name for this variable via DWARF."""
         try:
             function = bnv.function
             if function is None:
                 return None
-            name = self._lifter.dwarf.source_name(origin, function.name, self._lifter.bv.arch.get_reg_name)
-            if name is not None:
-                return name
-            return self._parameter_source_name_by_index(origin, bnv, function)
+            names = self._dwarf_names(origin, function.name, uses)
+            if len(names) == 1:
+                return next(iter(names))
+            name = self._parameter_source_name_by_index(origin, bnv, function)
+            origin.dwarf_ambiguous = name is None and len(names) > 1
+            return name
         except Exception:
             return None
+
+    def _dwarf_names(self, origin: VariableProvenance, function_name: str, uses: List[int]) -> Set[str]:
+        """Source variables DWARF places in the storage at value_address and at every use address.
+
+        One value, so every address must agree: the result is the intersection of the matches. An address
+        without any match is a DWARF gap and ignored; disagreeing addresses return all names (ambiguous).
+        """
+        matches = []
+        for address in (origin.value_address, *uses):
+            names = self._lifter.dwarf.source_names(replace(origin, value_address=address), function_name, self._lifter.bv.arch.get_reg_name)
+            if names:
+                matches.append(names)
+        if not matches:
+            return set()
+        return set.intersection(*matches) or set.union(*matches)
 
     def _parameter_source_name_by_index(self, origin: VariableProvenance, bnv: bVariable, function) -> Optional[str]:
         """Name a register parameter by its position among the function's parameters.

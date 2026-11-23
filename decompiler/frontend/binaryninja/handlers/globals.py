@@ -160,7 +160,7 @@ class GlobalHandler(Handler):
             source_name = self._lifter.dwarf.global_source_name(addr, load_base)
         except Exception:
             return None
-        return VariableProvenance(source_name=source_name) if source_name is not None else None
+        return VariableProvenance(source_name=source_name, name_via=("dwarf",)) if source_name is not None else None
 
     def lift_global_variable(
         self,

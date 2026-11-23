@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import DefaultDict, Iterator, Optional, Set
+from typing import DefaultDict, Dict, Iterator, List, Optional, Set, Tuple
 
 from decompiler.pipeline.ssa.phi_cleaner import PhiFunctionCleaner
 from decompiler.pipeline.stage import PipelineStage
@@ -25,6 +25,18 @@ from decompiler.structures.pseudo import (
     Variable,
 )
 from decompiler.task import DecompilerTask
+from decompiler.util.name_inheritance import (
+    NameCandidates,
+    NameChain,
+    PropagatedValueRegistry,
+    SsaKey,
+    apply_names,
+    is_name_target,
+    is_registrable_value,
+    name_chain_of,
+    resolve_candidates,
+    ssa_key,
+)
 
 
 class ExpressionPropagationBase(PipelineStage, ABC):
@@ -39,14 +51,21 @@ class ExpressionPropagationBase(PipelineStage, ABC):
         # to collect aliased variables that should be propagated in a separate round after everything else
         # is propagated. For more details, see _is_aliased_postponed_for_propagation method.
         self._postponed_aliased: Set[Variable] = set()
+        # Evaluation-only source-name bookkeeping (see _record_propagation); never influences propagation.
+        self._name_registry: Optional[PropagatedValueRegistry] = None
+        self._propagated_copies: List[Tuple[SsaKey, Optional[NameChain], SsaKey]] = []
 
     def run(self, task: DecompilerTask):
         """Execute the expression propagation on the current ControlFlowGraph."""
+        registry = getattr(task, "propagated_source_values", None)
+        self._name_registry = registry if isinstance(registry, PropagatedValueRegistry) else None
+        self._propagated_copies = []
         iteration = 0
         # execute until there are no more changes
         while self.perform(task.graph, iteration):
             iteration += 1
         logging.info(f"{self.name} took {iteration} iterations")
+        self._inherit_propagated_names(task.graph)
 
     def perform(self, graph, iteration) -> bool:
         """expression propagation forward pass:
@@ -70,7 +89,7 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                 for var in instruction.requirements:
                     if var_definition := self._def_map.get(var):
                         if self._definition_can_be_propagated_into_target(var_definition, instruction):
-                            instruction.substitute(var, var_definition.value.copy())
+                            self._substitute_by_definition_value(instruction, var, var_definition)
                             self._update_block_map(old, str(instruction), basic_block, index)
                             self._update_use_map(var, instruction)
                             if not is_changed:
@@ -139,7 +158,75 @@ class ExpressionPropagationBase(PipelineStage, ABC):
                         continue
                     defined_contraction, value = definition.destination, definition.value
                     if subexpr == defined_contraction:
-                        instruction.substitute(subexpr, value.copy())
+                        value_copy = value.copy()
+                        instruction.substitute(subexpr, value_copy)
+                        if self._name_registry is not None:
+                            self._name_registry.transfer(value, value_copy)
+
+    def _substitute_by_definition_value(self, instruction: Instruction, var: Variable, definition: Assignment) -> None:
+        """Substitute var in instruction by a copy of its definition's value (and record it for source-name inheritance)."""
+        value_copy = definition.value.copy()
+        instruction.substitute(var, value_copy)
+        self._record_propagation(var, definition, value_copy)
+
+    def _record_propagation(self, var: Variable, definition: Assignment, value_copy: Expression) -> None:
+        """
+        Evaluation-only bookkeeping for DWARF source-name inheritance; it never influences any propagation decision.
+
+        The use `var` of `x = value` was replaced by `value_copy`:
+        - value is a plain local Variable v: record the edge x -> v; at the end of the stage v inherits x's name if x
+          has no remaining use (see _inherit_propagated_names).
+        - value is a compound, memory-independent expression: register the inserted copy in the task registry as
+          "the value of x", so that CSE can recover x's name when it re-materializes that value in a temporary.
+        Registrations of nested subexpressions are carried over to the copy. Only plain local x are considered.
+        """
+        if self._name_registry is not None:
+            self._name_registry.transfer(definition.value, value_copy)
+        destination = definition.destination
+        if not is_name_target(destination):
+            return
+        replaced = ssa_key(destination)
+        name_chain = resolve_candidates(nc for nc in (name_chain_of(destination), name_chain_of(var)) if nc is not None)
+        if isinstance(value_copy, Variable):
+            if is_name_target(value_copy) and ssa_key(value_copy) != replaced:
+                self._propagated_copies.append((replaced, name_chain, ssa_key(value_copy)))
+        elif self._name_registry is not None and value_copy.complexity > 1 and is_registrable_value(value_copy):
+            self._name_registry.register(value_copy, [replaced])
+            if name_chain is not None:
+                self._name_registry.names.setdefault(replaced, name_chain)
+
+    def _inherit_propagated_names(self, cfg: ControlFlowGraph) -> None:
+        """
+        Evaluation-only: a plain variable v that replaced a named variable x (`x = v` propagated) inherits x's source
+        name, name_via = x's chain + ("propagation",), provided that x has no remaining use (v took over x's role
+        entirely; the dead definition of x is removed by dead-code elimination later) and that all such candidates for
+        v agree on one name. Inheritance is transitive over copy chains (x = v, v = w). Existing names are never
+        overwritten (see apply_names).
+        """
+        if not self._propagated_copies:
+            return
+        used: Set[SsaKey] = {ssa_key(variable) for instruction in cfg.instructions for variable in instruction.requirements}
+        inherited: Dict[SsaKey, NameChain] = {}
+        for _ in range(len(self._propagated_copies) + 1):
+            candidates = NameCandidates()
+            for replaced, name_chain, replacement in self._propagated_copies:
+                if replaced in used:
+                    continue
+                if (source := name_chain or inherited.get(replaced)) is not None:
+                    candidates.add(replacement, (source[0], source[1] + ("propagation",)))
+            resolved = candidates.resolve()
+            if resolved == inherited:
+                break
+            inherited = resolved
+        blocked = set()
+        if self._name_registry is not None:
+            self._name_registry.conflicts |= candidates.conflicts()
+            blocked = self._name_registry.conflicts
+        for key in apply_names(cfg.instructions, inherited, blocked):
+            logging.info(f"[{self.name}] {key[0]}#{key[1]} inherits source name '{inherited[key][0]}' via propagation")
+            if self._name_registry is not None:
+                self._name_registry.names.setdefault(key, inherited[key])
+        self._propagated_copies = []
 
     def _is_aliased_postponed_for_propagation(self, target: Instruction, definition: Assignment) -> bool:
         """
