@@ -64,6 +64,22 @@ class InterferenceGraph(Graph):
                 self.add_edge(remaining_variable, neighbor)
             self.remove_node(variable)
 
+    def update_for_instruction_sequence(
+        self, instructions: List[Instruction], live_after: InsertionOrderedSet[Variable]
+    ) -> InsertionOrderedSet[Variable]:
+        """
+        Adds the interferences of a sequence of instructions without branches, given the set of variables that is live after the sequence.
+
+        :param instructions: The instructions whose interferences we add, in program order.
+        :param live_after: The set of variables that is live after the last instruction (it is not modified).
+        :return: The set of variables that is live before the first instruction.
+        """
+        current_live_set = InsertionOrderedSet(live_after)
+        self._create_interference(current_live_set)
+        for instruction in reversed(instructions):
+            current_live_set = self._update_interference_graph_live_set_regarding(instruction, current_live_set)
+        return current_live_set
+
     def _construct_interference_graph(self, cfg: ControlFlowGraph) -> None:
         """
         Constructs the interference graph of a given control flow graph.

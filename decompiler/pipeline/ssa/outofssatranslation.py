@@ -7,7 +7,6 @@ from enum import Enum
 from typing import Callable, DefaultDict, List
 
 from decompiler.pipeline.ssa.phi_cleaner import PhiFunctionCleaner
-from decompiler.pipeline.ssa.phi_dependency_resolver import PhiDependencyResolver
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
 from decompiler.pipeline.ssa.variable_renaming import ConditionalVariableRenamer, MinimalVariableRenamer, SimpleVariableRenamer
 from decompiler.pipeline.stage import PipelineStage
@@ -28,17 +27,15 @@ class SSAOptions(Enum):
 
 
 class OutOfSsaTranslation(PipelineStage):
-    """Implements Out of SSA by first removing the cyclic dependency of the Phi-functions and then renaming the variables.
+    """Implements Out of SSA by lifting the Phi-functions and renaming the variables.
 
     Some general remarks:
         - Liveness and Interference graph only work for programs in SSA-form.
         - After lifting the Phi-functions to the predecessor blocks the program is no longer in SSA-from.
 
-    There are many possible modifications, in general every algorithm should contain the following 4 steps:
-        - Resolve the circular dependency of the phi-functions
-            Attention: This algorithm does not need the interference graph and **does not** update the interference graph.
-        - Lift the Phi-functions to the predecessor blocks.
-            Attention: This is only correct if there is no circular dependency of the Phi-functions.
+    There are many possible modifications, in general every algorithm should contain the following 3 steps:
+        - Lift the Phi-functions to the predecessor blocks. The Phi-functions of one edge are a parallel copy, which the lifter
+            sequentializes itself (circular dependencies are broken with copies). This does not need SSA-form.
             Furthermore, we need the interference graph, and we will update it.
         - Construct a dictionary that maps the each variable its new name.
         - Update the control flow graph according to the renaming.
@@ -109,45 +106,39 @@ class OutOfSsaTranslation(PipelineStage):
     def _simple_out_of_ssa(self) -> None:
         """
         This is a very simple version for out of SSA:
-            - Remove the circular dependency of the Phi-functions per basic block.
             - Remove the phi-functions by lifting them to their predecessor basic blocks or as an instruction in the same basic block.
             - Easy renaming of the variables and update the instructions accordingly.
         """
-        PhiDependencyResolver(self._phi_functions_of).resolve()
         self.interference_graph = InterferenceGraph(self.task.graph)
-        PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift()
+        PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of, move_copies_before_branch=True).lift()
         SimpleVariableRenamer(self.task, self.interference_graph).rename()
 
     def _minimization_out_of_ssa(self) -> None:
         """
         This is a more advanced algorithm for out of SSA:
             - We first rename the variables using coloring. This is optimal since the interference graph is chordal
-            - We then remove the circular dependency of the Phi-functions
-            - Afterwards, we remove the Phi-functions by lifting them to their predecessor basic blocks.
+            - Afterwards, we remove the Phi-functions by lifting them to their predecessor basic blocks. The program is not in SSA-form
+              anymore, which is fine for sequentializing the copies of each edge, but not for moving copies before a branch.
         """
         self.interference_graph = InterferenceGraph(self.task.graph)
         MinimalVariableRenamer(self.task, self.interference_graph).rename()
-        PhiDependencyResolver(self._phi_functions_of).resolve()
         PhiFunctionCleaner(self._phi_functions_of).clean_up()
         PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift()
 
     def _lift_minimal_out_of_ssa(self) -> None:
         """
         This is a more advanced algorithm for out of SSA, similar to `_minimization_out_of_ssa`:
-            - We first remove the circular dependency of the Phi-functions
-            - Then, we remove the Phi-functions by lifting them to their predecessor basic blocks.
+            - We first remove the Phi-functions by lifting them to their predecessor basic blocks.
             - Afterwards, we rename the variables using coloring. This is not optimal anymore, because the graph is not chordal anymore.
         """
-        PhiDependencyResolver(self._phi_functions_of).resolve()
         self.interference_graph = InterferenceGraph(self.task.graph)
-        PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift()
+        PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of, move_copies_before_branch=True).lift()
         MinimalVariableRenamer(self.task, self.interference_graph).rename()
 
     def _precolor_phi_out_of_ssa(self) -> None:
         """
         This is a more advanced algorithm for out of SSA, similar to `_lift_minimal_out_of_ssa`:
-            - We first remove the circular dependency of the Phi-functions
-            - Then we precolor to variables in the Phi-functions such that we insert a minimum number of copies
+            - We first precolor to variables in the Phi-functions such that we insert a minimum number of copies
             - Then, we remove the Phi-functions by lifting them to their predecessor basic blocks or deleting them.
             - Afterwards, we rename the variables using coloring as well as our precoloring.
               This is not optimal anymore, because the graph is not chordal anymore.
@@ -157,13 +148,11 @@ class OutOfSsaTranslation(PipelineStage):
     def _conditional_out_of_ssa(self) -> None:
         """
         This is a more advanced algorithm for out of SSA:
-            - We first remove the circular dependency of the Phi-functions
-            - Then, we remove the Phi-functions by lifting them to their predecessor basic blocks.
+            - We first remove the Phi-functions by lifting them to their predecessor basic blocks.
             - Afterwards, we rename the variables by considering their dependency on each other.
         """
-        PhiDependencyResolver(self._phi_functions_of).resolve()
         self.interference_graph = InterferenceGraph(self.task.graph)
-        PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift()
+        PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of, move_copies_before_branch=True).lift()
         ConditionalVariableRenamer(self.task, self.interference_graph).rename()
 
     # This translator maps the optimization levels to the functions.

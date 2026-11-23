@@ -402,8 +402,8 @@ def test_circular_dependency_simple(graph_circular_dependency):
                                    | printf(0x804bb0c)     |                                    | printf(0x804bb0c)     |
                                    | v#1 = &(z#3)          |                                    | v_1 = &(z_3)          |
                                    | scanf(0x804bb1f, v#1) |                                    | scanf(0x804bb1f, v_1) |
-                                   +-----------------------+                                    | copy_v_2 = v_1        |
-                                     |                                                          | x_2 = x_1             |
+                                   +-----------------------+                                    | x_2 = x_1             |
+                                     |                                                          | v_2 = v_1             |
                                      |                                                          | u_2 = 0x1             |
                                      v                                                          +-----------------------+
     +------------------------+     +-----------------------+                                      |
@@ -411,7 +411,7 @@ def test_circular_dependency_simple(graph_circular_dependency):
     |           3.           |     | x#2 = ϕ(x#1,v#2)      |                                      v
     | printf(0x804bb0c, x#2) |     | v#2 = ϕ(v#1,x#2)      |     +------------------------+     +-----------------------+
     |                        |     | u#2 = ϕ(0x1,u#1)      |     |           3.           |     |          1.           |
-    |                        | <-- | if(u#2 <= 0x14)       | <+  | printf(0x804bb0c, x_2) |     | v_2 = copy_v_2        |
+    |                        | <-- | if(u#2 <= 0x14)       | <+  | printf(0x804bb0c, x_2) |     |                       |
     +------------------------+     +-----------------------+  |  |                        | <-- | if(u_2 <= 0x14)       | <+
                                      |                        |  +------------------------+     +-----------------------+  |
                                      |                        |                                   |                        |
@@ -420,9 +420,10 @@ def test_circular_dependency_simple(graph_circular_dependency):
                                    |          2.           |  |                                 +-----------------------+  |
                                    | u#1 = u#2 + 0x1       | -+                                 |          2.           |  |
                                    +-----------------------+                                    | u_1 = u_2 + 0x1       |  |
-                                                                                                | copy_v_2 = x_2        |  |
+                                                                                                | u_2 = u_1             |  |
+                                                                                                | copy_x_2 = x_2        |  |
                                                                                                 | x_2 = v_2             |  |
-                                                                                                | u_2 = u_1             | -+
+                                                                                                | v_2 = copy_x_2        | -+
                                                                                                 +-----------------------+
     """
     nodes, instructions, cfg = graph_circular_dependency
@@ -435,30 +436,17 @@ def test_circular_dependency_simple(graph_circular_dependency):
         and nodes[3].instructions == [instructions[12]]
     )
 
+    copy_x_2 = Variable("copy_x_2", Integer.int32_t())
     assert (
-        set(nodes[0].instructions[7:])
-        == {Assignment(Variable("copy_x_2", Integer.int32_t()), instructions[7].origin_block[nodes[0]])}
-        | {Assignment(phi.definitions[0], phi.origin_block[nodes[0]]) for phi in instructions[8:10]}
-        and nodes[0].instructions.index(Assignment(Variable("copy_x_2", Integer.int32_t()), instructions[7].origin_block[nodes[0]]))
-        < nodes[0].instructions.index(Assignment(instructions[8].definitions[0], instructions[8].origin_block[nodes[0]]))
-        and nodes[1].instructions[:-1] == [Assignment(instructions[7].definitions[0], Variable("copy_x", Integer.int32_t(), 2))]
-        and set(nodes[2].instructions[1:])
-        == {Assignment(Variable("copy_x_2", Integer.int32_t()), instructions[7].origin_block[nodes[2]])}
-        | {Assignment(phi.definitions[0], phi.origin_block[nodes[2]]) for phi in instructions[8:10]}
-        and nodes[2].instructions.index(Assignment(Variable("copy_x_2", Integer.int32_t()), instructions[7].origin_block[nodes[2]]))
-        < nodes[2].instructions.index(Assignment(instructions[8].definitions[0], instructions[8].origin_block[nodes[2]]))
-    ) or (
-        set(nodes[0].instructions[7:])
-        == {Assignment(Variable("copy_v_2", Integer.int32_t()), instructions[8].origin_block[nodes[0]])}
-        | {Assignment(phi.definitions[0], phi.origin_block[nodes[0]]) for phi in [instructions[7], instructions[9]]}
-        and nodes[0].instructions.index(Assignment(Variable("copy_v_2", Integer.int32_t()), instructions[8].origin_block[nodes[0]]))
-        < nodes[0].instructions.index(Assignment(instructions[7].definitions[0], instructions[7].origin_block[nodes[0]]))
-        and nodes[1].instructions[:-1] == [Assignment(instructions[8].definitions[0], Variable("copy_v_2", Integer.int32_t()))]
-        and set(nodes[2].instructions[1:])
-        == {Assignment(Variable("copy_v_2", Integer.int32_t()), instructions[8].origin_block[nodes[2]])}
-        | {Assignment(phi.definitions[0], phi.origin_block[nodes[2]]) for phi in [instructions[7], instructions[9]]}
-        and nodes[2].instructions.index(Assignment(Variable("copy_v_2", Integer.int32_t()), instructions[8].origin_block[nodes[2]]))
-        < nodes[2].instructions.index(Assignment(instructions[7].definitions[0], instructions[7].origin_block[nodes[2]]))
+        nodes[0].instructions[7:] == [Assignment(phi.definitions[0], phi.origin_block[nodes[0]]) for phi in instructions[7:10]]
+        and nodes[1].instructions == [instructions[10]]
+        and nodes[2].instructions[1:]
+        == [
+            Assignment(instructions[9].definitions[0], instructions[9].origin_block[nodes[2]]),
+            Assignment(copy_x_2, instructions[7].definitions[0]),
+            Assignment(instructions[7].definitions[0], instructions[7].origin_block[nodes[2]]),
+            Assignment(instructions[8].definitions[0], copy_x_2),
+        ]
     )
 
     assert (
@@ -738,15 +726,15 @@ def test_no_dependency_unconditional_edge_minimization(graph_no_dependency, vari
     +------------------------+      +--------------------------+
     |       0.               |      |        0.                |
     |   printf(0x804b00c)    |      |    printf(0x804b00c)     |
-    +------------------------+      |    copy_var_1 = var_1    |
-      |                             +--------------------------+
+    +------------------------+      +--------------------------+
+      |                               |
       |                               |
       v                               |
     +------------------------+        v
     |       1.               |      +--------------------------+
     |    x#3 = ϕ(x#2,x#4)    |      |        1.                |
-    |    v#2 = ϕ(v#1,v#3)    |      |    var_1 = copy_var_1    |
-    |    u#2 = ϕ(u#1,u#3)    |      |    var_2 = var_3         |
+    |    v#2 = ϕ(v#1,v#3)    |      |    var_2 = var_3         |
+    |    u#2 = ϕ(u#1,u#3)    |      |                          |
     |    y#4 = ϕ(y#3,y#5)    |      |    if(var_1 <= var_2)    | <+
     |    u#3 = y#4           |      +--------------------------+  |
     |     if(v#2 <= u#3)     |      +--------------------------+  |
@@ -759,8 +747,9 @@ def test_no_dependency_unconditional_edge_minimization(graph_no_dependency, vari
     |   x#4 = v#2            |        v                           |
     | printf(0x804b045, x#4) |      +--------------------------+  |
     |     if(x#4 == 0x5)     |      |        3.                |  |
-    +------------------------+      |    copy_var_1 = var_0    |  |
-                                    |    var_0 = var_1         | -+
+    +------------------------+      |    copy_var_0 = var_0    |  |
+                                    |    var_0 = var_1         |  |
+                                    |    var_1 = copy_var_0    | -+
                                     +--------------------------+
     """
     nodes, instructions, cfg = graph_no_dependency
@@ -774,10 +763,9 @@ def test_no_dependency_unconditional_edge_minimization(graph_no_dependency, vari
     variable[3].is_aliased = True
 
     assert (
-        nodes[0].instructions == [instructions[0], Assignment(copy_variable[1], variable[1])]
+        nodes[0].instructions == [instructions[0]]
         and nodes[1].instructions
         == [
-            Assignment(variable[1], copy_variable[1]),
             Assignment(variable[2], variable[3]),
             Branch(Condition(OperationType.less_or_equal, [variable[1], variable[2]])),
         ]
@@ -786,7 +774,8 @@ def test_no_dependency_unconditional_edge_minimization(graph_no_dependency, vari
             Assignment(ListOperation([]), Call(imp_function_symbol("printf"), [Constant(0x804B045), variable[1]])),
             Branch(Condition(OperationType.equal, [variable[1], Constant(5)])),
         ]
-        and new_node.instructions == [Assignment(copy_variable[1], variable[0]), Assignment(variable[0], variable[1])]
+        and new_node.instructions
+        == [Assignment(copy_variable[0], variable[0]), Assignment(variable[0], variable[1]), Assignment(variable[1], copy_variable[0])]
     )
 
     assert (
@@ -805,15 +794,15 @@ def test_dependency_but_no_circle_minimization(graph_dependency_but_not_circular
                                    |    printf(0x804a00c)     |                                             |     printf(0x804a00c)      |
                                    | scanf(0x804a025, &(y#1)) |                                             | scanf(0x804a025, &(var_0)) |
                                    |  printf(0x804a028, y#1)  |                                             |  printf(0x804a028, var_0)  |
-                                   +--------------------------+                                             |     copy_var_0 = var_0     |
+                                   +--------------------------+                                             |       var_2 = var_0        |
                                      |                                                                      +----------------------------+
                                      |                                                                        |
                                      v                                                                        |
     +------------------------+     +------------------------------------+                                     v
     |           2.           |     |                 1.                 |  +--------------------------+     +--------------------------------------+
     | printf(0x804a049, u#3) |     |        u#3 = ϕ(y#1,y#4,y#4)        |  |            2.            |     |                  1.                  |
-    |       return 0x0       |     |        y#4 = ϕ(y#1,y#7,v#4)        |  | printf(0x804a049, var_2) |     |            var_2 = var_0             |
-    |                        | <-- |           if(y#4 <= 0x0)           |  |        return 0x0        |     |          var_0 = copy_var_0          |
+    |       return 0x0       |     |        y#4 = ϕ(y#1,y#7,v#4)        |  | printf(0x804a049, var_2) |     |                                      |
+    |                        | <-- |           if(y#4 <= 0x0)           |  |        return 0x0        |     |                                      |
     +------------------------+     +------------------------------------+  |                          | <-- |           if(var_0 <= 0x0)           |
                                      |                           ^    ^    +--------------------------+     +--------------------------------------+
                                      |                           |    |                                       |                             ^    ^
@@ -822,8 +811,8 @@ def test_dependency_but_no_circle_minimization(graph_dependency_but_not_circular
                                    |            3.            |  |    |    +--------------------------+     +----------------------------+  |    |
                                    |  printf(0x804a045, y#4)  |  |    |    |                          |     |             3.             |  |    |
                                    |     y#7 = y#4 - 0x2      |  |    |    |            5.            |     |  printf(0x804a045, var_0)  |  |    |
-                                   |    v#2 = is_odd(y#7)     |  |    |    |    copy_var_0 = var_1    |     |    var_1 = var_0 - 0x2     |  |    |
-                                   | if((v#2 & 0xff) == 0x0)  | -+    |    |                          |     |   var_2 = is_odd(var_1)    |  |    |
+                                   |    v#2 = is_odd(y#7)     |  |    |    |      var_2 = var_0       |     |    var_1 = var_0 - 0x2     |  |    |
+                                   | if((v#2 & 0xff) == 0x0)  | -+    |    |      var_0 = var_1       |     |   var_2 = is_odd(var_1)    |  |    |
                                    +--------------------------+       |    |                          | <-- | if((var_2 & 0xff) == 0x0)  |  |    |
                                      |                                |    +--------------------------+     +----------------------------+  |    |
                                      |                                |      |                                |                             |    |
@@ -832,7 +821,9 @@ def test_dependency_but_no_circle_minimization(graph_dependency_but_not_circular
                                    |            4.            |       |      |                              +----------------------------+  |    |
                                    |     v#4 = y#7 - 0x1      | ------+      |                              |             4.             |  |    |
                                    +--------------------------+              |                              |    var_2 = var_1 - 0x1     |  |    |
-                                                                             |                              |     copy_var_0 = var_2     | -+    |
+                                                                             |                              |     copy_var_2 = var_2     |  |    |
+                                                                             |                              |       var_2 = var_0        |  |    |
+                                                                             |                              |     var_0 = copy_var_2     | -+    |
                                                                              |                              +----------------------------+       |
                                                                              |                                                                   |
                                                                              +-------------------------------------------------------------------+
@@ -845,10 +836,9 @@ def test_dependency_but_no_circle_minimization(graph_dependency_but_not_circular
     run_out_of_ssa(cfg, SSAOptions.minimization)
 
     new_node = [node for node in cfg.nodes if node not in set(nodes)][0]
-    # variable y is aliased, so variable[0], variable[1], and copy_variable[0] must be aliased
+    # variable y is aliased, so variable[0] and variable[1] must be aliased
     variable[0].is_aliased = True
     variable[1].is_aliased = True
-    copy_variable[0].is_aliased = True
 
     new_node = [node for node in cfg.nodes if node not in set(nodes)][0]
 
@@ -861,14 +851,9 @@ def test_dependency_but_no_circle_minimization(graph_dependency_but_not_circular
                 Call(imp_function_symbol("scanf"), [Constant(0x804A025), UnaryOperation(OperationType.address, [variable[0]])]),
             ),
             Assignment(ListOperation([]), Call(imp_function_symbol("printf"), [Constant(0x804A028), variable[0]])),
-            Assignment(copy_variable[0], variable[0]),
-        ]
-        and nodes[1].instructions
-        == [
             Assignment(variable[2], variable[0]),
-            Assignment(variable[0], copy_variable[0]),
-            Branch(Condition(OperationType.less_or_equal, [variable[0], Constant(0x0)])),
         ]
+        and nodes[1].instructions == [Branch(Condition(OperationType.less_or_equal, [variable[0], Constant(0x0)]))]
         and nodes[2].instructions
         == [Assignment(ListOperation([]), Call(imp_function_symbol("printf"), [Constant(0x804A049), variable[2]])), Return([Constant(0x0)])]
         and nodes[3].instructions
@@ -883,9 +868,11 @@ def test_dependency_but_no_circle_minimization(graph_dependency_but_not_circular
         and nodes[4].instructions
         == [
             Assignment(variable[2], BinaryOperation(OperationType.minus, [variable[1], Constant(0x1)])),
-            Assignment(copy_variable[0], variable[2]),
+            Assignment(copy_variable[2], variable[2]),
+            Assignment(variable[2], variable[0]),
+            Assignment(variable[0], copy_variable[2]),
         ]
-        and new_node.instructions == [Assignment(copy_variable[0], variable[1])]
+        and new_node.instructions == [Assignment(variable[2], variable[0]), Assignment(variable[0], variable[1])]
     )
 
     assert (
@@ -910,7 +897,7 @@ def test_circular_dependency_minimization(graph_circular_dependency, variable, c
                                    |       y#2 = y#1       |                                      |    printf(0x804bb0c)    |
                                    |   printf(0x804bb0c)   |                                      |    var_3 = &(var_1)     |
                                    |     v#1 = &(z#3)      |                                      | scanf(0x804bb1f, var_3) |
-                                   | scanf(0x804bb1f, v#1) |                                      |   copy_var_3 = var_3    |
+                                   | scanf(0x804bb1f, v#1) |                                      |                         |
                                    +-----------------------+                                      |      var_4 = var_2      |
                                      |                                                            |       var_2 = 0x1       |
                                      |                                                            +-------------------------+
@@ -919,7 +906,7 @@ def test_circular_dependency_minimization(graph_circular_dependency, variable, c
     |                        |     |          1.           |                                        v
     |           3.           |     |   x#2 = ϕ(x#1,v#2)    |     +--------------------------+     +-------------------------+
     | printf(0x804bb0c, x#2) |     |   v#2 = ϕ(v#1,x#2)    |     |            3.            |     |           1.            |
-    |                        |     |   u#2 = ϕ(0x1,u#1)    |     | printf(0x804bb0c, var_4) |     |   var_3 = copy_var_3    |
+    |                        |     |   u#2 = ϕ(0x1,u#1)    |     | printf(0x804bb0c, var_4) |     |                         |
     |                        | <-- |    if(u#2 <= 0x14)    | <+  |                          | <-- |    if(var_2 <= 0x14)    | <+
     +------------------------+     +-----------------------+  |  +--------------------------+     +-------------------------+  |
                                      |                        |                                     |                          |
@@ -928,8 +915,9 @@ def test_circular_dependency_minimization(graph_circular_dependency, variable, c
                                    +-----------------------+  |                                   +-------------------------+  |
                                    |          2.           |  |                                   |           2.            |  |
                                    |    u#1 = u#2 + 0x1    | -+                                   |   var_2 = var_2 + 0x1   |  |
-                                   +-----------------------+                                      |   copy_var_3 = var_4    |  |
-                                                                                                  |      var_4 = var_3      | -+
+                                   +-----------------------+                                      |   copy_var_4 = var_4    |  |
+                                                                                                  |      var_4 = var_3      |  |
+                                                                                                  |   var_3 = copy_var_4    | -+
                                                                                                   +-------------------------+
     """
     nodes, _, cfg = graph_circular_dependency
@@ -949,20 +937,16 @@ def test_circular_dependency_minimization(graph_circular_dependency, variable, c
             Assignment(ListOperation([]), Call(imp_function_symbol("printf"), [Constant(0x804BB0C)])),
             Assignment(variable[3], UnaryOperation(OperationType.address, [variable[1]], Integer.int32_t())),
             Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [Constant(0x804BB1F), variable[3]])),
-            Assignment(copy_variable[3], variable[3]),
             Assignment(variable[4], variable[2]),
             Assignment(variable[2], Constant(0x1)),
         ]
-        and nodes[1].instructions
-        == [
-            Assignment(variable[3], copy_variable[3]),
-            Branch(Condition(OperationType.less_or_equal, [variable[2], Constant(20)])),
-        ]
+        and nodes[1].instructions == [Branch(Condition(OperationType.less_or_equal, [variable[2], Constant(20)]))]
         and nodes[2].instructions
         == [
             Assignment(variable[2], BinaryOperation(OperationType.plus, [variable[2], Constant(1)])),
-            Assignment(copy_variable[3], variable[4]),
+            Assignment(copy_variable[4], variable[4]),
             Assignment(variable[4], variable[3]),
+            Assignment(variable[3], copy_variable[4]),
         ]
         and nodes[3].instructions
         == [
@@ -1012,8 +996,8 @@ def test_graph_with_input_arguments_more_variable_types_minimization(graph_with_
                     |  +----------------------------------+                          |                   4.                    |  |
                     |  |                4.                |                          | arg1 = (arg1 - arg2) + 0x1              |  |
                     |  | arg2#4 = ϕ(arg2#2,arg2#3)        |                          | var_0 = arg1                            |  |
-                    +> | v#1 = (arg1#0 - arg2#4) + 0x1    |                          | var_1 = 0x1                             |  |
-                       +----------------------------------+                          | arg1 = 0x1                              | <+
+                    +> | v#1 = (arg1#0 - arg2#4) + 0x1    |                          | arg1 = 0x1                              |  |
+                       +----------------------------------+                          | var_1 = 0x1                             | <+
                          |                                                           +-----------------------------------------+
                          |                                                             |
                          v                                                             |
@@ -1029,8 +1013,8 @@ def test_graph_with_input_arguments_more_variable_types_minimization(graph_with_
                          v                                   |                       |                   6.                    |  |
                        +----------------------------------+  |                       | var_2 = arg1 + 0x1                      |  |
                        |                6.                |  |                       | var_3 = (((long) var_0) * var_1) / arg1 |  |
-                       | u#5 = u#2 + 0x1                  |  |                       | var_1 = var_3                           |  |
-                       | y#1 = (((long) v#2) * x#2) / u#2 | -+                       | arg1 = var_2                            | -+
+                       | u#5 = u#2 + 0x1                  |  |                       | arg1 = var_2                            |  |
+                       | y#1 = (((long) v#2) * x#2) / u#2 | -+                       | var_1 = var_3                           | -+
                        +----------------------------------+                          +-----------------------------------------+
     """
     nodes, cfg = graph_with_input_arguments_different_variable_types_2
@@ -1056,8 +1040,8 @@ def test_graph_with_input_arguments_more_variable_types_minimization(graph_with_
                 BinaryOperation(OperationType.plus, [BinaryOperation(OperationType.minus, [argument1, argument2]), Constant(0x1)]),
             ),
             Assignment(variable[0], argument1),
-            Assignment(variable[1], Constant(0x1)),
             Assignment(argument1, Constant(0x1)),
+            Assignment(variable[1], Constant(0x1)),
         ]
         and nodes[5].instructions == [Branch(Condition(OperationType.less_or_equal, [argument1, argument2]))]
         and nodes[6].instructions
@@ -1076,8 +1060,8 @@ def test_graph_with_input_arguments_more_variable_types_minimization(graph_with_
                     ],
                 ),
             ),
-            Assignment(variable[1], variable[3]),
             Assignment(argument1, variable[2]),
+            Assignment(variable[1], variable[3]),
         ]
         and nodes[7].instructions == [Return([variable[1]])]
         and new_node.instructions == [Assignment(argument2, argument1)]
@@ -1232,14 +1216,14 @@ def test_graph_with_phi_fct_in_head_minimization1(graph_phi_fct_in_head1, variab
         len(cfg) == 2
         and nodes[0].instructions
         == [
-            Assignment(variable[0], copy_variable[0]),
             Assignment(variable[1], BinaryOperation(OperationType.plus, [variable[1], Constant(10)])),
-            Assignment(copy_variable[0], variable[1]),
+            Assignment(copy_variable[1], variable[1]),
             Assignment(variable[1], variable[0]),
+            Assignment(variable[0], copy_variable[1]),
         ]
         and new_nodes[0].instructions
         == [
-            Assignment(copy_variable[0], variable[1]),
+            Assignment(variable[0], variable[1]),
         ]
     )
 
@@ -1254,28 +1238,15 @@ def test_graph_with_phi_fct_in_head_minimization2(graph_phi_fct_in_head2, variab
     """Graph where the head has a Phi-function and therefore a Phi-value has no predecessor."""
     nodes, cfg = graph_phi_fct_in_head2
     run_out_of_ssa(cfg, SSAOptions.minimization)
-    new_nodes = [nd for nd in cfg.nodes if nd != nodes[0]]
 
-    assert (
-        len(cfg) == 2
-        and nodes[0].instructions
-        == [
-            Assignment(variable[1], copy_variable[1]),
-            Assignment(variable[1], BinaryOperation(OperationType.plus, [variable[0], variable[1]])),
-            Assignment(copy_variable[1], variable[0]),
-            Assignment(variable[0], variable[1]),
-        ]
-        and new_nodes[0].instructions
-        == [
-            Assignment(copy_variable[1], variable[1]),
-        ]
-    )
+    assert len(cfg) == 1 and nodes[0].instructions == [
+        Assignment(variable[1], BinaryOperation(OperationType.plus, [variable[0], variable[1]])),
+        Assignment(copy_variable[0], variable[0]),
+        Assignment(variable[0], variable[1]),
+        Assignment(variable[1], copy_variable[0]),
+    ]
 
-    assert (
-        len(cfg.edges) == 2
-        and isinstance(cfg.get_edge(new_nodes[0], nodes[0]), UnconditionalEdge)
-        and isinstance(cfg.get_edge(nodes[0], nodes[0]), UnconditionalEdge)
-    )
+    assert len(cfg.edges) == 1 and isinstance(cfg.get_edge(nodes[0], nodes[0]), UnconditionalEdge)
 
 
 def test_graph_with_relation_minimization(graph_with_relation, variable):
@@ -1536,11 +1507,11 @@ def test_circular_dependency_lift_minimal(graph_circular_dependency, variable):
                                    +-----------------------+                                      +-------------------------+
                                    |          0.           |                                      |           0.            |
                                    |   printf(0x804b00c)   |                                      |    printf(0x804b00c)    |
-                                   |     x#1 = &(y#1)      |                                      |    var_3 = &(var_0)     |
-                                   | scanf(0x804b01f, x#1) |                                      | scanf(0x804b01f, var_3) |
+                                   |     x#1 = &(y#1)      |                                      |    var_2 = &(var_0)     |
+                                   | scanf(0x804b01f, x#1) |                                      | scanf(0x804b01f, var_2) |
                                    |       y#2 = y#1       |                                      |    printf(0x804bb0c)    |
-                                   |   printf(0x804bb0c)   |                                      |    var_2 = &(var_1)     |
-                                   |     v#1 = &(z#3)      |                                      | scanf(0x804bb1f, var_2) |
+                                   |   printf(0x804bb0c)   |                                      |    var_3 = &(var_1)     |
+                                   |     v#1 = &(z#3)      |                                      | scanf(0x804bb1f, var_3) |
                                    | scanf(0x804bb1f, v#1) |                                      |      var_4 = var_3      |
                                    +-----------------------+                                      |       var_3 = 0x1       |
                                      |                                                            +-------------------------+
@@ -1549,7 +1520,7 @@ def test_circular_dependency_lift_minimal(graph_circular_dependency, variable):
     +------------------------+     +-----------------------+                                        v
     |                        |     |          1.           |     +--------------------------+     +-------------------------+
     |           3.           |     |   x#2 = ϕ(x#1,v#2)    |     |            3.            |     |           1.            |
-    | printf(0x804bb0c, x#2) |     |   v#2 = ϕ(v#1,x#2)    |     | printf(0x804bb0c, var_4) |     |      var_5 = var_2      |
+    | printf(0x804bb0c, x#2) |     |   v#2 = ϕ(v#1,x#2)    |     | printf(0x804bb0c, var_2) |     |                         |
     |                        |     |   u#2 = ϕ(0x1,u#1)    |     |                          | <-- |    if(var_3 <= 0x14)    | <+
     |                        | <-- |    if(u#2 <= 0x14)    | <+  +--------------------------+     +-------------------------+  |
     +------------------------+     +-----------------------+  |                                     |                          |
@@ -1558,7 +1529,8 @@ def test_circular_dependency_lift_minimal(graph_circular_dependency, variable):
                                      v                        |                                   +-------------------------+  |
                                    +-----------------------+  |                                   |           2.            |  |
                                    |          2.           |  |                                   |   var_3 = var_3 + 0x1   |  |
-                                   |    u#1 = u#2 + 0x1    | -+                                   |      var_2 = var_4      |  |
+                                   |    u#1 = u#2 + 0x1    | -+                                   |      var_5 = var_2      |  |
+                                                                                                  |      var_2 = var_4      |  |
                                    +-----------------------+                                      |      var_4 = var_5      | -+
                                                                                                   +-------------------------+
     """
@@ -1573,28 +1545,25 @@ def test_circular_dependency_lift_minimal(graph_circular_dependency, variable):
         nodes[0].instructions
         == [
             Assignment(ListOperation([]), Call(imp_function_symbol("printf"), [Constant(0x804B00C)])),
-            Assignment(variable[3], UnaryOperation(OperationType.address, [variable[0]], Integer.int32_t())),
-            Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [Constant(0x804B01F), variable[3]])),
+            Assignment(variable[2], UnaryOperation(OperationType.address, [variable[0]], Integer.int32_t())),
+            Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [Constant(0x804B01F), variable[2]])),
             Assignment(ListOperation([]), Call(imp_function_symbol("printf"), [Constant(0x804BB0C)])),
-            Assignment(variable[2], UnaryOperation(OperationType.address, [variable[1]], Integer.int32_t())),
-            Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [Constant(0x804BB1F), variable[2]])),
+            Assignment(variable[3], UnaryOperation(OperationType.address, [variable[1]], Integer.int32_t())),
+            Assignment(ListOperation([]), Call(imp_function_symbol("scanf"), [Constant(0x804BB1F), variable[3]])),
             Assignment(variable[4], variable[3]),
             Assignment(variable[3], Constant(0x1)),
         ]
-        and nodes[1].instructions
-        == [
-            Assignment(variable[5], variable[2]),
-            Branch(Condition(OperationType.less_or_equal, [variable[3], Constant(20)])),
-        ]
+        and nodes[1].instructions == [Branch(Condition(OperationType.less_or_equal, [variable[3], Constant(20)]))]
         and nodes[2].instructions
         == [
             Assignment(variable[3], BinaryOperation(OperationType.plus, [variable[3], Constant(1)])),
+            Assignment(variable[5], variable[2]),
             Assignment(variable[2], variable[4]),
             Assignment(variable[4], variable[5]),
         ]
         and nodes[3].instructions
         == [
-            Assignment(ListOperation([]), Call(imp_function_symbol("printf"), [Constant(0x804BB0C), variable[4]])),
+            Assignment(ListOperation([]), Call(imp_function_symbol("printf"), [Constant(0x804BB0C), variable[2]])),
         ]
     )
 
@@ -2022,9 +1991,9 @@ def test_graph_with_phi_fct_in_head_lift_minimal2(graph_phi_fct_in_head2, variab
         len(cfg) == 2
         and nodes[0].instructions
         == [
-            Assignment(variable[2], BinaryOperation(OperationType.plus, [variable[1], variable[0]])),
-            Assignment(variable[0], variable[1]),
-            Assignment(variable[1], variable[2]),
+            Assignment(variable[2], BinaryOperation(OperationType.plus, [variable[0], variable[1]])),
+            Assignment(variable[1], variable[0]),
+            Assignment(variable[0], variable[2]),
         ]
         and new_nodes[0].instructions == []
     )

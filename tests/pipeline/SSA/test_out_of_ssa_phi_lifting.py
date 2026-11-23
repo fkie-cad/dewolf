@@ -241,15 +241,29 @@ def test_lifting_new_instructions_empty_b(variable_v, variable_u):
     )
 
 
-def test_lifting_wrong_order(construct_stage_for_lifting):
-    """The Phi-functions we want to lift have the wrong order."""
+def test_lifting_wrong_order(variable_v, variable_u, construct_stage_for_lifting):
+    """
+    The Phi-function v#3 = ϕ(v#1, v#6) is before v#2 = ϕ(v#1, v#3), which uses v#3.
+    The lifted copies must still respect the parallel semantics, i.e., v#2 = v#3 is lifted before v#3 = v#6.
+    """
     phi_fct_lifter, instructions, nodes = construct_stage_for_lifting
 
     nodes[1].instructions[:3] = instructions[2:4] + [instructions[1]]
     phi_fct_lifter._phi_functions_of[nodes[1]] = nodes[1].instructions[:3]
 
-    with pytest.raises(ValueError):
-        phi_fct_lifter.lift()
+    phi_fct_lifter.lift()
+    new_node = [node for node in phi_fct_lifter._cfg.nodes if node not in set(nodes)]
+
+    assert (
+        nodes[1].instructions == [instructions[4]]
+        and len(new_node) == 2
+        and new_node[0].instructions
+        == [Assignment(variable_u[2], variable_u[1]), Assignment(variable_v[3], variable_v[1]), Assignment(variable_v[2], variable_v[1])]
+        and new_node[1].instructions
+        == [Assignment(variable_u[2], variable_u[3]), Assignment(variable_v[2], variable_v[3]), Assignment(variable_v[3], variable_v[6])]
+        and isinstance(phi_fct_lifter._cfg.get_edge(nodes[0], new_node[0]), SwitchCase)
+        and isinstance(phi_fct_lifter._cfg.get_edge(nodes[4], new_node[1]), TrueCase)
+    )
 
 
 def test_lifting_phi_on_top_1(variable_v, variable_u):
