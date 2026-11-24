@@ -1072,6 +1072,25 @@ class TestReadabilityBasedRefinementAndLoopNameGenerator:
             logic_cond("x1", context): Condition(OperationType.less_or_equal, [Variable("i"), Constant(5)])
         }
 
+    def test_while_init_with_call(self, ast_call_init):
+        """The counter defined by a call is renamed inside the call's destination, not replaced by it."""
+        self.run_rbr(ast_call_init, _generate_options(max_condition=0, max_modification=0))
+
+        counter = Variable("counter")
+        assert ast_call_init.root.children[0].instructions == [
+            Assignment(Variable("a"), Constant(5)),
+            Assignment(ListOperation([counter]), Call(ImportedFunctionSymbol("foo", 0), [])),
+        ]
+        while_loop = ast_call_init.root.children[1]
+        assert isinstance(while_loop, WhileLoopNode)
+        assert ast_call_init.condition_map == {
+            logic_cond("x1", LogicCondition.generate_new_context()): Condition(OperationType.less_or_equal, [counter, Constant(5)])
+        }
+        assert while_loop.body.instructions == [
+            Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), counter])),
+            Assignment(counter, BinaryOperation(OperationType.plus, [counter, Constant(1)])),
+        ]
+
     def test_double_init(self, ast_redundant_init):
         self.run_rbr(ast_redundant_init)
 

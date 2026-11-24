@@ -41,22 +41,26 @@ class WhileLoopVariableRenamer:
                     continue
                 if not _single_defininition_reaches_node(self._ast, variable_init, loop_node):
                     continue
-                self._replace_variables(loop_node, variable_init)
+                self._replace_variables(loop_node, variable_init, condition_var)
                 break
 
-    def _replace_variables(self, loop_node: LoopNode, variable_init: AstInstruction):
+    def _replace_variables(self, loop_node: LoopNode, variable_init: AstInstruction, condition_var: Variable):
         """
         Rename old variable usages to counter variable in:
             - variable initialization
             - condition/condition map
             - loop body
         Also add a copy instruction if the variable is used after the loop without reinitialization.
+
+        The initialization may define more than the counter variable (e.g. `[b] = foo()`), so the defined variable is renamed,
+        not the whole destination.
         """
-        new_variable = Variable(self._get_variable_name(), variable_init.instruction.destination.type)
-        self._ast.replace_variable_in_subtree(loop_node, variable_init.instruction.destination, new_variable)
-        if _requirement_without_reinitialization(self._ast, loop_node, variable_init.instruction.destination):
-            self._ast.add_instructions_after(loop_node, Assignment(variable_init.instruction.destination, new_variable))
-        variable_init.node.replace_variable(variable_init.instruction.destination, new_variable)
+        counter_variable = next(variable for variable in variable_init.instruction.definitions if variable == condition_var)
+        new_variable = Variable(self._get_variable_name(), counter_variable.type)
+        self._ast.replace_variable_in_subtree(loop_node, counter_variable, new_variable)
+        if _requirement_without_reinitialization(self._ast, loop_node, counter_variable):
+            self._ast.add_instructions_after(loop_node, Assignment(counter_variable, new_variable))
+        variable_init.node.replace_variable(counter_variable, new_variable)
 
     def _get_variable_name(self) -> str:
         variable_name = f"counter{self._variable_counter if self._variable_counter > 0 else ''}"
