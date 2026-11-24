@@ -98,13 +98,19 @@ def remove_interference_between_related_variables(cfg: ControlFlowGraph, interfe
     """Remove the interference edges between variables that must get the same name.
 
     A Relation `x#1 -> x#0` states that both are the same variable (its memory may have been changed
-    in between), so they get one name whatever their live ranges are. They can be live at the same
-    time: Binary Ninja sometimes still reads x#0 after the instruction the relation belongs to, e.g.
-    after a call that was given the variable's address. Counting that as interference would forbid
-    the one name they must get.
+    in between), so they get one name. They can be live at the same time: Binary Ninja sometimes still
+    reads x#0 after the instruction the relation belongs to, e.g. after a call that was given the
+    variable's address. Counting that as interference would forbid the one name they must get.
+
+    This is a deliberate trade-off: a read of x#0 after the Relation then reads the shared variable,
+    which matches the binary as long as the read was placed there by Binary Ninja. Before, out-of-SSA
+    failed for such functions. Removed edges are logged at debug level.
     """
     for component in connected_components(same_name_dependency_graph(cfg)):
-        interference_graph.remove_edges_from([(a, b) for a, b in combinations(component, 2) if interference_graph.has_edge(a, b)])
+        edges = [(a, b) for a, b in combinations(component, 2) if interference_graph.has_edge(a, b)]
+        if edges:
+            logging.debug(f"Removing interference between variables joined by Relations: {', '.join(f'{a}-{b}' for a, b in edges)}")
+        interference_graph.remove_edges_from(edges)
 
 
 class VariableRenamer:
