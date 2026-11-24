@@ -141,3 +141,51 @@ def test_phi_with_same_constant_object_on_two_edges():
 
 def test_phi_with_equal_constants_after_phi_copy():
     _assert_every_path_defines_returned_variable(copy_phi=True)
+
+
+def _cfg_with_entry_phis_in_root(origins_from_entry: dict[Variable, object]) -> tuple[ControlFlowGraph, BasicBlock]:
+    """
+    0 (root): v#1 = phi(<entry value> from None, v#2 from 0) for each v; v#2 = v#1 + 1; if (v#2 < n) -> 0 else 1
+    1: return v#2 (first variable)
+    """
+    n = _var("n", 0)
+    variables = list(origins_from_entry)
+    block0, block1 = BasicBlock(0, []), BasicBlock(1, [])
+    phis, adds = [], []
+    for variable, entry_value in origins_from_entry.items():
+        v1, v2 = _var(variable.name, 1), _var(variable.name, 2)
+        phi = Phi(v1, [entry_value, v2])
+        phi.update_phi_function({None: phi.value.operands[0], block0: v2})
+        phis.append(phi)
+        adds.append(Assignment(v2, BinaryOperation(OperationType.plus, [v1, Constant(1, INT)])))
+    block0.instructions = phis + adds + [Branch(Condition(OperationType.less, [_var(variables[0].name, 2), n]))]
+    block1.instructions = [Return([_var(variables[0].name, 2)])]
+    cfg = ControlFlowGraph()
+    cfg.add_nodes_from([block0, block1])
+    cfg.add_edges_from([TrueCase(block0, block0), FalseCase(block0, block1)])
+    cfg.root = block0
+    return cfg, block0
+
+
+def test_constant_phi_argument_from_function_entry():
+    cfg, block0 = _cfg_with_entry_phis_in_root({_var("i", 0): Constant(0, INT)})
+
+    OutOfSsaTranslation().run(decompiler_task(cfg, SSAOptions.sreedhar, [_var("n", 0)]))
+
+    assert not any(isinstance(instruction, Phi) for instruction in cfg.instructions)
+    assert cfg.root is not block0
+    assert [edge.sink for edge in cfg.get_out_edges(cfg.root)] == [block0]
+    addition = next(i for i in block0.instructions if isinstance(i, Assignment) and isinstance(i.value, BinaryOperation))
+    used = addition.value.operands[0]
+    assert any(isinstance(i, Assignment) and i.destination == used and i.value == Constant(0, INT) for i in cfg.root.instructions)
+
+
+def test_constant_and_parameter_phi_arguments_from_function_entry():
+    cfg, block0 = _cfg_with_entry_phis_in_root({_var("s", 0): Constant(0, INT), _var("j", 0): _var("a", 0)})
+
+    OutOfSsaTranslation().run(decompiler_task(cfg, SSAOptions.sreedhar, [_var("n", 0), _var("a", 0)]))
+
+    assert not any(isinstance(instruction, Phi) for instruction in cfg.instructions)
+    assert cfg.root is not block0
+    assert [edge.sink for edge in cfg.get_out_edges(cfg.root)] == [block0]
+    assert any(isinstance(i, Assignment) and i.value == Constant(0, INT) for i in cfg.root.instructions)

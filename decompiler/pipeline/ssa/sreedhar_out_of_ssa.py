@@ -53,6 +53,7 @@ class ConstantLifter:
         self._task = task
         self._cfg: ControlFlowGraph = cast(ControlFlowGraph, self._task.cfg)
         self._name_handler = NameHandler()
+        self._entry_block: Optional[BasicBlock] = None
 
         for instr in self._cfg.instructions:
             for var in instr.definitions + instr.requirements:
@@ -68,9 +69,19 @@ class ConstantLifter:
             instrs.append(instr)
 
     def perform(self) -> None:
-        for bb in self._cfg:
+        for bb in list(self._cfg):
             for phi in [i for i in bb.instructions if isinstance(i, Phi)]:
                 self._lift_constants_from_phi(phi)
+
+    def _create_entry_block(self, root: BasicBlock) -> BasicBlock:
+        """Create an empty entry block before the root and move the function-entry origin (None) of its Phis to it."""
+        entry_block = self._cfg.create_block([])
+        self._cfg.add_edge(UnconditionalEdge(entry_block, root))
+        self._cfg.root = entry_block
+        for p in root.instructions:
+            if isinstance(p, Phi) and None in p.origin_block:
+                p.origin_block[entry_block] = p.origin_block.pop(None)
+        return entry_block
 
     def _lift_constants_from_phi(self, phi: Phi) -> None:
         for pred_bb, con in list(phi.origin_block.items()):
@@ -86,6 +97,10 @@ class ConstantLifter:
                 tags=(Tag(name="sreedhar_var_tag", data="wild"),),
             )
 
+            if pred_bb is None:  # argument from function entry, only possible in the root block
+                if self._entry_block is None:
+                    self._entry_block = self._create_entry_block(cast(BasicBlock, self._cfg.root))
+                pred_bb = self._entry_block
             self._insert_before_branch(pred_bb.instructions, Assignment(n_var, con.copy()))
             phi.substitute_for_block(pred_bb, n_var)
 
