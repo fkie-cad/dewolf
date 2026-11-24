@@ -89,3 +89,55 @@ def test_copy_before_branch_does_not_overwrite_branch_operand():
     assert isinstance(branch, Branch)
     assert not any(set(copy.definitions) & set(branch.requirements) for copy in copies)
     assert block_0.instructions[0].destination in branch.requirements
+
+
+def _cfg_with_equal_constants_in_phi(copy_phi: bool) -> ControlFlowGraph:
+    """
+    0: if (p < 1) -> 1 else 5 ; 5: if (q < 1) -> 2 else 4
+    1: -> 3 ; 2: -> 3 ; 4: y#1 = q + 10 -> 3
+    3: x#1 = phi(c from 1, c from 2, y#1 from 4); return x#1   (c is one Constant object)
+    """
+    p, q, x1, y1 = _var("p", 0), _var("q", 0), _var("x", 1), _var("y", 1)
+    c = Constant(4, INT)
+    blocks = {i: BasicBlock(i, []) for i in (0, 5, 1, 2, 4, 3)}
+    blocks[0].instructions = [Branch(Condition(OperationType.less, [p, Constant(1, INT)]))]
+    blocks[5].instructions = [Branch(Condition(OperationType.less, [q, Constant(1, INT)]))]
+    blocks[4].instructions = [Assignment(y1, BinaryOperation(OperationType.plus, [q, Constant(10, INT)]))]
+    phi = _phi(x1, [(blocks[1], c), (blocks[2], c), (blocks[4], y1)])
+    blocks[3].instructions = [phi.copy() if copy_phi else phi, Return([x1])]
+    cfg = ControlFlowGraph()
+    cfg.add_nodes_from(blocks.values())
+    cfg.add_edges_from(
+        [
+            TrueCase(blocks[0], blocks[1]),
+            FalseCase(blocks[0], blocks[5]),
+            TrueCase(blocks[5], blocks[2]),
+            FalseCase(blocks[5], blocks[4]),
+            UnconditionalEdge(blocks[1], blocks[3]),
+            UnconditionalEdge(blocks[2], blocks[3]),
+            UnconditionalEdge(blocks[4], blocks[3]),
+        ]
+    )
+    cfg.root = blocks[0]
+    return cfg
+
+
+def _assert_every_path_defines_returned_variable(copy_phi: bool):
+    cfg = _cfg_with_equal_constants_in_phi(copy_phi)
+    blocks = {node.name: node for node in cfg.nodes}
+
+    OutOfSsaTranslation().run(decompiler_task(cfg, SSAOptions.sreedhar, [_var("p", 0), _var("q", 0)]))
+
+    assert not any(isinstance(instruction, Phi) for instruction in cfg.instructions)
+    returned = blocks[3].instructions[-1].values[0]
+    for name in (1, 2, 4):
+        last = blocks[name].instructions[-1]
+        assert isinstance(last, Assignment) and last.destination == returned
+
+
+def test_phi_with_same_constant_object_on_two_edges():
+    _assert_every_path_defines_returned_variable(copy_phi=False)
+
+
+def test_phi_with_equal_constants_after_phi_copy():
+    _assert_every_path_defines_returned_variable(copy_phi=True)

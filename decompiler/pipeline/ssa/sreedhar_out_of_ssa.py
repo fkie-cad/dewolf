@@ -87,9 +87,7 @@ class ConstantLifter:
             )
 
             self._insert_before_branch(pred_bb.instructions, Assignment(n_var, con.copy()))
-            # Manually substitute only for this block's entry
-            phi.origin_block[pred_bb] = n_var
-            phi.value._operands = [operand if id(operand) != id(con) else n_var for operand in phi.value.operands]  # type ignore
+            phi.substitute_for_block(pred_bb, n_var)
 
 
 class SreedharOutOfSSA:
