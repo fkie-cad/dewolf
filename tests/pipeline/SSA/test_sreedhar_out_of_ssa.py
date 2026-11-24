@@ -31,10 +31,8 @@ def _phi(destination: Variable, origins: list) -> Phi:
     return phi
 
 
-def test_copy_into_predecessor_with_successor_without_phis():
-    """The copy for x#1 goes into block 1, whose successor 4 has no Phi; looking that block up must not change the
-    Phi map while it is iterated (RuntimeError: dictionary changed size during iteration).
-
+def _cfg_with_copy_into_predecessor_ending_in_branch() -> tuple[ControlFlowGraph, list[Variable]]:
+    """
     0: c#1 = p + 0; x#1 = q + 1; if (r < 5) -> 1 else 2
     1: if (c#1 == 0) -> 3 else 4
     2: -> 3
@@ -64,7 +62,30 @@ def test_copy_into_predecessor_with_successor_without_phis():
         ]
     )
     cfg.root = blocks[0]
+    return cfg, [p, q, r]
 
-    OutOfSsaTranslation().run(decompiler_task(cfg, SSAOptions.sreedhar, [p, q, r]))
+
+def test_copy_into_predecessor_with_successor_without_phis():
+    """The copy for x#1 goes into block 1, whose successor 4 has no Phi; looking that block up must not change the
+    Phi map while it is iterated (RuntimeError: dictionary changed size during iteration).
+    """
+    cfg, parameters = _cfg_with_copy_into_predecessor_ending_in_branch()
+
+    OutOfSsaTranslation().run(decompiler_task(cfg, SSAOptions.sreedhar, parameters))
 
     assert not any(isinstance(instruction, Phi) for instruction in cfg.instructions)
+
+
+def test_copy_before_branch_does_not_overwrite_branch_operand():
+    """The copy for x#1 is placed before the branch in block 1, which reads c#1. Interference only used LiveOut of
+    block 1, which lacks c#1, so c and the copy target were coalesced and the copy overwrote c before the branch.
+    """
+    cfg, parameters = _cfg_with_copy_into_predecessor_ending_in_branch()
+    block_0, block_1 = (next(node for node in cfg.nodes if node.name == name) for name in (0, 1))
+
+    OutOfSsaTranslation().run(decompiler_task(cfg, SSAOptions.sreedhar, parameters))
+
+    *copies, branch = block_1.instructions
+    assert isinstance(branch, Branch)
+    assert not any(set(copy.definitions) & set(branch.requirements) for copy in copies)
+    assert block_0.instructions[0].destination in branch.requirements

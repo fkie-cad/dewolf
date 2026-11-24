@@ -363,6 +363,10 @@ class SreedharOutOfSSA:
         for block in self._cfg:
             self._live_in[block] = liveness.live_in_of(block)  # type: ignore
             self._live_out[block] = liveness.live_out_of(block)  # type: ignore
+            # Copies for phi arguments are placed before the branch that ends the block, so the variables that
+            # branch reads are live where the copies are inserted, too.
+            if block.instructions and isinstance(block.instructions[-1], GenericBranch):
+                self._live_out[block].update(block.instructions[-1].requirements)
 
         # debug tracker
         if self._debug_check:
