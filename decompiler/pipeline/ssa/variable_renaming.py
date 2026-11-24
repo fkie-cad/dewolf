@@ -86,6 +86,27 @@ class VariableClassesHandler:
         return self.class_distribution.distribution_of[variable]
 
 
+def same_name_dependency_graph(cfg: ControlFlowGraph) -> Graph:
+    """A graph with an edge between two variables if they must get the same name: the two sides of a Relation."""
+    graph = Graph()
+    for relation in [instruction for instruction in cfg.instructions if isinstance(instruction, Relation)]:
+        graph.add_edge(relation.destination, relation.value)
+    return graph
+
+
+def remove_interference_between_related_variables(cfg: ControlFlowGraph, interference_graph: InterferenceGraph) -> None:
+    """Remove the interference edges between variables that must get the same name.
+
+    A Relation `x#1 -> x#0` states that both are the same variable (its memory may have been changed
+    in between), so they get one name whatever their live ranges are. They can be live at the same
+    time: Binary Ninja sometimes still reads x#0 after the instruction the relation belongs to, e.g.
+    after a call that was given the variable's address. Counting that as interference would forbid
+    the one name they must get.
+    """
+    for component in connected_components(same_name_dependency_graph(cfg)):
+        interference_graph.remove_edges_from([(a, b) for a, b in combinations(component, 2) if interference_graph.has_edge(a, b)])
+
+
 class VariableRenamer:
     """Base class for variable renaming"""
 
@@ -178,6 +199,7 @@ class VariableRenamer:
         -> Relations
         """
         dependency_graph = self.create_same_name_dependency_graph()
+        remove_interference_between_related_variables(self.cfg, self.interference_graph)
 
         for connected_component in connected_components(dependency_graph):
             connected_component = sorted(connected_component, key=attrgetter("ssa_label"))
@@ -186,10 +208,7 @@ class VariableRenamer:
 
     def create_same_name_dependency_graph(self):
         """Returns a graph that adds an edge between two variables if they should get the same name."""
-        graph = Graph()
-        for relation in [instruction for instruction in self.cfg.instructions if isinstance(instruction, Relation)]:
-            graph.add_edge(relation.destination, relation.value)
-        return graph
+        return same_name_dependency_graph(self.cfg)
 
     def compute_new_name_for_each_variable(self):
         """
