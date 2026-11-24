@@ -9,6 +9,7 @@ from typing import Callable, DefaultDict, List
 from decompiler.pipeline.ssa.phi_cleaner import PhiFunctionCleaner
 from decompiler.pipeline.ssa.phi_dependency_resolver import PhiDependencyResolver
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
+from decompiler.pipeline.ssa.sreedhar_out_of_ssa import ConstantLifter, SreedharOutOfSSA
 from decompiler.pipeline.ssa.variable_renaming import ConditionalVariableRenamer, MinimalVariableRenamer, SimpleVariableRenamer
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock
@@ -166,10 +167,15 @@ class OutOfSsaTranslation(PipelineStage):
         PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift()
         ConditionalVariableRenamer(self.task, self.interference_graph).rename()
 
+    def _sreedhar_out_of_ssa(self) -> None:
+        ConstantLifter(self.task).perform()
+        SreedharOutOfSSA(self.task).perform()
+
     # This translator maps the optimization levels to the functions.
     out_of_ssa_strategy: dict[SSAOptions, Callable[["OutOfSsaTranslation"], None]] = {
         SSAOptions.simple: _simple_out_of_ssa,
         SSAOptions.minimization: _minimization_out_of_ssa,
         SSAOptions.lift_minimal: _lift_minimal_out_of_ssa,
         SSAOptions.conditional: _conditional_out_of_ssa,
+        SSAOptions.sreedhar: _sreedhar_out_of_ssa,
     }
