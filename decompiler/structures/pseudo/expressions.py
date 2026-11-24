@@ -53,6 +53,19 @@ class Tag:
     data: str
 
 
+@dataclass(frozen=True)
+class VariableProvenance:
+    """
+    Where a Variable came from in the analysed binary: its storage location (source_type + storage).
+
+    Stamped at lift time. This is metadata only: it is NOT part of Variable identity (see __eq__/__hash__) and is NOT rendered in output.
+    Frozen, so copies of a variable can share it; use dataclasses.replace to derive a changed one.
+    """
+
+    source_type: Optional[str] = None  # BN Variable.source_type.name, e.g. 'StackVariableSourceType'
+    storage: Optional[int] = None  # stack: signed offset rel. SP-at-entry; register: BN register index
+
+
 class DataflowObject(ABC):
     """Interface for data-flow relevant objects."""
 
@@ -362,6 +375,7 @@ class Variable(Expression[DecompiledType]):
         is_aliased: bool = False,
         ssa_name: Optional[Variable] = None,
         tags: Optional[Tuple[Tag, ...]] = None,
+        provenance: Optional[VariableProvenance] = None,
     ):
         """Init a new variable based on its name and type."""
         self.is_aliased: bool = is_aliased
@@ -369,6 +383,7 @@ class Variable(Expression[DecompiledType]):
         self._name = name
         self._type = vartype
         self.ssa_name = ssa_name
+        self.provenance = provenance
         super().__init__(tags)
 
     def __eq__(self, __value):
@@ -418,6 +433,7 @@ class Variable(Expression[DecompiledType]):
         is_aliased: bool = None,
         ssa_name: Optional[Variable] = None,
         tags: Optional[Tuple[Tag, ...]] = None,
+        provenance: Optional[VariableProvenance] = None,
     ) -> Variable:
         """Provide a copy of the current Variable."""
         return self.__class__(
@@ -427,6 +443,7 @@ class Variable(Expression[DecompiledType]):
             self.is_aliased if is_aliased is None else is_aliased,
             self.ssa_name if ssa_name is None else ssa_name,
             self.tags if tags is None else tags,
+            self.provenance if provenance is None else provenance,
         )
 
     def accept(self, visitor: DataflowObjectVisitorInterface[T]) -> T:
@@ -451,10 +468,11 @@ class GlobalVariable(Variable):
         ssa_name: Optional[Variable] = None,
         is_constant: bool = False,
         tags: Optional[Tuple[Tag, ...]] = None,
+        provenance: Optional[VariableProvenance] = None,
     ):
         """Init a new global variable. Compared to Variable, it has an additional field initial_value.
         :param initial_value: Can be a number, string or GlobalVariable."""
-        super().__init__(name, vartype, ssa_label, is_aliased, ssa_name, tags=tags)
+        super().__init__(name, vartype, ssa_label, is_aliased, ssa_name, tags=tags, provenance=provenance)
         self.initial_value = initial_value
         self.is_constant = is_constant
 
@@ -474,6 +492,7 @@ class GlobalVariable(Variable):
         ssa_name: Optional[Variable] = None,
         is_constant: bool = None,
         tags: Optional[Tuple[Tag, ...]] = None,
+        provenance: Optional[VariableProvenance] = None,
     ) -> GlobalVariable:
         """Provide a copy of the current Variable."""
 
@@ -486,6 +505,7 @@ class GlobalVariable(Variable):
             self.ssa_name if ssa_name is None else ssa_name,
             self.is_constant if is_constant is None else is_constant,
             self.tags if tags is None else tags,
+            self.provenance if provenance is None else provenance,
         )
 
     def __iter__(self) -> Iterator[Expression]:

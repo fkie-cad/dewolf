@@ -1,3 +1,4 @@
+import dataclasses
 from math import inf, nan
 
 import pytest
@@ -12,6 +13,7 @@ from decompiler.structures.pseudo.expressions import (
     RegisterPair,
     Symbol,
     Variable,
+    VariableProvenance,
 )
 from decompiler.structures.pseudo.typing import Float, Integer, Pointer, UnknownType
 
@@ -80,6 +82,32 @@ class TestVariable:
         assert list(Variable("v1", i32, 0)) == []
         assert list(Variable("v", no_type, 0)) == []
         assert list(Variable("x", i32, 5, is_aliased=True)) == []
+
+
+class TestVariableProvenance:
+    provenance = VariableProvenance(source_type="StackVariableSourceType", storage=-8)
+
+    def test_not_part_of_identity(self):
+        with_provenance = Variable("v", i32, 1, provenance=self.provenance)
+        without_provenance = Variable("v", i32, 1)
+        assert with_provenance == without_provenance
+        assert hash(with_provenance) == hash(without_provenance)
+        assert str(with_provenance) == str(without_provenance)
+
+    def test_copy_keeps_provenance(self):
+        variable = Variable("v", i32, 1, provenance=self.provenance)
+        assert variable.copy().provenance == self.provenance
+        assert variable.copy(ssa_label=2).provenance == self.provenance
+        other = VariableProvenance(source_type="RegisterVariableSourceType", storage=3)
+        assert variable.copy(provenance=other).provenance == other
+
+    def test_global_variable_copy_keeps_provenance(self):
+        variable = GlobalVariable("g", i32, Constant(0, i32), ssa_label=1, provenance=self.provenance)
+        assert variable.copy().provenance == self.provenance
+
+    def test_frozen(self):
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            self.provenance.storage = 0
 
 
 class TestGlobalVariable:
