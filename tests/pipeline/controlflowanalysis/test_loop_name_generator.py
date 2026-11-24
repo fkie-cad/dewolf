@@ -1091,6 +1091,21 @@ class TestReadabilityBasedRefinementAndLoopNameGenerator:
             Assignment(counter, BinaryOperation(OperationType.plus, [counter, Constant(1)])),
         ]
 
+    def test_while_rename_keeps_ssa_name(self, ast_call_init):
+        """The new counter variable keeps the SSA name of the variable defined by the initialization."""
+        ssa_name = Variable("b", ssa_label=0)
+        ast_call_init.root.children[0].instructions[1].destination.operands[0].ssa_name = ssa_name
+        self.run_rbr(ast_call_init, _generate_options(max_condition=0, max_modification=0))
+
+        counters = [
+            variable
+            for node in ast_call_init.get_code_nodes_topological_order()
+            for instruction in node.instructions
+            for variable in instruction.definitions + instruction.requirements
+            if variable.name == "counter"
+        ]
+        assert len(counters) > 0 and all(variable.ssa_name == ssa_name for variable in counters)
+
     def test_double_init(self, ast_redundant_init):
         self.run_rbr(ast_redundant_init)
 

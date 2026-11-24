@@ -53,10 +53,10 @@ class WhileLoopVariableRenamer:
         Also add a copy instruction if the variable is used after the loop without reinitialization.
 
         The initialization may define more than the counter variable (e.g. `[b] = foo()`), so the defined variable is renamed,
-        not the whole destination.
+        not the whole destination. It is taken from the initialization (not the condition) to keep its ssa_name.
         """
         counter_variable = next(variable for variable in variable_init.instruction.definitions if variable == condition_var)
-        new_variable = Variable(self._get_variable_name(), counter_variable.type)
+        new_variable = Variable(self._get_variable_name(), counter_variable.type, ssa_name=counter_variable.ssa_name)
         self._ast.replace_variable_in_subtree(loop_node, counter_variable, new_variable)
         if _requirement_without_reinitialization(self._ast, loop_node, counter_variable):
             self._ast.add_instructions_after(loop_node, Assignment(counter_variable, new_variable))
