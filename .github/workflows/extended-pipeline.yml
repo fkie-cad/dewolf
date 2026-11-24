@@ -5,19 +5,28 @@ on:
     - cron:  '0 0 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-docker-and-run-extended-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - name: Setup BinaryNinja License
         run: |
           echo "${{ secrets.BINJA_LICENSE }}" | base64 --decode > license.txt
-      - name: Download BinayNinja.zip
+      - name: Check Secrets
+        env:
+          BINJA_LICENSE: ${{ secrets.BINJA_LICENSE }}
+          GITLAB_BINJA_TOKEN: ${{ secrets.GITLAB_BINJA_TOKEN }}
         run: |
-          curl -L --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_BINJA_TOKEN }}" "https://gitlab.fkie.fraunhofer.de/api/v4/projects/1250/repository/archive.zip?sha=Binja5" -o complete_repo.zip
+          [ -n "$BINJA_LICENSE" ] && [ -n "$GITLAB_BINJA_TOKEN" ] || { echo "::error::Secrets BINJA_LICENSE/GITLAB_BINJA_TOKEN not available (pull request from a fork?)"; exit 1; }
+      - name: Download BinaryNinja.zip
+        run: |
+          curl -fsSL --retry 3 --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_BINJA_TOKEN }}" "https://gitlab.fkie.fraunhofer.de/api/v4/projects/1250/repository/archive.zip?sha=binja" -o complete_repo.zip
       - name: Build Docker Image
         run: |
           docker build -t dewolf .
