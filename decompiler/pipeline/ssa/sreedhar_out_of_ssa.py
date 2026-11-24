@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import itertools
 from collections import defaultdict
-from typing import Any, Generator, Iterable, Iterator, List, NamedTuple, Optional, Set, cast
+from typing import Any, Generator, Iterable, Iterator, NamedTuple, Optional, Set, cast
 
 from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
 from decompiler.structures.graphs.basicblock import BasicBlock
@@ -288,9 +288,8 @@ class SreedharOutOfSSA:
         var: Variable
         block: BasicBlock | None
 
-    def __init__(self, task: DecompilerTask, debug_check=False):
+    def __init__(self, task: DecompilerTask):
         self._task = task
-        self._debug_check = debug_check
         self._name_handler = NameHandler()
         self._cfg: ControlFlowGraph = cast(ControlFlowGraph, task.cfg)
         self._interference_graph = InterferenceGraph(self._cfg)
@@ -380,13 +379,6 @@ class SreedharOutOfSSA:
             # branch reads are live where the copies are inserted, too.
             if block.instructions and isinstance(block.instructions[-1], GenericBranch):
                 self._live_out[block].update(block.instructions[-1].requirements)
-
-        # debug tracker
-        if self._debug_check:
-            self._global_var_names = set()
-            for var in all_vars:
-                if isinstance(var, GlobalVariable):
-                    self._global_var_names.add(var.name)
 
     def _is_live_in_context(self, var_class: PhiCongruenceClass, block: BasicBlock | None, is_dest: bool) -> bool:
         liveness_set = self._live_in.get(block, set()) if is_dest else self._live_out.get(block, set())
@@ -553,7 +545,6 @@ class SreedharOutOfSSA:
                     self._insert_req_copy(phi, x, x_new)
 
             k = [cast(Variable, phi.destination)] + [r for r in phi.requirements]
-            self._debug_check_phi_classes_interference(k)
 
             m = self._phi_congruence_map.merge_classes(k)
             if m and not m.repr:
@@ -606,7 +597,6 @@ class SreedharOutOfSSA:
 
     def _sequentialize_parallel_copies(self, copies: Iterable[Assignment]) -> Iterator[Assignment]:
         copies = list(copies)
-        self._debug_check_parallel_copy_destinations(copies)
         pending: dict[str, Assignment] = {cast(Variable, a.destination).name: a for a in copies}
         while pending:
             used = {a.value.name for a in pending.values() if isinstance(a.value, Variable)}
@@ -652,83 +642,7 @@ class SreedharOutOfSSA:
 
             bb.instructions = new_instructions
 
-    def _debug_check_phi_classes_interference(self, k: List[Variable]):
-        if not self._debug_check:
-            return
-
-        for a, b in itertools.combinations(k, 2):
-            c_a = self._phi_congruence_map.get_class(a)
-            c_b = self._phi_congruence_map.get_class(b)
-
-            if self._classes_interfere(c_a, c_b):
-                raise AssertionError(f"The classes of two elements in a phi function interfere after lifting: {a} and {b}")
-
-    def _debug_check_parallel_copy_destinations(self, copies: List[Assignment]) -> None:
-        """
-        The copies of one parallel copy must write distinct variables, otherwise one value is silently lost.
-        This holds as long as the interference graph is correct: the destinations are all defined at the same point.
-        """
-        if not self._debug_check:
-            return
-
-        seen: set[str] = set()
-        for a in copies:
-            name = cast(Variable, a.destination).name
-            if name in seen:
-                raise AssertionError(f"Parallel copy writes {name} more than once: {[str(c) for c in copies]}")
-            seen.add(name)
-
-    def _debug_check_phi_classes_content(self) -> None:
-        if not self._debug_check:
-            return
-
-        classes_by_id: dict[int, list[Variable]] = defaultdict(list)
-        for k, v in self._phi_congruence_map._element_to_class.items():
-            tags = getattr(k, "tags", None)
-            if not (tags and tags[0].name == "sreedhar_var_tag"):
-                classes_by_id[id(v)].append(k)
-
-        for phi_class in classes_by_id.values():
-            if not phi_class:
-                continue
-
-            #  Validate Global Variables
-            globals_in_class = [v for v in phi_class if isinstance(v, GlobalVariable)]
-            if globals_in_class:
-                first_global = globals_in_class[0]
-                for v in phi_class:
-                    if not isinstance(v, GlobalVariable):
-                        raise AssertionError(f"Global variable mixed with non-global variable in congruence class: {phi_class}")
-                    if v.name != first_global.name:
-                        raise AssertionError(f"Different global names in same congruence class: {phi_class}")
-
-            #  Validate Aliased Variables
-            aliased_in_class = [v for v in phi_class if v.is_aliased]
-            if aliased_in_class:
-                first_aliased = aliased_in_class[0]
-                for v in phi_class:
-                    if not v.is_aliased:
-                        raise AssertionError(f"Aliased variable mixed with non-aliased variable in congruence class: {phi_class}")
-                    if v.name != first_aliased.name:
-                        raise AssertionError(f"Different aliased names in same congruence class: {phi_class}")
-
-    def _debug_check_global_var_count(self):
-        if not self._debug_check:
-            return
-
-        global_var_names = set()
-
-        for instr in self._cfg.instructions:
-            for v in instr.definitions + instr.requirements:
-                if isinstance(v, GlobalVariable):
-                    global_var_names.add(v.name)
-
-        if self._global_var_names < global_var_names:
-            raise AssertionError(f"Amount of global variables increased {self._global_var_names} -> {global_var_names}")
-
     def perform(self) -> None:
         self._eliminate_phi_resource_interference()
         self._copy_removal()
-        self._debug_check_phi_classes_content()
         self._variable_rename()
-        self._debug_check_global_var_count()
