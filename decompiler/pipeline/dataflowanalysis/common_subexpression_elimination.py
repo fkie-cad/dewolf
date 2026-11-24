@@ -6,14 +6,15 @@ from collections import Counter, defaultdict, deque
 from dataclasses import dataclass
 from itertools import chain
 from logging import info, warning
-from typing import DefaultDict, Deque, Dict, Iterable, Iterator, List, Optional, Set, Tuple
+from typing import DefaultDict, Deque, Dict, Iterable, Iterator, List, NamedTuple, Optional, Set, Tuple
 
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.graphs.nxgraph import NetworkXGraph
 from decompiler.structures.pseudo.expressions import Constant, DataflowObject, Expression, Symbol, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, GenericBranch, Instruction, Phi, Relation
-from decompiler.structures.pseudo.operations import Call, ListOperation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.operations import Call, ListOperation, Operation, OperationType, UnaryOperation
+from decompiler.structures.pseudo.typing import Integer
 from decompiler.task import DecompilerTask
 from networkx import dfs_postorder_nodes
 
@@ -80,6 +81,35 @@ def _contains_call(expression: DataflowObject) -> bool:
     return False
 
 
+# Operations whose low N result bits depend only on the low N bits of their operands: truncating a wider result equals computing at
+# N bits. left_shift is handled separately (constant amount only).
+_SIZE_TRUNCATION_SAFE_OPERATIONS = frozenset(
+    {
+        OperationType.plus,
+        OperationType.minus,
+        OperationType.multiply,
+        OperationType.multiply_us,
+        OperationType.negate,
+        OperationType.bitwise_and,
+        OperationType.bitwise_or,
+        OperationType.bitwise_xor,
+        OperationType.bitwise_not,
+    }
+)
+
+
+class UntypedOperation(NamedTuple):
+    """An operation without its result type: operations that only differ in their type compute the same value up to their width."""
+
+    operation_class: type[Operation]
+    operation: OperationType
+    operands: Tuple[Expression, ...]
+
+    @classmethod
+    def of(cls, operation: Operation) -> UntypedOperation:
+        return cls(type(operation), operation.operation, tuple(operation.operands))
+
+
 class ExistingSubexpressionReplacer:
     """Class in charge of replacing subexpression that are already assigned to a variable, if these definition dominates the usage."""
 
@@ -93,6 +123,9 @@ class ExistingSubexpressionReplacer:
         self._cfg = cfg
         self._dominator_tree = dominator_tree
         self._defining_variable_of = defining_var_of if defining_var_of else dict()
+        self._definitions_by_untyped_operation: DefaultDict[UntypedOperation, List[Operation]] = defaultdict(list)
+        for defined_expression in self._defining_variable_of:
+            self._index_definition(defined_expression)
         self._initialize_reachable_nodes_from_relation_defining()
 
     def _initialize_reachable_nodes_from_relation_defining(self) -> None:
@@ -129,6 +162,13 @@ class ExistingSubexpressionReplacer:
         """Removes all the dict entries, i.e., expressions, that are no longer defined when considering the next node."""
         for key in old_keys:
             del self._defining_variable_of[key]
+            if isinstance(key, Operation):
+                self._definitions_by_untyped_operation[UntypedOperation.of(key)].remove(key)
+
+    def _index_definition(self, defined_expression: Expression) -> None:
+        """Make the given defined operation findable for operations that only differ in their type."""
+        if isinstance(defined_expression, Operation):
+            self._definitions_by_untyped_operation[UntypedOperation.of(defined_expression)].append(defined_expression)
 
     def _replacements_for(self, node: BasicBlock) -> List[Expression]:
         """
@@ -140,13 +180,54 @@ class ExistingSubexpressionReplacer:
             sorted_subexpressions = sorted({expr for expr in _subexpression_dfs(instruction)}, key=lambda x: x.complexity)
             while sorted_subexpressions:
                 subexpr = sorted_subexpressions.pop()
-                if subexpr in self._defining_variable_of and self._does_not_jump_over_relation(instruction, node, subexpr):
-                    instruction.substitute(subexpr, self._defining_variable_of[subexpr].variable)
-                    sorted_subexpressions = sorted({expr for expr in _subexpression_dfs(instruction)}, key=lambda x: x.complexity)
+                match = self._existing_definition_for(subexpr)
+                if match is not None:
+                    defined_expression, defined_variable = match
+                    if self._does_not_jump_over_relation(instruction, node, defined_expression):
+                        replacement = (
+                            defined_variable.variable
+                            if defined_expression.type == subexpr.type
+                            else UnaryOperation(OperationType.cast, [defined_variable.variable], subexpr.type)
+                        )
+                        instruction.substitute(subexpr, replacement)
+                        sorted_subexpressions = sorted({expr for expr in _subexpression_dfs(instruction)}, key=lambda x: x.complexity)
             if self._is_definition_of_new_subexpression(instruction):
                 self._defining_variable_of[instruction.value] = DefinedVariable(instruction.destination, node)
+                self._index_definition(instruction.value)
                 new_keys.append(instruction.value)
         return new_keys
+
+    def _existing_definition_for(self, subexpr: Expression) -> Optional[Tuple[Expression, DefinedVariable]]:
+        """
+        Return the defined expression and its variable that should replace `subexpr`, if any.
+
+        -> An exact match is preferred.
+        -> Otherwise, for integer-typed truncation-safe operations (left_shift only by a constant smaller than the width of
+           `subexpr`), the same operation defined in an integer type at least as wide is used; the narrowest one wins.
+        """
+        if subexpr in self._defining_variable_of:
+            return subexpr, self._defining_variable_of[subexpr]
+        if not self._is_truncation_safe(subexpr):
+            return None
+        wider_definitions = [
+            definition
+            for definition in self._definitions_by_untyped_operation.get(UntypedOperation.of(subexpr), [])
+            if isinstance(definition.type, Integer) and definition.type.size >= subexpr.type.size
+        ]
+        if not wider_definitions:
+            return None
+        narrowest = min(wider_definitions, key=lambda definition: definition.type.size)
+        return narrowest, self._defining_variable_of[narrowest]
+
+    @staticmethod
+    def _is_truncation_safe(subexpr: Expression) -> bool:
+        """Check whether truncating a wider result of the given integer operation equals computing it in its own type."""
+        if not isinstance(subexpr, Operation) or not isinstance(subexpr.type, Integer):
+            return False
+        if subexpr.operation == OperationType.left_shift:
+            amount = subexpr.operands[1]
+            return isinstance(amount, Constant) and isinstance(amount.value, int) and 0 <= amount.value < subexpr.type.size
+        return subexpr.operation in _SIZE_TRUNCATION_SAFE_OPERATIONS
 
     def _is_definition_of_new_subexpression(self, instruction: Instruction) -> bool:
         """
@@ -168,14 +249,14 @@ class ExistingSubexpressionReplacer:
             and not _contains_call(instruction.value)
         )
 
-    def _does_not_jump_over_relation(self, instruction: Instruction, node: BasicBlock, subexpr: Expression) -> bool:
+    def _does_not_jump_over_relation(self, instruction: Instruction, node: BasicBlock, defined_expression: Expression) -> bool:
         """
-        When replacing the given subexpression in the given instruction, we have to check that either the variable defining the
-        subexpression is not an aliased variable or that there is no Relation of this aliased variable on any path form the definition to
+        When replacing a subexpression in the given instruction by the variable defining the given expression, we have to check that either
+        this variable is not an aliased variable or that there is no Relation of this aliased variable on any path form the definition to
         the instruction. The given variable is the node that contains the instruction.
         -> node is the node where the instruction is contained in.
         """
-        defining_variable = self._defining_variable_of[subexpr]
+        defining_variable = self._defining_variable_of[defined_expression]
         if not defining_variable.variable.is_aliased:
             return True
         if node == defining_variable.block:
