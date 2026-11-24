@@ -5,7 +5,7 @@ from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, False
 from decompiler.structures.pseudo.expressions import Constant, Expression, FunctionSymbol, ImportedFunctionSymbol, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Phi, Relation, Return
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
-from decompiler.structures.pseudo.typing import CustomType, Integer, Pointer, Type, UnknownType
+from decompiler.structures.pseudo.typing import CustomType, Float, Integer, Pointer, Type, UnknownType
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
@@ -443,6 +443,166 @@ def test_existing_subexpression_exact_match_preferred_over_wider_structural_matc
         Assignment(Variable("s3"), expr_64.copy()),
         Assignment(ListOperation([]), Call(function_symbol("foo"), [Variable("s2")])),
     ]
+
+
+def _assert_narrow_usage_not_reused(expr_wide: Expression, expr_narrow: Expression):
+    cfg = ControlFlowGraph()
+    cfg.add_node(
+        node := BasicBlock(
+            0,
+            instructions=[
+                Assignment(Variable("s2"), expr_wide.copy()),
+                Assignment(ListOperation([]), Call(function_symbol("foo"), [expr_narrow.copy()])),
+            ],
+        )
+    )
+    old_instructions = [i.copy() for i in node.instructions]
+    _run_cse(cfg)
+    assert node.instructions == old_instructions
+
+
+def test_existing_subexpression_left_shift_by_variable_not_reused():
+    """The low 32 bits of a 64-bit x << n depend on all bits of n, so x << n must not be reused."""
+    s1, n = Variable("s1", ssa_label=0), Variable("n", ssa_label=0)
+    _assert_narrow_usage_not_reused(
+        BinaryOperation(OperationType.left_shift, [s1.copy(), n.copy()], Integer.int64_t()),
+        BinaryOperation(OperationType.left_shift, [s1.copy(), n.copy()], Integer.int32_t()),
+    )
+
+
+def test_existing_subexpression_float_definition_not_reused_for_integer_usage():
+    """A float definition must not be reused for an integer usage of the same operation."""
+    s1 = Variable("s1", ssa_label=0)
+    _assert_narrow_usage_not_reused(
+        BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Float.double()),
+        BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer.int32_t()),
+    )
+
+
+def _assert_narrow_usage_reused(expr_wide: Expression, expr_narrow: Expression):
+    cfg = ControlFlowGraph()
+    cfg.add_node(
+        node := BasicBlock(
+            0,
+            instructions=[
+                Assignment(Variable("s2"), expr_wide.copy()),
+                Assignment(ListOperation([]), Call(function_symbol("foo"), [expr_narrow.copy()])),
+            ],
+        )
+    )
+    _run_cse(cfg)
+    assert node.instructions == [
+        Assignment(Variable("s2"), expr_wide.copy()),
+        Assignment(
+            ListOperation([]),
+            Call(function_symbol("foo"), [UnaryOperation(OperationType.cast, [Variable("s2")], expr_narrow.type)]),
+        ),
+    ]
+
+
+def test_existing_subexpression_left_shift_by_small_constant_reused():
+    """A left shift by a constant smaller than the narrow width is reused."""
+    s1 = Variable("s1", ssa_label=0)
+    _assert_narrow_usage_reused(
+        BinaryOperation(OperationType.left_shift, [s1.copy(), Constant(3)], Integer.int64_t()),
+        BinaryOperation(OperationType.left_shift, [s1.copy(), Constant(3)], Integer.int32_t()),
+    )
+
+
+def test_existing_subexpression_left_shift_by_large_constant_not_reused():
+    """A left shift by a constant at least as large as the narrow width is not reused."""
+    s1 = Variable("s1", ssa_label=0)
+    _assert_narrow_usage_not_reused(
+        BinaryOperation(OperationType.left_shift, [s1.copy(), Constant(40)], Integer.int64_t()),
+        BinaryOperation(OperationType.left_shift, [s1.copy(), Constant(40)], Integer.int32_t()),
+    )
+
+
+def test_existing_subexpression_right_shift_not_reused():
+    """Right shifts move high bits into the result, so they are not reused."""
+    s1 = Variable("s1", ssa_label=0)
+    _assert_narrow_usage_not_reused(
+        BinaryOperation(OperationType.right_shift, [s1.copy(), Constant(3)], Integer.int64_t()),
+        BinaryOperation(OperationType.right_shift, [s1.copy(), Constant(3)], Integer.int32_t()),
+    )
+
+
+def test_existing_subexpression_integer_definition_not_reused_for_bool_usage():
+    """An integer definition must not be reused for a bool usage of the same operation."""
+    s1 = Variable("s1", ssa_label=0)
+    _assert_narrow_usage_not_reused(
+        BinaryOperation(OperationType.bitwise_and, [s1.copy(), Constant(2)], Integer.int32_t()),
+        BinaryOperation(OperationType.bitwise_and, [s1.copy(), Constant(2)], CustomType.bool()),
+    )
+
+
+def test_existing_subexpression_multiply_us_reused():
+    """An unsigned multiplication is reused."""
+    s1, s3 = Variable("s1", ssa_label=0), Variable("s3", ssa_label=0)
+    _assert_narrow_usage_reused(
+        BinaryOperation(OperationType.multiply_us, [s1.copy(), s3.copy()], Integer.uint64_t()),
+        BinaryOperation(OperationType.multiply_us, [s1.copy(), s3.copy()], Integer.uint32_t()),
+    )
+
+
+def test_existing_subexpression_negate_and_bitwise_not_reused():
+    """Unary negate and bitwise_not are reused."""
+    inner = BinaryOperation(OperationType.plus, [Variable("s1", ssa_label=0), Constant(1)], Integer.int64_t())
+    for operation in (OperationType.negate, OperationType.bitwise_not):
+        _assert_narrow_usage_reused(
+            UnaryOperation(operation, [inner.copy()], Integer.int64_t()),
+            UnaryOperation(operation, [inner.copy()], Integer.int32_t()),
+        )
+
+
+def test_existing_subexpression_same_size_different_signedness_reused_with_cast():
+    """A signed definition is reused for an unsigned usage of the same size via a cast."""
+    s1 = Variable("s1", ssa_label=0)
+    _assert_narrow_usage_reused(
+        BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer.int32_t()),
+        BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer.uint32_t()),
+    )
+
+
+def test_existing_subexpression_wider_definition_reused_in_dominated_block():
+    """A wider definition in a dominating block is reused in a dominated block."""
+    s1 = Variable("s1", ssa_label=0)
+    expr_wide = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer.int64_t())
+    expr_narrow = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer.int32_t())
+    cfg = ControlFlowGraph()
+    cfg.add_nodes_from(
+        [
+            head := BasicBlock(0, instructions=[Assignment(Variable("s2"), expr_wide.copy())]),
+            use := BasicBlock(1, instructions=[Assignment(ListOperation([]), Call(function_symbol("foo"), [expr_narrow.copy()]))]),
+        ]
+    )
+    cfg.add_edge(UnconditionalEdge(head, use))
+    _run_cse(cfg)
+    assert use.instructions == [
+        Assignment(
+            ListOperation([]),
+            Call(function_symbol("foo"), [UnaryOperation(OperationType.cast, [Variable("s2")], Integer.int32_t())]),
+        )
+    ]
+
+
+def test_existing_subexpression_wider_definition_not_reused_in_sibling_block():
+    """A wider definition in a block that does not dominate the usage is not reused."""
+    s1 = Variable("s1", ssa_label=0)
+    expr_wide = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer.int64_t())
+    expr_narrow = BinaryOperation(OperationType.plus, [s1.copy(), Constant(1)], Integer.int32_t())
+    cfg = ControlFlowGraph()
+    cfg.add_nodes_from(
+        [
+            head := BasicBlock(0, instructions=[Branch(Condition(OperationType.equal, [Variable("a", ssa_label=0), Constant(0)]))]),
+            definition := BasicBlock(1, instructions=[Assignment(Variable("s2"), expr_wide.copy())]),
+            use := BasicBlock(2, instructions=[Assignment(ListOperation([]), Call(function_symbol("foo"), [expr_narrow.copy()]))]),
+        ]
+    )
+    cfg.add_edges_from([TrueCase(head, definition), FalseCase(head, use)])
+    old_instructions = [i.copy() for i in use.instructions]
+    _run_cse(cfg)
+    assert use.instructions == old_instructions
 
 
 def test_eliminate_longest_common_subexpression_1():
