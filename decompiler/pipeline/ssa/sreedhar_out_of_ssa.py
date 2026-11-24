@@ -482,7 +482,7 @@ class SreedharOutOfSSA:
         # The new block takes over the role of None as the function entry, including its live-out set
         self._live_out[entry_block] = self._live_out.pop(None)
 
-        for p in self._block_to_phi[phi_block]:
+        for p in self._block_to_phi.get(phi_block, ()):
             if None in p.origin_block:
                 p.origin_block[entry_block] = p.origin_block.pop(None)
             self._phi_to_orig_map[id(p)].substitute_block(None, entry_block)
@@ -502,7 +502,7 @@ class SreedharOutOfSSA:
 
             # Remove x from live_out if it's no longer needed in successors
             if all(
-                x not in self._live_in[succ] and all(p.origin_block.get(orig_block) != x for p in self._block_to_phi[succ])
+                x not in self._live_in[succ] and all(p.origin_block.get(orig_block) != x for p in self._block_to_phi.get(succ, ()))
                 for succ in self._cfg.get_successors(orig_block)
             ):
                 self._live_out[orig_block].discard(x)
