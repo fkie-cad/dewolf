@@ -15,6 +15,7 @@ from binaryninja import Variable as bVariable
 from decompiler.frontend.lifter import Handler
 from decompiler.structures.pseudo import RegisterPair
 from decompiler.structures.pseudo import Variable as Variable
+from decompiler.structures.pseudo import VariableProvenance
 
 
 class VariableHandler(Handler):
@@ -41,7 +42,11 @@ class VariableHandler(Handler):
     ) -> Variable:
         """Lift the given non-ssa variable, annotating the memory version of the parent instruction, if available."""
         return Variable(
-            variable.name, self._lifter.lift(variable.type), ssa_label=parent.ssa_memory_version if parent else 0, is_aliased=is_aliased
+            variable.name,
+            self._lifter.lift(variable.type),
+            ssa_label=parent.ssa_memory_version if parent else 0,
+            is_aliased=is_aliased,
+            provenance=self._variable_provenance(variable),
         )
 
     def lift_function_parameter(self, variable: FunctionParameter) -> Variable:
@@ -49,8 +54,25 @@ class VariableHandler(Handler):
         return Variable(variable.name, self._lifter.lift(variable.type))
 
     def lift_variable_ssa(self, variable: SSAVariable, is_aliased: bool = False, **kwargs) -> Variable:
-        """Lift the given ssa variable by its name and its current version."""
-        return Variable(variable.var.name, self._lifter.lift(variable.var.type), ssa_label=variable.version, is_aliased=is_aliased)
+        """Lift the given ssa variable by its name and its current version, stamping its provenance (see _variable_provenance)."""
+        return Variable(
+            variable.var.name,
+            self._lifter.lift(variable.var.type),
+            ssa_label=variable.version,
+            is_aliased=is_aliased,
+            provenance=self._variable_provenance(variable.var),
+        )
+
+    @staticmethod
+    def _variable_provenance(bnv: bVariable) -> Optional[VariableProvenance]:
+        """Build the provenance (storage location) of a Binary Ninja variable.
+
+        Provenance is optional metadata: any failure returns None and never breaks lifting.
+        """
+        try:
+            return VariableProvenance(source_type=bnv.source_type.name, storage=bnv.storage)
+        except Exception:
+            return None
 
     def lift_variable_aliased(self, variable: MediumLevelILVarAliased, **kwargs) -> Variable:
         """Lift the given MediumLevelILVar_aliased operation."""
