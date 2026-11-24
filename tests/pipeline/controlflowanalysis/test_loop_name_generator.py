@@ -1072,6 +1072,40 @@ class TestReadabilityBasedRefinementAndLoopNameGenerator:
             logic_cond("x1", context): Condition(OperationType.less_or_equal, [Variable("i"), Constant(5)])
         }
 
+    def test_while_init_with_call(self, ast_call_init):
+        """The counter defined by a call is renamed inside the call's destination, not replaced by it."""
+        self.run_rbr(ast_call_init, _generate_options(max_condition=0, max_modification=0))
+
+        counter = Variable("counter")
+        assert ast_call_init.root.children[0].instructions == [
+            Assignment(Variable("a"), Constant(5)),
+            Assignment(ListOperation([counter]), Call(ImportedFunctionSymbol("foo", 0), [])),
+        ]
+        while_loop = ast_call_init.root.children[1]
+        assert isinstance(while_loop, WhileLoopNode)
+        assert ast_call_init.condition_map == {
+            logic_cond("x1", LogicCondition.generate_new_context()): Condition(OperationType.less_or_equal, [counter, Constant(5)])
+        }
+        assert while_loop.body.instructions == [
+            Assignment(Variable("a"), BinaryOperation(OperationType.plus, [Variable("a"), counter])),
+            Assignment(counter, BinaryOperation(OperationType.plus, [counter, Constant(1)])),
+        ]
+
+    def test_while_rename_keeps_ssa_name(self, ast_call_init):
+        """The new counter variable keeps the SSA name of the variable defined by the initialization."""
+        ssa_name = Variable("b", ssa_label=0)
+        ast_call_init.root.children[0].instructions[1].destination.operands[0].ssa_name = ssa_name
+        self.run_rbr(ast_call_init, _generate_options(max_condition=0, max_modification=0))
+
+        counters = [
+            variable
+            for node in ast_call_init.get_code_nodes_topological_order()
+            for instruction in node.instructions
+            for variable in instruction.definitions + instruction.requirements
+            if variable.name == "counter"
+        ]
+        assert len(counters) > 0 and all(variable.ssa_name == ssa_name for variable in counters)
+
     def test_double_init(self, ast_redundant_init):
         self.run_rbr(ast_redundant_init)
 
