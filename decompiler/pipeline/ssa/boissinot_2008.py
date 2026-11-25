@@ -310,7 +310,7 @@ class Boissinot2008:
                                             changes = True
                                         break
 
-        return [list(varClasses[x]) for x in varClasses.keys()]
+        return [list(c) for c in {id(c): c for c in varClasses.values()}.values()]  # each class once, not once per member
 
     def getBasicBlockList(self) -> List[BasicBlock]:
         """Returns a list of all basic blocks in the CFG, sorted by the number of loops the basic block is involved in descending order."""
