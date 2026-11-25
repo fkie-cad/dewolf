@@ -139,7 +139,7 @@ def test_errors_are_not_swallowed(monkeypatch):
     def fail(self):
         raise RuntimeError("step failed")
 
-    monkeypatch.setattr(Boissinot, "step3", fail)
+    monkeypatch.setattr(Boissinot, "_coalesce_and_rename", fail)
 
     with pytest.raises(RuntimeError, match="step failed"):
         OutOfSsaTranslation().run(decompiler_task(cfg, "boissinot", [var(0)]))
@@ -192,7 +192,7 @@ def test_parallel_copy_destinations_interfere():
     boissinot._to_cssa()
     boissinot._build_interference_graph()
 
-    spaces = boissinot._parallel_spaces._parallel_spaces_map
+    spaces = boissinot._parallel_spaces._block_spaces_of
     latch_address = next(address for address in spaces if address not in (0, 1, 2))
     graph = boissinot._interference_graph
     for address in (0, latch_address):
@@ -267,7 +267,7 @@ def _loop_depths_of(cfg):
     """Returns the loop nesting depths that Boissinot computes for the given cfg."""
     boissinot = Boissinot(decompiler_task(cfg, "boissinot", []), defaultdict(list))
     boissinot._cfg_copy = cfg
-    return boissinot._loop_depths(), boissinot.getBasicBlockList()
+    return boissinot._loop_depths(), boissinot._get_basic_blocks_by_loop_depth()
 
 
 def test_loop_depth_self_loop_ignores_blocks_before_the_loop():
@@ -362,10 +362,10 @@ def _copy_sharing_classes(second_use_after_b_dies):
     boissinot = Boissinot(decompiler_task(cfg, "boissinot", [a]), defaultdict(list))
     boissinot._to_cssa()
     boissinot._build_interference_graph()
-    boissinot.ifgColoring = deepcopy(boissinot._interference_graph)
-    boissinot.handle_Relations()
-    boissinot.fsetFix()
-    classes = boissinot.constructVariableClasses()
+    boissinot._coloring_graph = deepcopy(boissinot._interference_graph)
+    boissinot._merge_related_variables()
+    boissinot._wrap_variables_in_frozensets()
+    classes = boissinot._construct_variable_classes()
     return {v.name: next(set(cls) for cls in classes if v in cls) for v in (a, b, c)}, var
 
 
