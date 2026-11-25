@@ -17,7 +17,7 @@ from decompiler.task import DecompilerTask
 from decompiler.util.decoration import DecoratedCFG, DecoratedGraph
 
 
-class Boissinot2008:
+class Boissinot:
     """
     Out-of-SSA translation of Boissinot et al., "Revisiting Out-of-SSA Translation for Correctness, Code Quality, and
     Efficiency" (CGO 2009):
@@ -281,7 +281,7 @@ class Boissinot2008:
         self.renamer.rename()
 
     def constructVariableClasses(self) -> List[List[Variable]]:
-        """Creates Variable Classes based on the interference graph and the criteria defined in doVarCheckClassTogetherPossible like described in the paper by Boissinot et al. 2008."""
+        """Creates Variable Classes based on the interference graph and the criteria defined in doVarCheckClassTogetherPossible like described in the paper by Boissinot et al."""
         # Merge Variables that are connected by a copy assignment into one class, if they do not interfere based on our new criteria.
         varClasses = defaultdict(lambda: [])
         for node in self.ifgColoring.nodes(data=False):

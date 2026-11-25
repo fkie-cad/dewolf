@@ -1,11 +1,11 @@
-"""Pytest for the Boissinot et al. 2008 Out of SSA."""
+"""Pytest for the Boissinot et al. Out of SSA."""
 
 from collections import defaultdict
 from copy import deepcopy
 
 import pytest
 
-from decompiler.pipeline.ssa.boissinot_2008 import Boissinot2008
+from decompiler.pipeline.ssa.boissinot import Boissinot
 from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
 from decompiler.structures.pseudo import Assignment, BinaryOperation, Branch, Condition, Constant, Integer, OperationType, Phi, Relation, Return, Variable
@@ -53,7 +53,7 @@ def test_parameter_class_keeps_parameter_name():
     cfg.add_nodes_from([n0, n1, n2])
     cfg.add_edges_from([UnconditionalEdge(n0, n1), TrueCase(n1, n1), FalseCase(n1, n2)])
 
-    OutOfSsaTranslation().run(decompiler_task(cfg, "boissinot2008", [var(0)]))
+    OutOfSsaTranslation().run(decompiler_task(cfg, "boissinot", [var(0)]))
 
     assert n0.instructions == []
     assert n1.instructions == [
@@ -104,7 +104,7 @@ def test_parameter_class_name_not_taken_by_other_class():
     cfg.add_nodes_from([n0, n1, n2])
     cfg.add_edges_from([UnconditionalEdge(n0, n1), TrueCase(n1, n1), FalseCase(n1, n2)])
 
-    OutOfSsaTranslation().run(decompiler_task(cfg, "boissinot2008", [var(0)]))
+    OutOfSsaTranslation().run(decompiler_task(cfg, "boissinot", [var(0)]))
 
     loop = var(name="a__0")
     assert n0.instructions == [Assignment(loop, Constant(5))]
@@ -139,10 +139,10 @@ def test_errors_are_not_swallowed(monkeypatch):
     def fail(self):
         raise RuntimeError("step failed")
 
-    monkeypatch.setattr(Boissinot2008, "step3", fail)
+    monkeypatch.setattr(Boissinot, "step3", fail)
 
     with pytest.raises(RuntimeError, match="step failed"):
-        OutOfSsaTranslation().run(decompiler_task(cfg, "boissinot2008", [var(0)]))
+        OutOfSsaTranslation().run(decompiler_task(cfg, "boissinot", [var(0)]))
 
 
 def test_parallel_copy_destinations_interfere():
@@ -187,8 +187,8 @@ def test_parallel_copy_destinations_interfere():
     cfg.add_nodes_from([n0, n1, n2])
     cfg.add_edges_from([UnconditionalEdge(n0, n1), TrueCase(n1, n1), FalseCase(n1, n2)])
 
-    task = decompiler_task(cfg, "boissinot2008", [])
-    boissinot = Boissinot2008(task, defaultdict(list, {n1: n1.instructions[:2]}))
+    task = decompiler_task(cfg, "boissinot", [])
+    boissinot = Boissinot(task, defaultdict(list, {n1: n1.instructions[:2]}))
     boissinot._to_cssa()
     boissinot._build_interference_graph()
 
@@ -249,7 +249,7 @@ def test_unreachable_predecessor():
     cfg.root = n0
     cfg.add_edges_from([UnconditionalEdge(n0, n1), TrueCase(n1, n1), FalseCase(n1, n2), UnconditionalEdge(n9, n1)])
 
-    OutOfSsaTranslation().run(decompiler_task(cfg, "boissinot2008", [var("a", 0)]))
+    OutOfSsaTranslation().run(decompiler_task(cfg, "boissinot", [var("a", 0)]))
 
     latch = next(node for node in cfg.nodes if node not in (n0, n1, n2, n9))
     assert latch.address == -1
@@ -264,8 +264,8 @@ def test_unreachable_predecessor():
 
 
 def _loop_depths_of(cfg):
-    """Returns the loop nesting depths that Boissinot2008 computes for the given cfg."""
-    boissinot = Boissinot2008(decompiler_task(cfg, "boissinot2008", []), defaultdict(list))
+    """Returns the loop nesting depths that Boissinot computes for the given cfg."""
+    boissinot = Boissinot(decompiler_task(cfg, "boissinot", []), defaultdict(list))
     boissinot._cfg_copy = cfg
     return boissinot._loop_depths(), boissinot.getBasicBlockList()
 
@@ -359,7 +359,7 @@ def _copy_sharing_classes(second_use_after_b_dies):
     cfg.add_nodes_from([n0, n1])
     cfg.add_edge(UnconditionalEdge(n0, n1))
 
-    boissinot = Boissinot2008(decompiler_task(cfg, "boissinot2008", [a]), defaultdict(list))
+    boissinot = Boissinot(decompiler_task(cfg, "boissinot", [a]), defaultdict(list))
     boissinot._to_cssa()
     boissinot._build_interference_graph()
     boissinot.ifgColoring = deepcopy(boissinot._interference_graph)

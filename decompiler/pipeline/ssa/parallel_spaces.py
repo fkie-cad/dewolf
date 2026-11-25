@@ -55,7 +55,7 @@ class ParallelSpaces:
             space.end_of_block_assigns = self._remove_nop_copies_space(space.end_of_block_assigns)
 
     def _sequentialize_space(self, assignments: List[Assignment]) -> List[Assignment]:
-        """Insert copys from the parallel space into a sequential order as described in the paper form Boissinot et al. 2008."""
+        """Insert copys from the parallel space into a sequential order as described in the paper form Boissinot et al.."""
         loc = dict()
         pred = dict()
         to_do = list()

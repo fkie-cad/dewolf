@@ -1,4 +1,4 @@
-"""Classic out-of-SSA problem cases (Briggs et al., Boissinot et al. 2008) run through every implemented mode.
+"""Classic out-of-SSA problem cases (Briggs et al., Boissinot et al.) run through every implemented mode.
 
 Correctness is checked semantically: a small interpreter executes the CFG before and after out-of-SSA translation.
 """
