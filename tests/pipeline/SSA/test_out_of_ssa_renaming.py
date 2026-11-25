@@ -1,7 +1,7 @@
 """Pytest for renaming SSA-variables to non-SSA-variables."""
 
-import string
-
+from decompiler.pipeline.ssa.conditional_attribute_helper import get_phi_pairs
+from decompiler.pipeline.ssa.conditional_out_of_SSA import load_conditional_weights
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
 from decompiler.pipeline.ssa.variable_renaming import (
     ConditionalVariableRenamer,
@@ -10,7 +10,6 @@ from decompiler.pipeline.ssa.variable_renaming import (
     VariableRenamer,
 )
 from decompiler.structures.interferencegraph import InterferenceGraph
-from decompiler.structures.pseudo import Expression, Float, GlobalVariable
 
 from tests.pipeline.SSA.utils_out_of_ssa_tests import *
 
@@ -799,110 +798,93 @@ def test_minimal_renaming_relation(graph_with_relation, variable):
     }
 
 
-def test_conditional_renaming_relation(graph_with_relation, variable):
-    """Test for relations with simple renaming"""
+def _conditional_renamer(task, interference_graph: InterferenceGraph) -> ConditionalVariableRenamer:
+    """The conditional renamer with the bundled default weights."""
+    weights = load_conditional_weights()
+    return ConditionalVariableRenamer(
+        task,
+        interference_graph,
+        weights.coefficients,
+        weights.intercept,
+        get_phi_pairs(task.graph),
+        weights.strategy,
+        weights.min_kept_score,
+    )
+
+
+def test_conditional_renaming_relation(graph_with_relation):
+    """Variables joined by a Relation get the same name, unrelated variables keep their own name."""
     task, interference_graph = graph_with_relation
-    conditional_variable_renamer = ConditionalVariableRenamer(task, interference_graph)
+    conditional_variable_renamer = _conditional_renamer(task, interference_graph)
 
     var_28 = Variable("var_28", Pointer(Integer(32, True), 32), 1, False, None)
     var_1c = [Variable("var_1c", Integer(32, True), i, True, None) for i in range(5)]
     edx_3 = Variable("edx_3", Integer(32, True), 4, False, None)
     eax_7 = Variable("eax_7", Integer(32, True), 8, False, None)
-    variable[0].is_aliased = True
-    variable[1]._type = Pointer(Integer(32, True), 32)
-    variable[2].is_aliased = True
 
     assert conditional_variable_renamer.renaming_map == {
-        var_28: variable[1],
-        edx_3: variable[3],
-        eax_7: variable[3],
-        var_1c[0]: variable[0],
-        var_1c[2]: variable[0],
-        var_1c[3]: variable[2],
-        var_1c[4]: variable[2],
+        var_28: Variable("var_28", Pointer(Integer(32, True), 32)),
+        edx_3: Variable("edx_3", Integer(32, True)),
+        eax_7: Variable("eax_7", Integer(32, True)),
+        var_1c[0]: Variable("var_1c", Integer(32, True), is_aliased=True),
+        var_1c[2]: Variable("var_1c", Integer(32, True), is_aliased=True),
+        var_1c[3]: Variable("var_1c__0", Integer(32, True), is_aliased=True),
+        var_1c[4]: Variable("var_1c__0", Integer(32, True), is_aliased=True),
     }
 
 
 def test_conditional_renaming():
-    """Test that conditional renaming only combines related variables"""
-    orig_variables = [Variable(letter, Integer.int32_t()) for letter in string.ascii_lowercase]
-    new_variables = [Variable(f"var_{index}", Integer.int32_t()) for index in range(10)]
+    """Conditional renaming only combines related variables: here the copy b#2 = b#1."""
+    a0, b1, b2, d3 = (Variable(name, Integer.int32_t(), label) for name, label in (("a", 0), ("b", 1), ("b", 2), ("d", 3)))
 
     cfg = ControlFlowGraph()
     cfg.add_node(
         BasicBlock(
             0,
             [
-                Assignment(orig_variables[0], Constant(0, Integer.int32_t())),
-                Assignment(ListOperation([]), Call(FunctionSymbol("fun", 0), [orig_variables[0]])),
-                Assignment(orig_variables[1], Constant(1, Integer.int32_t())),
-                Assignment(ListOperation([]), Call(FunctionSymbol("fun", 0), [orig_variables[1]])),
-                Assignment(orig_variables[2], orig_variables[1]),
-                Assignment(ListOperation([]), Call(FunctionSymbol("fun", 0), [orig_variables[2]])),
-                Assignment(orig_variables[3], Constant(3, Integer.int32_t())),
-                Assignment(ListOperation([]), Call(FunctionSymbol("fun", 0), [orig_variables[3]])),
+                Assignment(a0, Constant(0, Integer.int32_t())),
+                Assignment(ListOperation([]), Call(FunctionSymbol("fun", 0), [a0])),
+                Assignment(b1, Constant(1, Integer.int32_t())),
+                Assignment(ListOperation([]), Call(FunctionSymbol("fun", 0), [b1])),
+                Assignment(b2, b1),
+                Assignment(ListOperation([]), Call(FunctionSymbol("fun", 0), [b2])),
+                Assignment(d3, Constant(3, Integer.int32_t())),
+                Assignment(ListOperation([]), Call(FunctionSymbol("fun", 0), [d3])),
             ],
         )
     )
 
     task = decompiler_task(cfg, SSAOptions.conditional)
-    interference_graph = InterferenceGraph(cfg)
-    renamer = ConditionalVariableRenamer(task, interference_graph)
+    renamer = _conditional_renamer(task, InterferenceGraph(cfg))
 
     assert renamer.renaming_map == {
-        orig_variables[0]: new_variables[0],
-        orig_variables[1]: new_variables[2],
-        orig_variables[2]: new_variables[2],
-        orig_variables[3]: new_variables[1],
+        a0: Variable("a", Integer.int32_t()),
+        b1: Variable("b", Integer.int32_t()),
+        b2: Variable("b", Integer.int32_t()),
+        d3: Variable("d", Integer.int32_t()),
     }
 
 
-def test_conditional_parallel_edges():
-    """
-    Test that conditional renaming prioritizes paralles edges of single edges, whose sum of
-    weights is bigger than the weight of the single edge
-    """
-
-    def _v(name: str) -> Variable:
-        return Variable(name, Float.float())
-
-    def _c(value: float) -> Constant:
-        return Constant(value, Float.float())
-
-    def _op(exp: Expression) -> BinaryOperation:
-        return BinaryOperation(OperationType.plus_float, [exp, _c(0)])
+def test_conditional_renaming_interfering_copy():
+    """A copy x#1 = x#0 scores high, but the two interfere (x#0 is used afterwards), so they get different names."""
+    x0, x1 = Variable("x", Integer.int32_t(), 0), Variable("x", Integer.int32_t(), 1)
 
     cfg = ControlFlowGraph()
     cfg.add_node(
-        b1 := BasicBlock(
-            1,
-            [
-                Assignment(_v("b"), _op(BinaryOperation(OperationType.plus_float, [_v("a0"), GlobalVariable("g0", Float.float(), _c(0))]))),
-                Assignment(_v("c"), _v("b")),
-                Assignment(_v("a1"), BinaryOperation(OperationType.plus_float, [_op(_v("b")), _v("c")])),
-                Assignment(_v("a0"), _v("a1")),  # lifted phi function
-            ],
-        )
-    )
-    cfg.add_node(
-        b0 := BasicBlock(
+        BasicBlock(
             0,
             [
-                # Phi(_v("a0"), [_c(0), _v("a1")], origin_block={b1: _v("a1")}),
-                Branch(Condition(OperationType.less, [_v("a0"), _c(100)]))
+                Assignment(x0, Constant(5, Integer.int32_t())),
+                Assignment(x1, x0),
+                Assignment(ListOperation([]), Call(FunctionSymbol("fun", 0), [x0, x1])),
             ],
         )
     )
-    cfg.add_node(b2 := BasicBlock(2, [Return([])]))
-
-    cfg.add_edge(TrueCase(b0, b1))
-    cfg.add_edge(FalseCase(b0, b2))
-    cfg.add_edge(UnconditionalEdge(b1, b0))
 
     task = decompiler_task(cfg, SSAOptions.conditional)
-    interference_graph = InterferenceGraph(cfg)
-    renamer = ConditionalVariableRenamer(task, interference_graph)
+    renamer = _conditional_renamer(task, InterferenceGraph(cfg))
 
-    assert frozenset(frozenset(c) for c in renamer._variable_classes_handler.variable_class.values()) == frozenset(
-        {frozenset({GlobalVariable("g0", Float.float(), _c(0))}), frozenset({_v("c")}), frozenset({_v("a0"), _v("a1"), _v("b")})}
-    )
+    assert renamer.renaming_map == {
+        x0: Variable("x", Integer.int32_t()),
+        x1: Variable("x__0", Integer.int32_t()),
+    }

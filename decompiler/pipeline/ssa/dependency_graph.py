@@ -1,60 +1,11 @@
-import itertools
-from itertools import combinations
-from typing import Iterator
+from typing import Iterator, Optional
 
-import networkx
+from decompiler.pipeline.ssa.conditional_attribute_helper import ConditionalAttributeHelper, PhiPairs, variablesAreInterfering
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
-from decompiler.structures.pseudo import Expression, Operation, OperationType
+from decompiler.structures.pseudo import UnaryOperation
 from decompiler.structures.pseudo.expressions import Variable
-from decompiler.structures.pseudo.instructions import Assignment
-from decompiler.util.decoration import DecoratedGraph
-from networkx import MultiDiGraph
-
-# Multiplicative constant applied to dependency scores when encountering operations, to penalize too much nesting.
-OPERATION_PENALTY = 0.9
-
-
-def decorate_dependency_graph(dependency_graph: MultiDiGraph, interference_graph: InterferenceGraph) -> DecoratedGraph:
-    """
-    Creates a decorated graph from the given dependency and interference graphs.
-
-    This function constructs a new graph where:
-    - Variables are represented as nodes.
-    - Dependencies between variables are represented as directed edges.
-    - Interferences between variables are represented as red, undirected edges.
-    """
-    decorated_graph = MultiDiGraph()
-    for node in dependency_graph.nodes:
-        decorated_graph.add_node(hash(node), label="\n".join(map(lambda n: f"{n}: {n.type}, aliased: {n.is_aliased}", node)))
-    for u, v, data in dependency_graph.edges.data():
-        decorated_graph.add_edge(hash(u), hash(v), label=f"{data['score']}")
-    for nodes in networkx.weakly_connected_components(dependency_graph):
-        for node_1, node_2 in combinations(nodes, 2):
-            if any(interference_graph.has_edge(pair[0], pair[1]) for pair in itertools.product(node_1, node_2)):
-                decorated_graph.add_edge(hash(node_1), hash(node_2), color="red", dir="none")
-
-    return DecoratedGraph(decorated_graph)
-
-
-def dependency_graph_from_cfg(cfg: ControlFlowGraph) -> MultiDiGraph:
-    """
-    Construct the dependency graph of the given CFG, i.e. adds an edge between two variables if they depend on each other.
-        - Add an edge the definition to at most one requirement for each instruction.
-        - All variables that where not defined via Phi-functions before have out-degree of at most 1, because they are defined at most once.
-        - Variables that are defined via Phi-functions can have one successor for each required variable of the Phi-function.
-    """
-    dependency_graph = MultiDiGraph()
-
-    for variable in _collect_variables(cfg):
-        dependency_graph.add_node((variable,))
-    for instruction in _assignments_in_cfg(cfg):
-        defined_variables = instruction.definitions
-        for used_variable, score in _expression_dependencies(instruction.value).items():
-            if score > 0:
-                dependency_graph.add_edges_from((((dvar,), (used_variable,)) for dvar in defined_variables), score=score)
-
-    return dependency_graph
+from networkx import MultiGraph
 
 
 def _collect_variables(cfg: ControlFlowGraph) -> Iterator[Variable]:
@@ -63,52 +14,42 @@ def _collect_variables(cfg: ControlFlowGraph) -> Iterator[Variable]:
     """
     for instruction in cfg.instructions:
         for subexpression in instruction.subexpressions():
-            if isinstance(subexpression, Variable):
+            if (isinstance(subexpression, Variable)) and (not isinstance(subexpression, UnaryOperation)):
                 yield subexpression
 
 
-def _assignments_in_cfg(cfg: ControlFlowGraph) -> Iterator[Assignment]:
-    """Yield all interesting assignments for the dependency graph."""
-    for instr in cfg.instructions:
-        if isinstance(instr, Assignment):
-            yield instr
-
-
-def _expression_dependencies(expression: Expression) -> dict[Variable, float]:
+def dependency_graph_from_cfg(
+    cfg: ControlFlowGraph,
+    parameters: list[float],
+    intercept: float,
+    phi_pairs: PhiPairs,
+    ifg: InterferenceGraph,
+    min_kept_score: Optional[float] = None,
+) -> MultiGraph:
     """
-    Calculate the dependencies of an expression in terms of its constituent variables.
+    Construct the dependency graph of the given CFG, i.e. adds an edge between two variables if they depend on each other.
 
-    This function analyzes the given `expression` and returns a dictionary mapping each
-    `Variable` to a float score representing its contribution or dependency weight within
-    the expression.
-    The scoring mechanism accounts for different types of operations and
-    penalizes nested operations to reflect their complexity.
+    The score of a candidate pair is the linear model (parameters, intercept) applied to its feature vector.
+    Pairs with score <= 0 and interfering pairs get no edge. Kept scores are raised to at least min_kept_score
+    (None: no lower bound).
     """
-    match expression:
-        case Variable():
-            return {expression: 1.0}
-        case Operation():
-            if expression.operation in {
-                OperationType.call,
-                OperationType.address,
-                OperationType.dereference,
-                OperationType.member_access,
-            }:
-                return {}
+    dependency_graph = MultiGraph()
+    for variable in _collect_variables(cfg):
+        dependency_graph.add_node((variable,))
 
-            operands_dependencies = list(filter(lambda d: d, (_expression_dependencies(operand) for operand in expression.operands)))
-            dependencies: dict[Variable, float] = {}
-            for deps in operands_dependencies:
-                for var in deps:
-                    score = deps[var]
-                    score /= len(operands_dependencies)
-                    score *= OPERATION_PENALTY  # penalize operations, so that expressions like (a + (a + (a + (a + a)))) gets a lower score than just (a)
+    helper = ConditionalAttributeHelper(phi_pairs)
+    for vector, (a, b) in helper.iter_edge_data(cfg):
+        score = sum(p * v for p, v in zip(parameters, vector)) + intercept
+        if score <= 0 or variablesAreInterfering(ifg, a, b):
+            continue
 
-                    if var not in dependencies:
-                        dependencies[var] = score
-                    else:
-                        dependencies[var] += score
+        existing_score = 0.0
+        if min_kept_score is not None:
+            score = max(score, min_kept_score)
+        if dependency_graph.has_edge((a,), (b,)):
+            existing_score = next(iter(dependency_graph.get_edge_data((a,), (b,)).values()))["score"]
+            dependency_graph.remove_edge((a,), (b,))
 
-            return dependencies
-        case _:
-            return {}
+        dependency_graph.add_edge((a,), (b,), score=max(score, existing_score))
+
+    return dependency_graph
