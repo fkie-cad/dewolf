@@ -72,7 +72,7 @@ class AssignmentHandler(Handler):
             isinstance(dest_type, Struct) or isinstance(dest_type, Class)
         ):  # otherwise get_member_by_offset not available
             # the field write modifies the struct version before the write (prev); its new version is defined afterwards
-            struct_variable = self._lifter.lift(getattr(assignment, "prev", assignment.dest), is_aliased=True, parent=assignment)
+            struct_variable = self._lifter.lift(assignment.prev, is_aliased=True, parent=assignment)
             destination = MemberAccess(
                 offset=assignment.offset,
                 member_name=struct_variable.type.get_member_name_by_offset(assignment.offset),
