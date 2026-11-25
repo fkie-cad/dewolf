@@ -1,5 +1,8 @@
 """Pytest for the Boissinot et al. 2008 Out of SSA."""
 
+import pytest
+
+from decompiler.pipeline.ssa.boissinot_2008 import Boissinot2008
 from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
 from decompiler.structures.pseudo import Assignment, BinaryOperation, Branch, Condition, Constant, Integer, OperationType, Phi, Return, Variable
@@ -107,3 +110,33 @@ def test_parameter_class_name_not_taken_by_other_class():
         Branch(Condition(OperationType.less, [loop, Constant(10)])),
     ]
     assert n2.instructions == [Return([BinaryOperation(OperationType.plus, [loop, var()])])]
+
+
+def test_errors_are_not_swallowed(monkeypatch):
+    """Errors in a translation step must propagate, perform() used to print them and leave the CFG half translated."""
+
+    def var(label=None):
+        return Variable("a", Integer.int32_t(), ssa_label=label)
+
+    cfg = ControlFlowGraph()
+    n0 = BasicBlock(0, [])
+    n1 = BasicBlock(
+        1,
+        [
+            Phi(var(1), [var(0), var(2)]),
+            Assignment(var(2), BinaryOperation(OperationType.plus, [var(1), Constant(1)])),
+            Branch(Condition(OperationType.less, [var(2), Constant(10)])),
+        ],
+    )
+    n2 = BasicBlock(2, [Return([var(2)])])
+    n1.instructions[0]._origin_block = {n0: var(0), n1: var(2)}
+    cfg.add_nodes_from([n0, n1, n2])
+    cfg.add_edges_from([UnconditionalEdge(n0, n1), TrueCase(n1, n1), FalseCase(n1, n2)])
+
+    def fail(self):
+        raise RuntimeError("step failed")
+
+    monkeypatch.setattr(Boissinot2008, "step3", fail)
+
+    with pytest.raises(RuntimeError, match="step failed"):
+        OutOfSsaTranslation().run(decompiler_task(cfg, "boissinot2008", [var(0)]))

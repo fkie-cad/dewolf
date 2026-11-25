@@ -1,5 +1,4 @@
 import itertools
-import traceback
 from collections import defaultdict
 from copy import deepcopy
 from typing import DefaultDict, Dict, Iterator, List, Optional
@@ -549,19 +548,15 @@ class Boissinot2008:
                     bb.replace_instruction(instr, [])
 
     def perform(self) -> None:
-        try:
-            self._to_cssa()  # Step 1
-            self._build_interference_graph()  # Step 2
-            self.step3()  # Step 3
+        self._to_cssa()  # Step 1
+        self._build_interference_graph()  # Step 2
+        self.step3()  # Step 3
 
-            # manual clean up
-            self._remove_nop_instr(self._cfg)
+        # manual clean up
+        self._remove_nop_instr(self._cfg)
 
-            # Parallel spaces
-            self._parallel_spaces.remove_nop_copies()  # Clean up
-            self._parallel_spaces.sequentialize()  # Step 4
-            self._parallel_spaces.instert_into_cfg(self._cfg)  # Step 4
-            self._remove_phis(self._cfg)  # Remove Phi functions
-
-        except Exception as e:
-            traceback.print_exception(e)
+        # Parallel spaces
+        self._parallel_spaces.remove_nop_copies()  # Clean up
+        self._parallel_spaces.sequentialize()  # Step 4
+        self._parallel_spaces.instert_into_cfg(self._cfg)  # Step 4
+        self._remove_phis(self._cfg)  # Remove Phi functions
