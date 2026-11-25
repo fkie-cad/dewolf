@@ -550,6 +550,19 @@ class Phi(Assignment):
         else:
             logging.error(f"Block {vertex} is not a key in Phi.origin_block {self}.")
 
+    def substitute_for_block(self, block, replacement: Union[Variable, Constant]) -> None:
+        """Replace the value that reaches this Phi from the given predecessor block (in origin_block and in the operand list)."""
+        if block not in self._origin_block:
+            raise KeyError(f"Block {block} is not a key in Phi.origin_block {self}.")
+        old_value = self._origin_block[block]
+        self._origin_block[block] = replacement
+        operands = list(self._value.operands)
+        index = next((i for i, operand in enumerate(operands) if operand is old_value), None)
+        if index is None:
+            index = operands.index(old_value)
+        operands[index] = replacement
+        self._value = ListOperation(operands, self._value.tags)
+
     def copy(self) -> Phi:
         """Copy the current Phi instruction."""
         return Phi(self._destination.copy(), [x.copy() for x in self._value.operands], self._origin_block.copy(), self.tags)

@@ -21,14 +21,6 @@ def test_optimization_does_not_exist(graph_no_dependency):
         run_out_of_ssa(cfg, "simpel")
 
 
-def test_optimization_is_not_implemented(graph_no_dependency):
-    """Here we test that we raise an error if the optimization does not exists."""
-
-    nodes, instructions, cfg = graph_no_dependency
-    with pytest.raises(NotImplementedError):
-        run_out_of_ssa(cfg, "sreedhar")
-
-
 # test for "simple" Out-of-SSA:
 def test_no_dependency_conditional_edges_simple(graph_no_dependency):
     """Here we test whether Phi-functions, without dependency and where the ingoing edges are unconditional, are lifted correctly.

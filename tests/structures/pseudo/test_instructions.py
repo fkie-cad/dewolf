@@ -1,3 +1,4 @@
+import pytest
 from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import (
     Assignment,
@@ -445,6 +446,30 @@ class TestPhi:
         assert id(original.value[0]) != id(copy.value[0]) and original.value[0] == copy.value[0]
         assert id(original.value[1]) != id(copy.value[1]) and original.value[1] == copy.value[1]
         assert id(original.value[2]) != id(copy.value[2]) and original.value[2] == copy.value[2]
+
+    def test_substitute_for_block_equal_constants(self):
+        """The same Constant object on two edges is replaced per block."""
+        block_1, block_2, block_3 = object(), object(), object()
+        const = Constant(4)
+        phi = Phi(a, [const, const, c], {block_1: const, block_2: const, block_3: c})
+        n1, n2 = Variable("n", Integer.int32_t(), 1), Variable("n", Integer.int32_t(), 2)
+        phi.substitute_for_block(block_1, n1)
+        phi.substitute_for_block(block_2, n2)
+        assert list(phi.value.operands) == [n1, n2, c]
+        assert phi.origin_block == {block_1: n1, block_2: n2, block_3: c}
+
+    def test_substitute_for_block_after_copy(self):
+        block_1, block_2 = object(), object()
+        const = Constant(4)
+        phi = Phi(a, [const, b], {block_1: const, block_2: b}).copy()
+        n1 = Variable("n", Integer.int32_t(), 1)
+        phi.substitute_for_block(block_1, n1)
+        assert list(phi.value.operands) == [n1, b]
+        assert phi.origin_block == {block_1: n1, block_2: b}
+
+    def test_substitute_for_block_unknown_block(self):
+        with pytest.raises(KeyError):
+            Phi(a, [b], {object(): b}).substitute_for_block(object(), c)
 
 
 mem6 = Variable("mem", "", 6)
