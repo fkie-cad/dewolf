@@ -180,7 +180,13 @@ class OutOfSsaTranslation(PipelineStage):
         ConstantLifter(self.task).perform()
         SreedharOutOfSSA(self.task).perform()
 
-    def _boissinot(self):
+    def _boissinot(self) -> None:
+        """
+        This is an out of SSA algorithm based on Boissinot et al.:
+            - We first insert parallel copies for the Phi-functions.
+            - Then, we coalesce the variables whose values are the same or whose live ranges do not intersect into classes.
+            - Afterwards, we remove the Phi-functions, rename the variables according to their class and sequentialize the copies.
+        """
         Boissinot(self.task, self._phi_functions_of).perform()
 
     # This translator maps the optimization levels to the functions.
