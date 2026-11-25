@@ -32,16 +32,12 @@ class BoissinotVariableRenamer(VariableRenamer):
         :param interference_graph: The interference graph of the variables.
         :param variable_classes: The classes of variables, all variables of one class get the same name.
         """
-        self.cfg = task.cfg
-        self.interference_graph = interference_graph
+        super().__init__(task, interference_graph)
         self.variable_classes = variable_classes
-
-        self.variable_for_function_arg: Dict[str, Variable] = self._get_function_argument_variables(task.function_parameters)
         self.function_arg_for_variable: Dict[Variable, str] = {v: k for k, v in self.variable_for_function_arg.items()}
 
         self._assigned_names: List[str] = []
         self._name_count = 0
-        self.renaming_map: Dict[Variable, Variable] = dict()
         self._generate_renaming_map()
 
     def _generate_renaming_map(self) -> None:
@@ -132,7 +128,6 @@ class Boissinot:
     Differences to the paper:
         - The weight of a copy is the loop nesting depth of its block, a static estimate of the block frequency (the
           paper uses profile information and reports similar results for static estimates).
-        - No independent set search per Phi function ("Value + IS" in the paper's experiments).
         - Two classes are only merged if they do not mix global and other variables, all their global variables have
           the same name, all variables have the same type, they do not mix aliased and non-aliased variables, and all
           aliased variables have the same name (see can_be_in_same_class). These constraints are needed so
