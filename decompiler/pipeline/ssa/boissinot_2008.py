@@ -466,7 +466,7 @@ class Boissinot2008:
             count = 0
             assignedNames = []
 
-            for varClass in self.varClasses:
+            for varClass in sorted(self.varClasses, key=lambda c: not any(v in self.function_arg_for_variable for v in c)):  # parameter classes first, so they keep the parameter name
                 varClass = sorted(varClass, key=lambda x: f"{x.name}{x.ssa_label}")  # Determinism
                 new_name = ""
                 areGlobs = [var for var in varClass if isinstance(var, GlobalVariable)]  # Global variables

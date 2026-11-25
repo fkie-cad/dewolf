@@ -55,3 +55,55 @@ def test_parameter_class_keeps_parameter_name():
         Branch(Condition(OperationType.less, [var(), Constant(10)])),
     ]
     assert n2.instructions == [Return([var()])]
+
+
+def test_parameter_class_name_not_taken_by_other_class():
+    """The class containing a parameter must get the parameter name even if another class with the same variable name comes first.
+    Names were handed out first-come, so the loop class took a and the parameter class became a__0, which is never defined.
+    +------------------+     +------------------+
+    |        0.        |     |        0.        |
+    | a#1 = 5          |     | a__0 = 5         |
+    +------------------+     +------------------+
+      |                        |
+      v                        v
+    +------------------+     +------------------+
+    |        1.        |     |        1.        |
+    | a#2 = ϕ(a#1,a#3) |     | a__0 = a__0 + a  |
+    | a#3 = a#2 + a#0  |     | if(a__0 < 10)    |
+    | if(a#3 < 10)     |     +------------------+
+    +------------------+       |
+      |                        v
+      v                      +------------------+
+    +------------------+     |        2.        |
+    |        2.        |     | return a__0 + a  |
+    | return a#3 + a#0 |     +------------------+
+    +------------------+
+    """
+
+    def var(label=None, name="a"):
+        return Variable(name, Integer.int32_t(), ssa_label=label)
+
+    cfg = ControlFlowGraph()
+    n0 = BasicBlock(0, [Assignment(var(1), Constant(5))])
+    n1 = BasicBlock(
+        1,
+        [
+            Phi(var(2), [var(1), var(3)]),
+            Assignment(var(3), BinaryOperation(OperationType.plus, [var(2), var(0)])),
+            Branch(Condition(OperationType.less, [var(3), Constant(10)])),
+        ],
+    )
+    n2 = BasicBlock(2, [Return([BinaryOperation(OperationType.plus, [var(3), var(0)])])])
+    n1.instructions[0]._origin_block = {n0: var(1), n1: var(3)}
+    cfg.add_nodes_from([n0, n1, n2])
+    cfg.add_edges_from([UnconditionalEdge(n0, n1), TrueCase(n1, n1), FalseCase(n1, n2)])
+
+    OutOfSsaTranslation().run(decompiler_task(cfg, "boissinot2008", [var(0)]))
+
+    loop = var(name="a__0")
+    assert n0.instructions == [Assignment(loop, Constant(5))]
+    assert n1.instructions == [
+        Assignment(loop, BinaryOperation(OperationType.plus, [loop, var()])),
+        Branch(Condition(OperationType.less, [loop, Constant(10)])),
+    ]
+    assert n2.instructions == [Return([BinaryOperation(OperationType.plus, [loop, var()])])]
