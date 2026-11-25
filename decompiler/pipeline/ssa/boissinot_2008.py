@@ -18,6 +18,30 @@ from decompiler.util.decoration import DecoratedCFG, DecoratedGraph
 
 
 class Boissinot2008:
+    """
+    Out-of-SSA translation of Boissinot et al., "Revisiting Out-of-SSA Translation for Correctness, Code Quality, and
+    Efficiency" (CGO 2009):
+        1. Insert parallel copies for every Phi function (conventional SSA).
+        2. Build the value-based interference graph: two variables interfere if their live ranges intersect and they
+           have different values (rule "Value" of the paper).
+        3. Coalesce the copies by decreasing weight, then share copies of the same variable whose live ranges
+           intersect (copy sharing), and rename the variables per class.
+        4. Sequentialize the parallel copies.
+
+    Differences to the paper:
+        - The weight of a copy is the loop nesting depth of its block, a static estimate of the block frequency (the
+          paper uses profile information and reports similar results for static estimates).
+        - No independent set search per Phi function ("Value + IS" in the paper's experiments).
+        - Two classes are only merged if they do not mix global and other variables, all their global variables have
+          the same name, all variables have the same type, they do not mix aliased and non-aliased variables, and all
+          aliased variables have the same name (see doVarCheckClassToghetherPossible). These constraints are needed so
+          that a variable of the decompiled code has one type and one memory location; they only prevent merges.
+        - Variables connected by a Relation always get the same name.
+        - The class of a function parameter gets the parameter name.
+        - The paper's linear-time intersection check (equal_anc) is not implemented; an explicit interference graph is
+          used instead (only a runtime difference).
+    """
+
     def __init__(self, task: DecompilerTask, phi_functions: DefaultDict[BasicBlock, List[Phi]]):
         self._task: DecompilerTask = task
         self._cfg: ControlFlowGraph = self._task.cfg  # type: ignore
