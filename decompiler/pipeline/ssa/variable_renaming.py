@@ -274,7 +274,8 @@ class SimpleVariableRenamer(VariableRenamer):
                 self.renaming_map[v] = Variable(f"{variable.name}_{variable.ssa_label}", variable.type)
 
         for argument, variable in self.variable_for_function_arg.items():
-            self.renaming_map[variable] = Variable(argument, variable.type)
+            for v in self._variables_contracted_to[variable]:  # variables joined to the argument by Relations get its name too
+                self.renaming_map[v] = Variable(argument, variable.type)
 
 
 class MinimalVariableRenamer(VariableRenamer):
