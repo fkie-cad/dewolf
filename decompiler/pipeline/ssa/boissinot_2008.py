@@ -332,32 +332,25 @@ class Boissinot2008:
         return [list(c) for c in {id(c): c for c in varClasses.values()}.values()]  # each class once, not once per member
 
     def getBasicBlockList(self) -> List[BasicBlock]:
-        """Returns a list of all basic blocks in the CFG, sorted by the number of loops the basic block is involved in descending order."""
+        """Returns a list of all basic blocks in the CFG, sorted by their loop nesting depth in descending order."""
+        depth = self._loop_depths()
+        return sorted(depth.keys(), key=lambda bb: depth[bb], reverse=True)
 
-        # idom = self._cfg_copy.dominator_tree
-        # print(type(idom),idom)
-        # print(idom.)
-        # idom : nx.DiGraph
-        # idom = {node : idom.predecessors(node)[0] for node in idom.nodes(data=False)}
+    def _loop_depths(self) -> Dict[BasicBlock, int]:
+        """
+        Returns the loop nesting depth of every basic block, i.e. the number of loop headers whose natural loop contains the block.
+        The paper orders the copies by block frequency (Sec. III-B), the nesting depth is a static estimate of it.
+        """
         idom = nx.immediate_dominators(self._cfg_copy._graph, self._cfg_copy.root)
         idom: Dict[BasicBlock, BasicBlock]
         idom.setdefault(self._cfg_copy.root, self._cfg_copy.root)
 
-        backEdges = []
+        loops = defaultdict(set)  # all back edges to the same header form one loop
         for A, B in self._cfg_copy._graph.edges():
             if self._dominates(B, A, idom):
-                backEdges.append((A, B))
+                loops[B].update(self.getLoopInvolvedNodes(B, A))
 
-        loops = []
-        for A, B in backEdges:
-            loops.append(self.getLoopInvolvedNodes(B, A))
-
-        loops = [y for x in loops for y in x]
-        count = {}
-        for bb in self._cfg_copy:
-            count[bb] = loops.count(bb)
-
-        return sorted(count.keys(), key=lambda bb: count[bb], reverse=True)
+        return {bb: sum(bb in loop for loop in loops.values()) for bb in self._cfg_copy}
 
     def _dominates(self, dominator: BasicBlock, dominated: BasicBlock, idom: Dict[BasicBlock, BasicBlock]) -> bool:
         """Returns True if dominator dominates dominated in the CFG, False otherwise."""
@@ -372,8 +365,11 @@ class Boissinot2008:
 
     def getLoopInvolvedNodes(self, Head: BasicBlock, B: BasicBlock) -> List[BasicBlock]:
         """Returns a list of all basic blocks involved in the loop with header A and back edge B->A"""
-        loop = [Head, B]
-        worklist = [B]
+        loop = [Head]
+        worklist = []
+        if B is not Head:
+            loop.append(B)
+            worklist.append(B)
         while worklist:
             x = worklist.pop()
             for pred in self._cfg_copy.get_predecessors(x):

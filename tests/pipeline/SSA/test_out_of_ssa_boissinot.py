@@ -260,3 +260,69 @@ def test_unreachable_predecessor():
     assert n2.instructions == [Return([var("a")])]
     assert n9.instructions == [Assignment(var("a"), Constant(5))]
     assert latch.instructions == [Assignment(var("a"), var("x"))]
+
+
+def _loop_depths_of(cfg):
+    """Returns the loop nesting depths that Boissinot2008 computes for the given cfg."""
+    boissinot = Boissinot2008(decompiler_task(cfg, "boissinot2008", []), defaultdict(list))
+    boissinot._cfg_copy = cfg
+    return boissinot._loop_depths(), boissinot.getBasicBlockList()
+
+
+def test_loop_depth_self_loop_ignores_blocks_before_the_loop():
+    """B0 -> B1 -> B2 -> B3 where B2 loops on itself, only B2 is in a loop."""
+    cfg = ControlFlowGraph()
+    n0, n1, n2, n3 = (BasicBlock(i, []) for i in range(4))
+    cfg.add_nodes_from([n0, n1, n2, n3])
+    cfg.add_edges_from([UnconditionalEdge(n0, n1), UnconditionalEdge(n1, n2), TrueCase(n2, n2), FalseCase(n2, n3)])
+
+    depths, order = _loop_depths_of(cfg)
+
+    assert depths == {n0: 0, n1: 0, n2: 1, n3: 0}
+    assert order == [n2, n0, n1, n3]
+
+
+def test_loop_depth_several_back_edges_count_once():
+    """The loop header B1 has two back edges (one from a continue), the loop body is at depth 1 not 2.
+    B0 -> B1 -> B2 -> B3 -> B1, B2 -> B1, B1 -> B4
+    """
+    cfg = ControlFlowGraph()
+    n0, n1, n2, n3, n4 = (BasicBlock(i, []) for i in range(5))
+    cfg.add_nodes_from([n0, n1, n2, n3, n4])
+    cfg.add_edges_from(
+        [
+            UnconditionalEdge(n0, n1),
+            TrueCase(n1, n2),
+            FalseCase(n1, n4),
+            TrueCase(n2, n1),
+            FalseCase(n2, n3),
+            UnconditionalEdge(n3, n1),
+        ]
+    )
+
+    depths, _ = _loop_depths_of(cfg)
+
+    assert depths == {n0: 0, n1: 1, n2: 1, n3: 1, n4: 0}
+
+
+def test_loop_depth_nested_loops():
+    """The inner loop B2 -> B3 -> B2 lies in the outer loop B1 -> B2 -> B3 -> B4 -> B1, so B2 and B3 are at depth 2."""
+    cfg = ControlFlowGraph()
+    n0, n1, n2, n3, n4, n5 = (BasicBlock(i, []) for i in range(6))
+    cfg.add_nodes_from([n0, n1, n2, n3, n4, n5])
+    cfg.add_edges_from(
+        [
+            UnconditionalEdge(n0, n1),
+            TrueCase(n1, n2),
+            FalseCase(n1, n5),
+            UnconditionalEdge(n2, n3),
+            TrueCase(n3, n2),
+            FalseCase(n3, n4),
+            UnconditionalEdge(n4, n1),
+        ]
+    )
+
+    depths, order = _loop_depths_of(cfg)
+
+    assert depths == {n0: 0, n1: 1, n2: 2, n3: 2, n4: 1, n5: 0}
+    assert order[:2] == [n2, n3]
