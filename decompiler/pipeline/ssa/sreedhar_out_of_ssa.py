@@ -105,20 +105,18 @@ class ConstantLifter:
             for variable in instruction.definitions + instruction.requirements:
                 self._name_handler.register_ssa_var(variable)
 
-    def _insert_before_branch(self, instructions: List[Instruction], instruction: Instruction) -> None:
-        """Inserts an instruction right before the terminating branch, if one exists."""
-        if instructions and isinstance(instructions[-1], GenericBranch):
-            branch = instructions.pop()
-            instructions.append(instruction)
-            instructions.append(branch)
-        else:
-            instructions.append(instruction)
-
     def perform(self) -> None:
         """Lift the constants of all Phi functions."""
-        for block in list(self._cfg):
+        for block in self._cfg.nodes:
             for phi in [instruction for instruction in block.instructions if isinstance(instruction, Phi)]:
                 self._lift_constants_from_phi(phi)
+
+    def _insert_assignment_at_end_of_block(self, node: BasicBlock, instruction: Instruction) -> None:
+        """Insert the given instruction at the end of the given node, i.e., right before the terminating branch if one exists."""
+        if node.instructions and isinstance(node.instructions[-1], GenericBranch):
+            node.instructions = node.instructions[:-1] + [instruction, node.instructions[-1]]
+        else:
+            node.instructions.append(instruction)
 
     def _create_entry_block(self, root: BasicBlock) -> BasicBlock:
         """Create an empty entry block before the root and move the function-entry origin (None) of its Phis to it."""
@@ -136,8 +134,7 @@ class ConstantLifter:
             if not isinstance(argument, Constant):
                 continue
 
-            # We use tags here as a small workaround rather than modifying the
-            # Variable class solely to support this algorithm.
+            # We use tags here as a small workaround rather than modifying the Variable class solely to support this algorithm.
             lifted_variable = Variable(
                 name=self._CONST_LIFT_NAME,
                 vartype=argument.type,
@@ -149,7 +146,7 @@ class ConstantLifter:
                 if self._entry_block is None:
                     self._entry_block = self._create_entry_block(cast(BasicBlock, self._cfg.root))
                 predecessor = self._entry_block
-            self._insert_before_branch(predecessor.instructions, Assignment(lifted_variable, argument.copy()))
+            self._insert_assignment_at_end_of_block(predecessor, Assignment(lifted_variable, argument.copy()))
             phi.substitute_for_block(predecessor, lifted_variable)
 
 
@@ -196,12 +193,12 @@ class PhiCongruenceMap:
         """Return the kind of the variable, which restricts the merging of its class."""
         if isinstance(variable, GlobalVariable):
             return _KIND_GLOBAL
-        if getattr(variable, "is_aliased", False):
+        if variable.is_aliased:
             return _KIND_ALIASED
         if variable.name in self._function_arg_names:
             return _KIND_FUNC_ARG
 
-        tags = getattr(variable, "tags", None)
+        tags = variable.tags
         if tags and tags[0].name == "sreedhar_var_tag" and tags[0].data == "wild":
             return _KIND_WILD
 
@@ -594,7 +591,7 @@ class SreedharOutOfSSA:
         return entry_block
 
     def _insert_req_copy(self, phi: Phi, variable: Variable, new_variable: Variable) -> None:
-        """Make the Phi use new_variable instead of the argument and copy the argument to new_variable before the branch of each origin block."""
+        """Make the Phi use new_variable instead of variable and copy variable to new_variable at the end of each origin block."""
         for origin_block in self._phi_to_orig_map[id(phi)].argument_origins[variable]:
             if origin_block is None:
                 origin_block = self._create_entry_block(cast(BasicBlock, self._phi_to_orig_map[id(phi)].destination_block))

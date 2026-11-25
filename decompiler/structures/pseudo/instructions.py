@@ -554,12 +554,12 @@ class Phi(Assignment):
         """Replace the value that reaches this Phi from the given predecessor block (in origin_block and in the operand list)."""
         if block not in self._origin_block:
             raise KeyError(f"Block {block} is not a key in Phi.origin_block {self}.")
-        old = self._origin_block[block]
+        old_value = self._origin_block[block]
         self._origin_block[block] = replacement
         operands = list(self._value.operands)
-        index = next((i for i, operand in enumerate(operands) if operand is old), None)
+        index = next((i for i, operand in enumerate(operands) if operand is old_value), None)
         if index is None:
-            index = operands.index(old)
+            index = operands.index(old_value)
         operands[index] = replacement
         self._value = ListOperation(operands, self._value.tags)
 

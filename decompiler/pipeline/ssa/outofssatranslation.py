@@ -168,6 +168,12 @@ class OutOfSsaTranslation(PipelineStage):
         ConditionalVariableRenamer(self.task, self.interference_graph).rename()
 
     def _sreedhar_out_of_ssa(self) -> None:
+        """
+        This is an out of SSA algorithm based on Sreedhar et al.:
+            - We first lift the constant arguments of the Phi-functions into new variables in the predecessor basic blocks.
+            - Then, we insert copies for the Phi-functions and coalesce the variables into congruence classes.
+            - Afterwards, we remove the Phi-functions and rename the variables according to their congruence class.
+        """
         ConstantLifter(self.task).perform()
         SreedharOutOfSSA(self.task).perform()
 
