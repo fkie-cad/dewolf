@@ -1,7 +1,6 @@
 """Pytest for the Boissinot et al. Out of SSA."""
 
 from collections import defaultdict
-from copy import deepcopy
 
 import pytest
 
@@ -362,9 +361,6 @@ def _copy_sharing_classes(second_use_after_b_dies):
     boissinot = Boissinot(decompiler_task(cfg, "boissinot", [a]), defaultdict(list))
     boissinot._to_cssa()
     boissinot._build_interference_graph()
-    boissinot._coloring_graph = deepcopy(boissinot._interference_graph)
-    boissinot._merge_related_variables()
-    boissinot._wrap_variables_in_frozensets()
     classes = boissinot._construct_variable_classes()
     return {v.name: next(set(cls) for cls in classes if v in cls) for v in (a, b, c)}, var
 

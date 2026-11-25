@@ -2,11 +2,9 @@
 
 from collections import defaultdict
 from contextlib import contextmanager
-from copy import deepcopy
 from itertools import combinations, product
 from typing import DefaultDict, Dict, Iterator, List, Optional, Set
 
-import networkx as nx
 from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
 from decompiler.pipeline.ssa.parallel_spaces import ParallelSpaces
 from decompiler.pipeline.ssa.value_interferencegraph import ValueInterferenceGraph, can_be_in_same_class
@@ -54,7 +52,7 @@ class BoissinotVariableRenamer(VariableRenamer):
             elif len(global_variables) == len(variable_class):
                 self._rename_class_of_globals(variable_class)
             else:
-                raise Exception("Found a class containing globals and ordinary variables")
+                raise ValueError("Found a class containing globals and ordinary variables")
 
     def _split_classes_with_different_types(self) -> None:
         """
@@ -77,7 +75,7 @@ class BoissinotVariableRenamer(VariableRenamer):
         """Rename the variables of a class that has no global variables."""
         function_arguments = [variable for variable in variable_class if variable in self.function_arg_for_variable]
         if len(function_arguments) > 1:  # We only want to have at most one function argument in each class
-            raise Exception("Found more than one argument in a PCK")
+            raise ValueError("Found more than one argument in a PCK")
         if len(function_arguments) == 1:
             new_name = self._get_unused_name(self.function_arg_for_variable[function_arguments[0]])
         elif len(variable_class) >= 1:
@@ -149,7 +147,6 @@ class Boissinot:
 
         self._cfg_copy: ControlFlowGraph
         self._interference_graph: ValueInterferenceGraph
-        self._coloring_graph: InterferenceGraph
         self._variable_classes: List[List[Variable]]
 
     def perform(self) -> None:
@@ -330,29 +327,20 @@ class Boissinot:
     def _coalesce_and_rename(self) -> None:
         """Step 3 of the Boissinot et al. algorithm: construct the variable classes based on the interference graph and rename the
         variables accordingly."""
-        # We do the coloring on a separate graph
-        self._coloring_graph = deepcopy(self._interference_graph)
-        # Ensure that all relations are satisfied and combine all variables mentioned in a Phi function
-        self._merge_related_variables()
-        # Ensure consistency in node names
-        self._wrap_variables_in_frozensets()
         self._variable_classes = self._construct_variable_classes()
 
         # the renamer works on the cloned cfg, which shares its variables with the original cfg
-        cfg, self._task.cfg = self._task.cfg, None
+        original_cfg, self._task.cfg = self._task.cfg, self._cfg_copy
         try:
-            renaming_task = deepcopy(self._task)
+            renamer = BoissinotVariableRenamer(self._task, self._interference_graph, self._variable_classes)
         finally:
-            self._task.cfg = cfg
-        renaming_task.cfg = self._cfg_copy
-
-        renamer = BoissinotVariableRenamer(renaming_task, self._interference_graph, self._variable_classes)
+            self._task.cfg = original_cfg
         renamer.rename()
 
-    def _merge_related_variables(self) -> None:
-        """Relabels nodes to frozensets of variables, where each frozenset contains all variables that are (transitively) connected by a
-        Relation or a Phi-function."""
-        group_of: Dict[Variable, frozenset] = {}
+    def _group_related_variables(self) -> Dict[Variable, List[Variable]]:
+        """Returns for each variable that is connected to others by a Relation or a Phi-function the list of all variables that are
+        (transitively) connected to it. The variables of a group share one list."""
+        group_of: Dict[Variable, List[Variable]] = {}
         for basic_block in self._cfg:
             for instruction in basic_block.instructions:
                 if (
@@ -364,35 +352,19 @@ class Boissinot:
                 elif isinstance(instruction, Phi):
                     self._merge_groups(group_of, [*instruction.requirements, *instruction.definitions])
                 elif isinstance(instruction, Relation):
-                    raise Exception("Found a suspicious relation, where at least one of the operands is not a variable")
-        nx.relabel_nodes(self._coloring_graph, group_of, False)
+                    raise ValueError("Found a suspicious relation, where at least one of the operands is not a variable")
+        return group_of
 
-    def _merge_groups(self, group_of: Dict[Variable, frozenset], variables: List[Variable]) -> None:
+    def _merge_groups(self, group_of: Dict[Variable, List[Variable]], variables: List[Variable]) -> None:
         """Puts the variables and all variables in their groups into one new group."""
-        merged_variables = []
-        for variable in variables:
-            if variable in group_of:
-                merged_variables.extend(list(group_of[variable]))
-            else:
-                merged_variables.append(variable)
-
+        merged_variables = list(dict.fromkeys(member for variable in variables for member in group_of.get(variable, [variable])))
         for variable in merged_variables:
-            group_of[variable] = frozenset(merged_variables)
-
-    def _wrap_variables_in_frozensets(self) -> None:
-        """Ensures consistency in node names: all nodes have to be frozensets of variables"""
-        group_of = {}
-        for node in self._coloring_graph.nodes():
-            if isinstance(node, Variable):
-                group_of[node] = frozenset([node])
-            elif not isinstance(node, frozenset):
-                raise Exception("Found a 'Variable' that's neither a Variable nor a frozenset.")
-        nx.relabel_nodes(self._coloring_graph, group_of, False)
+            group_of[variable] = merged_variables
 
     def _construct_variable_classes(self) -> List[List[Variable]]:
         """Creates variable classes based on the interference graph and the criteria defined in can_be_in_same_class like described in
         the paper by Boissinot et al."""
-        variable_classes = self._get_classes_of_coloring_graph()
+        variable_classes = self._get_classes_of_interference_graph()
 
         basic_blocks = self._get_basic_blocks_by_loop_depth()
         self._merge_classes_of_copies(variable_classes, basic_blocks)
@@ -400,15 +372,17 @@ class Boissinot:
 
         return [list(variable_class) for variable_class in {id(c): c for c in variable_classes.values()}.values()]  # each class once
 
-    def _get_classes_of_coloring_graph(self) -> DefaultDict[Variable, List[Variable]]:
-        """Returns for each variable the class given by its node in the coloring graph. The members of a class share one list."""
+    def _get_classes_of_interference_graph(self) -> DefaultDict[Variable, List[Variable]]:
+        """Returns for each variable of the interference graph the class of all variables related to it. The members of a class share one
+        list."""
+        group_of = self._group_related_variables()
         variable_classes = defaultdict(list)
-        for node in self._coloring_graph.nodes(data=False):
-            if not isinstance(node, frozenset):
-                raise Exception("Found a node which is not a frozenset while constructing variable classes!")
-            node_variables = list(node)
-            for variable in node:
-                variable_classes[variable] = node_variables
+        nodes = list(self._interference_graph.nodes(data=False))
+        # groups first, then the other variables: the class order decides which class keeps a name if two classes want the same
+        for variable in [node for node in nodes if node in group_of] + [node for node in nodes if node not in group_of]:
+            variable_class = group_of.get(variable, [variable])
+            for member in variable_class:
+                variable_classes[member] = variable_class
         return variable_classes
 
     def _merge_classes_of_copies(self, variable_classes: DefaultDict[Variable, List[Variable]], basic_blocks: List[BasicBlock]) -> None:
@@ -523,26 +497,12 @@ class Boissinot:
         Returns the loop nesting depth of every basic block, i.e. the number of loop headers whose natural loop contains the block.
         The paper orders the copies by block frequency (Sec. III-B), the nesting depth is a static estimate of it.
         """
-        immediate_dominators: Dict[BasicBlock, BasicBlock] = nx.immediate_dominators(self._cfg_copy._graph, self._cfg_copy.root)
-        immediate_dominators.setdefault(self._cfg_copy.root, self._cfg_copy.root)
-
         loops = defaultdict(set)  # all back edges to the same header form one loop
         for tail, header in self._cfg_copy._graph.edges():
-            if self._dominates(header, tail, immediate_dominators):
+            if self._cfg_copy.is_dominating(header, tail):
                 loops[header].update(self._get_loop_nodes(header, tail))
 
         return {basic_block: sum(basic_block in loop for loop in loops.values()) for basic_block in self._cfg_copy}
-
-    def _dominates(self, dominator: BasicBlock, dominated: BasicBlock, immediate_dominators: Dict[BasicBlock, BasicBlock]) -> bool:
-        """Returns True if dominator dominates dominated in the CFG, False otherwise."""
-        if dominated not in immediate_dominators:  # unreachable block: dominated by nothing
-            return False
-        current = dominated
-        while current != self._cfg_copy.root:
-            if current == dominator:
-                return True
-            current = immediate_dominators[current]
-        return current == dominator  # Check if the root is the dominator
 
     def _get_loop_nodes(self, header: BasicBlock, tail: BasicBlock) -> List[BasicBlock]:
         """Returns a list of all basic blocks involved in the loop with the given header and the back edge tail->header."""
