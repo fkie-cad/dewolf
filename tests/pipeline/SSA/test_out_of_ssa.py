@@ -1993,7 +1993,7 @@ def test_graph_with_phi_fct_in_head_lift_minimal1(graph_phi_fct_in_head1, variab
         ]
         and new_nodes[0].instructions
         == [
-            Assignment(variable[1], variable[0]),
+            Assignment(variable[0], variable[1]),  # v#1 = v#0 is a copy, so v#0 and v#1 share variable[1]
         ]
     )
 

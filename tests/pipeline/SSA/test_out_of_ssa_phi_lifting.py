@@ -328,3 +328,57 @@ def test_lifting_phi_on_top_2(variable_v, variable_u):
     )
     # The root of the CFG must be updated by PhiFunctionLifter for the other stages to work
     assert cfg.root == new_nodes[0]
+
+
+def test_lifted_copies_of_the_same_value_do_not_interfere_with_it():
+    """x#5 = x#6; r#4 = x#6: x#5 is a copy of x#6 while both are live, so they do not interfere (Chaitin)."""
+    int32 = Integer.int32_t()
+    x5, x6, r4, w, u = (Variable(n, int32, ssa_label=l) for n, l in [("x", 5), ("x", 6), ("r", 4), ("w", 0), ("u", 0)])
+    lifter = PhiFunctionLifter(ControlFlowGraph(), InterferenceGraph(), {})
+    lifter._update_interference_graph_after_lifting([Assignment(x5, x6), Assignment(r4, x6), Assignment(u, w)])
+    assert not lifter.interference_graph.has_edge(x5, x6)
+    assert lifter.interference_graph.has_edge(x5, w) and lifter.interference_graph.has_edge(r4, w)
+
+
+def _relation_in_loop_task() -> DecompilerTask:
+    """coreutils basenc base32_decode_ctx: phi copies on the back edge define x#5 before r#4 = x#6 reads x#6.
+
+    0: x#4 = 1; r#3 = 2
+    1: x#5 = ϕ(x#4, x#6); r#4 = ϕ(r#3, x#6); x#6 -> x#5; r#5 = x#6 + r#4; if (r#5 < 10)
+    2: (back edge to 1)    3: return r#5
+    """
+    int32 = Integer.int32_t()
+    x4, x5, x6 = (Variable("x", int32, ssa_label=l, is_aliased=True) for l in (4, 5, 6))
+    r3, r4, r5 = (Variable("r", int32, ssa_label=l) for l in (3, 4, 5))
+    nodes = [BasicBlock(i, []) for i in range(4)]
+    phi_x, phi_r = Phi(x5, [x4, x6]), Phi(r4, [r3, x6])
+    phi_x._origin_block, phi_r._origin_block = {nodes[0]: x4, nodes[2]: x6}, {nodes[0]: r3, nodes[2]: x6}
+    nodes[0].instructions = [Assignment(x4, Constant(1, int32)), Assignment(r3, Constant(2, int32))]
+    nodes[1].instructions = [
+        phi_x,
+        phi_r,
+        Relation(x6, x5),
+        Assignment(r5, BinaryOperation(OperationType.plus, [x6, r4])),
+        Branch(Condition(OperationType.less, [r5, Constant(10, int32)])),
+    ]
+    nodes[3].instructions = [Return([r5])]
+    cfg = ControlFlowGraph()
+    cfg.add_edges_from(
+        [
+            UnconditionalEdge(nodes[0], nodes[1]),
+            TrueCase(nodes[1], nodes[2]),
+            FalseCase(nodes[1], nodes[3]),
+            UnconditionalEdge(nodes[2], nodes[1]),
+        ]
+    )
+    return DecompilerTask(name="relation-in-loop", function_identifier="", cfg=cfg, options=Options())
+
+
+@pytest.mark.parametrize("mode", ["simple", "min", "lift_minimal", "conditional"])
+def test_relation_whose_value_is_read_by_another_phi_survives_out_of_ssa(mode):
+    from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
+
+    task = _relation_in_loop_task()
+    task.options.set("out-of-ssa-translation.mode", mode)
+    OutOfSsaTranslation().run(task)
+    assert not task.failed

@@ -90,7 +90,9 @@ class PhiFunctionLifter:
         for number, instruction in enumerate(new_instructions):
             if isinstance(instruction.value, Variable):
                 for index in range(number):
-                    self.interference_graph.add_edge(assigned_variables[index], instruction.value)
+                    # a copy of the same value does not interfere with it (x = v; y = v: x and v are equal while both are live)
+                    if new_instructions[index].value != instruction.value:
+                        self.interference_graph.add_edge(assigned_variables[index], instruction.value)
 
     def _compute_instructions_for(self, predecessor: Optional[BasicBlock], basic_block: BasicBlock) -> List[Assignment]:
         """
