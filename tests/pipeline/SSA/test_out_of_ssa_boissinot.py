@@ -1,13 +1,14 @@
 """Pytest for the Boissinot et al. 2008 Out of SSA."""
 
 from collections import defaultdict
+from copy import deepcopy
 
 import pytest
 
 from decompiler.pipeline.ssa.boissinot_2008 import Boissinot2008
 from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
-from decompiler.structures.pseudo import Assignment, BinaryOperation, Branch, Condition, Constant, Integer, OperationType, Phi, Return, Variable
+from decompiler.structures.pseudo import Assignment, BinaryOperation, Branch, Condition, Constant, Integer, OperationType, Phi, Relation, Return, Variable
 
 from tests.pipeline.SSA.utils_out_of_ssa_tests import decompiler_task
 
@@ -326,3 +327,59 @@ def test_loop_depth_nested_loops():
 
     assert depths == {n0: 0, n1: 1, n2: 2, n3: 2, n4: 1, n5: 0}
     assert order[:2] == [n2, n3]
+
+
+def _copy_sharing_classes(second_use_after_b_dies):
+    """Returns the variable classes of a block with the copies b = a and c = a of the parameter a.
+    The relation z = a puts z into the class of a, and z is live while b and c are, so b and c cannot join the class of a.
+    Only the copy sharing pass can merge b and c.
+    """
+
+    def var(name):
+        return Variable(name, Integer.int32_t(), ssa_label=0)
+
+    a, b, c, d, z = var("a"), var("b"), var("c"), var("d"), var("z")
+    if second_use_after_b_dies:  # b = a; d = b + 1; c = a; return c + d + z
+        instructions = [
+            Relation(z, a),
+            Assignment(b, a),
+            Assignment(d, BinaryOperation(OperationType.plus, [b, Constant(1)])),
+            Assignment(c, a),
+            Return([BinaryOperation(OperationType.plus, [BinaryOperation(OperationType.plus, [c, d]), z])]),
+        ]
+    else:  # b = a; c = a; return b + c + z
+        instructions = [
+            Relation(z, a),
+            Assignment(b, a),
+            Assignment(c, a),
+            Return([BinaryOperation(OperationType.plus, [BinaryOperation(OperationType.plus, [b, c]), z])]),
+        ]
+    cfg = ControlFlowGraph()
+    n0, n1 = BasicBlock(0, []), BasicBlock(1, instructions)  # the dominator tree of a single block is empty, the value classes need two
+    cfg.add_nodes_from([n0, n1])
+    cfg.add_edge(UnconditionalEdge(n0, n1))
+
+    boissinot = Boissinot2008(decompiler_task(cfg, "boissinot2008", [a]), defaultdict(list))
+    boissinot._to_cssa()
+    boissinot._build_interference_graph()
+    boissinot.ifgColoring = deepcopy(boissinot._interference_graph)
+    boissinot.handle_Relations()
+    boissinot.fsetFix()
+    classes = boissinot.constructVariableClasses()
+    return {v.name: next(set(cls) for cls in classes if v in cls) for v in (a, b, c)}, var
+
+
+def test_copy_sharing_merges_copies_with_intersecting_live_ranges_inside_a_block():
+    """b = a; c = a; return b + c + z. b and c are live at the same time, but neither is live-out of a block, so the copy sharing pass must merge them."""
+    classes, var = _copy_sharing_classes(second_use_after_b_dies=False)
+
+    assert classes["b"] == classes["c"] == {var("b"), var("c")}
+    assert classes["a"] == {var("a"), var("z")}
+
+
+def test_copy_sharing_keeps_copies_with_disjoint_live_ranges_apart():
+    """b = a; d = b + 1; c = a; return c + d + z. b is dead when c is defined, so the live ranges of b and c do not intersect."""
+    classes, var = _copy_sharing_classes(second_use_after_b_dies=True)
+
+    assert classes["b"] == {var("b")}
+    assert classes["c"] == {var("c")}

@@ -2,7 +2,7 @@ import itertools
 from collections import defaultdict
 from contextlib import contextmanager
 from copy import deepcopy
-from typing import DefaultDict, Dict, Iterator, List, Optional
+from typing import DefaultDict, Dict, Iterator, List, Optional, Set
 
 import networkx as nx
 from decompiler.pipeline.commons.livenessanalysis import LivenessAnalysis
@@ -287,11 +287,10 @@ class Boissinot2008:
                                         varClasses[var] = newClass
 
         # Check remaining copys for special criterion of Boissinot et al.
-        # Given two assignments of the form x = y and z = y, if x and z are live at the same time, they can be in the same class
+        # Given two assignments of the form x = y and z = y, if their live ranges intersect, they can be in the same class (copy sharing, Sec. III-B)
 
         with self._phi_origins_in_clone():
             liveness = LivenessAnalysis(self._cfg_copy)
-        liveOuts = liveness._live_out_block.values()
         assignmentsEliminationDict = defaultdict(lambda: [])
 
         for bb in basicBlockList:
@@ -304,6 +303,10 @@ class Boissinot2008:
                         and (varClasses[instr.destination] != varClasses[instr.value])
                     ):
                         assignmentsEliminationDict[id(varClasses[instr.value])].append(instr.destination)
+
+        liveAfterDefinition = self._live_after_definitions(
+            liveness, {var for varList in assignmentsEliminationDict.values() if len(varList) > 1 for var in varList}
+        )
 
         changes = True
         while changes:
@@ -318,18 +321,33 @@ class Boissinot2008:
                                     possible = False
                                     break
                             if possible:
-                                for liveOut in liveOuts:
-                                    if (var1 in liveOut) and (
-                                        var2 in liveOut
-                                    ):  # The two variables are live at the same time, so they can be in the same class
-                                        if not self._interference_graph.are_interfering(*varClasses[var1], *varClasses[var2]):
-                                            newClass = [*varClasses[var1], *varClasses[var2]]
-                                            for var in newClass:
-                                                varClasses[var] = newClass
-                                            changes = True
-                                        break
+                                # Under strict SSA the live ranges intersect iff one variable is live right after the definition of the other
+                                if var2 in liveAfterDefinition[var1] or var1 in liveAfterDefinition[var2]:
+                                    if not self._interference_graph.are_interfering(*varClasses[var1], *varClasses[var2]):
+                                        newClass = [*varClasses[var1], *varClasses[var2]]
+                                        for var in newClass:
+                                            varClasses[var] = newClass
+                                        changes = True
 
         return [list(c) for c in {id(c): c for c in varClasses.values()}.values()]  # each class once, not once per member
+
+    def _live_after_definitions(self, liveness: LivenessAnalysis, variables: Set[Variable]) -> Dict[Variable, Set[Variable]]:
+        """Returns for each of the given variables the set of variables that are live directly after its definition."""
+        liveAfter = {}
+        for bb in self._cfg_copy:
+            live = set(liveness.live_out_of(bb))
+            for instr in reversed(bb.instructions):
+                if not isinstance(instr, Phi):
+                    for definition in instr.definitions:
+                        if definition in variables:
+                            liveAfter[definition] = set(live)
+                    live.difference_update(instr.definitions)
+                    live.update(instr.requirements)
+                else:  # the definitions of the phi-functions are at the block entry, their arguments are used in the predecessors
+                    for definition in instr.definitions:
+                        if definition in variables:
+                            liveAfter[definition] = set(live)
+        return defaultdict(set, liveAfter)
 
     def getBasicBlockList(self) -> List[BasicBlock]:
         """Returns a list of all basic blocks in the CFG, sorted by their loop nesting depth in descending order."""
