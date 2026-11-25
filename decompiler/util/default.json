@@ -87,8 +87,8 @@
                     "renames the SSA-variables such that the total number of non SSA-variables is minimal and then lifts the phi-functions",
                     "first lifts the phi-functions and renames the SSA-variables such that the total number of non SSA-variables is (almost) minimal",
                     "first lifts the phi-functions and renames the SSA-variables according to their dependencies.",
-                    "out-of-SSA due to Sreedhar et. al.",
-                    "Out-of-SSA due to Boissinot et al. 'Revisiting Out-of-SSA Translation for Correctness, Code Quality, and Efficency'"
+                    "out-of-SSA due to Sreedhar et al.",
+                    "out-of-SSA due to Boissinot et al."
                 ],
                 "description": "Optimization options for variable renaming in out of SSA",
                 "is_hidden_from_gui": false,

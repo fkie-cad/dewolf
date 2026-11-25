@@ -56,8 +56,8 @@ class OutOfSsaTranslation(PipelineStage):
         SSAOptions.lift_minimal.value: "first lifts the phi-functions and renames the SSA-variables such that the total number of "
         "non SSA-variables is (almost) minimal",
         SSAOptions.conditional.value: "first lifts the phi-functions and renames the SSA-variables according to their dependencies.",
-        SSAOptions.sreedhar.value: "out-of-SSA due to Sreedhar et. al.",
-        SSAOptions.boissinot.value: "Out-of-SSA due to Boissinot et al. 'Revisiting Out-of-SSA Translation for Correctness, Code Quality, and Efficency'",
+        SSAOptions.sreedhar.value: "out-of-SSA due to Sreedhar et al.",
+        SSAOptions.boissinot.value: "out-of-SSA due to Boissinot et al.",
     }
 
     def __init__(self):
