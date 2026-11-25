@@ -1,31 +1,4 @@
-"""
-Module for translating out of SSA form with the algorithm of Sreedhar et al.
-
-Reference: V. C. Sreedhar, R. D.-C. Ju, D. M. Gillies, V. Santhanam: "Translating Out of Static Single Assignment Form",
-Static Analysis Symposium (SAS) 1999.
-
-Outline of the steps:
-    1. Phi congruence classes: every variable starts in its own class, the classes of the operands of a Relation and of all global
-       variables with the same name are merged.
-    2. Copy insertion (Section 4.3, Method III): for every Phi function, pairs of resources (the destination and the arguments, each
-       together with its block) whose classes interfere are examined. Depending on the liveness of the classes at the blocks of the
-       resources (four cases) a resource is chosen for which a copy is inserted, or the pair is left unresolved and resolved
-       afterwards by looking at the neighbors in the graph of unresolved pairs. Afterwards, the classes of all resources of the Phi
-       function are merged.
-    3. Copy removal (Section 5): the inserted copies and the copies already present in the program are removed if the classes of the
-       destination and the source of the copy can be merged without interference.
-    4. Sequentialization: the copies placed in front of a branch or after the Phi functions of a block are parallel copies. They are
-       turned into a sequence of assignments, with a temporary variable for cycles.
-    5. Renaming: all variables of a congruence class are replaced by one variable, and the Phi functions and Relations are removed.
-
-Differences to the paper, because of the structure of dewolf:
-    a) The paper only knows variables as Phi arguments. The ConstantLifter lifts constant arguments into new variables beforehand.
-    b) Copies for Phi arguments are placed before the branch that ends the predecessor block. Thus, the variables read by this
-       branch are added to the live-out set of the block.
-    c) A Phi argument from the function entry (origin block None) gets a new entry block before the root, where its copy is placed.
-    d) Relations, global and aliased variables and function parameters restrict which congruence classes may be merged
-       (see the variable kinds below).
-"""
+"""Module for translating out of SSA form with the algorithm of Sreedhar et al."""
 
 import itertools
 from collections import defaultdict
@@ -339,7 +312,34 @@ class Resource(NamedTuple):
 
 
 class SreedharOutOfSSA:
-    """Implements Sreedhar's Out-of-SSA algorithm to translate SSA form back to normal form."""
+    """
+    Out-of-SSA translation of Sreedhar et al.
+
+    Reference: V. C. Sreedhar, R. D.-C. Ju, D. M. Gillies, V. Santhanam: "Translating Out of Static Single Assignment Form",
+    Static Analysis Symposium (SAS) 1999.
+
+    Outline of the steps:
+        1. Phi congruence classes: every variable starts in its own class, the classes of the operands of a Relation and of all global
+           variables with the same name are merged.
+        2. Copy insertion (Section 4.3, Method III): for every Phi function, pairs of resources (the destination and the arguments, each
+           together with its block) whose classes interfere are examined. Depending on the liveness of the classes at the blocks of the
+           resources (four cases) a resource is chosen for which a copy is inserted, or the pair is left unresolved and resolved
+           afterwards by looking at the neighbors in the graph of unresolved pairs. Afterwards, the classes of all resources of the Phi
+           function are merged.
+        3. Copy removal (Section 5): the inserted copies and the copies already present in the program are removed if the classes of the
+           destination and the source of the copy can be merged without interference.
+        4. Sequentialization: the copies placed in front of a branch or after the Phi functions of a block are parallel copies. They are
+           turned into a sequence of assignments, with a temporary variable for cycles.
+        5. Renaming: all variables of a congruence class are replaced by one variable, and the Phi functions and Relations are removed.
+
+    Differences to the paper, because of the structure of dewolf:
+        a) The paper only knows variables as Phi arguments. The ConstantLifter lifts constant arguments into new variables beforehand.
+        b) Copies for Phi arguments are placed before the branch that ends the predecessor block. Thus, the variables read by this
+           branch are added to the live-out set of the block.
+        c) A Phi argument from the function entry (origin block None) gets a new entry block before the root, where its copy is placed.
+        d) Relations, global and aliased variables and function parameters restrict which congruence classes may be merged
+           (see the _KIND_* constants).
+    """
 
     _PHI_COPY_NAME = "v_phi"
     _TMP_COPY_NAME = "v_tmp"
