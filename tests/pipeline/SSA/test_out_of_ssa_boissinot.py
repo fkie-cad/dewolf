@@ -200,3 +200,63 @@ def test_parallel_copy_destinations_interfere():
     latch_destinations = [assignment.destination for assignment in spaces[latch_address].end_of_block_assigns]
     assert not graph.are_interfering(latch_destinations[0], var("x", 0))
     assert not graph.are_interfering(latch_destinations[1], var("y", 0))
+
+
+def test_unreachable_predecessor():
+    """A phi argument that comes from a block unreachable from the root must not break the search for back edges.
+    +------------------+
+    |        0.        |
+    | x#1 = a#0        |
+    +------------------+      +---------------------+
+      |                       |         9.          |
+      |                       +---------------------+
+      |                         |
+      v                         v
+    +---------------------------------+  true
+    |               1.                | -----+
+    | x#2 = ϕ(x#1,x#3,0x5)            |      |
+    | x#3 = x#2 + 0x1                 |      |
+    | if(x#3 < 0x5)                   | <----+
+    +---------------------------------+
+      | false
+      v
+    +------------------+
+    |        2.        |
+    | return x#2       |
+    +------------------+
+    The immediate dominators have no entry for block 9, so looking up its dominator raised a KeyError.
+    """
+
+    def var(name, label=None):
+        return Variable(name, Integer.int32_t(), ssa_label=label)
+
+    cfg = ControlFlowGraph()
+    n0 = BasicBlock(0, [Assignment(var("x", 1), var("a", 0))])
+    n9 = BasicBlock(9, [])
+    phi = Phi(var("x", 2), [var("x", 1), var("x", 3), Constant(5)])
+    n1 = BasicBlock(
+        1,
+        [
+            phi,
+            Assignment(var("x", 3), BinaryOperation(OperationType.plus, [var("x", 2), Constant(1)])),
+            Branch(Condition(OperationType.less, [var("x", 3), Constant(5)])),
+        ],
+    )
+    n2 = BasicBlock(2, [Return([var("x", 2)])])
+    phi._origin_block = {n0: var("x", 1), n1: var("x", 3), n9: Constant(5)}
+    cfg.add_nodes_from([n0, n1, n2, n9])
+    cfg.root = n0
+    cfg.add_edges_from([UnconditionalEdge(n0, n1), TrueCase(n1, n1), FalseCase(n1, n2), UnconditionalEdge(n9, n1)])
+
+    OutOfSsaTranslation().run(decompiler_task(cfg, "boissinot2008", [var("a", 0)]))
+
+    latch = next(node for node in cfg.nodes if node not in (n0, n1, n2, n9))
+    assert latch.address == -1
+    assert n0.instructions == []
+    assert n1.instructions == [
+        Assignment(var("x"), BinaryOperation(OperationType.plus, [var("a"), Constant(1)])),
+        Branch(Condition(OperationType.less, [var("x"), Constant(5)])),
+    ]
+    assert n2.instructions == [Return([var("a")])]
+    assert n9.instructions == [Assignment(var("a"), Constant(5))]
+    assert latch.instructions == [Assignment(var("a"), var("x"))]

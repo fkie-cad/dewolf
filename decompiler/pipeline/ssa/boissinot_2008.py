@@ -361,6 +361,8 @@ class Boissinot2008:
 
     def _dominates(self, dominator: BasicBlock, dominated: BasicBlock, idom: Dict[BasicBlock, BasicBlock]) -> bool:
         """Returns True if dominator dominates dominated in the CFG, False otherwise."""
+        if dominated not in idom:  # unreachable block: dominated by nothing
+            return False
         current = dominated
         while current != self._cfg_copy.root:
             if current == dominator:
