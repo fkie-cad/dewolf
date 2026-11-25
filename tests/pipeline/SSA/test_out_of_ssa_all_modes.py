@@ -14,7 +14,7 @@ from decompiler.structures.pseudo.typing import Integer
 
 from tests.pipeline.SSA.utils_out_of_ssa_tests import decompiler_task
 
-MODES = [m for m in SSAOptions if m != SSAOptions.sreedhar]
+MODES = list(SSAOptions)
 OPS = {
     OperationType.plus: operator.add,
     OperationType.minus: operator.sub,
