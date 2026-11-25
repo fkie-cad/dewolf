@@ -107,6 +107,8 @@ class RootedGraph(NetworkXGraph[NODE, EDGE], RootedGraphInterface[NODE, EDGE]):
         dom_tree = NetworkXGraph()
         if not self.nodes:
             return dom_tree
+        # networkx >= 3.x omits the start node from the result, so add the root explicitly
+        dom_tree.add_node(self._root)
         dominators = immediate_dominators(self._graph, self._root)
         for dominated, dominator in dominators.items():
             dom_tree.add_node(dominated)
