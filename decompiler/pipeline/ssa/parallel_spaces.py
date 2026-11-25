@@ -9,7 +9,7 @@ from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.pseudo.expressions import Variable
 from decompiler.structures.pseudo.instructions import Assignment, Phi
 
-COPY_SUFFIX = "__copy__"  # TODO find a reliable way to avoid collisions
+COPY_SUFFIX = "__copy__"
 
 
 class ParallelSpaces:
@@ -30,6 +30,7 @@ class ParallelSpaces:
         """The dict phi_functions maps to each basic block the list of Phi-functions it contains."""
         self._block_spaces_of: DefaultDict[int, ParallelSpaces._BlockSpaces] = defaultdict(ParallelSpaces._BlockSpaces)
         self._phi_count_of: DefaultDict[int, int] = defaultdict(int)
+        self._used_names: Set[str] = set()
         for basic_block, phi_instructions in phi_functions.items():
             self._phi_count_of[basic_block.address] = len(phi_instructions)
 
@@ -59,8 +60,16 @@ class ParallelSpaces:
             block_spaces.after_phi_assigns = self._remove_nop_copies_from(block_spaces.after_phi_assigns)
             block_spaces.end_of_block_assigns = self._remove_nop_copies_from(block_spaces.end_of_block_assigns)
 
-    def sequentialize(self) -> None:
-        """Replace the parallel copies of every space by sequential copies."""
+    def sequentialize(self, cfg: ControlFlowGraph) -> None:
+        """Replace the parallel copies of every space by sequential copies. The given CFG is used to avoid names that are already used."""
+        assignments = [
+            assignment for spaces in self._block_spaces_of.values() for assignment in spaces.after_phi_assigns + spaces.end_of_block_assigns
+        ]
+        self._used_names = {
+            variable.name
+            for instruction in [*cfg.instructions, *assignments]
+            for variable in instruction.requirements + instruction.definitions
+        }
         for block_spaces in self._block_spaces_of.values():
             block_spaces.after_phi_assigns = self._sequentialize(block_spaces.after_phi_assigns)
             block_spaces.end_of_block_assigns = self._sequentialize(block_spaces.end_of_block_assigns)
@@ -118,5 +127,14 @@ class ParallelSpaces:
         return sequence
 
     def _create_temporary_for(self, variable: Variable) -> Variable:
-        """Returns a new variable that saves the value of the given variable while a cycle of copies is resolved."""
-        return Variable(variable.name + COPY_SUFFIX, variable.type, None, variable.is_aliased, None, variable.tags)
+        """
+        Returns a new variable that saves the value of the given variable while a cycle of copies is resolved.
+
+        Its name is the name of the variable with COPY_SUFFIX, followed by a number if this name is already used by another variable.
+        """
+        name = variable.name + COPY_SUFFIX
+        counter = 0
+        while name in self._used_names:
+            counter += 1
+            name = f"{variable.name}{COPY_SUFFIX}{counter}"
+        return Variable(name, variable.type, None, variable.is_aliased, None, variable.tags)

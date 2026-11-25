@@ -5,6 +5,7 @@ from collections import defaultdict
 import pytest
 
 from decompiler.pipeline.ssa.boissinot import Boissinot
+from decompiler.pipeline.ssa.parallel_spaces import COPY_SUFFIX, ParallelSpaces
 from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
 from decompiler.structures.pseudo import Assignment, BinaryOperation, Branch, Condition, Constant, Integer, OperationType, Phi, Relation, Return, Variable
@@ -379,3 +380,21 @@ def test_copy_sharing_keeps_copies_with_disjoint_live_ranges_apart():
 
     assert classes["b"] == {var("b")}
     assert classes["c"] == {var("c")}
+
+
+def test_temporary_of_copy_cycle_avoids_used_names():
+    """The swap x, y = y, x needs a temporary. Its default name x__copy__ is already used, so it gets a number."""
+    x, y = Variable("x", Integer.int32_t()), Variable("y", Integer.int32_t())
+    used = Variable(f"x{COPY_SUFFIX}", Integer.int32_t())
+    block = BasicBlock(0, [Assignment(used, Constant(1)), Return([used])])
+    cfg = ControlFlowGraph()
+    cfg.add_node(block)
+    spaces = ParallelSpaces({})
+    spaces.add_end_of_block_assign(0, Assignment(y, x))
+    spaces.add_end_of_block_assign(0, Assignment(x, y))  # the cycle is broken at the last destination, x
+
+    spaces.sequentialize(cfg)
+    spaces.insert_into_cfg(cfg)
+
+    temporary = Variable(f"x{COPY_SUFFIX}1", Integer.int32_t())
+    assert [str(instruction) for instruction in block.instructions[2:]] == [f"{temporary} = x", "x = y", f"y = {temporary}"]

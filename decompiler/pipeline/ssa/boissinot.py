@@ -158,7 +158,7 @@ class Boissinot:
         self._remove_nop_instr(self._cfg)
 
         self._parallel_spaces.remove_nop_copies()
-        self._parallel_spaces.sequentialize()  # Step 4
+        self._parallel_spaces.sequentialize(self._cfg)  # Step 4
         self._parallel_spaces.insert_into_cfg(self._cfg)  # Step 4
         self._remove_phis(self._cfg)
 
