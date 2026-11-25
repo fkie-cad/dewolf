@@ -1,5 +1,6 @@
 import itertools
 from collections import defaultdict
+from contextlib import contextmanager
 from copy import deepcopy
 from typing import DefaultDict, Dict, Iterator, List, Optional
 
@@ -196,6 +197,8 @@ class Boissinot2008:
                         raise RuntimeError("Unexpected Phi requirement!")
 
                     self._substitute_phi_value(phi_inst, predecessor, req, copy_var)
+                    if block is not predecessor:
+                        phi_inst.origin_block[block] = phi_inst.origin_block.pop(predecessor)  # type: ignore
 
                     copy_assign = Assignment(copy_var, req)
                     self._parallel_spaces.add_end_of_block_assign(block.address, copy_assign)
@@ -208,12 +211,28 @@ class Boissinot2008:
                 copy_assign = Assignment(dest, copy_var)
                 self._parallel_spaces.add_after_phi_assign(basic_block.address, copy_assign)
 
+    @contextmanager
+    def _phi_origins_in_clone(self):
+        """The phi functions are shared with the original cfg, so their origin blocks are the original blocks.
+        Within this context they refer to the blocks of the clone, so that liveness analysis finds the phi arguments."""
+        block_of_address = {block.address: block for block in self._cfg_copy}
+        phis = [instruction for block in self._cfg_copy for instruction in block if isinstance(instruction, Phi)]
+        original_origin_blocks = [phi._origin_block for phi in phis]
+        try:
+            for phi in phis:
+                phi._origin_block = {block_of_address.get(block.address) if block is not None else None: value for block, value in phi._origin_block.items()}
+            yield
+        finally:
+            for phi, origin_block in zip(phis, original_origin_blocks):
+                phi._origin_block = origin_block
+
     def _build_interference_graph(self):
         """Builds the interference graph for the given control flow graph."""
         self._cfg_copy = self._clone_cfg()
         # insert the potentially needed copy instructions form the parallel space into the cfg
         self._parallel_spaces.instert_into_cfg(self._cfg_copy)
-        self._interference_graph = ValueInterferenceGraph(self._cfg_copy)
+        with self._phi_origins_in_clone():
+            self._interference_graph = ValueInterferenceGraph(self._cfg_copy)
 
     def step3(self):
         """Step 3 of the Boissinot et al. algorithm: color the interference graph and rename variables accordingly."""
@@ -270,7 +289,8 @@ class Boissinot2008:
         # Check remaining copys for special criterion of Boissinot et al.
         # Given two assignments of the form x = y and z = y, if x and z are live at the same time, they can be in the same class
 
-        liveness = LivenessAnalysis(self._cfg_copy)
+        with self._phi_origins_in_clone():
+            liveness = LivenessAnalysis(self._cfg_copy)
         liveOuts = liveness._live_out_block.values()
         assignmentsEliminationDict = defaultdict(lambda: [])
 

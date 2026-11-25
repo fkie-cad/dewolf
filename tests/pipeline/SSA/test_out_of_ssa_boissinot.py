@@ -1,5 +1,7 @@
 """Pytest for the Boissinot et al. 2008 Out of SSA."""
 
+from collections import defaultdict
+
 import pytest
 
 from decompiler.pipeline.ssa.boissinot_2008 import Boissinot2008
@@ -140,3 +142,61 @@ def test_errors_are_not_swallowed(monkeypatch):
 
     with pytest.raises(RuntimeError, match="step failed"):
         OutOfSsaTranslation().run(decompiler_task(cfg, "boissinot2008", [var(0)]))
+
+
+def test_parallel_copy_destinations_interfere():
+    """The phi arguments are live-out of their predecessor as in the paper, so the copies of one parallel copy interfere.
+    +------------------+
+    |        0.        |
+    | x#0 = 0x1        |
+    | y#0 = 0x2        |
+    +------------------+
+      |
+      v
+    +------------------+  true
+    |        1.        | -----+
+    | x#1 = ϕ(x#0,y#1) |      |
+    | y#1 = ϕ(y#0,x#1) |      |
+    | if(x#1 < 0xa)    | <----+
+    +------------------+
+      | false
+      v
+    +------------------+
+    |        2.        |
+    | return x#1 - y#1 |
+    +------------------+
+    """
+
+    def var(name, label=None):
+        return Variable(name, Integer.int32_t(), ssa_label=label)
+
+    cfg = ControlFlowGraph()
+    n0 = BasicBlock(0, [Assignment(var("x", 0), Constant(1)), Assignment(var("y", 0), Constant(2))])
+    n1 = BasicBlock(
+        1,
+        [
+            Phi(var("x", 1), [var("x", 0), var("y", 1)]),
+            Phi(var("y", 1), [var("y", 0), var("x", 1)]),
+            Branch(Condition(OperationType.less, [var("x", 1), Constant(10)])),
+        ],
+    )
+    n2 = BasicBlock(2, [Return([BinaryOperation(OperationType.minus, [var("x", 1), var("y", 1)])])])
+    n1.instructions[0]._origin_block = {n0: var("x", 0), n1: var("y", 1)}
+    n1.instructions[1]._origin_block = {n0: var("y", 0), n1: var("x", 1)}
+    cfg.add_nodes_from([n0, n1, n2])
+    cfg.add_edges_from([UnconditionalEdge(n0, n1), TrueCase(n1, n1), FalseCase(n1, n2)])
+
+    task = decompiler_task(cfg, "boissinot2008", [])
+    boissinot = Boissinot2008(task, defaultdict(list, {n1: n1.instructions[:2]}))
+    boissinot._to_cssa()
+    boissinot._build_interference_graph()
+
+    spaces = boissinot._parallel_spaces._parallel_spaces_map
+    latch_address = next(address for address in spaces if address not in (0, 1, 2))
+    graph = boissinot._interference_graph
+    for address in (0, latch_address):
+        destinations = [assignment.destination for assignment in spaces[address].end_of_block_assigns]
+        assert len(destinations) == 2 and graph.are_interfering(*destinations)
+    latch_destinations = [assignment.destination for assignment in spaces[latch_address].end_of_block_assigns]
+    assert not graph.are_interfering(latch_destinations[0], var("x", 0))
+    assert not graph.are_interfering(latch_destinations[1], var("y", 0))
