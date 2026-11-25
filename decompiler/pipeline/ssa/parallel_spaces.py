@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import DefaultDict, Dict, List, Mapping, Optional
+from typing import DefaultDict, Dict, List, Mapping, Optional, Set
 
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.graphs.cfg import ControlFlowGraph
@@ -78,8 +78,8 @@ class ParallelSpaces:
         """
         current_location: Dict[Variable, Optional[Variable]] = dict()  # the variable that currently holds the value of a variable
         source_of: Dict[Variable, Optional[Variable]] = dict()  # the variable that is copied into a variable
-        to_do: List[Variable] = list()
-        ready: List[Variable] = list()
+        unprocessed_destinations: List[Variable] = list()  # all destinations, a cycle is broken at the ones not assigned yet
+        free_destinations: List[Variable] = list()  # destinations whose current value is no longer needed, so they can be overwritten
         sequence: List[Assignment] = []
 
         for assignment in assignments:
@@ -89,31 +89,31 @@ class ParallelSpaces:
         for assignment in assignments:
             current_location[assignment.value] = assignment.value
             source_of[assignment.destination] = assignment.value
-            to_do.append(assignment.destination)
+            unprocessed_destinations.append(assignment.destination)
 
         for assignment in assignments:
             if current_location[assignment.destination] is None:
-                ready.append(assignment.destination)
+                free_destinations.append(assignment.destination)
 
-        visited = set()
-        while to_do:
-            while ready:
-                destination = ready.pop()
+        assigned_destinations: Set[Variable] = set()
+        while unprocessed_destinations:
+            while free_destinations:
+                destination = free_destinations.pop()
                 source = source_of[destination]
                 location = current_location[source]
                 sequence.append(Assignment(destination, location))
                 current_location[source] = destination
                 if source == location and source_of[source] is not None:
-                    ready.append(source)
+                    free_destinations.append(source)
 
-                visited.add(destination)
+                assigned_destinations.add(destination)
 
-            variable = to_do.pop()
-            if variable not in visited:
+            variable = unprocessed_destinations.pop()
+            if variable not in assigned_destinations:
                 temporary = self._create_temporary_for(variable)
                 sequence.append(Assignment(temporary, variable))
                 current_location[variable] = temporary
-                ready.append(variable)
+                free_destinations.append(variable)
 
         return sequence
 
