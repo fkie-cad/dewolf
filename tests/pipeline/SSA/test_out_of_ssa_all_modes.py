@@ -2,6 +2,7 @@
 
 Correctness is checked semantically: a small interpreter executes the CFG before and after out-of-SSA translation.
 """
+
 import operator
 from copy import deepcopy
 
@@ -215,6 +216,30 @@ def constant_over_critical_edge():
     return _cfg([n0, n1, n2, n3], edges), [var("a", 0)]
 
 
+def same_argument_from_two_predecessors():
+    """
+    n0: if (a0 < b0) n1 else n2
+    n1: if (a0 < 0) n3 else n4;  n4: (empty);  n2: (empty)
+    n3: x1 = phi(a0 [n1], a0 [n4], b0 [n2]); return x1 + b0     (the operand list holds a0 only once)
+    """
+    n0 = BasicBlock(0, [Branch(lt(var("a", 0), var("b", 0)))])
+    n1 = BasicBlock(1, [Branch(lt(var("a", 0), Constant(0)))])
+    n2 = BasicBlock(2, [])
+    n4 = BasicBlock(4, [])
+    phi = Phi(var("x", 1), [var("a", 0), var("b", 0)])
+    n3 = BasicBlock(3, [phi, Return([plus(var("x", 1), var("b", 0))])])
+    phi._origin_block = {n1: var("a", 0), n4: var("a", 0), n2: var("b", 0)}
+    edges = [
+        TrueCase(n0, n1),
+        FalseCase(n0, n2),
+        TrueCase(n1, n3),
+        FalseCase(n1, n4),
+        UnconditionalEdge(n4, n3),
+        UnconditionalEdge(n2, n3),
+    ]
+    return _cfg([n0, n1, n2, n3, n4], edges), [var("a", 0), var("b", 0)]
+
+
 CASES = {
     "lost_copy": (lost_copy, [-3, 0, 4, 9]),
     "swap": (swap, [(1, 2), (5, 5), (-1, 7)]),
@@ -224,6 +249,7 @@ CASES = {
     "two_params_diamond": (two_params_diamond, [(1, 2), (2, 1), (3, 3)]),
     "two_params_diamond_only_phi": (two_params_diamond_only_phi, [(1, 2), (2, 1), (3, 3)]),
     "constant_over_critical_edge": (constant_over_critical_edge, [-1, 3, 5, 6, 9]),
+    "same_argument_from_two_predecessors": (same_argument_from_two_predecessors, [(-1, 2), (1, 2), (3, 1)]),
 }
 
 XFAIL = {}  # (case, mode value) -> reason

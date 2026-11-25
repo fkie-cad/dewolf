@@ -557,10 +557,10 @@ class Phi(Assignment):
         old_value = self._origin_block[block]
         self._origin_block[block] = replacement
         operands = list(self._value.operands)
-        index = next((i for i, operand in enumerate(operands) if operand is old_value), None)
-        if index is None:
-            index = operands.index(old_value)
-        operands[index] = replacement
+        if operands.count(old_value) > list(self._origin_block.values()).count(old_value):
+            operands[operands.index(old_value)] = replacement
+        else:  # the operand is still needed for another block, e.g., if it is listed only once for several blocks
+            operands.append(replacement)
         self._value = ListOperation(operands, self._value.tags)
 
     def copy(self) -> Phi:

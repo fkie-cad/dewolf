@@ -458,6 +458,17 @@ class TestPhi:
         assert list(phi.value.operands) == [n1, n2, c]
         assert phi.origin_block == {block_1: n1, block_2: n2, block_3: c}
 
+    def test_substitute_for_block_argument_listed_once_for_two_blocks(self):
+        """An argument that is listed once but reaches the Phi from two blocks is kept until it is replaced for both."""
+        block_1, block_2, block_3 = object(), object(), object()
+        phi = Phi(a, [b, c], {block_1: b, block_2: b, block_3: c})
+        n1, n2 = Variable("n", Integer.int32_t(), 1), Variable("n", Integer.int32_t(), 2)
+        phi.substitute_for_block(block_1, n1)
+        assert list(phi.value.operands) == [b, c, n1]
+        phi.substitute_for_block(block_2, n2)
+        assert list(phi.value.operands) == [n2, c, n1]
+        assert phi.origin_block == {block_1: n1, block_2: n2, block_3: c}
+
     def test_substitute_for_block_after_copy(self):
         block_1, block_2 = object(), object()
         const = Constant(4)

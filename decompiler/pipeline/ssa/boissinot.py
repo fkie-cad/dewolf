@@ -224,8 +224,7 @@ class Boissinot:
 
             copy_variable = self._create_copy_variable(phi_function.destination)
             phi_function.substitute_for_block(predecessor, copy_variable)
-            if copy_block is not predecessor:
-                phi_function.origin_block[copy_block] = phi_function.origin_block.pop(predecessor)  # type: ignore
+            phi_function.origin_block[copy_block] = phi_function.origin_block.pop(predecessor)
 
             self._parallel_spaces.add_end_of_block_assign(copy_block.address, Assignment(copy_variable, argument))
 
