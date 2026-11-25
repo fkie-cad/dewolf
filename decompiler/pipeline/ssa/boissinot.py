@@ -14,7 +14,7 @@ from decompiler.pipeline.ssa.variable_renaming import VariableRenamer
 from decompiler.structures.graphs.branches import UnconditionalEdge
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
-from decompiler.structures.pseudo.expressions import Constant, Expression, GlobalVariable, Variable
+from decompiler.structures.pseudo.expressions import Constant, GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Phi, Relation
 from decompiler.task import DecompilerTask
 
@@ -226,7 +226,7 @@ class Boissinot:
                 raise RuntimeError("Unexpected Phi requirement!")
 
             copy_variable = self._create_copy_variable(phi_function.destination)
-            self._substitute_phi_value(phi_function, predecessor, argument, copy_variable)
+            phi_function.substitute_for_block(predecessor, copy_variable)
             if copy_block is not predecessor:
                 phi_function.origin_block[copy_block] = phi_function.origin_block.pop(predecessor)  # type: ignore
 
@@ -238,7 +238,7 @@ class Boissinot:
         for phi_function in self._phi_functions_of[basic_block]:
             definition = phi_function.definitions[0]
             copy_variable = self._create_phi_destination_variable(definition)
-            self._substitute_phi_def(phi_function, copy_variable)
+            phi_function.rename_destination(definition, copy_variable)
 
             self._parallel_spaces.add_after_phi_assign(basic_block.address, Assignment(definition, copy_variable))
 
@@ -273,19 +273,6 @@ class Boissinot:
         if isinstance(definition, GlobalVariable):
             self._label_count[definition.name] += 1
         return self._create_copy_variable(definition)
-
-    # TODO prob. move this inside the phi class
-    def _substitute_phi_value(self, phi: Phi, predecessor: Optional[BasicBlock], replacee: Expression, replacement: Expression) -> None:
-        """Substitutes the value replacee with replacement in the phi function phi for the given predecessor basic block."""
-        operands: List[Expression] = phi.value.operands  # type: ignore
-        if replacee in operands:
-            operands[operands.index(replacee)] = replacement
-            phi.origin_block[predecessor] = replacement  # type: ignore
-
-    # TODO prob. move this inside the phi class
-    def _substitute_phi_def(self, phi: Phi, replacee: Expression) -> None:
-        """Replaces the definition of the phi function by the given expression."""
-        phi._destination = replacee
 
     # Step 2: value-based interference graph
 
