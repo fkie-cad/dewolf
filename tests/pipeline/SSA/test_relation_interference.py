@@ -12,6 +12,7 @@ from decompiler.structures.pseudo import Assignment, BinaryOperation, Constant, 
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
+
 def _argument_relation_task():
     """a is a parameter: y = a#0 + 1; a#2 -> a#0; z = a#2 + y; return z   (coreutils users add_utmp)."""
     int32 = Integer.int32_t()
