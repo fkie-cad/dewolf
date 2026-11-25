@@ -52,6 +52,14 @@ class TestRootedGraph:
         graph.add_edges_from(edges)
         return graph, nodes, edges
 
+    def test_dominator_tree_single_node(self):
+        """The dominator tree of a graph with a single node contains exactly the root."""
+        graph = RootedGraph()
+        node = BasicNode(0)
+        graph.add_node(node)
+        tree = graph.dominator_tree
+        assert list(tree.nodes) == [node] and len(tree.edges) == 0
+
     def test_dominator_tree(self):
         """Test the buffered dominator tree."""
         assert len(RootedGraph().dominator_tree) == 0
