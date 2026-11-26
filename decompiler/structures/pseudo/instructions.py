@@ -6,6 +6,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Generic, Iterator, List, Optional, Sequence, Set, Tuple, TypeVar, Union, final
 
+from decompiler.util.insertion_ordered_set import InsertionOrderedSet
+
 from .expressions import Constant, DataflowObject, Expression, Tag, Variable
 from .operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
 
@@ -547,6 +549,7 @@ class Phi(Assignment):
         """
         if self._origin_block.get(vertex) is not None:
             del self._origin_block[vertex]
+            self._sync_operands_with_origin_block()
         else:
             logging.error(f"Block {vertex} is not a key in Phi.origin_block {self}.")
 
@@ -554,14 +557,14 @@ class Phi(Assignment):
         """Replace the value that reaches this Phi from the given predecessor block (in origin_block and in the operand list)."""
         if block not in self._origin_block:
             raise KeyError(f"Block {block} is not a key in Phi.origin_block {self}.")
-        old_value = self._origin_block[block]
         self._origin_block[block] = replacement
-        operands = list(self._value.operands)
-        if operands.count(old_value) > list(self._origin_block.values()).count(old_value):
-            operands[operands.index(old_value)] = replacement
-        else:  # the operand is still needed for another block, e.g., if it is listed only once for several blocks
-            operands.append(replacement)
-        self._value = ListOperation(operands, self._value.tags)
+        self._sync_operands_with_origin_block()
+
+    def _sync_operands_with_origin_block(self) -> None:
+        """Make the operands the distinct values of origin_block, in the order of origin_block."""
+        if not self._origin_block:
+            return
+        self._value = ListOperation(list(InsertionOrderedSet(self._origin_block.values())), self._value.tags)
 
     def copy(self) -> Phi:
         """Copy the current Phi instruction."""

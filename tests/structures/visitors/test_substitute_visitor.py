@@ -130,6 +130,25 @@ _d = Variable("d", Integer.int32_t(), 3)
             SubstituteVisitor.identity(a3, a4),
         ),
         (
+            Phi(
+                a3 := Variable("a", _i32, 3),
+                [a2 := Variable("a", _i32, 2), a1 := Variable("a", _i32, 1)],
+                {
+                    BasicBlock(2): a2,
+                    BasicBlock(1): a1,
+                },
+            ),
+            Phi(
+                a3,
+                [a2],
+                {
+                    BasicBlock(2): a2,
+                    BasicBlock(1): a2,
+                },
+            ),
+            SubstituteVisitor.identity(a1, a2),
+        ),
+        (
             Branch(a := Condition(OperationType.equal, [])),
             Branch(b := Condition(OperationType.not_equal, [])),
             SubstituteVisitor.identity(a, b),
