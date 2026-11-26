@@ -512,7 +512,7 @@ class ConditionalVariableRenamer(VariableRenamer):
     def _cut_component_by_lp_in_rounds(self, graph: Graph, component: Set[DependencyNode]) -> None:
         """
         Add the short paths of some interfering pairs to the LP and solve it, until the LP solution also separates all pairs whose paths
-        were not added yet. Only then the edges of the solution are removed.
+        were not added yet, or no pair with a short path is left. Then the edges of the last solution are removed.
         """
         component_graph = self._component_view(graph, component)
         edges, weights = self._edges_and_scores(component_graph)
@@ -526,6 +526,7 @@ class ConditionalVariableRenamer(VariableRenamer):
         diameter = self._approximate_diameter(component_graph)
         # Deterministic seed, so that the LP solver always gets the same input for the same graph.
         random.seed(hash(tuple(sorted(weights))))
+        removed_edges = []
         while round_paths := self._paths_of_next_round(component_graph, interfering_pairs, next_pair_index, diameter):
             constraint_rows.extend(self._encode_paths(round_paths, edges))
             removed_edges = self._solve_multicut_lp(constraint_rows, weights, edges)
@@ -533,8 +534,8 @@ class ConditionalVariableRenamer(VariableRenamer):
             remaining_graph.remove_edges_from(removed_edges)
             next_pair_index = self._index_of_connected_pair(remaining_graph, interfering_pairs)
             if next_pair_index is None:
-                graph.remove_edges_from(removed_edges)
-                return
+                break
+        graph.remove_edges_from(removed_edges)
 
     def _paths_of_next_round(
         self,

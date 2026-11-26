@@ -901,3 +901,20 @@ def test_conditional_component_view_keeps_graph_order():
     view = ConditionalVariableRenamer._component_view(graph, component)
     assert list(view.nodes) == nodes[3:9]
     assert list(view.edges) == list(zip(nodes[3:8], nodes[4:9]))
+
+
+def test_conditional_lp_in_rounds_keeps_last_solution():
+    """If the last round leaves a pair connected only by a long path, the edges of the last LP solution are still removed."""
+    nodes = [(Variable(f"v{index}", Integer.int32_t(), index),) for index in range(12)]
+    graph = Graph()
+    graph.add_nodes_from(nodes)
+    graph.add_edges_from(zip(nodes, nodes[1:]), score=1.0)
+    pairs = [{nodes[0], nodes[1]}, {nodes[2], nodes[11]}]  # the first has a short path, the second only a path longer than the limit
+    renamer = object.__new__(ConditionalVariableRenamer)
+    renamer.PAIRS_PER_ROUND = 1
+    renamer._must_separate = lambda node_1, node_2: {node_1, node_2} in pairs
+
+    renamer._cut_component_by_lp_in_rounds(graph, set(nodes))
+
+    assert not graph.has_edge(nodes[0], nodes[1])
+    assert graph.number_of_edges() == 10
