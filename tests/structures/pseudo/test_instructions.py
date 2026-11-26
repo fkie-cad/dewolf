@@ -1,4 +1,5 @@
 import pytest
+from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import (
     Assignment,
@@ -431,6 +432,31 @@ class TestPhi:
         assert i.origin_block == {v2: b, v3: c}
         i.remove_from_origin_block(v2)
         assert i.origin_block == {v3: c}
+        assert list(i.value.operands) == [c]
+
+    def test_remove_from_origin_block_keeps_operand_of_other_block(self):
+        """An operand that still reaches the Phi from another block stays."""
+        block_1, block_2, block_3 = BasicBlock(1), BasicBlock(2), BasicBlock(3)
+        phi = Phi(a, [b, c], {block_1: b, block_2: b, block_3: c})
+        phi.remove_from_origin_block(block_1)
+        assert list(phi.value.operands) == [b, c]
+        assert phi.origin_block == {block_2: b, block_3: c}
+
+    def test_substitute_for_block_operand_of_several_blocks(self):
+        """Replacing the value of one block keeps it as operand if another block still uses it."""
+        block_1, block_2, block_3 = BasicBlock(1), BasicBlock(2), BasicBlock(3)
+        phi = Phi(a, [b, c], {block_1: b, block_2: c, block_3: b})
+        phi.substitute_for_block(block_1, d)
+        assert list(phi.value.operands) == [d, c, b]
+        assert phi.origin_block == {block_1: d, block_2: c, block_3: b}
+
+    def test_substitute_for_block_merges_equal_operands(self):
+        """If the replacement already reaches the Phi from another block, it is listed only once."""
+        block_1, block_2 = BasicBlock(1), BasicBlock(2)
+        phi = Phi(a, [b, c], {block_1: b, block_2: c})
+        phi.substitute_for_block(block_1, c)
+        assert list(phi.value.operands) == [c]
+        assert phi.origin_block == {block_1: c, block_2: c}
 
     def test_iter(self):
         """Check if all terms of a phi function are yielded during iteration."""
