@@ -475,7 +475,7 @@ class TestPhi:
 
     def test_substitute_for_block_equal_constants(self):
         """The same Constant object on two edges is replaced per block."""
-        block_1, block_2, block_3 = object(), object(), object()
+        block_1, block_2, block_3 = BasicBlock(1), BasicBlock(2), BasicBlock(3)
         const = Constant(4)
         phi = Phi(a, [const, const, c], {block_1: const, block_2: const, block_3: c})
         n1, n2 = Variable("n", Integer.int32_t(), 1), Variable("n", Integer.int32_t(), 2)
@@ -496,7 +496,7 @@ class TestPhi:
         assert phi.origin_block == {block_1: n1, block_2: n2, block_3: c}
 
     def test_substitute_for_block_after_copy(self):
-        block_1, block_2 = object(), object()
+        block_1, block_2 = BasicBlock(1), BasicBlock(2)
         const = Constant(4)
         phi = Phi(a, [const, b], {block_1: const, block_2: b}).copy()
         n1 = Variable("n", Integer.int32_t(), 1)
@@ -506,7 +506,7 @@ class TestPhi:
 
     def test_substitute_for_block_unknown_block(self):
         with pytest.raises(KeyError):
-            Phi(a, [b], {object(): b}).substitute_for_block(object(), c)
+            Phi(a, [b], {BasicBlock(1): b}).substitute_for_block(BasicBlock(2), c)
 
 
 mem6 = Variable("mem", "", 6)
