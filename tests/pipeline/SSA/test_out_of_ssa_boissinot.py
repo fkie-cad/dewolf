@@ -3,10 +3,9 @@
 from collections import defaultdict
 
 import pytest
-
 from decompiler.pipeline.ssa.boissinot import Boissinot
-from decompiler.pipeline.ssa.parallel_spaces import COPY_SUFFIX, ParallelSpaces
 from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
+from decompiler.pipeline.ssa.parallel_spaces import COPY_SUFFIX, ParallelSpaces
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
 from decompiler.structures.pseudo import (
     Assignment,
