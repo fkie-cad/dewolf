@@ -6,6 +6,7 @@ from configparser import NoOptionError
 from enum import Enum
 from typing import Callable, DefaultDict, List
 
+from decompiler.pipeline.ssa.boissinot import Boissinot
 from decompiler.pipeline.ssa.phi_cleaner import PhiFunctionCleaner
 from decompiler.pipeline.ssa.phi_dependency_resolver import PhiDependencyResolver
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
@@ -26,6 +27,7 @@ class SSAOptions(Enum):
     lift_minimal = "lift_minimal"
     conditional = "conditional"
     sreedhar = "sreedhar"
+    boissinot = "boissinot"
 
 
 class OutOfSsaTranslation(PipelineStage):
@@ -54,7 +56,8 @@ class OutOfSsaTranslation(PipelineStage):
         SSAOptions.lift_minimal.value: "first lifts the phi-functions and renames the SSA-variables such that the total number of "
         "non SSA-variables is (almost) minimal",
         SSAOptions.conditional.value: "first lifts the phi-functions and renames the SSA-variables according to their dependencies.",
-        SSAOptions.sreedhar.value: "out-of-SSA due to Sreedhar et. al.",
+        SSAOptions.sreedhar.value: "out-of-SSA due to Sreedhar et al.",
+        SSAOptions.boissinot.value: "out-of-SSA due to Boissinot et al.",
     }
 
     def __init__(self):
@@ -177,6 +180,15 @@ class OutOfSsaTranslation(PipelineStage):
         ConstantLifter(self.task).perform()
         SreedharOutOfSSA(self.task).perform()
 
+    def _boissinot(self) -> None:
+        """
+        This is an out of SSA algorithm based on Boissinot et al.:
+            - We first insert parallel copies for the Phi-functions.
+            - Then, we coalesce the variables whose values are the same or whose live ranges do not intersect into classes.
+            - Afterwards, we remove the Phi-functions, rename the variables according to their class and sequentialize the copies.
+        """
+        Boissinot(self.task, self._phi_functions_of).perform()
+
     # This translator maps the optimization levels to the functions.
     out_of_ssa_strategy: dict[SSAOptions, Callable[["OutOfSsaTranslation"], None]] = {
         SSAOptions.simple: _simple_out_of_ssa,
@@ -184,4 +196,5 @@ class OutOfSsaTranslation(PipelineStage):
         SSAOptions.lift_minimal: _lift_minimal_out_of_ssa,
         SSAOptions.conditional: _conditional_out_of_ssa,
         SSAOptions.sreedhar: _sreedhar_out_of_ssa,
+        SSAOptions.boissinot: _boissinot,
     }
