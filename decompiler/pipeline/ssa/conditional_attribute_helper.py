@@ -1,27 +1,6 @@
 """
-Shared attribute extraction for the conditional out-of-SSA ML pipeline.
-
-Vector layout (indices are fixed and MUST match the `features` list of the weights file, see
-conditional_weights.json):
-
-  0  is_strong          rhs is exactly one variable, used once, no constants, no bad ops
-  1  is_mid             rhs is one variable (used once) + exactly one constant, no bad ops
-  2  same_base_name     both variables have the same name
-  3  same_storage       both variables have the same Binary Ninja source_type and storage (Variable.provenance)
-  4  def_by_usage       rhs contains exactly one distinct variable, no bad ops
-  5  func_call          rhs is a call
-  6  same_phi           both variables co-occur in some phi function
-  7  usage_1            rhs has exactly 1 distinct variable
-  8  usage_2            rhs has exactly 2 distinct variables
-  9  usage_3            rhs has exactly 3 distinct variables
-  10 usage_4            rhs has exactly 4 distinct variables
-  11 usage_5            rhs has exactly 5 distinct variables
-  12 usage_6            rhs has exactly 6 distinct variable
-  13 usage_7            rhs has exactly 7 distinct variables
-  14 usage_8            rhs has exactly 8 distinct variables
-  15 usage_9            rhs has exactly 9 distinct variables
-  16 following_definitions  the first variable is the last occurrence of a name, the second its next definition
-  17 same_rhs_source        both variables are defined as copies of the same variable
+Feature vectors of the candidate variable pairs of the conditional out-of-SSA.
+The order of FEATURES is the order of the coefficients in the weights file (conditional_weights.json).
 """
 
 from abc import ABC
@@ -31,36 +10,44 @@ from typing import DefaultDict, Dict, Iterator, List, NamedTuple, Set, Tuple
 
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
-from decompiler.structures.pseudo.expressions import Constant, Expression, GlobalVariable, Variable
+from decompiler.structures.pseudo.expressions import Constant, Expression, FunctionSymbol, GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Phi
 from decompiler.structures.pseudo.operations import Call, Operation, OperationType
 
 PhiPairs = Set[Tuple[Variable, Variable]]
-INDEX_IS_STRONG = 0
-INDEX_IS_MID = 1
-INDEX_SAME_BASE_NAME = 2
-INDEX_SAME_STORAGE = 3
-INDEX_DEF_BY_USAGE = 4
-INDEX_FUNC_CALL = 5
-INDEX_IN_SAME_PHI = 6
-INDEX_USAGE_BASE = 7  # usage_1..usage_9 live at INDEX_USAGE_BASE + (n - 1)
-INDEX_FOLLOWING_DEFINITIONS = 16
-INDEX_SAME_SOURCE = 17
-VECTOR_LENGTH = 18
-# Feature names in vector order; the weights file (conditional_weights.json) must list exactly these.
+
+# Feature names in vector order. "rhs variable" is the variable of the pair that occurs in the rhs of an assignment.
 FEATURES = (
-    "is_strong",
-    "is_mid",
-    "same_base_name",
-    "same_storage",
-    "def_by_usage",
-    "func_call",
-    "same_phi",
-    *(f"usage_{n}" for n in range(1, 10)),
-    "following_definitions",
-    "same_rhs_source",
+    "is_strong",  # the destination is a variable, the rhs is exactly the rhs variable (used once, only casts on its path)
+    "is_mid",  # the destination is a variable, the rhs is the rhs variable (used once, directly) and exactly one constant
+    "same_base_name",  # both variables have the same name
+    "same_storage",  # both variables have the same Binary Ninja source type and storage (Variable.provenance)
+    "def_by_usage",  # the destination is a variable, the rhs contains exactly one distinct variable, all its uses are direct
+    # Use kinds, multi-hot, only for assignment pairs: every kind of operation on the path from the rhs root to an occurrence of the
+    # rhs variable is set, so x = f(*a) sets use_call and use_memory, and x = a + f(a) sets use_direct and use_call.
+    "use_direct",  # an occurrence has no call, memory access or address-of on its path
+    "use_call",  # an occurrence is below a call (argument or call target)
+    "use_memory",  # an occurrence is below a dereference, field or member access
+    "use_address",  # an occurrence is below an address-of
+    "same_phi",  # both variables occur in the same Phi-function
+    *(f"usage_{n}" for n in range(1, 10)),  # usage_n: rhs has exactly n distinct variables
+    "following_definitions",  # the first variable is the last definition of a name before the second, its next definition
+    "same_rhs_source",  # both variables are defined as copies of the same variable
 )
-assert len(FEATURES) == VECTOR_LENGTH
+VECTOR_LENGTH = len(FEATURES)
+INDEX_IS_STRONG = FEATURES.index("is_strong")
+INDEX_IS_MID = FEATURES.index("is_mid")
+INDEX_SAME_BASE_NAME = FEATURES.index("same_base_name")
+INDEX_SAME_STORAGE = FEATURES.index("same_storage")
+INDEX_DEF_BY_USAGE = FEATURES.index("def_by_usage")
+INDEX_USE_DIRECT = FEATURES.index("use_direct")
+INDEX_USE_CALL = FEATURES.index("use_call")
+INDEX_USE_MEMORY = FEATURES.index("use_memory")
+INDEX_USE_ADDRESS = FEATURES.index("use_address")
+INDEX_IN_SAME_PHI = FEATURES.index("same_phi")
+INDEX_USAGE_BASE = FEATURES.index("usage_1")  # usage_n is at INDEX_USAGE_BASE + (n - 1)
+INDEX_FOLLOWING_DEFINITIONS = FEATURES.index("following_definitions")
+INDEX_SAME_SOURCE = FEATURES.index("same_rhs_source")
 
 
 def cannot_share_name(interference_graph: InterferenceGraph, variable_1: Variable, variable_2: Variable) -> bool:
@@ -97,11 +84,48 @@ def get_phi_pairs(cfg: ControlFlowGraph) -> PhiPairs:
     return phi_pairs
 
 
+# The use kind that an operation adds to every variable below it; all other operations are transparent.
+_USE_KIND_OF_OPERATION = {
+    OperationType.call: INDEX_USE_CALL,
+    OperationType.dereference: INDEX_USE_MEMORY,
+    OperationType.field: INDEX_USE_MEMORY,
+    OperationType.member_access: INDEX_USE_MEMORY,
+    OperationType.pointer: INDEX_USE_MEMORY,  # unused by the frontend; a pointer access is a memory access
+    OperationType.address: INDEX_USE_ADDRESS,
+}
+
+
+def _get_use_kinds(expression: Expression) -> Tuple[Dict[Variable, Set[int]], Set[Variable]]:
+    """
+    Return the use kinds per variable and the variables that have an operation other than a cast on their path.
+
+    The use kinds are the INDEX_USE_* constants. Every kind of operation on the path from the root to an occurrence is part of the set,
+    an occurrence without any such operation is a direct use. The sets of several occurrences are united.
+    """
+    use_kinds: Dict[Variable, Set[int]] = {}
+    variables_below_operations: Set[Variable] = set()
+    stack = [(expression, frozenset(), False)]
+    while stack:
+        subexpression, path_kinds, below_operation = stack.pop()
+        if isinstance(subexpression, Variable):
+            use_kinds.setdefault(subexpression, set()).update(path_kinds or {INDEX_USE_DIRECT})
+            if below_operation:
+                variables_below_operations.add(subexpression)
+        elif isinstance(subexpression, Operation):
+            kinds = path_kinds
+            if subexpression.operation in _USE_KIND_OF_OPERATION:
+                kinds = path_kinds | {_USE_KIND_OF_OPERATION[subexpression.operation]}
+            below = below_operation or subexpression.operation != OperationType.cast
+            stack.extend((operand, kinds, below) for operand in subexpression)
+    return use_kinds, variables_below_operations
+
+
 class ExpressionInfo(NamedTuple):
     """Summary of an expression that the feature vectors are computed from."""
 
-    constant_count: int
-    is_call: bool
+    constant_count: int  # the callee of a call is not a constant
+    use_kinds: Dict[Variable, Set[int]]  # variable -> INDEX_USE_* of the operations on the paths to its occurrences
+    variables_below_operations: Set[Variable]  # variables with an operation other than a cast on the path to an occurrence
     has_bad_operation_strong: bool
     has_bad_operation_mid: bool
     variable_counts: Dict[Variable, int]  # variable -> number of occurrences
@@ -144,12 +168,15 @@ class AbstractAttributeHelper(ABC):
                 variable_counts[subexpression] = variable_counts.get(subexpression, 0) + 1
             elif isinstance(subexpression, Constant):
                 constant_count += 1
+            if isinstance(subexpression, Call) and isinstance(subexpression.function, FunctionSymbol):
+                constant_count -= 1
             if isinstance(subexpression, Operation) and subexpression.operation not in self._GOOD_OPERATIONS:
                 has_bad_operation_strong = True
             if isinstance(subexpression, Operation) and subexpression.operation in self._BAD_OPERATIONS:
                 has_bad_operation_mid = True
+        use_kinds, variables_below_operations = _get_use_kinds(expression)
         return ExpressionInfo(
-            constant_count, isinstance(expression, Call), has_bad_operation_strong, has_bad_operation_mid, variable_counts
+            constant_count, use_kinds, variables_below_operations, has_bad_operation_strong, has_bad_operation_mid, variable_counts
         )
 
     def _common_template(
@@ -157,21 +184,38 @@ class AbstractAttributeHelper(ABC):
     ) -> List[int]:
         """Return the feature vector entries that depend only on the two expressions, not on the variable pair."""
         number_of_rhs_variables = len(rhs.variable_counts)
-        single_rhs_variable_once = number_of_rhs_variables == 1 and next(iter(rhs.variable_counts.values())) == 1
-        no_bad_operations_strong = not lhs.has_bad_operation_strong and not rhs.has_bad_operation_strong
-        no_bad_operations_mid = not lhs.has_bad_operation_mid and not rhs.has_bad_operation_mid
 
         vector = [0] * VECTOR_LENGTH
         if not (is_following_definitions or is_same_source):
-            vector[INDEX_IS_STRONG] = int(single_rhs_variable_once and rhs.constant_count == 0 and no_bad_operations_strong)
-            vector[INDEX_IS_MID] = int(single_rhs_variable_once and rhs.constant_count == 1 and no_bad_operations_mid)
-            vector[INDEX_DEF_BY_USAGE] = int(number_of_rhs_variables == 1 and no_bad_operations_mid)
-            vector[INDEX_FUNC_CALL] = int(rhs.is_call)
             if 1 <= number_of_rhs_variables <= 9:
                 vector[INDEX_USAGE_BASE + number_of_rhs_variables - 1] = 1
         vector[INDEX_FOLLOWING_DEFINITIONS] = int(is_following_definitions)
         vector[INDEX_SAME_SOURCE] = int(is_same_source)
         return vector
+
+    def fill_assignment_attrs(self, vector: List[int], lhs: ExpressionInfo, rhs: ExpressionInfo, rhs_variable: Variable) -> None:
+        """
+        Set the feature vector entries that are specific to an assignment pair (lhs variable, rhs_variable).
+
+        These are the use kinds and is_strong, is_mid and def_by_usage; all of them look at the way rhs_variable is used.
+        """
+        use_kinds = rhs.use_kinds[rhs_variable]
+        vector[INDEX_USE_DIRECT] = int(INDEX_USE_DIRECT in use_kinds)
+        vector[INDEX_USE_CALL] = int(INDEX_USE_CALL in use_kinds)
+        vector[INDEX_USE_MEMORY] = int(INDEX_USE_MEMORY in use_kinds)
+        vector[INDEX_USE_ADDRESS] = int(INDEX_USE_ADDRESS in use_kinds)
+        if len(rhs.variable_counts) != 1:
+            return
+        used_once = rhs.variable_counts[rhs_variable] == 1
+        used_directly = use_kinds == {INDEX_USE_DIRECT}
+        vector[INDEX_IS_STRONG] = int(
+            used_once
+            and rhs.constant_count == 0
+            and rhs_variable not in rhs.variables_below_operations
+            and not lhs.has_bad_operation_strong
+        )
+        vector[INDEX_IS_MID] = int(used_once and rhs.constant_count == 1 and used_directly and not lhs.has_bad_operation_mid)
+        vector[INDEX_DEF_BY_USAGE] = int(used_directly and not lhs.has_bad_operation_mid)
 
     def _fill_pair_attrs(self, vector: List[int], variable_1: Variable, variable_2: Variable) -> None:
         """Set the feature vector entries that depend on the variable pair itself."""
@@ -244,6 +288,7 @@ class ConditionalAttributeHelper(AbstractAttributeHelper):
         template = self._common_template(lhs, rhs)
         for variable_1, variable_2 in product(lhs.variable_counts, rhs.variable_counts):
             vector = template.copy()
+            self.fill_assignment_attrs(vector, lhs, rhs, variable_2)
             self._fill_pair_attrs(vector, variable_1, variable_2)
             yield vector, (variable_1, variable_2)
 
