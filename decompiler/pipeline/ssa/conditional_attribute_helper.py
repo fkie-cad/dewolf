@@ -6,11 +6,11 @@ conditional_weights.json):
 
   0  is_strong          rhs is exactly one variable, used once, no constants, no bad ops
   1  is_mid             rhs is one variable (used once) + exactly one constant, no bad ops
-  2  same_base_name     x.name == y.name
-  3  same_storage       x and y have the same Binary Ninja source_type and storage (Variable.provenance)
+  2  same_base_name     both variables have the same name
+  3  same_storage       both variables have the same Binary Ninja source_type and storage (Variable.provenance)
   4  def_by_usage       rhs contains exactly one distinct variable, no bad ops
   5  func_call          rhs is a call
-  6  same_phi           (x, y) co-occur in some phi function
+  6  same_phi           both variables co-occur in some phi function
   7  usage_1            rhs has exactly 1 distinct variable
   8  usage_2            rhs has exactly 2 distinct variables
   9  usage_3            rhs has exactly 3 distinct variables
@@ -20,14 +20,14 @@ conditional_weights.json):
   13 usage_7            rhs has exactly 7 distinct variables
   14 usage_8            rhs has exactly 8 distinct variables
   15 usage_9            rhs has exactly 9 distinct variables
-  16 following_definitions  x is the last occurrence of a variable, y is the next occurrence
-  17 same_rhs_source        x and y are both defined as copies of the same variable
+  16 following_definitions  the first variable is the last occurrence of a name, the second its next definition
+  17 same_rhs_source        both variables are defined as copies of the same variable
 """
 
 from abc import ABC
 from collections import defaultdict
 from itertools import combinations, permutations, product
-from typing import Dict, Iterator, List, NamedTuple, Set, Tuple
+from typing import DefaultDict, Dict, Iterator, List, NamedTuple, Set, Tuple
 
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
@@ -63,36 +63,48 @@ FEATURES = (
 assert len(FEATURES) == VECTOR_LENGTH
 
 
-def variablesAreInterfering(interference_graph: InterferenceGraph, var_X: Variable, var_Y: Variable) -> bool:
-    """True iff the two variables may not share a name. Must stay the same rule as
-    ConditionalVariableRenamer._must_separate (which applies it to contracted nodes): a pair this
-    function lets through becomes a dependency-graph edge and a training pair, so it has to be a
-    pair the renamer is able to merge."""
-    if interference_graph.are_interfering(var_X, var_Y):
+def cannot_share_name(interference_graph: InterferenceGraph, variable_1: Variable, variable_2: Variable) -> bool:
+    """
+    True iff the two variables may not share a name.
+
+    This must stay the same rule as ConditionalVariableRenamer._must_separate (which applies it to contracted nodes): a pair that this
+    function lets through becomes a dependency-graph edge and a training pair, so it has to be a pair the renamer is able to merge.
+    """
+    if interference_graph.are_interfering(variable_1, variable_2):
         return True
-    elif (var_X.is_aliased != var_Y.is_aliased) or (var_X.is_aliased and var_Y.is_aliased and (var_X.name != var_Y.name)):
+    if (variable_1.is_aliased != variable_2.is_aliased) or (
+        variable_1.is_aliased and variable_2.is_aliased and variable_1.name != variable_2.name
+    ):
         return True
-    elif isinstance(var_X, GlobalVariable) != isinstance(var_Y, GlobalVariable):
+    if isinstance(variable_1, GlobalVariable) != isinstance(variable_2, GlobalVariable):
         return True
-    elif isinstance(var_X, GlobalVariable) and isinstance(var_Y, GlobalVariable) and (var_X.name != var_Y.name):
+    if isinstance(variable_1, GlobalVariable) and isinstance(variable_2, GlobalVariable) and variable_1.name != variable_2.name:
         return True
-    elif var_X.type != var_Y.type:
+    if variable_1.type != variable_2.type:
         # The renamer only merges variables of identical type (a class has one type), also if the sizes agree.
         return True
-
-    if (var_X.type == None) or (var_Y.type == None):
+    if variable_1.type is None or variable_2.type is None:
         raise Exception("Encountered a None type variable in the SSA-Stage!")
-
     return False
 
 
 def get_phi_pairs(cfg: ControlFlowGraph) -> PhiPairs:
-    """All ordered pairs of variables that co-occur in the same phi function."""
+    """Return all ordered pairs of variables that co-occur in the same phi function."""
     phi_pairs: PhiPairs = set()
-    for instr in cfg.instructions:
-        if isinstance(instr, Phi):
-            phi_pairs.update(permutations(set(instr.definitions + instr.requirements), 2))
+    for instruction in cfg.instructions:
+        if isinstance(instruction, Phi):
+            phi_pairs.update(permutations(set(instruction.definitions + instruction.requirements), 2))
     return phi_pairs
+
+
+class ExpressionInfo(NamedTuple):
+    """Summary of an expression that the feature vectors are computed from."""
+
+    constant_count: int
+    is_call: bool
+    has_bad_operation_strong: bool
+    has_bad_operation_mid: bool
+    variable_counts: Dict[Variable, int]  # variable -> number of occurrences
 
 
 class AbstractAttributeHelper(ABC):
@@ -117,131 +129,132 @@ class AbstractAttributeHelper(ABC):
         }
     )
 
-    class ExprInfo(NamedTuple):
-        c_c: int  # number of constants
-        is_call: bool
-        has_bad_op_strong: bool
-        has_bad_op_mid: bool
-        c_v: Dict[Variable, int]  # variable -> occurrence count
-
     def __init__(self, phi_pairs: PhiPairs) -> None:
+        """:param phi_pairs: The ordered pairs of variables that co-occur in a phi function, see get_phi_pairs."""
         self._phi_pairs = phi_pairs
 
-    def _get_expression_info(self, expr: Expression) -> ExprInfo:
-        c_c = 0
-        has_bad_op_strong = False
-        has_bad_op_mid = False
-        is_call = isinstance(expr, Call)
-        c_v: Dict[Variable, int] = {}
-
-        for e in expr.subexpressions():
-            if isinstance(e, Variable):
-                c_v[e] = c_v.get(e, 0) + 1
-            elif isinstance(e, Constant):
-                c_c += 1
-            if not has_bad_op_strong and isinstance(e, Operation) and e.operation not in self._GOOD_OPERATIONS:
-                has_bad_op_strong = True
-            if not has_bad_op_mid and isinstance(e, Operation) and e.operation in self._BAD_OPERATIONS:
-                has_bad_op_mid = True
-
-        return self.ExprInfo(c_c, is_call, has_bad_op_strong, has_bad_op_mid, c_v)
+    def _get_expression_info(self, expression: Expression) -> ExpressionInfo:
+        """Count the variables and constants of the given expression and check it for operations that weaken a dependency."""
+        constant_count = 0
+        has_bad_operation_strong = False
+        has_bad_operation_mid = False
+        variable_counts: Dict[Variable, int] = {}
+        for subexpression in expression.subexpressions():
+            if isinstance(subexpression, Variable):
+                variable_counts[subexpression] = variable_counts.get(subexpression, 0) + 1
+            elif isinstance(subexpression, Constant):
+                constant_count += 1
+            if isinstance(subexpression, Operation) and subexpression.operation not in self._GOOD_OPERATIONS:
+                has_bad_operation_strong = True
+            if isinstance(subexpression, Operation) and subexpression.operation in self._BAD_OPERATIONS:
+                has_bad_operation_mid = True
+        return ExpressionInfo(
+            constant_count, isinstance(expression, Call), has_bad_operation_strong, has_bad_operation_mid, variable_counts
+        )
 
     def _common_template(
-        self, lhs: ExprInfo, rhs: ExprInfo, is_following_definitions: bool = False, is_same_source: bool = False
+        self, lhs: ExpressionInfo, rhs: ExpressionInfo, is_following_definitions: bool = False, is_same_source: bool = False
     ) -> List[int]:
-        n_rhs_vars = len(rhs.c_v)
-        single_rhs_var_once = n_rhs_vars == 1 and next(iter(rhs.c_v.values())) == 1
-        no_bad_ops_strong = not lhs.has_bad_op_strong and not rhs.has_bad_op_strong
-        no_bad_ops_mid = not lhs.has_bad_op_mid and not rhs.has_bad_op_mid
+        """Return the feature vector entries that depend only on the two expressions, not on the variable pair."""
+        number_of_rhs_variables = len(rhs.variable_counts)
+        single_rhs_variable_once = number_of_rhs_variables == 1 and next(iter(rhs.variable_counts.values())) == 1
+        no_bad_operations_strong = not lhs.has_bad_operation_strong and not rhs.has_bad_operation_strong
+        no_bad_operations_mid = not lhs.has_bad_operation_mid and not rhs.has_bad_operation_mid
 
-        vec = [0] * VECTOR_LENGTH
+        vector = [0] * VECTOR_LENGTH
         if not (is_following_definitions or is_same_source):
-            vec[INDEX_IS_STRONG] = int(single_rhs_var_once and rhs.c_c == 0 and no_bad_ops_strong)
-            vec[INDEX_IS_MID] = int(single_rhs_var_once and rhs.c_c == 1 and no_bad_ops_mid)
-            vec[INDEX_DEF_BY_USAGE] = int(n_rhs_vars == 1 and no_bad_ops_mid)
-            vec[INDEX_FUNC_CALL] = int(rhs.is_call)
-            if 1 <= n_rhs_vars <= 9:
-                vec[INDEX_USAGE_BASE + n_rhs_vars - 1] = 1
+            vector[INDEX_IS_STRONG] = int(single_rhs_variable_once and rhs.constant_count == 0 and no_bad_operations_strong)
+            vector[INDEX_IS_MID] = int(single_rhs_variable_once and rhs.constant_count == 1 and no_bad_operations_mid)
+            vector[INDEX_DEF_BY_USAGE] = int(number_of_rhs_variables == 1 and no_bad_operations_mid)
+            vector[INDEX_FUNC_CALL] = int(rhs.is_call)
+            if 1 <= number_of_rhs_variables <= 9:
+                vector[INDEX_USAGE_BASE + number_of_rhs_variables - 1] = 1
+        vector[INDEX_FOLLOWING_DEFINITIONS] = int(is_following_definitions)
+        vector[INDEX_SAME_SOURCE] = int(is_same_source)
+        return vector
 
-        vec[INDEX_FOLLOWING_DEFINITIONS] = int(is_following_definitions)
-        vec[INDEX_SAME_SOURCE] = int(is_same_source)
-        return vec
-
-    def _fill_pair_attrs(self, vec: List[int], x: Variable, y: Variable) -> None:
-        vec[INDEX_SAME_BASE_NAME] = int(x.name == y.name)
-        vec[INDEX_SAME_STORAGE] = int(
-            x.provenance is not None
-            and y.provenance is not None
-            and x.provenance.source_type is not None
-            and y.provenance.source_type is not None
-            and x.provenance.storage is not None
-            and y.provenance.storage is not None
-            and x.provenance.source_type == y.provenance.source_type
-            and x.provenance.storage == y.provenance.storage
+    def _fill_pair_attrs(self, vector: List[int], variable_1: Variable, variable_2: Variable) -> None:
+        """Set the feature vector entries that depend on the variable pair itself."""
+        vector[INDEX_SAME_BASE_NAME] = int(variable_1.name == variable_2.name)
+        vector[INDEX_SAME_STORAGE] = int(
+            variable_1.provenance is not None
+            and variable_2.provenance is not None
+            and variable_1.provenance.source_type is not None
+            and variable_2.provenance.source_type is not None
+            and variable_1.provenance.storage is not None
+            and variable_2.provenance.storage is not None
+            and variable_1.provenance.source_type == variable_2.provenance.source_type
+            and variable_1.provenance.storage == variable_2.provenance.storage
         )
-        vec[INDEX_IN_SAME_PHI] = int((x, y) in self._phi_pairs)
+        vector[INDEX_IN_SAME_PHI] = int((variable_1, variable_2) in self._phi_pairs)
 
-    def _assignments_in_cfg(self, cfg: ControlFlowGraph) -> Iterator[Assignment]:
-        for instr in cfg.instructions:
-            if isinstance(instr, Assignment):
-                yield instr
+    def _assignments_in_dominator_order(self, cfg: ControlFlowGraph) -> Iterator[Tuple[Assignment, Dict[str, ExpressionInfo]]]:
+        """
+        Yield every assignment together with the last dominating definition per variable name.
 
-    def _assignments_in_dominator_order(self, cfg: ControlFlowGraph) -> Iterator[Tuple[Assignment, Dict[str, ExprInfo]]]:
-        """Yields every assignment together with the last dominating definition per variable name.
-        The caller updates the dict; changes are only visible to blocks dominated by the current one."""
+        The caller updates the dict; changes are only visible to blocks dominated by the current one.
+        """
         if cfg.root is None:
             return
-        tree = cfg.dominator_tree
+        dominator_tree = cfg.dominator_tree
         stack = [(cfg.root, {})]
         while stack:
-            block, inherited = stack.pop()
-            last_def = dict(inherited)
-            for instr in block:
-                if isinstance(instr, Assignment):
-                    yield instr, last_def
-            for child in tree.get_successors(block):
-                stack.append((child, last_def))
+            basic_block, inherited_definitions = stack.pop()
+            last_definition = dict(inherited_definitions)
+            for instruction in basic_block:
+                if isinstance(instruction, Assignment):
+                    yield instruction, last_definition
+            for child in dominator_tree.get_successors(basic_block):
+                stack.append((child, last_definition))
 
 
 class ConditionalAttributeHelper(AbstractAttributeHelper):
     """Used during conditional out-of-SSA dependency-graph construction to score every candidate variable pair."""
 
     def iter_edge_data(self, cfg: ControlFlowGraph) -> Iterator[Tuple[List[int], Tuple[Variable, Variable]]]:
-        sameSourceDict = defaultdict(list)
+        """Yield the feature vector of every candidate variable pair of the given control flow graph."""
+        definitions_of_source: DefaultDict[Variable, List[ExpressionInfo]] = defaultdict(list)
+        for assignment, last_definition in self._assignments_in_dominator_order(cfg):
+            lhs = self._get_expression_info(assignment.destination)
+            rhs = self._get_expression_info(assignment.value)
+            if not rhs.has_bad_operation_strong and len(rhs.variable_counts) == 1 and len(lhs.variable_counts) == 1:
+                definitions_of_source[next(iter(rhs.variable_counts))].append(lhs)
+            if not lhs.has_bad_operation_strong and len(lhs.variable_counts) == 1:
+                name = next(iter(lhs.variable_counts)).name
+                previous_definition = last_definition.get(name)
+                last_definition[name] = lhs
+                if previous_definition is not None:
+                    yield from self._following_definition_pairs(previous_definition, lhs)
+            if lhs.variable_counts and rhs.variable_counts:
+                yield from self._assignment_pairs(lhs, rhs)
+        yield from self._same_source_pairs(definitions_of_source)
 
-        for assign, last_def in self._assignments_in_dominator_order(cfg):
-            lhs = self._get_expression_info(assign.destination)
-            rhs = self._get_expression_info(assign.value)
+    def _following_definition_pairs(
+        self, previous_definition: ExpressionInfo, definition: ExpressionInfo
+    ) -> Iterator[Tuple[List[int], Tuple[Variable, Variable]]]:
+        """Yield the pairs of a definition and the previous dominating definition of a variable with the same name."""
+        template = self._common_template(previous_definition, definition, is_following_definitions=True)
+        for variable_1, variable_2 in product(previous_definition.variable_counts, definition.variable_counts):
+            vector = template.copy()
+            self._fill_pair_attrs(vector, variable_1, variable_2)
+            yield vector, (variable_1, variable_2)
 
-            if (not rhs.has_bad_op_strong) and (len(rhs.c_v) == 1) and (len(lhs.c_v) == 1):
-                sameSourceDict[list(rhs.c_v.keys())[0]].append(lhs)
+    def _assignment_pairs(self, lhs: ExpressionInfo, rhs: ExpressionInfo) -> Iterator[Tuple[List[int], Tuple[Variable, Variable]]]:
+        """Yield the pairs of a variable on the left-hand side and a variable on the right-hand side of an assignment."""
+        template = self._common_template(lhs, rhs)
+        for variable_1, variable_2 in product(lhs.variable_counts, rhs.variable_counts):
+            vector = template.copy()
+            self._fill_pair_attrs(vector, variable_1, variable_2)
+            yield vector, (variable_1, variable_2)
 
-            if (not lhs.has_bad_op_strong) and (len(lhs.c_v) == 1):
-                name = next(iter(lhs.c_v)).name
-                lastOccurence = last_def.get(name)
-                last_def[name] = lhs
-                if lastOccurence is not None:
-                    template = self._common_template(lastOccurence, lhs, is_following_definitions=True)
-                    for x, y in product(lastOccurence.c_v, lhs.c_v):
-                        vec = template.copy()
-                        self._fill_pair_attrs(vec, x, y)
-                        yield vec, (x, y)
-
-            if not lhs.c_v or not rhs.c_v:
-                continue
-            template = self._common_template(lhs, rhs)
-
-            for x, y in product(lhs.c_v, rhs.c_v):
-                vec = template.copy()
-                self._fill_pair_attrs(vec, x, y)
-                yield vec, (x, y)
-
-        for varRight in list(sameSourceDict.keys()):
-            if len(sameSourceDict[varRight]) > 1:
-                for x, y in combinations(sameSourceDict[varRight], 2):
-                    var1: Variable = list(x.c_v.keys())[0]
-                    var2: Variable = list(y.c_v.keys())[0]
-
-                    vec = self._common_template(x, y, is_same_source=True)
-                    self._fill_pair_attrs(vec, var1, var2)
-                    yield vec, (var1, var2)
+    def _same_source_pairs(
+        self, definitions_of_source: DefaultDict[Variable, List[ExpressionInfo]]
+    ) -> Iterator[Tuple[List[int], Tuple[Variable, Variable]]]:
+        """Yield the pairs of variables that are both defined as a copy of the same variable."""
+        for definitions in definitions_of_source.values():
+            for definition_1, definition_2 in combinations(definitions, 2):
+                variable_1 = next(iter(definition_1.variable_counts))
+                variable_2 = next(iter(definition_2.variable_counts))
+                vector = self._common_template(definition_1, definition_2, is_same_source=True)
+                self._fill_pair_attrs(vector, variable_1, variable_2)
+                yield vector, (variable_1, variable_2)

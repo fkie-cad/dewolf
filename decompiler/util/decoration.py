@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import textwrap
+from itertools import combinations, product
 from logging import warning
 from re import compile
 from subprocess import CompletedProcess, run
 from sys import stdout
-from typing import Dict, TextIO
+from typing import TYPE_CHECKING, Dict, TextIO, Tuple
 
 import z3
 from binaryninja import BranchType, EdgePenStyle, EdgeStyle, FlowGraph, FlowGraphNode, HighlightStandardColor, ThemeColor, show_graph_report
@@ -28,14 +29,19 @@ from decompiler.structures.ast.syntaxforest import AbstractSyntaxForest
 from decompiler.structures.ast.syntaxgraph import AbstractSyntaxInterface
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.graphs.cfg import BasicBlock, BasicBlockEdge, BasicBlockEdgeCondition, ControlFlowGraph
+from decompiler.structures.pseudo.expressions import Variable
 from decompiler.structures.pseudo.operations import Condition
 from decompiler.util.closeable_named_temporary_file import CloseableNamedTemporaryFile
 from decompiler.util.to_dot_converter import ToDotConverter
-from networkx import DiGraph
+from networkx import DiGraph, MultiDiGraph, MultiGraph, connected_components
 from pygments import highlight
 from pygments.formatters.html import HtmlFormatter
 from pygments.formatters.terminal import TerminalFormatter
 from pygments.lexers.c_cpp import CppLexer
+
+if TYPE_CHECKING:
+    # Only for the type hint: the interference graph module imports from decompiler.pipeline, which imports this module.
+    from decompiler.structures.interferencegraph import InterferenceGraph
 
 try:
     run(["graph-easy", "-v"], capture_output=True)
@@ -170,6 +176,44 @@ class DecoratedCFG(DecoratedGraph):
         for source, sink, data in self._graph.edges(data=True):
             nodes[source].add_outgoing_edge(self.EDGE_TYPE_MAP[data["type"]], nodes[sink])
         return graph
+
+
+class DecoratedDependencyGraph(DecoratedGraph):
+    """Class handling dependency graphs of the conditional out-of-SSA renaming, decorated for plotting and printing."""
+
+    NODE_DECORATION = {"shape": "box"}
+    DEPENDENCY_DECORATION = {"dir": "none"}
+    INTERFERENCE_DECORATION = {"color": "red", "dir": "none"}
+
+    def __init__(self, graph: MultiDiGraph = None):
+        """Create a new DecoratedDependencyGraph or load an old instance."""
+        super().__init__()
+        self._graph = graph if graph is not None else MultiDiGraph()
+
+    @classmethod
+    def from_dependency_graph(cls, dependency_graph: MultiGraph, interference_graph: InterferenceGraph) -> DecoratedDependencyGraph:
+        """
+        Generate a decorated graph from the given dependency graph (nodes are tuples of variables, edges have a score).
+
+        Each node of the dependency graph is a node, each dependency an undirected edge labeled with its score, and two nodes of the
+        same connected component that contain interfering variables are connected by a red, undirected edge.
+        """
+        graph = cls()
+        node_ids = {node: node_id for node_id, node in enumerate(dependency_graph.nodes)}
+        for node, node_id in node_ids.items():
+            graph.decorate_node(node, node_id)
+        for node_1, node_2, score in dependency_graph.edges(data="score"):
+            graph._graph.add_edge(node_ids[node_1], node_ids[node_2], **cls.DEPENDENCY_DECORATION, label=f"{score:.4g}")
+        for component in connected_components(dependency_graph):
+            for node_1, node_2 in combinations(sorted(component, key=node_ids.__getitem__), 2):
+                if any(interference_graph.has_edge(variable_1, variable_2) for variable_1, variable_2 in product(node_1, node_2)):
+                    graph._graph.add_edge(node_ids[node_1], node_ids[node_2], **cls.INTERFERENCE_DECORATION)
+        return graph
+
+    def decorate_node(self, node: Tuple[Variable, ...], node_id: int):
+        """Decorate the given dependency-graph node with dotviz attributes, listing its variables."""
+        label = "\n".join(f"{variable}: {variable.type}, aliased: {variable.is_aliased}" for variable in node)
+        self._graph.add_node(node_id, **self.NODE_DECORATION, label=label)
 
 
 class DecoratedAST(DecoratedGraph):

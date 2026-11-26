@@ -6,13 +6,22 @@ from binaryninja import HighlightStandardColor
 from decompiler.structures.ast.ast_nodes import SeqNode
 from decompiler.structures.ast.syntaxtree import AbstractSyntaxTree
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
+from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.logic.logic_condition import LogicCondition
 from decompiler.structures.pseudo.expressions import Constant, FunctionSymbol, ImportedFunctionSymbol, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Branch, Phi, Return
 from decompiler.structures.pseudo.operations import BinaryOperation, Call, Condition, ListOperation, OperationType
 from decompiler.structures.pseudo.typing import Integer
-from decompiler.util.decoration import ASTYLE_INSTALLED, GRAPH_EASY_INSTALLED, DecoratedAST, DecoratedCFG, DecoratedCode
+from decompiler.util.decoration import (
+    ASTYLE_INSTALLED,
+    GRAPH_EASY_INSTALLED,
+    DecoratedAST,
+    DecoratedCFG,
+    DecoratedCode,
+    DecoratedDependencyGraph,
+)
 from decompiler.util.to_dot_converter import ToDotConverter
+from networkx import MultiGraph
 
 
 class TestDecoratedCFG:
@@ -226,6 +235,33 @@ class TestDecoratedCFG:
             assert file.read(len(png_magic)) == png_magic
         # remove file
         os.remove(export_path)
+
+
+class TestDecoratedDependencyGraph:
+    def test_does_decorate_graph_correctly(self):
+        """Dependency edges are undirected and labeled with their score, interfering nodes of one component get a red edge."""
+        a, b, c, d = (Variable(name, Integer.int32_t(), ssa_label=0) for name in "abcd")
+        dependency_graph = MultiGraph()
+        dependency_graph.add_nodes_from([(a,), (b,), (c,), (d,)])
+        dependency_graph.add_edge((a,), (b,), score=0.5)
+        dependency_graph.add_edge((b,), (c,), score=2.0)
+        interference_graph = InterferenceGraph()
+        interference_graph.add_edge(a, c)
+        interference_graph.add_edge(a, d)  # d is in another component, so this interference is not shown
+
+        decorated = DecoratedDependencyGraph.from_dependency_graph(dependency_graph, interference_graph)
+
+        assert dict(decorated.graph.nodes(data=True)) == {
+            0: {"shape": "box", "label": "a#0: int, aliased: False"},
+            1: {"shape": "box", "label": "b#0: int, aliased: False"},
+            2: {"shape": "box", "label": "c#0: int, aliased: False"},
+            3: {"shape": "box", "label": "d#0: int, aliased: False"},
+        }
+        assert list(decorated.graph.edges(data=True)) == [
+            (0, 1, {"dir": "none", "label": "0.5"}),
+            (0, 2, {"color": "red", "dir": "none"}),
+            (1, 2, {"dir": "none", "label": "2"}),
+        ]
 
 
 class TestDecoratedAST:

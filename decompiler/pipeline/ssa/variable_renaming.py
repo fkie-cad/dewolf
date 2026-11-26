@@ -12,7 +12,7 @@ from typing import DefaultDict, Dict, Iterable, Iterator, List, Optional, Set, T
 import networkx as nx
 import numpy as np
 from decompiler.pipeline.ssa.conditional_attribute_helper import PhiPairs
-from decompiler.pipeline.ssa.dependency_graph import dependency_graph_from_cfg
+from decompiler.pipeline.ssa.dependency_graph import DependencyNode, dependency_graph_from_cfg
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo.expressions import GlobalVariable, Variable
@@ -346,13 +346,15 @@ class MinimalVariableRenamer(VariableRenamer):
                 yield self._variable_classes_handler.color_class_of[neighbor]
 
 
-class StCutStorage:
-    def __init__(self, s: Tuple[Variable], t: Tuple[Variable], part1: list[tuple[Variable]], part2: list[tuple[Variable]], weight: int):
-        self.s = s
-        self.t = t
-        self.part1 = part1
-        self.part2 = part2
-        self.weight = weight
+@dataclass
+class StCut:
+    """A minimum s-t-cut of a dependency graph, separating the nodes `source` and `sink`."""
+
+    source: DependencyNode
+    sink: DependencyNode
+    source_side: Set[DependencyNode]
+    sink_side: Set[DependencyNode]
+    weight: float
 
 
 class ConditionalVariableRenamer(VariableRenamer):
@@ -362,32 +364,48 @@ class ConditionalVariableRenamer(VariableRenamer):
     copy-assignments are more likely to be identically than complicated computations.
     """
 
+    # Score of the edges between variables connected by a Relation, so that they are (almost) never separated.
+    RELATION_SCORE = 2**40
+    # Strategies 2 and 3 only consider paths up to this length (relative to the approximate diameter) in the LP.
+    PATH_LENGTH_FACTOR = 0.1
+    PATH_LENGTH_OFFSET = 4
+    # Strategy 3 adds the paths of this many interfering pairs to the LP in each round.
+    PAIRS_PER_ROUND = 10
+    # Number of nodes from which the diameter approximation computes the shortest paths.
+    DIAMETER_SAMPLES = 8
+
     def __init__(
         self,
         task: DecompilerTask,
         interference_graph: InterferenceGraph,
-        parameters: list[float],
+        coefficients: List[float],
         intercept: float,
         phi_pairs: PhiPairs,
-        strat: int = 0,  # DETERMINISM
+        strategy: int = 0,
         min_kept_score: Optional[float] = None,
     ):
+        """
+        :param task: The decompiler task whose variables we want to rename.
+        :param interference_graph: The interference graph of the control flow graph of the task.
+        :param coefficients: The coefficients of the linear model that scores variable pairs, one per feature.
+        :param intercept: The intercept of the linear model.
+        :param phi_pairs: The ordered pairs of variables that co-occurred in a phi function, see get_phi_pairs.
+        :param strategy: How the dependency graph is split into variable classes, see create_variable_classes.
+        :param min_kept_score: Lower bound for the scores of the kept dependency-graph edges (None: no lower bound).
+        """
         super().__init__(task, interference_graph.copy())
-        self.params = parameters
+        self.coefficients = coefficients
         self.intercept = intercept
         self.phi_pairs = phi_pairs
-        self.strat = strat
+        self.strategy = strategy
         self.min_kept_score = min_kept_score
-        self.correctedInterferencePairs = 0
+        self.corrected_interference_pairs = 0
         # The renamer works on the given, uncontracted graph (the base class contracted a copy).
         self.interference_graph = interference_graph
         self.task = task
-        self.helpvalue = pow(
-            2, 40
-        )  # We give this value to edges between variables which are connected in a relation, this makes it very very unlikely that they get separated in different classes
         self._generate_renaming_map(task.graph)
 
-    def _generate_renaming_map(self, cfg: ControlFlowGraph):
+    def _generate_renaming_map(self, cfg: ControlFlowGraph) -> None:
         """
         Generate the renaming map for SSA variables.
 
@@ -398,410 +416,368 @@ class ConditionalVariableRenamer(VariableRenamer):
 
         :param cfg: The control flow graph from which the dependency graph is derived.
         """
-
         dependency_graph = dependency_graph_from_cfg(
-            cfg, self.params, self.intercept, self.phi_pairs, self.interference_graph, self.min_kept_score
+            cfg, self.coefficients, self.intercept, self.phi_pairs, self.interference_graph, self.min_kept_score
         )
         dependency_graph = self.merge_contracted_variables(dependency_graph)
-
         dependency_graph = self.create_variable_classes(dependency_graph)
+        self._create_renaming_map(self._extract_classes(dependency_graph))
 
-        # The following assert is very useful for debugging, therefore it still has its place in the code
-        # assert (self.checkResult(dependency_graph))
-
-        self.createRenamingMap(self.extractClasses(dependency_graph))
-
-    def extractClasses(self, dependency_graph: Graph) -> List[List[Variable]]:
-        """Extracts variables, which can have the same name out of the dependency graph i.e. the connected components of the 'new' dependency graph"""
-        # A component is a set, so order its nodes by their position in the graph: the first variable names the class,
-        # and the iteration order of a set of variables depends on the hash seed of the process.
-        position = {node: index for index, node in enumerate(dependency_graph.nodes)}
-        res = []
-        for comp in connected_components(dependency_graph):
-            conComp = list(chain(*sorted(comp, key=position.__getitem__)))
-            types = list(dict.fromkeys(x.type for x in conComp))
-            if len(types) <= 1:  # sanity check
-                res.append(conComp)
-            else:  # Split the connected component by type. This shuold not occur, but you never know ...
-                for x in types:
-                    typeX = [y for y in conComp if y.type == x]
-                    res.append(typeX)
-
-        return res
-
-    def checkResult(self, dependency_graph: MultiGraph):
-        for comp in connected_components(dependency_graph):
-            compVars = []
-            for tup in comp:
-                for var in tup:
-                    compVars.append(var)
-            if self.interference_graph.are_interfering(*compVars):
-                raise Exception(f"Two Variables in one connected component are interfering!")
-        return True
-
-    def merge_contracted_variables(self, dependency_graph: MultiGraph):
-        """Here variables connected by a relation are pseudo-contracted to one variable"""
-        for instr in self.cfg.instructions:
-            if isinstance(instr, Relation) and (instr.destination != instr.value):
-                dependency_graph.add_edge((instr.destination,), (instr.value,), score=self.helpvalue)
-
+    def merge_contracted_variables(self, dependency_graph: MultiGraph) -> MultiGraph:
+        """Pseudo-contract the variables connected by a Relation, i.e., connect them by an edge that is (almost) never cut."""
+        for instruction in self.cfg.instructions:
+            if isinstance(instruction, Relation) and instruction.destination != instruction.value:
+                dependency_graph.add_edge((instruction.destination,), (instruction.value,), score=self.RELATION_SCORE)
         return dependency_graph
 
-    def multiGraphToGraph(self, dependency_graph: MultiGraph) -> Graph:
-        res = Graph()
-        res.add_nodes_from(dependency_graph.nodes())
-        for u, v, d in dependency_graph.edges(data=True):
-            if res.has_edge(u, v):
-                res[u][v]["score"] = max(res[u][v]["score"], d["score"])
-            else:
-                res.add_edge(u, v, score=d["score"])
-        return res
+    def create_variable_classes(self, dependency_graph: MultiGraph) -> Graph:
+        """
+        Split the dependency graph such that no connected component contains two variables that must be separated.
 
-    def _must_separate(self, var1: Tuple[Variable], var2: Tuple[Variable]) -> bool:
-        """True iff the two (contracted) nodes may not share a name: they interfere, differ in type or
-        aliasing, or mix (different) globals."""
-        if (var1[0].type == None) or (var2[0].type == None):
+        The connected components of the returned graph are the variable classes. The strategy is selected by the weights file:
+        - 0: compute every needed s-t-cut and apply the lightest first. An s-t-cut is only applied if still necessary.
+        - 1: apply the s-t-cuts one after another, without sorting by weight -> lower runtime, but worse approximation factor.
+        - 2: use an LP solver to compute a multicut. Due to runtime constraints only paths up to a certain dynamic length are
+             considered; the remaining pairs (connected by long paths) are separated by s-t-cuts.
+        - 3: round-based version of strategy 2. Enumerating the paths of all pairs is expensive, solving the LP comparatively cheap,
+             so the paths of only a few pairs are added in each round, until the LP solution separates all pairs.
+        - 4: greedy merging. Merge along the edges in order of decreasing score whenever the two classes contain no pair that must be
+             separated. No cuts, no LP.
+        """
+        strategies = {
+            0: self._cut_lightest_first,
+            1: self._cut_in_order,
+            2: self._cut_by_lp,
+            3: self._cut_by_lp_in_rounds,
+            4: self._merge_greedily,
+        }
+        if self.strategy not in strategies:
+            raise Exception("This Multicut Algorithm is currently not implemented")
+        return strategies[self.strategy](dependency_graph)
+
+    def _cut_lightest_first(self, dependency_graph: MultiGraph) -> Graph:
+        """Strategy 0: compute the s-t-cuts of all interfering pairs of a component, then apply the needed ones, lightest first."""
+        graph = self._to_simple_graph(dependency_graph)
+        for component in list(connected_components(graph)):
+            component_graph = graph.subgraph(component)
+            cuts = [self._minimum_cut(component_graph, source, sink) for source, sink in self._interfering_pairs(component_graph)]
+            cuts.sort(key=attrgetter("weight"))
+            for cut in cuts:
+                if has_path(component_graph, cut.source, cut.sink):
+                    self._remove_edges_between(graph, cut.source_side, cut.sink_side)
+        return graph
+
+    def _cut_in_order(self, dependency_graph: MultiGraph) -> Graph:
+        """Strategy 1: separate the interfering pairs of each component by s-t-cuts, one after another."""
+        graph = self._to_simple_graph(dependency_graph)
+        for component in list(connected_components(graph)):
+            component_graph = graph.subgraph(component)
+            for source, sink in self._interfering_pairs(component_graph):
+                if has_path(component_graph, source, sink):
+                    cut = self._minimum_cut(component_graph, source, sink)
+                    self._remove_edges_between(graph, cut.source_side, cut.sink_side)
+        return graph
+
+    def _cut_by_lp(self, dependency_graph: MultiGraph) -> Graph:
+        """Strategy 2: separate the interfering pairs of each component by a multicut computed with an LP solver."""
+        graph = self._to_simple_graph(dependency_graph)
+        for component in list(connected_components(graph)):
+            self._cut_component_by_lp(graph, component)
+        self._separate_remaining_pairs(graph)
+        return graph
+
+    def _cut_component_by_lp(self, graph: Graph, component: Set[DependencyNode]) -> None:
+        """Remove the edges of a multicut that separates all short paths between the interfering pairs of the given component."""
+        component_graph = graph.subgraph(component)
+        edges, weights = self._edges_and_scores(component_graph)
+        if not edges:
+            return
+        interfering_pairs = self._interfering_pairs(component_graph)
+        diameter = self._approximate_diameter(component_graph)
+        paths = []
+        for source, sink in interfering_pairs:
+            paths.extend(self._short_paths(component_graph, source, sink, diameter))
+        if not paths:
+            return
+        graph.remove_edges_from(self._solve_multicut_lp(self._encode_paths(paths, edges), weights, edges))
+
+    def _cut_by_lp_in_rounds(self, dependency_graph: MultiGraph) -> Graph:
+        """Strategy 3: like strategy 2, but the LP only contains the paths of a few interfering pairs per round."""
+        graph = self._to_simple_graph(dependency_graph)
+        for component in list(connected_components(graph)):
+            self._cut_component_by_lp_in_rounds(graph, component)
+        self._separate_remaining_pairs(graph)
+        return graph
+
+    def _cut_component_by_lp_in_rounds(self, graph: Graph, component: Set[DependencyNode]) -> None:
+        """
+        Add the short paths of some interfering pairs to the LP and solve it, until the LP solution also separates all pairs whose paths
+        were not added yet. Only then the edges of the solution are removed.
+        """
+        component_graph = graph.subgraph(component)
+        edges, weights = self._edges_and_scores(component_graph)
+        if not edges:
+            return
+        interfering_pairs = list(self._interfering_pairs(component_graph))
+        if not interfering_pairs:
+            return
+        constraint_rows = []
+        next_pair_index = 0
+        diameter = self._approximate_diameter(component_graph)
+        # Deterministic seed, so that the LP solver always gets the same input for the same graph.
+        random.seed(hash(tuple(sorted(weights))))
+        while round_paths := self._paths_of_next_round(component_graph, interfering_pairs, next_pair_index, diameter):
+            constraint_rows.extend(self._encode_paths(round_paths, edges))
+            removed_edges = self._solve_multicut_lp(constraint_rows, weights, edges)
+            remaining_graph = Graph(component_graph)
+            remaining_graph.remove_edges_from(removed_edges)
+            next_pair_index = self._index_of_connected_pair(remaining_graph, interfering_pairs)
+            if next_pair_index is None:
+                graph.remove_edges_from(removed_edges)
+                return
+
+    def _paths_of_next_round(
+        self,
+        component_graph: Graph,
+        interfering_pairs: List[Tuple[DependencyNode, DependencyNode]],
+        next_pair_index: int,
+        diameter: int,
+    ) -> List[List[Tuple[DependencyNode, DependencyNode]]]:
+        """
+        Remove up to PAIRS_PER_ROUND pairs from the given list (starting with the given index, then at random) and return their short
+        paths. If none of them has a short path, take further pairs until one has.
+        """
+        paths = []
+        for _ in range(min(self.PAIRS_PER_ROUND, len(interfering_pairs))):
+            source, sink = interfering_pairs.pop(next_pair_index)
+            paths.extend(self._short_paths(component_graph, source, sink, diameter))
+            if interfering_pairs:
+                next_pair_index = random.randint(0, len(interfering_pairs) - 1)
+        while not paths and interfering_pairs:
+            source, sink = interfering_pairs.pop(random.randint(0, len(interfering_pairs) - 1))
+            paths.extend(self._short_paths(component_graph, source, sink, diameter))
+        return paths
+
+    def _merge_greedily(self, dependency_graph: MultiGraph) -> Graph:
+        """
+        Strategy 4: agglomerative merging.
+
+        Starting from singletons, merge along the edges in order of decreasing score (relations first, they carry the huge relation score)
+        whenever the two current classes contain no pair that must be separated. Returns a forest whose components are the classes.
+        """
+        graph = self._to_simple_graph(dependency_graph)
+        parent = {node: node for node in graph.nodes}
+        members = {node: [node] for node in graph.nodes}
+        result = Graph()
+        result.add_nodes_from(graph.nodes)
+        for node_1, node_2, score in sorted(graph.edges(data="score"), key=self._greedy_edge_order):
+            root_1, root_2 = self._find_root(parent, node_1), self._find_root(parent, node_2)
+            if root_1 == root_2:
+                continue
+            if any(self._must_separate(member_1, member_2) for member_1 in members[root_1] for member_2 in members[root_2]):
+                continue
+            if len(members[root_1]) < len(members[root_2]):
+                root_1, root_2 = root_2, root_1
+            parent[root_2] = root_1
+            members[root_1].extend(members.pop(root_2))
+            result.add_edge(node_1, node_2, score=score)
+        return result
+
+    @staticmethod
+    def _greedy_edge_order(edge: Tuple[DependencyNode, DependencyNode, float]) -> Tuple[float, List[str]]:
+        """Sort key for strategy 4: decreasing score, ties broken by the names of the end nodes (independent of the hash seed)."""
+        node_1, node_2, score = edge
+        return -score, sorted((f"{node_1[0].name}#{node_1[0].ssa_label}", f"{node_2[0].name}#{node_2[0].ssa_label}"))
+
+    @staticmethod
+    def _find_root(parent: Dict[DependencyNode, DependencyNode], node: DependencyNode) -> DependencyNode:
+        """Return the root of the union-find tree of the given node, halving the path on the way."""
+        while parent[node] != node:
+            parent[node] = parent[parent[node]]
+            node = parent[node]
+        return node
+
+    @staticmethod
+    def _to_simple_graph(dependency_graph: MultiGraph) -> Graph:
+        """
+        Remove the self-loops (they do not add any value, but cause problems for the cuts) and merge parallel edges into one edge
+        with the highest score.
+        """
+        dependency_graph.remove_edges_from(list(selfloop_edges(dependency_graph)))
+        graph = Graph()
+        graph.add_nodes_from(dependency_graph.nodes())
+        for node_1, node_2, data in dependency_graph.edges(data=True):
+            if graph.has_edge(node_1, node_2):
+                graph[node_1][node_2]["score"] = max(graph[node_1][node_2]["score"], data["score"])
+            else:
+                graph.add_edge(node_1, node_2, score=data["score"])
+        return graph
+
+    def _must_separate(self, node_1: DependencyNode, node_2: DependencyNode) -> bool:
+        """
+        True iff the two (contracted) nodes may not share a name: they interfere, differ in type or aliasing, or mix (different) globals.
+
+        This must stay the same rule as conditional_attribute_helper.cannot_share_name.
+        """
+        variable_1, variable_2 = node_1[0], node_2[0]
+        if variable_1.type is None or variable_2.type is None:
             raise Exception("Encountered a None type variable in the SSA-Stage!")
-        if self.interference_graph.are_interfering(*var1, *var2):
+        if self.interference_graph.are_interfering(*node_1, *node_2):
             return True
-        if var1[0].type != var2[0].type:
+        if variable_1.type != variable_2.type:
             return True
-        if (var1[0].is_aliased != var2[0].is_aliased) or (var1[0].is_aliased and var2[0].is_aliased and (var1[0].name != var2[0].name)):
+        if (variable_1.is_aliased != variable_2.is_aliased) or (
+            variable_1.is_aliased and variable_2.is_aliased and variable_1.name != variable_2.name
+        ):
             return True
-        if isinstance(var1[0], GlobalVariable) != isinstance(var2[0], GlobalVariable):
+        if isinstance(variable_1, GlobalVariable) != isinstance(variable_2, GlobalVariable):
             return True
-        if isinstance(var1[0], GlobalVariable) and isinstance(var2[0], GlobalVariable) and (var1[0].name != var2[0].name):
+        if isinstance(variable_1, GlobalVariable) and isinstance(variable_2, GlobalVariable) and variable_1.name != variable_2.name:
             return True
         return False
 
-    def getInterferingPairs(self, dependency_graph: Graph):
-        interferingPairs = list()
-        for zhk in connected_components(dependency_graph):
-            for var1, var2 in combinations(zhk, 2):
-                var1: Tuple[Variable]
-                var2: Tuple[Variable]
-                if self._must_separate(var1, var2):
-                    interferingPairs.append((var1, var2))
-        return interferingPairs
+    def _interfering_pairs(self, graph: Graph) -> List[Tuple[DependencyNode, DependencyNode]]:
+        """Return all pairs of nodes in the same connected component of the given graph that must be separated."""
+        interfering_pairs = []
+        for component in connected_components(graph):
+            for node_1, node_2 in combinations(component, 2):
+                if self._must_separate(node_1, node_2):
+                    interfering_pairs.append((node_1, node_2))
+        return interfering_pairs
 
-    def _greedy_merge(self, dependency_graph: MultiGraph) -> Graph:
-        """Strategy 4: agglomerative merging. Starting from singletons, merge along the edges in order of
-        decreasing score (relations first, they carry the huge helper weight) whenever the two current classes
-        contain no pair that must be separated. Returns a forest whose components are the classes."""
-        dependency_graph.remove_edges_from(list(selfloop_edges(dependency_graph)))
-        graph = self.multiGraphToGraph(dependency_graph)
-        parent = {node: node for node in graph.nodes}
-        members = {node: [node] for node in graph.nodes}
+    @staticmethod
+    def _minimum_cut(graph: Graph, source: DependencyNode, sink: DependencyNode) -> StCut:
+        """Compute a minimum s-t-cut of the given graph, weighted by the edge scores."""
+        weight, (source_side, sink_side) = minimum_cut(graph, source, sink, capacity="score")
+        return StCut(source, sink, source_side, sink_side, weight)
 
-        def find(node):
-            while parent[node] != node:
-                parent[node] = parent[parent[node]]
-                node = parent[node]
-            return node
+    @staticmethod
+    def _remove_edges_between(graph: Graph, side_1: Set[DependencyNode], side_2: Set[DependencyNode]) -> None:
+        """Remove all edges of the given graph between the two given sets of nodes."""
+        graph.remove_edges_from([(node_1, node_2) for node_1 in side_1 for node_2 in graph.neighbors(node_1) if node_2 in side_2])
 
-        result = Graph()
-        result.add_nodes_from(graph.nodes)
-        ordered = sorted(
-            graph.edges(data="score"),
-            key=lambda e: (-e[2], sorted((f"{e[0][0].name}#{e[0][0].ssa_label}", f"{e[1][0].name}#{e[1][0].ssa_label}"))),
-        )
-        for u, v, score in ordered:
-            root_u, root_v = find(u), find(v)
-            if root_u == root_v:
-                continue
-            if any(self._must_separate(a, b) for a in members[root_u] for b in members[root_v]):
-                continue
-            if len(members[root_u]) < len(members[root_v]):
-                root_u, root_v = root_v, root_u
-            parent[root_v] = root_u
-            members[root_u].extend(members.pop(root_v))
-            result.add_edge(u, v, score=score)
-        return result
+    def _separate_remaining_pairs(self, graph: Graph) -> None:
+        """Separate the interfering pairs that the LP missed because of the path length condition by s-t-cuts (usually only a few)."""
+        for source, sink in self._interfering_pairs(graph):
+            if has_path(graph, source, sink):
+                self.corrected_interference_pairs += 1
+                cut = self._minimum_cut(graph, source, sink)
+                self._remove_edges_between(graph, cut.source_side, cut.sink_side)
 
-    def create_variable_classes(self, dependency_graph: MultiGraph):
-        """Create the variable classes based on the given dependency graph.
-        We created 3 strategies for this, which can be selected by the user.
-        - first strategy: calculation of every needed s-t-cut and application of lightest (weight) first. An s-t-cut is only applied if necessary
-        - second strategy: simple application of s-t-cuts one after another, no sorting by weight --> lower runtime, but worse approximation factor
-        - third strategy: use LP-Solver to calculate MultiCut. Due to runtime constraints only paths up to a certain dynamic lenght are considred, the remaining variables (connected by long paths) are devided by sepperate s-t-cuts.
-        - fourth strategy: optimized version of strategy 3. Iterating all possible pairs is expensive, solving the LP is comparatively cheap, therefore we do a round-based approach, to reduce the paths we have to iterate.
-        - fifth strategy (4): greedy merging. Merge along the edges in order of decreasing score (union-find) whenever the two classes contain no pair that must be separated. No cuts, no LP.
-        """
-        match self.strat:
+    @staticmethod
+    def _edges_and_scores(graph: Graph) -> Tuple[List[Tuple[DependencyNode, DependencyNode]], List[float]]:
+        """Return the edges of the given graph and their scores, in the same order."""
+        edges_with_scores = list(graph.edges(data="score"))
+        return [(node_1, node_2) for node_1, node_2, _ in edges_with_scores], [score for _, _, score in edges_with_scores]
 
-            case 0:
+    def _short_paths(
+        self, graph: Graph, source: DependencyNode, sink: DependencyNode, diameter: int
+    ) -> List[List[Tuple[DependencyNode, DependencyNode]]]:
+        """Return all simple paths (as lists of edges) between source and sink whose length is bounded relative to the diameter."""
+        return list(nx.all_simple_edge_paths(graph, source, sink, self.PATH_LENGTH_FACTOR * diameter + self.PATH_LENGTH_OFFSET))
 
-                dependency_graph.remove_edges_from(list(selfloop_edges(dependency_graph)))
-                # remove loops, as they cause problems but don't add any value in our situation
-                dependency_graph = self.multiGraphToGraph(dependency_graph)
+    @staticmethod
+    def _encode_paths(
+        paths: List[List[Tuple[DependencyNode, DependencyNode]]], edges: List[Tuple[DependencyNode, DependencyNode]]
+    ) -> List[List[float]]:
+        """Encode the paths as rows of the LP constraint matrix: one entry per edge, set to 1 iff the edge is part of the path."""
+        rows = []
+        for path in paths:
+            row = np.zeros(len(edges)).tolist()
+            for edge in path:
+                if edge in edges:
+                    row[edges.index(edge)] = 1
+                else:
+                    row[edges.index((edge[1], edge[0]))] = 1
+            rows.append(row)
+        return rows
 
-                zhkList = list(connected_components(dependency_graph))
-                for zhk in zhkList:
-                    cuts = []
-                    interferingPairs = self.getInterferingPairs(dependency_graph.subgraph(zhk))
-                    for pair in interferingPairs:  # compute all needed s-t-cuts and sort them by weight,
-                        weight, (part1, part2) = minimum_cut(dependency_graph.subgraph(zhk), pair[0], pair[1], capacity="score")
-                        cuts.append(StCutStorage(pair[0], pair[1], part1, part2, weight))
-                    cuts.sort(key=attrgetter("weight"))
-                    del interferingPairs
-                    # apply only the needed cuts, starting with the lightest one
-                    for x in cuts:
-                        x: StCutStorage
-                        if has_path(dependency_graph.subgraph(zhk), x.s, x.t):
-                            dependency_graph.remove_edges_from(
-                                [(u, v) for u in x.part1 for v in dependency_graph.neighbors(u) if v in x.part2]
-                            )
-                            dependency_graph.remove_edges_from(
-                                [(u, v) for u in x.part2 for v in dependency_graph.neighbors(u) if v in x.part1]
-                            )
-                        # assert not has_path(dependency_graph,x.s,x.t)
+    @staticmethod
+    def _solve_multicut_lp(
+        rows: List[List[float]], weights: List[float], edges: List[Tuple[DependencyNode, DependencyNode]]
+    ) -> List[Tuple[DependencyNode, DependencyNode]]:
+        """Return the edges of minimum total weight such that each path (row) contains at least one of them."""
+        constraint = LinearConstraint(rows, np.ones((len(rows),)), np.inf)
+        result = milp(c=weights, integrality=np.ones(len(weights)), bounds=Bounds(0, 1), constraints=constraint)
+        if not result.success:
+            raise Exception("Something went wrong while solving the LP")
+        if result.status != 0:
+            debug(f"LP-Solver: Status: {result.status}; Bound: {result.mip_dual_bound}")
+        return [edges[index] for index, selected in enumerate(result.x) if selected == 1]
 
-                return dependency_graph
-
-            case 1:
-
-                dependency_graph.remove_edges_from(
-                    list(selfloop_edges(dependency_graph))
-                )  # remove loops, as they cause problems but don't add any value in our situation
-                dependency_graph = self.multiGraphToGraph(dependency_graph)
-
-                zhkList = list(connected_components(dependency_graph))
-                # calculate all needed s-t-cuts and apply them one after another
-                for zhk in zhkList:
-                    interferingPairs = self.getInterferingPairs(dependency_graph.subgraph(zhk))
-                    for pair in interferingPairs:
-                        if has_path(dependency_graph.subgraph(zhk), pair[0], pair[1]):
-                            _, (part1, part2) = minimum_cut(dependency_graph.subgraph(zhk), pair[0], pair[1], capacity="score")
-
-                            edges = [(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2]
-                            edges.extend([(u, v) for u in part2 for v in dependency_graph.neighbors(u) if v in part1])
-                            dependency_graph.remove_edges_from(edges)
-
-                return dependency_graph
-
-            case 2:
-                dependency_graph.remove_edges_from(
-                    list(selfloop_edges(dependency_graph))
-                )  # remove loops, as they cause problems but don't add any value in our situation
-                dependency_graph = self.multiGraphToGraph(dependency_graph)
-
-                zhkList = list(connected_components(dependency_graph))
-                zhkList = [x for x in zhkList if len(x) > 0]  # empty zhk's can somehow occur
-                for zhk in zhkList:
-
-                    edges = list(dependency_graph.subgraph(zhk).edges(data=True))
-                    if len(edges) == 0:
-                        continue
-                    interferingPairs = self.getInterferingPairs(dependency_graph.subgraph(zhk))
-                    weights = [edge[2]["score"] for edge in edges]
-                    edges = list(dependency_graph.subgraph(zhk).edges())
-
-                    paths = []
-
-                    dia = self.getDiameterApproximation(dependency_graph.subgraph(zhk))  # This is the base for our path lenght condition
-
-                    for x in interferingPairs:
-                        # get all paths form a to b in the zhk, which path lenght not longer than constant * diameter
-                        paths.extend(list(nx.all_simple_edge_paths(dependency_graph.subgraph(zhk), x[0], x[1], 0.1 * dia + 4)))
-                    if len(paths) == 0:
-                        continue
-
-                    pathsEncoded = []
-                    # Encode the paths as a matrix for the LP-Solver: each path is a row. Every row has an entry for each edge. The entries are set to 1 if the edge is part of this path.
-                    for path in paths:
-                        row = np.zeros(len(edges)).tolist()
-                        for edge in path:
-                            if edge in edges:
-                                row[edges.index(edge)] = 1
-                            else:
-                                row[edges.index((edge[1], edge[0]))] = 1
-
-                        pathsEncoded.append(row)
-                    # solve LP
-                    lc = LinearConstraint(
-                        pathsEncoded, np.ones((len(paths),)), np.inf
-                    )  # At least one of the edges in each path has to be removed by the LP-Solver, so 1 is the lower bound
-                    res = milp(c=weights, integrality=np.ones(len(weights)), bounds=Bounds(0, 1), constraints=lc)
-
-                    remedges = []  # edges which the LP-Solver wants to remove
-                    if res.success:
-                        if res.status != 0:
-                            debug(f"LP-Solver: Status: {res.status}; Bound: {res.mip_dual_bound}")
-                        for i in range(len(res.x)):
-                            if res.x[i] == 1:
-                                remedges.append(edges[i])
-                        dependency_graph.remove_edges_from(remedges)
-                    else:
-                        raise Exception("Something went wrong while solving the LP")
-
-                # Check if the Diameter condition missed some of the interfering pairs, if so we perform a simple s-t-cut for them, as they are not too many
-                ifp = self.getInterferingPairs(dependency_graph)
-                for pair in ifp:
-                    if has_path(dependency_graph, pair[0], pair[1]):
-                        self.correctedInterferencePairs += 1
-                        _, (part1, part2) = minimum_cut(dependency_graph, pair[0], pair[1], capacity="score")
-
-                        edges = [(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2]
-                        edges.extend([(u, v) for u in part2 for v in dependency_graph.neighbors(u) if v in part1])
-                        dependency_graph.remove_edges_from(edges)
-                return dependency_graph
-
-            case 3:
-
-                dependency_graph.remove_edges_from(
-                    list(selfloop_edges(dependency_graph))
-                )  # remove loops, as they cause problems but don't add any value in our situation
-                dependency_graph = self.multiGraphToGraph(dependency_graph)
-
-                zhkList = list(connected_components(dependency_graph))
-                zhkList = [x for x in zhkList if len(x) > 0]  # empty zhk's can somehow occur
-                for zhk in zhkList:
-
-                    edges = list(dependency_graph.subgraph(zhk).edges(data=True))
-                    if len(edges) == 0:
-                        continue
-                    interferingPairs = list(self.getInterferingPairs(dependency_graph.subgraph(zhk)))
-                    if len(interferingPairs) == 0:
-                        continue
-
-                    weights = [edge[2]["score"] for edge in edges]
-                    edges = list(dependency_graph.subgraph(zhk).edges())
-
-                    pathsEncoded = []
-                    colisionIndex = 0
-                    newRoundNeeded = True  # Variable to control if we need to do another round of path generation i.e. are there any interfering paris left which are still interfering
-                    dia = self.getDiameterApproximation(dependency_graph.subgraph(zhk))
-                    random.seed(
-                        hash(tuple(sorted(weights)))
-                    )  # Deterministic random seed, so that the LP-Solver always gets the same input for the same graph
-                    while newRoundNeeded:
-                        currentPaths = []  # Paths considered in this round
-                        for _ in range(min(10, len(interferingPairs))):  # consider the paths of 10 interfering pairs in each round
-                            ifP = interferingPairs.pop(colisionIndex)
-                            currentPaths.extend(
-                                list(nx.all_simple_edge_paths(dependency_graph.subgraph(zhk), ifP[0], ifP[1], 0.1 * dia + 4))
-                            )
-                            if len(interferingPairs) > 0:
-                                colisionIndex = random.randint(0, len(interferingPairs) - 1)
-
-                        while (len(currentPaths) == 0) and (len(interferingPairs) != 0):
-                            ifP = interferingPairs.pop(random.randint(0, len(interferingPairs) - 1))
-                            currentPaths.extend(
-                                list(nx.all_simple_edge_paths(dependency_graph.subgraph(zhk), ifP[0], ifP[1], 0.1 * dia + 4))
-                            )
-
-                        if len(currentPaths) == 0:
-                            newRoundNeeded = False
-
-                        # build the matrix for the LP-Solver, just like in strategy 2, but only for the paths of this round
-                        for path in currentPaths:
-                            row = np.zeros(len(edges)).tolist()
-                            for edge in path:
-                                if edge in edges:
-                                    row[edges.index(edge)] = 1
-                                else:
-                                    row[edges.index((edge[1], edge[0]))] = 1
-                            pathsEncoded.append(row)
-
-                        if newRoundNeeded:
-                            # LP-Solver like in strategy 2
-                            lc = LinearConstraint(pathsEncoded, np.ones((len(pathsEncoded))), np.inf)
-                            res = milp(c=weights, integrality=np.ones(len(weights)), bounds=Bounds(0, 1), constraints=lc)
-
-                            # Check if no interfering pairs are left, if so we can stop, else we have to do another round of path generation
-                            testGraph = Graph(dependency_graph.subgraph(zhk))
-                            remedges = []
-                            if res.success:
-                                for i in range(len(res.x)):
-                                    if res.x[i] == 1:
-                                        remedges.append(edges[i])
-                                testGraph.remove_edges_from(remedges)
-
-                                index = self.checkIfPathExists(testGraph, interferingPairs)
-                                if index == -1:
-                                    # no interfering pairs left
-                                    dependency_graph.remove_edges_from(remedges)
-                                    newRoundNeeded = False
-                                else:
-                                    # start the next round with the interfering pair found in this round, as we know that it is still interfering.
-                                    colisionIndex = index
-
-                            else:
-                                raise Exception("Something went wrong while solving the LP")
-
-                # Resolve interferences which are not covered due to the path length condition, by applying a simple s-t-cut for them
-                failCount = 0  # This number usually does not get too high, as the path lenght condition covers the vast majority of interfering pairs
-                for pair in self.getInterferingPairs(dependency_graph):
-                    if has_path(dependency_graph, pair[0], pair[1]):
-                        self.correctedInterferencePairs += 1
-                        _, (part1, part2) = minimum_cut(dependency_graph, pair[0], pair[1], capacity="score")
-                        failCount += 1
-                        edges = [(u, v) for u in part1 for v in dependency_graph.neighbors(u) if v in part2]
-                        edges.extend([(u, v) for u in part2 for v in dependency_graph.neighbors(u) if v in part1])
-                        dependency_graph.remove_edges_from(edges)
-                return dependency_graph
-
-            case 4:
-                return self._greedy_merge(dependency_graph)
-
-            case _:
-                raise Exception("This Multicut Algorithm is currently not implemented")
-
-    def getDiameterApproximation(self, dependencyGraph: Graph):
-        # Return an approximation of the diameter of the given graph, by calculating the shortest path length from 8 random nodes and returning the maximum of these lengths
-        if (len(list(dependencyGraph.edges())) == 0) or (len(list(dependencyGraph.nodes())) == 0):
+    def _approximate_diameter(self, graph: Graph) -> int:
+        """Approximate the diameter of the given graph by the longest shortest path from some nodes, chosen with a fixed seed."""
+        if graph.number_of_edges() == 0 or graph.number_of_nodes() == 0:
             return 0
-        else:
-            nodes = sorted(list(dependencyGraph.nodes()), key=lambda y: f"{y[0].name}{y[0].ssa_label}")
-            random.seed(str([(y[0].name, y[0].ssa_label) for y in nodes]))  # a str seed does not depend on the hash seed
-            maximum = 0
-            for _ in range(8):
-                sssp = shortest_path_length(dependencyGraph, nodes[random.randint(0, len(nodes) - 1)])
-                maximum = max([max(sssp.values()), maximum])
-            return maximum
+        nodes = sorted(graph.nodes(), key=lambda node: f"{node[0].name}{node[0].ssa_label}")
+        random.seed(str([(node[0].name, node[0].ssa_label) for node in nodes]))  # a str seed does not depend on the hash seed
+        maximum = 0
+        for _ in range(self.DIAMETER_SAMPLES):
+            path_lengths = shortest_path_length(graph, nodes[random.randint(0, len(nodes) - 1)])
+            maximum = max(max(path_lengths.values()), maximum)
+        return maximum
 
-    def checkIfPathExists(self, dependencyGraph: Graph, pairs: List[Tuple[Tuple[Variable]]]):
-        for pair in pairs:
-            if has_path(dependencyGraph, pair[0], pair[1]):
-                return pairs.index(pair)
-        return -1
+    @staticmethod
+    def _index_of_connected_pair(graph: Graph, pairs: List[Tuple[DependencyNode, DependencyNode]]) -> Optional[int]:
+        """Return the index of the first pair that is still connected in the given graph, or None if there is none."""
+        for index, (source, sink) in enumerate(pairs):
+            if has_path(graph, source, sink):
+                return index
+        return None
 
-    def createRenamingMap(self, classes: List[List[Variable]]):
-        count = 0
-        assignedNames = []  # List of all assigned names, to avoid duplicates
+    def _extract_classes(self, dependency_graph: Graph) -> List[List[Variable]]:
+        """Return the variable classes, i.e., the variables of each connected component of the dependency graph, split by type."""
+        # A component is a set, so order its nodes by their position in the graph: the first variable names the class,
+        # and the iteration order of a set of variables depends on the hash seed of the process.
+        position = {node: index for index, node in enumerate(dependency_graph.nodes)}
+        classes = []
+        for component in connected_components(dependency_graph):
+            variables = list(chain(*sorted(component, key=position.__getitem__)))
+            types = list(dict.fromkeys(variable.type for variable in variables))
+            if len(types) <= 1:
+                classes.append(variables)
+            else:  # Should not occur, but a class must have one type.
+                for variable_type in types:
+                    classes.append([variable for variable in variables if variable.type == variable_type])
+        return classes
+
+    def _create_renaming_map(self, classes: List[List[Variable]]) -> None:
+        """Give all variables of a class the same new name, the name of a global variable or function argument if it contains one."""
+        suffix_counter = 0
+        assigned_names = set()
         variable_for_function_arg: Dict[str, Variable] = self._get_function_argument_variables(self.task.function_parameters)
-        function_arg_for_variable: Dict[Variable, str] = {v: k for k, v in variable_for_function_arg.items()}
+        function_arg_for_variable: Dict[Variable, str] = {variable: name for name, variable in variable_for_function_arg.items()}
+        for variable_class in classes:
+            global_variables = [variable for variable in variable_class if isinstance(variable, GlobalVariable)]
+            if global_variables:
+                self._rename_to_global_variable(variable_class, global_variables[0])
+                continue
+            new_name = self._class_name(variable_class, function_arg_for_variable)
+            while new_name in assigned_names:
+                new_name = f"{new_name}__{suffix_counter}"
+                suffix_counter += 1
+            assigned_names.add(new_name)
+            for variable in variable_class:
+                self.renaming_map[variable] = Variable(new_name, variable.type, None, variable.is_aliased, variable, variable.tags)
 
-        for varclass in classes:
-            glob: List[GlobalVariable] = [k for k in varclass if isinstance(k, GlobalVariable)]
-            if (
-                len(glob) != 0
-            ):  # Is there a global variable in the class? If so, we use the name of the global variable for all variables in this class.
-                for var in varclass:
-                    self.renaming_map[var] = GlobalVariable(
-                        glob[0].name, glob[0].type, glob[0].initial_value, None, glob[0].is_aliased, var, glob[0].is_constant, glob[0].tags
-                    )
-            else:
-                new_name = None
-                # check if a function arg is in class
-                for var in varclass:
-                    if var in function_arg_for_variable:
-                        new_name = function_arg_for_variable[var]
-                        break
+    def _rename_to_global_variable(self, variable_class: List[Variable], global_variable: GlobalVariable) -> None:
+        """Rename all variables of the given class to the given global variable."""
+        for variable in variable_class:
+            self.renaming_map[variable] = GlobalVariable(
+                global_variable.name,
+                global_variable.type,
+                global_variable.initial_value,
+                None,
+                global_variable.is_aliased,
+                variable,
+                global_variable.is_constant,
+                global_variable.tags,
+            )
 
-                # else use first name of class
-                if new_name == None:
-                    for var in varclass:
-                        new_name = var.name
-                        break
-
-                if new_name == None:
-                    new_name = f"var#{hash(frozenset(varclass))[0:5]}"
-
-                while new_name in assignedNames:
-                    new_name = f"{new_name}__{count}"
-                    count += 1
-                assignedNames.append(new_name)
-
-                for var in varclass:
-                    self.renaming_map[var] = Variable(new_name, var.type, None, var.is_aliased, var, var.tags)
+    @staticmethod
+    def _class_name(variable_class: List[Variable], function_arg_for_variable: Dict[Variable, str]) -> str:
+        """Return the name of the function argument in the class if there is one, otherwise the name of its first variable."""
+        for variable in variable_class:
+            if variable in function_arg_for_variable:
+                return function_arg_for_variable[variable]
+        return variable_class[0].name

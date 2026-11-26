@@ -1,3 +1,5 @@
+"""Module for the conditional out-of-SSA translation, which renames variables based on a learned dependency score."""
+
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,7 +47,7 @@ def load_conditional_weights(path: Union[str, Path, None] = None) -> Conditional
     features = tuple(data.get("features", ()))
     if features != FEATURES:
         raise ValueError(f"Conditional out-of-SSA weights file {path}: features {list(features)} do not match {list(FEATURES)}")
-    coefficients = [float(c) for c in data["coefficients"]]
+    coefficients = [float(coefficient) for coefficient in data["coefficients"]]
     if len(coefficients) != len(FEATURES):
         raise ValueError(f"Conditional out-of-SSA weights file {path}: expected {len(FEATURES)} coefficients, got {len(coefficients)}")
     min_kept_score = data.get("min_kept_score")
@@ -71,14 +73,19 @@ class ConditionalOutOfSSA:
         phi_functions_of: DefaultDict[BasicBlock, List[Phi]],
         weights: Optional[ConditionalWeights] = None,
     ):
-        """weights: the model to use; None -> the file given by the option out-of-ssa-translation.conditional_weights."""
+        """
+        :param task: The decompiler task that we want to translate out of SSA.
+        :param phi_functions_of: A dictionary that maps to each basic block its list of Phi-functions.
+        :param weights: The model to use; None -> the file given by the option out-of-ssa-translation.conditional_weights.
+        """
         self.task = task
         self._phi_functions_of = phi_functions_of
         if weights is None:
             weights = load_conditional_weights(task.options.getstring("out-of-ssa-translation.conditional_weights", fallback=""))
         self.weights = weights
 
-    def perform(self):
+    def perform(self) -> None:
+        """Remove the Phi-functions and rename the variables."""
         phi_pairs = get_phi_pairs(self.task.cfg)
         PhiDependencyResolver(self._phi_functions_of).resolve()
         self.interference_graph = InterferenceGraph(self.task.cfg)
