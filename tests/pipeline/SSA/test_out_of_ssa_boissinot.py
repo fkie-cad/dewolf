@@ -8,7 +8,19 @@ from decompiler.pipeline.ssa.boissinot import Boissinot
 from decompiler.pipeline.ssa.parallel_spaces import COPY_SUFFIX, ParallelSpaces
 from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph, FalseCase, TrueCase, UnconditionalEdge
-from decompiler.structures.pseudo import Assignment, BinaryOperation, Branch, Condition, Constant, Integer, OperationType, Phi, Relation, Return, Variable
+from decompiler.structures.pseudo import (
+    Assignment,
+    BinaryOperation,
+    Branch,
+    Condition,
+    Constant,
+    Integer,
+    OperationType,
+    Phi,
+    Relation,
+    Return,
+    Variable,
+)
 
 from tests.pipeline.SSA.utils_out_of_ssa_tests import decompiler_task
 
