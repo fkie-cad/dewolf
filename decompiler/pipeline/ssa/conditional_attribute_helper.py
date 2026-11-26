@@ -70,6 +70,8 @@ def cannot_share_name(interference_graph: InterferenceGraph, variable_1: Variabl
     This must stay the same rule as ConditionalVariableRenamer._must_separate (which applies it to contracted nodes): a pair that this
     function lets through becomes a dependency-graph edge and a training pair, so it has to be a pair the renamer is able to merge.
     """
+    if variable_1.type is None or variable_2.type is None:
+        raise Exception("Encountered a None type variable in the SSA-Stage!")
     if interference_graph.are_interfering(variable_1, variable_2):
         return True
     if (variable_1.is_aliased != variable_2.is_aliased) or (
@@ -83,8 +85,6 @@ def cannot_share_name(interference_graph: InterferenceGraph, variable_1: Variabl
     if variable_1.type != variable_2.type:
         # The renamer only merges variables of identical type (a class has one type), also if the sizes agree.
         return True
-    if variable_1.type is None or variable_2.type is None:
-        raise Exception("Encountered a None type variable in the SSA-Stage!")
     return False
 
 

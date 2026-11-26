@@ -3,9 +3,10 @@
 import json
 
 import pytest
-from decompiler.pipeline.ssa.conditional_attribute_helper import FEATURES
+from decompiler.pipeline.ssa.conditional_attribute_helper import FEATURES, cannot_share_name
 from decompiler.pipeline.ssa.conditional_out_of_SSA import BUNDLED_WEIGHTS_FILE, ConditionalOutOfSSA, load_conditional_weights
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
+from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo import Assignment, Constant, Integer, Return, Variable
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
@@ -78,3 +79,10 @@ def test_empty_option_uses_bundled_file():
 def test_option_path_overrides_bundled_file(tmp_path):
     path = _write(tmp_path, _weights())
     assert ConditionalOutOfSSA(_task(path), {}).weights == load_conditional_weights(path)
+
+
+def test_cannot_share_name_raises_on_missing_type():
+    """A variable without type raises, even if the other one has a type (and the types therefore differ)."""
+    typed, untyped = Variable("x", Integer.int32_t(), 0), Variable("y", None, 0)
+    with pytest.raises(Exception):
+        cannot_share_name(InterferenceGraph(ControlFlowGraph()), typed, untyped)
