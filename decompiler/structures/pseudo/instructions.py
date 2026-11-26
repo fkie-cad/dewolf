@@ -6,9 +6,10 @@ import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Generic, Iterator, List, Optional, Sequence, Set, Tuple, TypeVar, Union, final
 
+from decompiler.util.insertion_ordered_set import InsertionOrderedSet
+
 from .expressions import Constant, DataflowObject, Expression, Tag, Variable
 from .operations import BinaryOperation, Call, Condition, ListOperation, OperationType, UnaryOperation
-from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 
 E = TypeVar("E", bound=Expression)
 F = TypeVar("F", bound=Expression)
