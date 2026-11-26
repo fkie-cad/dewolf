@@ -21,7 +21,7 @@ from decompiler.structures.pseudo.typing import Type
 from decompiler.task import DecompilerTask
 from decompiler.util.insertion_ordered_set import InsertionOrderedSet
 from decompiler.util.lexicographical_bfs import LexicographicalBFS
-from networkx import Graph, MultiGraph, connected_components, has_path, minimum_cut, selfloop_edges, shortest_path_length
+from networkx import Graph, MultiGraph, connected_components, has_path, minimum_cut, selfloop_edges, shortest_path_length, subgraph_view
 from scipy.optimize import Bounds, LinearConstraint, milp
 
 
@@ -459,7 +459,7 @@ class ConditionalVariableRenamer(VariableRenamer):
         """Strategy 0: compute the s-t-cuts of all interfering pairs of a component, then apply the needed ones, lightest first."""
         graph = self._to_simple_graph(dependency_graph)
         for component in list(connected_components(graph)):
-            component_graph = graph.subgraph(component)
+            component_graph = self._component_view(graph, component)
             cuts = [self._minimum_cut(component_graph, source, sink) for source, sink in self._interfering_pairs(component_graph)]
             cuts.sort(key=attrgetter("weight"))
             for cut in cuts:
@@ -471,7 +471,7 @@ class ConditionalVariableRenamer(VariableRenamer):
         """Strategy 1: separate the interfering pairs of each component by s-t-cuts, one after another."""
         graph = self._to_simple_graph(dependency_graph)
         for component in list(connected_components(graph)):
-            component_graph = graph.subgraph(component)
+            component_graph = self._component_view(graph, component)
             for source, sink in self._interfering_pairs(component_graph):
                 if has_path(component_graph, source, sink):
                     cut = self._minimum_cut(component_graph, source, sink)
@@ -488,7 +488,7 @@ class ConditionalVariableRenamer(VariableRenamer):
 
     def _cut_component_by_lp(self, graph: Graph, component: Set[DependencyNode]) -> None:
         """Remove the edges of a multicut that separates all short paths between the interfering pairs of the given component."""
-        component_graph = graph.subgraph(component)
+        component_graph = self._component_view(graph, component)
         edges, weights = self._edges_and_scores(component_graph)
         if not edges:
             return
@@ -514,7 +514,7 @@ class ConditionalVariableRenamer(VariableRenamer):
         Add the short paths of some interfering pairs to the LP and solve it, until the LP solution also separates all pairs whose paths
         were not added yet. Only then the edges of the solution are removed.
         """
-        component_graph = graph.subgraph(component)
+        component_graph = self._component_view(graph, component)
         edges, weights = self._edges_and_scores(component_graph)
         if not edges:
             return
@@ -640,10 +640,19 @@ class ConditionalVariableRenamer(VariableRenamer):
         """Return all pairs of nodes in the same connected component of the given graph that must be separated."""
         interfering_pairs = []
         for component in connected_components(graph):
-            for node_1, node_2 in combinations(component, 2):
+            # A component is a set, whose order depends on the hash seed, so take its nodes in the order of the graph.
+            for node_1, node_2 in combinations([node for node in graph if node in component], 2):
                 if self._must_separate(node_1, node_2):
                     interfering_pairs.append((node_1, node_2))
         return interfering_pairs
+
+    @staticmethod
+    def _component_view(graph: Graph, component: Set[DependencyNode]) -> Graph:
+        """
+        Return a view of the subgraph induced by the given component that iterates its nodes and edges in the order of the graph.
+        graph.subgraph(component) iterates over the component set for small components, so its order would depend on the hash seed.
+        """
+        return subgraph_view(graph, filter_node=component.__contains__)
 
     @staticmethod
     def _minimum_cut(graph: Graph, source: DependencyNode, sink: DependencyNode) -> StCut:

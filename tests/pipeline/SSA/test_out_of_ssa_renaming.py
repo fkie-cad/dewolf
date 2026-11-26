@@ -10,6 +10,7 @@ from decompiler.pipeline.ssa.variable_renaming import (
     VariableRenamer,
 )
 from decompiler.structures.interferencegraph import InterferenceGraph
+from networkx import Graph
 
 from tests.pipeline.SSA.utils_out_of_ssa_tests import *
 
@@ -888,3 +889,15 @@ def test_conditional_renaming_interfering_copy():
         x0: Variable("x", Integer.int32_t()),
         x1: Variable("x__0", Integer.int32_t()),
     }
+
+
+def test_conditional_component_view_keeps_graph_order():
+    """The component view iterates nodes and edges in the order of the graph, not of the component set (hash-seed dependent)."""
+    nodes = [(Variable(f"v{index}", Integer.int32_t(), index),) for index in range(20)]
+    graph = Graph()
+    graph.add_nodes_from(nodes)
+    graph.add_edges_from(zip(nodes, nodes[1:]))
+    component = set(nodes[3:9])
+    view = ConditionalVariableRenamer._component_view(graph, component)
+    assert list(view.nodes) == nodes[3:9]
+    assert list(view.edges) == list(zip(nodes[3:8], nodes[4:9]))
