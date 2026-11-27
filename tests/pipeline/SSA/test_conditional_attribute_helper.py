@@ -133,6 +133,22 @@ def test_same_source_needs_a_plain_copy():
     assert same_source_pairs == [(copy_1, copy_2)]
 
 
+def test_same_source_needs_a_whole_variable_destination():
+    """(byte) eax = a and (byte) ebx = a only set the lowest byte, so eax and ebx are no copies of a."""
+    eax, ebx = Variable("eax", INT, 0), Variable("ebx", INT, 0)
+    cfg = ControlFlowGraph()
+    cfg.add_node(
+        BasicBlock(
+            0,
+            [
+                Assignment(UnaryOperation(OperationType.cast, [eax], Integer.char(), contraction=True), ARGUMENT),
+                Assignment(UnaryOperation(OperationType.cast, [ebx], Integer.char(), contraction=True), ARGUMENT),
+            ],
+        )
+    )
+    assert not any(Feature.same_rhs_source in vector for _, vector in ConditionalAttributeHelper(set()).iter_edge_data(cfg))
+
+
 @pytest.mark.parametrize(
     "value, variable, expected",
     [

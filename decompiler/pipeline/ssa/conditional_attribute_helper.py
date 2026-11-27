@@ -140,8 +140,9 @@ class ConditionalAttributeHelper:
         for assignment, dominating_definition in self._assignments_with_dominating_definition(cfg):
             definition = self._defined_variable(assignment)
             rhs_expression_info = self._get_expression_info(assignment.value)
-            if definition is not None and isinstance(assignment.value, Variable):
-                variables_copied_from[assignment.value].append(definition)
+            # plain copy x = a; not (byte) eax = a, which keeps the upper bytes of eax
+            if isinstance(assignment.destination, Variable) and isinstance(assignment.value, Variable):
+                variables_copied_from[assignment.value].append(assignment.destination)
             if dominating_definition is not None:
                 yield self._edge(dominating_definition, definition, {Feature.following_definitions: 1})
             # all variables of the destination, also p of *p = a
