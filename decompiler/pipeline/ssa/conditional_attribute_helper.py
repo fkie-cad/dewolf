@@ -3,6 +3,7 @@ Feature vectors of the candidate variable pairs of the conditional out-of-SSA.
 """
 
 from __future__ import annotations
+
 from collections import defaultdict
 from enum import Enum
 from itertools import combinations, permutations, product
@@ -23,22 +24,27 @@ class Feature(Enum):
     """
     The features of a candidate variable pair; the weights file names them by their value.
 
-    "rhs variable" is the variable of the pair that occurs in the rhs of an assignment.
+    There are three groups, the comment of each feature starts with its group:
+        - pair:       depends only on the two variables, set for every pair (see _PAIR_CHECKS)
+        - assignment: depends on the assignment of the pair, only for assignment pairs (see _ASSIGNMENT_CHECKS)
+        - kind:       marks the kind of the pair; an assignment pair has no kind feature
+    The member order is the column order of the training data, so it is not grouped.
+    "rhs variable" is the variable of the pair that occurs in the rhs of the assignment.
     """
 
-    is_strong = "is_strong"  # the destination is a variable, the rhs is exactly the rhs variable (used once, only casts on its path)
-    is_mid = "is_mid"  # the destination is a variable, the rhs is the rhs variable (used once, directly) and exactly one constant
-    same_base_name = "same_base_name"  # both variables have the same name
-    same_storage = "same_storage"  # both variables have the same Binary Ninja source type and storage (Variable.provenance)
-    def_by_usage = "def_by_usage"  # the destination is a variable, the rhs contains exactly one distinct variable, all its uses are direct
-    # Use kinds, multi-hot, only for assignment pairs: every kind of operation on the path from the rhs root to an occurrence of the
-    # rhs variable is set, so x = f(*a) sets use_call and use_memory, and x = a + f(a) sets use_direct and use_call.
+    is_strong = "is_strong"  # assignment: the destination is a variable, the rhs is exactly the rhs variable (only casts on its path)
+    is_mid = "is_mid"  # assignment: the destination is a variable, the rhs is the rhs variable (used once, directly) and one constant
+    same_base_name = "same_base_name"  # pair: both variables have the same name
+    same_storage = "same_storage"  # pair: both variables have the same Binary Ninja source type and storage (Variable.provenance)
+    def_by_usage = "def_by_usage"  # assignment: the destination is a variable, the rhs has exactly one variable, all its uses are direct
+    # assignment, use kinds (multi-hot): every kind of operation on the path from the rhs root to an occurrence of the rhs variable is
+    # set, so x = f(*a) sets use_call and use_memory, and x = a + f(a) sets use_direct and use_call.
     use_direct = "use_direct"  # an occurrence has no call, memory access or address-of on its path
     use_call = "use_call"  # an occurrence is below a call (argument or call target)
     use_memory = "use_memory"  # an occurrence is below a dereference, field or member access
     use_address = "use_address"  # an occurrence is below an address-of
-    same_phi = "same_phi"  # both variables occur in the same Phi-function
-    # usage_n: the rhs of an assignment pair has exactly n distinct variables
+    same_phi = "same_phi"  # pair: both variables occurred in the same Phi-function (before the Phi-functions were lifted)
+    # assignment: usage_n is set if the rhs has exactly n distinct variables
     usage_1 = "usage_1"
     usage_2 = "usage_2"
     usage_3 = "usage_3"
@@ -48,8 +54,8 @@ class Feature(Enum):
     usage_7 = "usage_7"
     usage_8 = "usage_8"
     usage_9 = "usage_9"
-    following_definitions = "following_definitions"  # the first variable is the previous definition of the second one's name
-    same_rhs_source = "same_rhs_source"  # both variables are defined as copies of the same variable
+    following_definitions = "following_definitions"  # kind: the first variable is the previous definition of the second one's name
+    same_rhs_source = "same_rhs_source"  # kind: both variables are defined as plain copies of the same variable
 
     @staticmethod
     def usage(number_of_variables: int) -> Feature:
@@ -128,11 +134,6 @@ def _get_use_kinds(expression: Expression) -> Tuple[Dict[Variable, Set[Feature]]
     return use_kinds, variables_below_operations
 
 
-def _set_features(checks: Dict[Feature, bool]) -> FeatureVector:
-    """Return the feature vector that contains the features whose check is true."""
-    return {feature: 1 for feature, is_set in checks.items() if is_set}
-
-
 class ExpressionInfo(NamedTuple):
     """Summary of an expression that the feature vectors are computed from."""
 
@@ -142,6 +143,52 @@ class ExpressionInfo(NamedTuple):
     has_bad_operation_strong: bool
     has_bad_operation_mid: bool
     variable_counts: Dict[Variable, int]  # variable -> number of occurrences
+
+
+def _is_strong(lhs: ExpressionInfo, rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
+    return (
+        len(rhs.variable_counts) == 1
+        and rhs.variable_counts[rhs_variable] == 1
+        and rhs.constant_count == 0
+        and rhs_variable not in rhs.variables_below_operations
+        and not lhs.has_bad_operation_strong
+    )
+
+
+def _is_mid(lhs: ExpressionInfo, rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
+    return (
+        len(rhs.variable_counts) == 1
+        and rhs.variable_counts[rhs_variable] == 1
+        and rhs.constant_count == 1
+        and rhs.use_kinds[rhs_variable] == {Feature.use_direct}
+        and not lhs.has_bad_operation_mid
+    )
+
+
+def _def_by_usage(lhs: ExpressionInfo, rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
+    return len(rhs.variable_counts) == 1 and rhs.use_kinds[rhs_variable] == {Feature.use_direct} and not lhs.has_bad_operation_mid
+
+
+def _same_base_name(variable_1: Variable, variable_2: Variable) -> bool:
+    return variable_1.name == variable_2.name
+
+
+def _same_storage(variable_1: Variable, variable_2: Variable) -> bool:
+    provenance_1, provenance_2 = variable_1.provenance, variable_2.provenance
+    return (
+        provenance_1 is not None
+        and provenance_2 is not None
+        and provenance_1.source_type is not None
+        and provenance_1.storage is not None
+        and provenance_1.source_type == provenance_2.source_type
+        and provenance_1.storage == provenance_2.storage
+    )
+
+
+# The boolean assignment features, each checked for (lhs, rhs, rhs variable). use_* and usage_n are groups, see _assignment_features.
+_ASSIGNMENT_CHECKS = {Feature.is_strong: _is_strong, Feature.is_mid: _is_mid, Feature.def_by_usage: _def_by_usage}
+# The pair features, each checked for (variable_1, variable_2). same_phi needs the Phi pairs, see ConditionalAttributeHelper._same_phi.
+_PAIR_CHECKS = {Feature.same_base_name: _same_base_name, Feature.same_storage: _same_storage}
 
 
 class ConditionalAttributeHelper:
@@ -188,54 +235,32 @@ class ConditionalAttributeHelper:
                 previous_definition = last_definition.get(definition.name)
                 last_definition[definition.name] = definition
                 if previous_definition is not None:
-                    vector = {Feature.following_definitions: 1, **self._pair_features(previous_definition, definition)}
-                    yield (previous_definition, definition), vector
+                    yield self._edge(previous_definition, definition, {Feature.following_definitions: 1})
             for variable_1, variable_2 in product(lhs.variable_counts, rhs.variable_counts):
-                vector = {**self._assignment_features(lhs, rhs, variable_2), **self._pair_features(variable_1, variable_2)}
-                yield (variable_1, variable_2), vector
+                yield self._edge(variable_1, variable_2, self._assignment_features(lhs, rhs, variable_2))
         for definitions in same_source_definitions.values():
             for variable_1, variable_2 in combinations(definitions, 2):
-                yield (variable_1, variable_2), {Feature.same_rhs_source: 1, **self._pair_features(variable_1, variable_2)}
+                yield self._edge(variable_1, variable_2, {Feature.same_rhs_source: 1})
+
+    def _edge(self, variable_1: Variable, variable_2: Variable, features: FeatureVector) -> Tuple[VariablePair, FeatureVector]:
+        """Return the pair with the given kind or assignment features plus the pair features, which every pair gets."""
+        pair_features = {feature: 1 for feature, check in _PAIR_CHECKS.items() if check(variable_1, variable_2)}
+        if self._same_phi(variable_1, variable_2):
+            pair_features[Feature.same_phi] = 1
+        return (variable_1, variable_2), {**features, **pair_features}
+
+    def _same_phi(self, variable_1: Variable, variable_2: Variable) -> bool:
+        return (variable_1, variable_2) in self._phi_pairs
 
     def _assignment_features(self, lhs: ExpressionInfo, rhs: ExpressionInfo, rhs_variable: Variable) -> FeatureVector:
-        """Return the features of the assignment pair (lhs variable, rhs_variable): use kinds, usage_n, is_strong, is_mid, def_by_usage."""
-        use_kinds = rhs.use_kinds[rhs_variable]
-        vector: FeatureVector = dict.fromkeys(use_kinds, 1)
-        number_of_rhs_variables = len(rhs.variable_counts)
-        if number_of_rhs_variables <= 9:
-            vector[Feature.usage(number_of_rhs_variables)] = 1
-        if number_of_rhs_variables == 1:
-            used_once = rhs.variable_counts[rhs_variable] == 1
-            used_directly = use_kinds == {Feature.use_direct}
-            vector.update(
-                _set_features(
-                    {
-                        Feature.is_strong: used_once
-                        and rhs.constant_count == 0
-                        and rhs_variable not in rhs.variables_below_operations
-                        and not lhs.has_bad_operation_strong,
-                        Feature.is_mid: used_once and rhs.constant_count == 1 and used_directly and not lhs.has_bad_operation_mid,
-                        Feature.def_by_usage: used_directly and not lhs.has_bad_operation_mid,
-                    }
-                )
-            )
+        """Return the assignment features of the pair (lhs variable, rhs_variable): use kinds, usage_n and _ASSIGNMENT_CHECKS."""
+        vector: FeatureVector = dict.fromkeys(rhs.use_kinds[rhs_variable], 1)
+        if len(rhs.variable_counts) <= 9:
+            vector[Feature.usage(len(rhs.variable_counts))] = 1
+        for feature, check in _ASSIGNMENT_CHECKS.items():
+            if check(lhs, rhs, rhs_variable):
+                vector[feature] = 1
         return vector
-
-    def _pair_features(self, variable_1: Variable, variable_2: Variable) -> FeatureVector:
-        """Return the features that depend only on the two variables: same_base_name, same_storage, same_phi."""
-        provenance_1, provenance_2 = variable_1.provenance, variable_2.provenance
-        return _set_features(
-            {
-                Feature.same_base_name: variable_1.name == variable_2.name,
-                Feature.same_storage: provenance_1 is not None
-                and provenance_2 is not None
-                and provenance_1.source_type is not None
-                and provenance_1.storage is not None
-                and provenance_1.source_type == provenance_2.source_type
-                and provenance_1.storage == provenance_2.storage,
-                Feature.same_phi: (variable_1, variable_2) in self._phi_pairs,
-            }
-        )
 
     def _get_expression_info(self, expression: Expression) -> ExpressionInfo:
         """Count the variables and constants of the given expression and check it for operations that weaken a dependency."""
