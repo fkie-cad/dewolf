@@ -2,9 +2,11 @@
 
 import json
 
+import decompiler.pipeline.ssa.outofssatranslation as out_of_ssa_module
 import pytest
 from decompiler.pipeline.ssa.conditional_attribute_helper import Feature, cannot_share_name
-from decompiler.pipeline.ssa.conditional_out_of_SSA import BUNDLED_WEIGHTS_FILE, ConditionalOutOfSSA, load_conditional_weights
+from decompiler.pipeline.ssa.conditional_weights import BUNDLED_WEIGHTS_FILE, load_conditional_weights
+from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo import Assignment, Constant, Integer, Return, Variable
@@ -37,6 +39,7 @@ def _task(weights_path: str = "") -> DecompilerTask:
     x = Variable("x", Integer.int32_t(), 0)
     cfg.add_node(BasicBlock(0, [Assignment(x, Constant(1, Integer.int32_t())), Return([x])]))
     options = Options.load_default_options()
+    options.set("out-of-ssa-translation.mode", "conditional")
     options.set("out-of-ssa-translation.conditional_weights", weights_path)
     return DecompilerTask(name="weights-test", function_identifier="", cfg=cfg, options=options)
 
@@ -79,13 +82,31 @@ def test_coefficient_count_mismatch_fails(tmp_path):
         load_conditional_weights(_write(tmp_path, _weights(coefficients=[1.0])))
 
 
-def test_empty_option_uses_bundled_file():
-    assert ConditionalOutOfSSA(_task(""), {}).weights == load_conditional_weights(BUNDLED_WEIGHTS_FILE)
+class _RecordingRenamer(out_of_ssa_module.ConditionalVariableRenamer):
+    """The conditional renamer that records the weights it got."""
+
+    received_weights = []
+
+    def __init__(self, task, interference_graph, weights, phi_pairs):
+        self.received_weights.append(weights)
+        super().__init__(task, interference_graph, weights, phi_pairs)
 
 
-def test_option_path_overrides_bundled_file(tmp_path):
+def _weights_reaching_the_renamer(monkeypatch, weights_path: str):
+    """Run the out-of-SSA stage in conditional mode and return the weights the renamer got."""
+    monkeypatch.setattr(out_of_ssa_module, "ConditionalVariableRenamer", _RecordingRenamer)
+    monkeypatch.setattr(_RecordingRenamer, "received_weights", [])
+    OutOfSsaTranslation().run(_task(weights_path))
+    return _RecordingRenamer.received_weights
+
+
+def test_empty_option_uses_bundled_file(monkeypatch):
+    assert _weights_reaching_the_renamer(monkeypatch, "") == [load_conditional_weights(BUNDLED_WEIGHTS_FILE)]
+
+
+def test_option_path_overrides_bundled_file(monkeypatch, tmp_path):
     path = _write(tmp_path, _weights())
-    assert ConditionalOutOfSSA(_task(path), {}).weights == load_conditional_weights(path)
+    assert _weights_reaching_the_renamer(monkeypatch, path) == [load_conditional_weights(path)]
 
 
 def test_cannot_share_name_raises_on_missing_type():

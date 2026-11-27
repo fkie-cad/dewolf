@@ -11,7 +11,8 @@ from typing import DefaultDict, Dict, Iterable, Iterator, List, Optional, Set, T
 
 import networkx as nx
 import numpy as np
-from decompiler.pipeline.ssa.conditional_attribute_helper import Feature, PhiPairs
+from decompiler.pipeline.ssa.conditional_attribute_helper import PhiPairs
+from decompiler.pipeline.ssa.conditional_weights import ConditionalWeights
 from decompiler.pipeline.ssa.dependency_graph import DependencyNode, dependency_graph_from_cfg
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
@@ -378,27 +379,18 @@ class ConditionalVariableRenamer(VariableRenamer):
         self,
         task: DecompilerTask,
         interference_graph: InterferenceGraph,
-        coefficients: Dict[Feature, float],
-        intercept: float,
+        weights: ConditionalWeights,
         phi_pairs: PhiPairs,
-        strategy: int = 0,
-        min_kept_score: Optional[float] = None,
     ):
         """
         :param task: The decompiler task whose variables we want to rename.
         :param interference_graph: The interference graph of the control flow graph of the task.
-        :param coefficients: The coefficients of the linear model that scores variable pairs, per feature.
-        :param intercept: The intercept of the linear model.
+        :param weights: The linear model that scores variable pairs, the strategy of create_variable_classes and min_kept_score.
         :param phi_pairs: The ordered pairs of variables that co-occurred in a phi function, see get_phi_pairs.
-        :param strategy: How the dependency graph is split into variable classes, see create_variable_classes.
-        :param min_kept_score: Lower bound for the scores of the kept dependency-graph edges (None: no lower bound).
         """
         super().__init__(task, interference_graph.copy())
-        self.coefficients = coefficients
-        self.intercept = intercept
+        self.weights = weights
         self.phi_pairs = phi_pairs
-        self.strategy = strategy
-        self.min_kept_score = min_kept_score
         self.corrected_interference_pairs = 0
         # The renamer works on the given, uncontracted graph (the base class contracted a copy).
         self.interference_graph = interference_graph
@@ -416,7 +408,9 @@ class ConditionalVariableRenamer(VariableRenamer):
 
         :param cfg: The control flow graph from which the dependency graph is derived.
         """
-        dependency_graph = dependency_graph_from_cfg(cfg, self.coefficients, self.intercept, self.phi_pairs, self.min_kept_score)
+        dependency_graph = dependency_graph_from_cfg(
+            cfg, self.weights.coefficients, self.weights.intercept, self.phi_pairs, self.weights.min_kept_score
+        )
         dependency_graph = self.merge_contracted_variables(dependency_graph)
         dependency_graph = self.create_variable_classes(dependency_graph)
         self._create_renaming_map(self._extract_classes(dependency_graph))
@@ -449,9 +443,9 @@ class ConditionalVariableRenamer(VariableRenamer):
             3: self._cut_by_lp_in_rounds,
             4: self._merge_greedily,
         }
-        if self.strategy not in strategies:
+        if self.weights.strategy not in strategies:
             raise Exception("This Multicut Algorithm is currently not implemented")
-        return strategies[self.strategy](dependency_graph)
+        return strategies[self.weights.strategy](dependency_graph)
 
     def _cut_lightest_first(self, dependency_graph: MultiGraph) -> Graph:
         """Strategy 0: compute the s-t-cuts of all interfering pairs of a component, then apply the needed ones, lightest first."""

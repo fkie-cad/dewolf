@@ -7,12 +7,13 @@ from enum import Enum
 from typing import Callable, DefaultDict, List
 
 from decompiler.pipeline.ssa.boissinot import Boissinot
-from decompiler.pipeline.ssa.conditional_out_of_SSA import ConditionalOutOfSSA
+from decompiler.pipeline.ssa.conditional_attribute_helper import get_phi_pairs
+from decompiler.pipeline.ssa.conditional_weights import load_conditional_weights
 from decompiler.pipeline.ssa.phi_cleaner import PhiFunctionCleaner
 from decompiler.pipeline.ssa.phi_dependency_resolver import PhiDependencyResolver
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
 from decompiler.pipeline.ssa.sreedhar_out_of_ssa import ConstantLifter, SreedharOutOfSSA
-from decompiler.pipeline.ssa.variable_renaming import MinimalVariableRenamer, SimpleVariableRenamer
+from decompiler.pipeline.ssa.variable_renaming import ConditionalVariableRenamer, MinimalVariableRenamer, SimpleVariableRenamer
 from decompiler.pipeline.stage import PipelineStage
 from decompiler.structures.graphs.cfg import BasicBlock
 from decompiler.structures.interferencegraph import InterferenceGraph
@@ -164,9 +165,14 @@ class OutOfSsaTranslation(PipelineStage):
             - We first remove the circular dependency of the Phi-functions
             - Then, we remove the Phi-functions by lifting them to their predecessor basic blocks.
             - Afterwards, we rename the variables by considering their dependency on each other, scored with the weights
-              given by the option conditional_weights (see ConditionalOutOfSSA).
+              given by the option conditional_weights (see load_conditional_weights).
         """
-        ConditionalOutOfSSA(self.task, self._phi_functions_of).perform()
+        phi_pairs = get_phi_pairs(self.task.graph)  # before the lifting removes the Phi-functions
+        PhiDependencyResolver(self._phi_functions_of).resolve()
+        self.interference_graph = InterferenceGraph(self.task.graph)
+        PhiFunctionLifter(self.task.graph, self.interference_graph, self._phi_functions_of).lift()
+        weights = load_conditional_weights(self.task.options.getstring(f"{self.name}.conditional_weights", fallback=""))
+        ConditionalVariableRenamer(self.task, self.interference_graph, weights, phi_pairs).rename()
 
     def _sreedhar_out_of_ssa(self) -> None:
         """
