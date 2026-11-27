@@ -87,7 +87,7 @@ def test_use_kinds_are_zero_for_other_pairs():
     cfg = ControlFlowGraph()
     cfg.add_node(BasicBlock(0, [Assignment(second, _call(first)), Assignment(third, _call(second))]))
     for _, vector in ConditionalAttributeHelper(get_phi_pairs(cfg)).iter_edge_data(cfg):
-        if Feature.following_definitions in vector or Feature.same_rhs_source in vector:
+        if Feature.dominating_definition in vector or Feature.same_rhs_source in vector:
             assert not any(feature in vector for feature in USE_KINDS)
 
 

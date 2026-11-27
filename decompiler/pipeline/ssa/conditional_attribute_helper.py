@@ -55,7 +55,8 @@ class Feature(Enum):
     usage_7 = "usage_7"
     usage_8 = "usage_8"
     usage_9 = "usage_9"
-    following_definitions = "following_definitions"  # kind: the first variable is the previous definition of the second one's name
+    # kind: the first variable is the last definition of the second one's name that dominates it, not necessarily one that reaches it
+    dominating_definition = "dominating_definition"
     same_rhs_source = "same_rhs_source"  # kind: both variables are defined as plain copies of the same variable
 
     @staticmethod
@@ -131,7 +132,7 @@ class ConditionalAttributeHelper:
 
         The candidate pairs:
             - assignment:            x = a + 1            -> (x, a)
-            - following definitions: y#1 = ...; y#2 = ... -> (y#1, y#2), y#1 is the last dominating definition of y
+            - dominating definition: y#1 = ...; y#2 = ... -> (y#1, y#2), y#1 is the last definition of y that dominates y#2
             - same source:           x = a; y = a         -> (x, y)
         A pair may occur several times, with different vectors.
         """
@@ -144,11 +145,9 @@ class ConditionalAttributeHelper:
             if isinstance(assignment.destination, Variable) and isinstance(assignment.value, Variable):
                 variables_copied_from[assignment.value].append(assignment.destination)
             if dominating_definition is not None:
-                yield self._edge(dominating_definition, definition, {Feature.following_definitions: 1})
+                yield self._edge(dominating_definition, definition, {Feature.dominating_definition: 1})
             # all variables of the destination, also p of *p = a
-            lhs_variables = dict.fromkeys(
-                expression for expression in assignment.destination.subexpressions() if isinstance(expression, Variable)
-            )
+            lhs_variables = assignment.destination.requirements
             for variable_1, variable_2 in product(lhs_variables, rhs_expression_info.variable_counts):
                 yield self._edge(
                     variable_1,
@@ -172,7 +171,7 @@ class ConditionalAttributeHelper:
         while stack:
             basic_block, inherited_definitions = stack.pop()
             last_definition = dict(inherited_definitions)
-            for instruction in (instruction for instruction in basic_block if isinstance(instruction, Assignment)):
+            for instruction in (instr for instr in basic_block if isinstance(instr, Assignment)):
                 definition = self._defined_variable(instruction)
                 if definition is None:
                     yield instruction, None
