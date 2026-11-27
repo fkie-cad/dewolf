@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Dict, Optional, Union
 
@@ -37,17 +38,27 @@ class ConditionalWeights:
             - strategy: how ConditionalVariableRenamer.create_variable_classes splits the dependency graph (0-4).
             - min_kept_score: lower bound for the scores of kept dependency-graph edges, or null (no lower bound).
         Other keys (e.g. description, trained) are documentation only and ignored.
+        A file that cannot be read or does not have this format raises a ValueError. Each file is read once per process.
         """
-        path = Path(path) if path else DEFAULT_WEIGHTS_FILE
-        with open(path) as file:
-            data = json.load(file)
+        return cls._from_resolved_path(Path(path).resolve() if path else DEFAULT_WEIGHTS_FILE)
+
+    @classmethod
+    @lru_cache
+    def _from_resolved_path(cls, path: Path) -> "ConditionalWeights":
+        """Load the weights from the given file, see from_file."""
+        try:
+            with open(path) as file:
+                return cls._from_data(json.load(file))
+        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
+            raise ValueError(f"Conditional out-of-SSA weights file {path}: {type(error).__name__}: {error}") from error
+
+    @classmethod
+    def _from_data(cls, data: dict) -> "ConditionalWeights":
+        """Create the weights from the content of a weights file, see from_file."""
         names = set(data["coefficients"])
         expected_names = {feature.value for feature in Feature}
         if names != expected_names:
-            raise ValueError(
-                f"Conditional out-of-SSA weights file {path}: missing features {sorted(expected_names - names)}, "
-                f"unknown features {sorted(names - expected_names)}"
-            )
+            raise ValueError(f"missing features {sorted(expected_names - names)}, unknown features {sorted(names - expected_names)}")
         coefficients = {Feature(name): float(coefficient) for name, coefficient in data["coefficients"].items()}
         min_kept_score = data.get("min_kept_score")
         return cls(

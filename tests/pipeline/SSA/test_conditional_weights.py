@@ -68,6 +68,33 @@ def test_missing_or_unknown_feature_fails(tmp_path, names):
         ConditionalWeights.from_file(_write(tmp_path, _weights(coefficients={name: 1.0 for name in names})))
 
 
+def test_missing_file_fails(tmp_path):
+    with pytest.raises(ValueError, match="missing.json"):
+        ConditionalWeights.from_file(tmp_path / "missing.json")
+
+
+def test_invalid_json_fails(tmp_path):
+    path = tmp_path / "weights.json"
+    path.write_text("{not json")
+    with pytest.raises(ValueError, match="weights.json"):
+        ConditionalWeights.from_file(path)
+
+
+@pytest.mark.parametrize("key", ["coefficients", "intercept", "strategy"])
+def test_missing_key_fails(tmp_path, key):
+    data = _weights()
+    del data[key]
+    with pytest.raises(ValueError, match=key):
+        ConditionalWeights.from_file(_write(tmp_path, data))
+
+
+def test_file_is_read_once(tmp_path):
+    """The same file, given as str or Path, is loaded once and then taken from the cache."""
+    path = _write(tmp_path, _weights())
+    assert ConditionalWeights.from_file(path) is ConditionalWeights.from_file(tmp_path / "weights.json")
+    assert ConditionalWeights.from_file() is ConditionalWeights.from_file("")
+
+
 def _weights_of_the_renamer(weights_path: str) -> ConditionalWeights:
     """Return the weights the conditional renamer loads for a task with the given option."""
     task = _task(weights_path)
