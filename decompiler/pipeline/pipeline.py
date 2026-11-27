@@ -9,6 +9,7 @@ from decompiler.pipeline.controlflowanalysis.restructuring import PatternIndepen
 from decompiler.pipeline.preprocessing import (
     Coherence,
     CompilerIdiomHandling,
+    FindFunctionPointer,
     InsertMissingDefinitions,
     MemPhiConverter,
     PhiFunctionFixer,
@@ -39,6 +40,7 @@ PREPROCESSING_STAGES = [
     MemPhiConverter,
     InsertMissingDefinitions,
     PhiFunctionFixer,
+    FindFunctionPointer,
 ]
 
 POSTPROCESSING_STAGES = [OutOfSsaTranslation, PatternIndependentRestructuring]
