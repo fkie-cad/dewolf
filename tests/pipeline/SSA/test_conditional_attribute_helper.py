@@ -191,6 +191,13 @@ def test_lhs_bad_operation_still_clears_the_vector():
     assert tuple(vector.get(feature, 0) for feature in STRONG_MID_DEF_BY_USAGE) == (0, 0, 0)
 
 
+def test_contraction_destination_clears_the_vector():
+    """(byte) eax = a only sets the lowest byte of eax: neither is_strong, is_mid nor def_by_usage."""
+    destination = UnaryOperation(OperationType.cast, [Variable("eax", INT, 0)], Integer.char(), contraction=True)
+    vector = _vectors(ARGUMENT, destination)[ARGUMENT]
+    assert tuple(vector.get(feature, 0) for feature in STRONG_MID_DEF_BY_USAGE) == (0, 0, 0)
+
+
 @pytest.mark.parametrize(
     "value, constant_count",
     [

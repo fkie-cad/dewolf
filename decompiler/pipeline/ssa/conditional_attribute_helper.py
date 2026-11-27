@@ -150,7 +150,11 @@ class ConditionalAttributeHelper:
                 expression for expression in assignment.destination.subexpressions() if isinstance(expression, Variable)
             )
             for variable_1, variable_2 in product(lhs_variables, rhs_expression_info.variable_counts):
-                yield self._edge(variable_1, variable_2, self._assignment_features(definition is not None, rhs_expression_info, variable_2))
+                yield self._edge(
+                    variable_1,
+                    variable_2,
+                    self._assignment_features(isinstance(assignment.destination, Variable), rhs_expression_info, variable_2),
+                )
         for copies in variables_copied_from.values():
             for variable_1, variable_2 in combinations(copies, 2):  # two copies of the same variable
                 yield self._edge(variable_1, variable_2, {Feature.same_rhs_source: 1})
@@ -240,7 +244,7 @@ class ConditionalAttributeHelper:
         """
         Return the assignment features of the pair (lhs variable, rhs_variable): use kinds, usage_n, is_strong, is_mid, def_by_usage.
 
-        is_strong, is_mid and def_by_usage need a variable as destination (x = ..., not *p = ...).
+        is_strong, is_mid and def_by_usage need a variable as destination (x = ..., not *p = ... or the contraction (byte) eax = ...).
         """
         vector: FeatureVector = dict.fromkeys(rhs.use_kinds[rhs_variable], 1)
         if len(rhs.variable_counts) <= 9:
