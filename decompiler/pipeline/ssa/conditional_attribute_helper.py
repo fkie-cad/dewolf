@@ -105,7 +105,7 @@ class ExpressionInfo(NamedTuple):
 
     occurrences_per_variable: Dict[Variable, int]  # variable -> number of occurrences
     constant_count: int  # the callee of a call is not a constant
-    use_kinds: Dict[Variable, Set[Feature]]  # variable -> use-kind features of the operations on the paths to its occurrences
+    use_kinds_per_variable: Dict[Variable, Set[Feature]]  # variable -> use-kind features of the operations on the paths to its occurrences
     without_casts: Expression  # the rhs without its outer casts: (int) (short) a -> a
 
 
@@ -208,9 +208,11 @@ class ConditionalAttributeHelper:
             if isinstance(subexpression, Call) and isinstance(subexpression.function, FunctionSymbol):
                 constant_count -= 1
             stack.extend(subexpression)
-        return ExpressionInfo(occurrences_per_variable, constant_count, self._get_use_kinds(expression), self._without_casts(expression))
+        return ExpressionInfo(
+            occurrences_per_variable, constant_count, self._use_kinds_per_variable(expression), self._without_casts(expression)
+        )
 
-    def _get_use_kinds(self, expression: Expression) -> Dict[Variable, Set[Feature]]:
+    def _use_kinds_per_variable(self, expression: Expression) -> Dict[Variable, Set[Feature]]:
         """
         Return how each variable of the expression is used: the use kinds of all operations on the paths from the root to its occurrences.
 
@@ -218,18 +220,18 @@ class ConditionalAttributeHelper:
         (arithmetic, casts) are transparent. A path without any of them is a direct use. The kinds of several occurrences are united:
             f(*p + a) + b  ->  p: {use_call, use_memory}, a: {use_call}, b: {use_direct}
         """
-        use_kinds: Dict[Variable, Set[Feature]] = {}
+        use_kinds_per_variable: Dict[Variable, Set[Feature]] = {}
         stack = [(expression, frozenset())]
         while stack:
             subexpression, path_kinds = stack.pop()
             if isinstance(subexpression, Variable):
-                use_kinds.setdefault(subexpression, set()).update(path_kinds or {Feature.use_direct})
+                use_kinds_per_variable.setdefault(subexpression, set()).update(path_kinds or {Feature.use_direct})
             elif isinstance(subexpression, Operation):
                 kinds = path_kinds
                 if subexpression.operation in self._USE_KIND_OF_OPERATION:
                     kinds = path_kinds | {self._USE_KIND_OF_OPERATION[subexpression.operation]}
                 stack.extend((operand, kinds) for operand in subexpression)
-        return use_kinds
+        return use_kinds_per_variable
 
     def _edge(self, variable_1: Variable, variable_2: Variable, features: FeatureVector) -> Tuple[VariablePair, FeatureVector]:
         """Return the pair with the given kind or assignment features plus the pair features, which every pair gets."""
@@ -249,7 +251,7 @@ class ConditionalAttributeHelper:
 
         is_strong, is_mid and def_by_usage need a variable as destination (x = ..., not *p = ... or the contraction (byte) eax = ...).
         """
-        vector: FeatureVector = dict.fromkeys(rhs.use_kinds[rhs_variable], 1)
+        vector: FeatureVector = dict.fromkeys(rhs.use_kinds_per_variable[rhs_variable], 1)
         if len(rhs.occurrences_per_variable) <= 9:
             vector[Feature.usage(len(rhs.occurrences_per_variable))] = 1
         for feature, check in (
@@ -267,7 +269,7 @@ class ConditionalAttributeHelper:
     @staticmethod
     def _def_by_usage(rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
         """x = a * 2 + a - 3: the rhs variable is the only variable, and all its uses are direct."""
-        return len(rhs.occurrences_per_variable) == 1 and rhs.use_kinds[rhs_variable] == {Feature.use_direct}
+        return len(rhs.occurrences_per_variable) == 1 and rhs.use_kinds_per_variable[rhs_variable] == {Feature.use_direct}
 
     def _is_mid(self, rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
         """x = a + 1: def_by_usage, and the rhs variable occurs once, with exactly one constant."""
