@@ -7,7 +7,7 @@ from __future__ import annotations
 from collections import defaultdict
 from enum import Enum
 from itertools import combinations, permutations, product
-from typing import DefaultDict, Dict, Iterator, List, NamedTuple, Optional, Set, Tuple
+from typing import DefaultDict, Dict, FrozenSet, Iterator, List, NamedTuple, Optional, Set, Tuple
 
 from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.graphs.cfg import ControlFlowGraph
@@ -226,7 +226,7 @@ class ConditionalAttributeHelper:
             f(*p + a) + b  ->  p: {use_call, use_memory}, a: {use_call}, b: {use_direct}
         """
         use_kinds_per_variable: DefaultDict[Variable, Set[Feature]] = defaultdict(set)
-        stack = [(expression, frozenset())]
+        stack: List[Tuple[Expression, FrozenSet[Feature]]] = [(expression, frozenset())]
         while stack:
             subexpression, kinds_on_path = stack.pop()
             if isinstance(subexpression, Variable):
@@ -236,8 +236,8 @@ class ConditionalAttributeHelper:
                     use_kinds_per_variable[subexpression].add(Feature.use_direct)
             elif isinstance(subexpression, Operation):
                 kinds = kinds_on_path
-                if subexpression.operation in self._USE_KIND_OF_OPERATION:
-                    kinds = kinds_on_path | {self._USE_KIND_OF_OPERATION[subexpression.operation]}
+                if (use_kind := self._USE_KIND_OF_OPERATION.get(subexpression.operation)) is not None:
+                    kinds = kinds_on_path | {use_kind}
                 stack.extend((operand, kinds) for operand in subexpression)
         return use_kinds_per_variable
 
