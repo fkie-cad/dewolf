@@ -225,16 +225,19 @@ class ConditionalAttributeHelper:
         (arithmetic, casts) are transparent. A path without any of them is a direct use. The kinds of several occurrences are united:
             f(*p + a) + b  ->  p: {use_call, use_memory}, a: {use_call}, b: {use_direct}
         """
-        use_kinds_per_variable: Dict[Variable, Set[Feature]] = {}
+        use_kinds_per_variable: DefaultDict[Variable, Set[Feature]] = defaultdict(set)
         stack = [(expression, frozenset())]
         while stack:
-            subexpression, path_kinds = stack.pop()
+            subexpression, kinds_on_path = stack.pop()
             if isinstance(subexpression, Variable):
-                use_kinds_per_variable.setdefault(subexpression, set()).update(path_kinds or {Feature.use_direct})
+                if kinds_on_path:
+                    use_kinds_per_variable[subexpression].update(kinds_on_path)
+                else:  # only arithmetic and casts on the path
+                    use_kinds_per_variable[subexpression].add(Feature.use_direct)
             elif isinstance(subexpression, Operation):
-                kinds = path_kinds
+                kinds = kinds_on_path
                 if subexpression.operation in self._USE_KIND_OF_OPERATION:
-                    kinds = path_kinds | {self._USE_KIND_OF_OPERATION[subexpression.operation]}
+                    kinds = kinds_on_path | {self._USE_KIND_OF_OPERATION[subexpression.operation]}
                 stack.extend((operand, kinds) for operand in subexpression)
         return use_kinds_per_variable
 
