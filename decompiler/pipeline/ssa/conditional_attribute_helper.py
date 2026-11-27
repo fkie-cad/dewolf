@@ -106,7 +106,7 @@ class ExpressionInfo(NamedTuple):
     occurrences_per_variable: Dict[Variable, int]  # variable -> number of occurrences
     constant_count: int  # the callee of a call is not a constant
     use_kinds: Dict[Variable, Set[Feature]]  # variable -> use-kind features of the operations on the paths to its occurrences
-    variables_below_operations: Set[Variable]  # variables with an operation other than a cast on the path to an occurrence
+    without_casts: Expression  # the rhs without its outer casts: (int) (short) a -> a
 
 
 class ConditionalAttributeHelper:
@@ -181,13 +181,17 @@ class ConditionalAttributeHelper:
             for child in dominator_tree.get_successors(basic_block):
                 stack.append((child, last_definition))
 
-    @staticmethod
-    def _defined_variable(assignment: Assignment) -> Optional[Variable]:
+    def _defined_variable(self, assignment: Assignment) -> Optional[Variable]:
         """Return the variable the assignment defines, also through casts: x = ..., (int) x = ...; else None (*p = ..., a.b = ...)."""
-        destination = assignment.destination
-        while isinstance(destination, UnaryOperation) and destination.operation == OperationType.cast:
-            destination = destination.operand
+        destination = self._without_casts(assignment.destination)
         return destination if isinstance(destination, Variable) else None
+
+    @staticmethod
+    def _without_casts(expression: Expression) -> Expression:
+        """Return the expression without its outer casts: (int) (short) a -> a."""
+        while isinstance(expression, UnaryOperation) and expression.operation == OperationType.cast:
+            expression = expression.operand
+        return expression
 
     def _get_expression_info(self, expression: Expression) -> ExpressionInfo:
         """Count the variables and constants of the given rhs and find how each variable is used."""
@@ -204,32 +208,28 @@ class ConditionalAttributeHelper:
             if isinstance(subexpression, Call) and isinstance(subexpression.function, FunctionSymbol):
                 constant_count -= 1
             stack.extend(subexpression)
-        use_kinds, variables_below_operations = self._get_use_kinds(expression)
-        return ExpressionInfo(occurrences_per_variable, constant_count, use_kinds, variables_below_operations)
+        return ExpressionInfo(occurrences_per_variable, constant_count, self._get_use_kinds(expression), self._without_casts(expression))
 
-    def _get_use_kinds(self, expression: Expression) -> Tuple[Dict[Variable, Set[Feature]], Set[Variable]]:
+    def _get_use_kinds(self, expression: Expression) -> Dict[Variable, Set[Feature]]:
         """
-        Return the use kinds per variable and the variables that have an operation other than a cast on their path.
+        Return how each variable of the expression is used: the use kinds of all operations on the paths from the root to its occurrences.
 
-        Every kind of operation on the path from the root to an occurrence is part of the set, an occurrence without any such operation
-        is a direct use. The sets of several occurrences are united.
+        A call, dereference, field, member or pointer access and an address operation add their use kind, all other operations
+        (arithmetic, casts) are transparent. A path without any of them is a direct use. The kinds of several occurrences are united:
+            f(*p + a) + b  ->  p: {use_call, use_memory}, a: {use_call}, b: {use_direct}
         """
         use_kinds: Dict[Variable, Set[Feature]] = {}
-        variables_below_operations: Set[Variable] = set()
-        stack = [(expression, frozenset(), False)]
+        stack = [(expression, frozenset())]
         while stack:
-            subexpression, path_kinds, below_operation = stack.pop()
+            subexpression, path_kinds = stack.pop()
             if isinstance(subexpression, Variable):
                 use_kinds.setdefault(subexpression, set()).update(path_kinds or {Feature.use_direct})
-                if below_operation:
-                    variables_below_operations.add(subexpression)
             elif isinstance(subexpression, Operation):
                 kinds = path_kinds
                 if subexpression.operation in self._USE_KIND_OF_OPERATION:
                     kinds = path_kinds | {self._USE_KIND_OF_OPERATION[subexpression.operation]}
-                below = below_operation or subexpression.operation != OperationType.cast
-                stack.extend((operand, kinds, below) for operand in subexpression)
-        return use_kinds, variables_below_operations
+                stack.extend((operand, kinds) for operand in subexpression)
+        return use_kinds
 
     def _edge(self, variable_1: Variable, variable_2: Variable, features: FeatureVector) -> Tuple[VariablePair, FeatureVector]:
         """Return the pair with the given kind or assignment features plus the pair features, which every pair gets."""
@@ -265,26 +265,18 @@ class ConditionalAttributeHelper:
         return (variable_1, variable_2) in self._phi_pairs
 
     @staticmethod
-    def _is_strong(rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
-        return (
-            len(rhs.occurrences_per_variable) == 1
-            and rhs.occurrences_per_variable[rhs_variable] == 1
-            and rhs.constant_count == 0
-            and rhs_variable not in rhs.variables_below_operations
-        )
-
-    @staticmethod
-    def _is_mid(rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
-        return (
-            len(rhs.occurrences_per_variable) == 1
-            and rhs.occurrences_per_variable[rhs_variable] == 1
-            and rhs.constant_count == 1
-            and rhs.use_kinds[rhs_variable] == {Feature.use_direct}
-        )
-
-    @staticmethod
     def _def_by_usage(rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
+        """x = a * 2 + a - 3: the rhs variable is the only variable, and all its uses are direct."""
         return len(rhs.occurrences_per_variable) == 1 and rhs.use_kinds[rhs_variable] == {Feature.use_direct}
+
+    def _is_mid(self, rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
+        """x = a + 1: def_by_usage, and the rhs variable occurs once, with exactly one constant."""
+        return self._def_by_usage(rhs, rhs_variable) and rhs.occurrences_per_variable[rhs_variable] == 1 and rhs.constant_count == 1
+
+    @staticmethod
+    def _is_strong(rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
+        """x = a, x = (int) a: the rhs is the rhs variable, at most cast; this implies def_by_usage."""
+        return rhs.without_casts == rhs_variable
 
     @staticmethod
     def _same_base_name(variable_1: Variable, variable_2: Variable) -> bool:
