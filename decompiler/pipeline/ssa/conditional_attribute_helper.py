@@ -169,28 +169,31 @@ class ConditionalAttributeHelper:
         """
         Yield every candidate variable pair of the given control flow graph with its feature vector.
 
-        There are three kinds of pairs: (lhs variable, rhs variable) of an assignment, (previous definition, next definition) of a name,
-        and two variables that are both defined as a copy of the same variable. A pair may occur several times.
+        The candidate pairs:
+            - assignment:            x = a + 1            -> (x, a)
+            - following definitions: y#1 = ...; y#2 = ... -> (y#1, y#2), y#1 is the last dominating definition of y
+            - same source:           x = a; y = a         -> (x, y)
+        A pair may occur several times, with different vectors.
         """
-        definitions_of_source: DefaultDict[Variable, List[ExpressionInfo]] = defaultdict(list)
-        for assignment, last_definition in self._assignments_in_dominator_order(cfg):
+        # source variable -> the variables defined as a copy of it (casts allowed): x = a, y = (int) a
+        same_source_definitions: DefaultDict[Variable, List[Variable]] = defaultdict(list)
+        for assignment, last_definition in self._assignments_with_dominating_definitions(cfg):
             lhs = self._get_expression_info(assignment.destination)
             rhs = self._get_expression_info(assignment.value)
             if not rhs.has_bad_operation_strong and len(rhs.variable_counts) == 1 and len(lhs.variable_counts) == 1:
-                definitions_of_source[next(iter(rhs.variable_counts))].append(lhs)
+                same_source_definitions[next(iter(rhs.variable_counts))].append(next(iter(lhs.variable_counts)))
             if not lhs.has_bad_operation_strong and len(lhs.variable_counts) == 1:
-                name = next(iter(lhs.variable_counts)).name
-                previous_definition = last_definition.get(name)
-                last_definition[name] = lhs
+                definition = next(iter(lhs.variable_counts))
+                previous_definition = last_definition.get(definition.name)
+                last_definition[definition.name] = definition
                 if previous_definition is not None:
-                    for variable_1, variable_2 in product(previous_definition.variable_counts, lhs.variable_counts):
-                        yield (variable_1, variable_2), {Feature.following_definitions: 1, **self._pair_features(variable_1, variable_2)}
+                    vector = {Feature.following_definitions: 1, **self._pair_features(previous_definition, definition)}
+                    yield (previous_definition, definition), vector
             for variable_1, variable_2 in product(lhs.variable_counts, rhs.variable_counts):
                 vector = {**self._assignment_features(lhs, rhs, variable_2), **self._pair_features(variable_1, variable_2)}
                 yield (variable_1, variable_2), vector
-        for definitions in definitions_of_source.values():
-            for definition_1, definition_2 in combinations(definitions, 2):
-                variable_1, variable_2 = next(iter(definition_1.variable_counts)), next(iter(definition_2.variable_counts))
+        for definitions in same_source_definitions.values():
+            for variable_1, variable_2 in combinations(definitions, 2):
                 yield (variable_1, variable_2), {Feature.same_rhs_source: 1, **self._pair_features(variable_1, variable_2)}
 
     def _assignment_features(self, lhs: ExpressionInfo, rhs: ExpressionInfo, rhs_variable: Variable) -> FeatureVector:
@@ -255,9 +258,9 @@ class ConditionalAttributeHelper:
             constant_count, use_kinds, variables_below_operations, has_bad_operation_strong, has_bad_operation_mid, variable_counts
         )
 
-    def _assignments_in_dominator_order(self, cfg: ControlFlowGraph) -> Iterator[Tuple[Assignment, Dict[str, ExpressionInfo]]]:
+    def _assignments_with_dominating_definitions(self, cfg: ControlFlowGraph) -> Iterator[Tuple[Assignment, Dict[str, Variable]]]:
         """
-        Yield every assignment together with the last dominating definition per variable name.
+        Yield every assignment in dominator-tree order, together with the last dominating definition per variable name.
 
         The caller updates the dict; changes are only visible to blocks dominated by the current one.
         """
