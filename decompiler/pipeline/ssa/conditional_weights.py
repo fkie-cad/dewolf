@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional, Union
 
-from decompiler.pipeline.ssa.conditional_attribute_helper import Feature
+from decompiler.pipeline.ssa.conditional_attribute_helper import Feature, FeatureVector
 
 BUNDLED_WEIGHTS_FILE = Path(__file__).with_name("conditional_weights.json")
 
@@ -18,6 +18,10 @@ class ConditionalWeights:
     intercept: float
     strategy: int  # how ConditionalVariableRenamer.create_variable_classes splits the dependency graph
     min_kept_score: Optional[float] = None
+
+    def score(self, vector: FeatureVector) -> float:
+        """The linear model applied to the feature vector: intercept + sum(coefficient * feature)."""
+        return sum(self.coefficients[feature] * vector.get(feature, 0) for feature in Feature) + self.intercept
 
 
 def load_conditional_weights(path: Union[str, Path, None] = None) -> ConditionalWeights:
