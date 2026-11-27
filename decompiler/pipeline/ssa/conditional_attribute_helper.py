@@ -178,7 +178,7 @@ class ConditionalAttributeHelper:
 
         The caller updates the dict; changes are only visible to blocks dominated by the current one.
         """
-        if cfg.root is None:
+        if not cfg.nodes:  # an empty function has nothing to rename
             return
         dominator_tree = cfg.dominator_tree
         stack = [(cfg.root, {})]
@@ -191,8 +191,7 @@ class ConditionalAttributeHelper:
             for child in dominator_tree.get_successors(basic_block):
                 stack.append((child, last_definition))
 
-    @classmethod
-    def _get_expression_info(cls, expression: Expression) -> ExpressionInfo:
+    def _get_expression_info(self, expression: Expression) -> ExpressionInfo:
         """Count the variables and constants of the given expression and check it for operations that weaken a dependency."""
         constant_count = 0
         has_bad_operation_strong = False
@@ -205,17 +204,16 @@ class ConditionalAttributeHelper:
                 constant_count += 1
             if isinstance(subexpression, Call) and isinstance(subexpression.function, FunctionSymbol):
                 constant_count -= 1
-            if isinstance(subexpression, Operation) and subexpression.operation not in cls._GOOD_OPERATIONS:
+            if isinstance(subexpression, Operation) and subexpression.operation not in self._GOOD_OPERATIONS:
                 has_bad_operation_strong = True
-            if isinstance(subexpression, Operation) and subexpression.operation in cls._BAD_OPERATIONS:
+            if isinstance(subexpression, Operation) and subexpression.operation in self._BAD_OPERATIONS:
                 has_bad_operation_mid = True
-        use_kinds, variables_below_operations = cls._get_use_kinds(expression)
+        use_kinds, variables_below_operations = self._get_use_kinds(expression)
         return ExpressionInfo(
             constant_count, use_kinds, variables_below_operations, has_bad_operation_strong, has_bad_operation_mid, variable_counts
         )
 
-    @classmethod
-    def _get_use_kinds(cls, expression: Expression) -> Tuple[Dict[Variable, Set[Feature]], Set[Variable]]:
+    def _get_use_kinds(self, expression: Expression) -> Tuple[Dict[Variable, Set[Feature]], Set[Variable]]:
         """
         Return the use kinds per variable and the variables that have an operation other than a cast on their path.
 
@@ -233,8 +231,8 @@ class ConditionalAttributeHelper:
                     variables_below_operations.add(subexpression)
             elif isinstance(subexpression, Operation):
                 kinds = path_kinds
-                if subexpression.operation in cls._USE_KIND_OF_OPERATION:
-                    kinds = path_kinds | {cls._USE_KIND_OF_OPERATION[subexpression.operation]}
+                if subexpression.operation in self._USE_KIND_OF_OPERATION:
+                    kinds = path_kinds | {self._USE_KIND_OF_OPERATION[subexpression.operation]}
                 below = below_operation or subexpression.operation != OperationType.cast
                 stack.extend((operand, kinds, below) for operand in subexpression)
         return use_kinds, variables_below_operations
