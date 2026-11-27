@@ -151,13 +151,14 @@ class ConditionalAttributeHelper:
             - same source:           x = a; y = a         -> (x, y)
         A pair may occur several times, with different vectors.
         """
-        # source variable -> the variables defined as a plain copy of it: x = a, y = a
-        same_source_definitions: DefaultDict[Variable, List[Variable]] = defaultdict(list)
+        # variable -> the variables defined as a plain copy of it: x = a, y = a  ->  variables_copied_from[a] == [x, y]
+        # After the Phi lifting, a may have several definitions, so two copies do not necessarily have the same value.
+        variables_copied_from: DefaultDict[Variable, List[Variable]] = defaultdict(list)
         for assignment, last_definition in self._assignments_with_dominating_definitions(cfg):
             lhs = self._get_expression_info(assignment.destination)
             rhs = self._get_expression_info(assignment.value)
             if not lhs.has_bad_operation_strong and isinstance(assignment.value, Variable) and len(lhs.variable_counts) == 1:
-                same_source_definitions[assignment.value].append(next(iter(lhs.variable_counts)))
+                variables_copied_from[assignment.value].append(next(iter(lhs.variable_counts)))
             if not lhs.has_bad_operation_strong and len(lhs.variable_counts) == 1:
                 definition = next(iter(lhs.variable_counts))
                 previous_definition = last_definition.get(definition.name)
@@ -166,8 +167,8 @@ class ConditionalAttributeHelper:
                     yield self._edge(previous_definition, definition, {Feature.following_definitions: 1})
             for variable_1, variable_2 in product(lhs.variable_counts, rhs.variable_counts):
                 yield self._edge(variable_1, variable_2, self._assignment_features(lhs, rhs, variable_2))
-        for definitions in same_source_definitions.values():
-            for variable_1, variable_2 in combinations(definitions, 2):
+        for copies in variables_copied_from.values():
+            for variable_1, variable_2 in combinations(copies, 2):  # two copies of the same variable
                 yield self._edge(variable_1, variable_2, {Feature.same_rhs_source: 1})
 
     @staticmethod
