@@ -26,7 +26,7 @@ class Feature(Enum):
     The features of a candidate variable pair; the weights file names them by their value.
 
     There are three groups, the comment of each feature starts with its group:
-        - pair:       depends only on the two variables, set for every pair (see ConditionalAttributeHelper._edge)
+        - pair:       depends only on the two variables, set for every pair (see ConditionalAttributeHelper._pair_features)
         - assignment: depends on the assignment of the pair, only for assignment pairs (see ConditionalAttributeHelper._assignment_features)
         - kind:       marks the kind of the pair; an assignment pair has no kind feature
     The member order is the column order of the training data, so it is not grouped.
@@ -135,7 +135,14 @@ class ConditionalAttributeHelper:
             - dominating definition: y#1 = ...; y#2 = ... -> (y#1, y#2), y#1 is the last definition of y that dominates y#2
             - same source:           x = a; y = a         -> (x, y)
         A pair may occur several times, with different vectors.
+        Every vector consists of the features of its kind plus the pair features (same_base_name, same_storage, same_phi).
         """
+        for (variable_1, variable_2), vector in self._iter_pairs_with_own_features(cfg):
+            vector.update(self._pair_features(variable_1, variable_2))
+            yield (variable_1, variable_2), vector
+
+    def _iter_pairs_with_own_features(self, cfg: ControlFlowGraph) -> Iterator[Tuple[VariablePair, FeatureVector]]:
+        """Yield every candidate pair with the features of its kind: the assignment features, dominating_definition or same_rhs_source."""
         # variable -> the variables defined as a plain copy of it: x = a, y = a  ->  variables_copied_from[a] == [x, y]
         variables_copied_from: DefaultDict[Variable, List[Variable]] = defaultdict(list)
         for assignment, dominating_definition in self._assignments_with_dominating_definition(cfg):
@@ -145,18 +152,16 @@ class ConditionalAttributeHelper:
             if isinstance(assignment.destination, Variable) and isinstance(assignment.value, Variable):
                 variables_copied_from[assignment.value].append(assignment.destination)
             if dominating_definition is not None:
-                yield self._edge(dominating_definition, definition, {Feature.dominating_definition: 1})
+                yield (dominating_definition, definition), {Feature.dominating_definition: 1}
             # all variables of the destination, also p of *p = a
             lhs_variables = assignment.destination.requirements
             for variable_1, variable_2 in product(lhs_variables, rhs_expression_info.occurrences_per_variable):
-                yield self._edge(
-                    variable_1,
-                    variable_2,
-                    self._assignment_features(isinstance(assignment.destination, Variable), rhs_expression_info, variable_2),
+                yield (variable_1, variable_2), self._assignment_features(
+                    isinstance(assignment.destination, Variable), rhs_expression_info, variable_2
                 )
         for copies in variables_copied_from.values():
             for variable_1, variable_2 in combinations(copies, 2):  # two copies of the same variable
-                yield self._edge(variable_1, variable_2, {Feature.same_rhs_source: 1})
+                yield (variable_1, variable_2), {Feature.same_rhs_source: 1}
 
     def _assignments_with_dominating_definition(self, cfg: ControlFlowGraph) -> Iterator[Tuple[Assignment, Optional[Variable]]]:
         """
@@ -233,17 +238,17 @@ class ConditionalAttributeHelper:
                 stack.extend((operand, kinds) for operand in subexpression)
         return use_kinds_per_variable
 
-    def _edge(self, variable_1: Variable, variable_2: Variable, features: FeatureVector) -> Tuple[VariablePair, FeatureVector]:
-        """Return the pair with the given kind or assignment features plus the pair features, which every pair gets."""
-        vector = dict(features)
-        for feature, check in (
-            (Feature.same_base_name, self._same_base_name),
-            (Feature.same_storage, self._same_storage),
-            (Feature.same_phi, self._same_phi),
-        ):
-            if check(variable_1, variable_2):
-                vector[feature] = 1
-        return (variable_1, variable_2), vector
+    def _pair_features(self, variable_1: Variable, variable_2: Variable) -> FeatureVector:
+        """Return the pair features of the two variables, which every pair gets: same_base_name, same_storage, same_phi."""
+        return {
+            feature: 1
+            for feature, check in (
+                (Feature.same_base_name, self._same_base_name),
+                (Feature.same_storage, self._same_storage),
+                (Feature.same_phi, self._same_phi),
+            )
+            if check(variable_1, variable_2)
+        }
 
     def _assignment_features(self, defines_variable: bool, rhs: ExpressionInfo, rhs_variable: Variable) -> FeatureVector:
         """
