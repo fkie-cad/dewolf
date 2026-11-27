@@ -9,6 +9,7 @@ from decompiler.structures.pseudo import (
     Call,
     Constant,
     FunctionSymbol,
+    GlobalVariable,
     Integer,
     OperationType,
     Pointer,
@@ -173,6 +174,13 @@ def test_strong_mid_and_def_by_usage_depend_on_the_rhs_variable(value, variable,
     """is_strong, is_mid and def_by_usage look at the use of the pair's rhs variable and need exactly one rhs variable."""
     vector = _vectors(value)[variable]
     assert tuple(vector.get(feature, 0) for feature in STRONG_MID_DEF_BY_USAGE) == expected
+
+
+def test_global_copy_is_strong():
+    """g#1 = g#0 is a plain copy: the initial value of the global variable is no constant of the assignment."""
+    global_0, global_1 = GlobalVariable("g", INT, Constant(5, INT), 0), GlobalVariable("g", INT, Constant(5, INT), 1)
+    vector = _vectors(global_0, global_1)[global_0]
+    assert tuple(vector.get(feature, 0) for feature in STRONG_MID_DEF_BY_USAGE) == (1, 0, 1)
 
 
 def test_def_by_usage_with_repeated_direct_uses():

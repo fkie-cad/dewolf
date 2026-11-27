@@ -193,13 +193,17 @@ class ConditionalAttributeHelper:
         """Count the variables and constants of the given rhs and find how each variable is used."""
         constant_count = 0
         occurrences_per_variable: Dict[Variable, int] = {}
-        for subexpression in expression.subexpressions():
-            if isinstance(subexpression, Variable):
+        stack: List[Expression] = [expression]
+        while stack:
+            subexpression = stack.pop()
+            if isinstance(subexpression, Variable):  # not into a variable: a global variable has its initial value as child
                 occurrences_per_variable[subexpression] = occurrences_per_variable.get(subexpression, 0) + 1
-            elif isinstance(subexpression, Constant):
+                continue
+            if isinstance(subexpression, Constant):
                 constant_count += 1
             if isinstance(subexpression, Call) and isinstance(subexpression.function, FunctionSymbol):
                 constant_count -= 1
+            stack.extend(subexpression)
         use_kinds, variables_below_operations = self._get_use_kinds(expression)
         return ExpressionInfo(occurrences_per_variable, constant_count, use_kinds, variables_below_operations)
 
