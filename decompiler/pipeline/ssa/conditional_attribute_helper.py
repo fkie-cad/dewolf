@@ -100,33 +100,16 @@ def get_phi_pairs(cfg: ControlFlowGraph) -> PhiPairs:
 
 
 class ExpressionInfo(NamedTuple):
-    """Summary of an expression that the feature vectors are computed from."""
+    """Summary of the rhs of an assignment that the assignment features are computed from."""
 
+    variable_counts: Dict[Variable, int]  # variable -> number of occurrences
     constant_count: int  # the callee of a call is not a constant
     use_kinds: Dict[Variable, Set[Feature]]  # variable -> use-kind features of the operations on the paths to its occurrences
     variables_below_operations: Set[Variable]  # variables with an operation other than a cast on the path to an occurrence
-    has_bad_operation_strong: bool
-    has_bad_operation_mid: bool
-    variable_counts: Dict[Variable, int]  # variable -> number of occurrences
 
 
 class ConditionalAttributeHelper:
     """Computes the feature vector of every candidate variable pair for the dependency graph of the conditional out-of-SSA."""
-
-    _GOOD_OPERATIONS = frozenset({OperationType.cast})
-
-    _BAD_OPERATIONS = frozenset(
-        {
-            OperationType.dereference,
-            OperationType.address,
-            OperationType.call,
-            OperationType.pointer,
-            OperationType.ternary,
-            OperationType.list_op,
-            OperationType.field,
-            OperationType.member_access,
-        }
-    )
 
     # The use kind that an operation adds to every variable below it; all other operations are transparent.
     _USE_KIND_OF_OPERATION = {
@@ -155,15 +138,18 @@ class ConditionalAttributeHelper:
         # variable -> the variables defined as a plain copy of it: x = a, y = a  ->  variables_copied_from[a] == [x, y]
         variables_copied_from: DefaultDict[Variable, List[Variable]] = defaultdict(list)
         for assignment, dominating_definition in self._assignments_with_dominating_definition(cfg):
-            lhs = self._get_expression_info(assignment.destination)
-            rhs = self._get_expression_info(assignment.value)
             definition = self._defined_variable(assignment)
+            rhs_expression_info = self._get_expression_info(assignment.value)
             if definition is not None and isinstance(assignment.value, Variable):
                 variables_copied_from[assignment.value].append(definition)
             if dominating_definition is not None:
                 yield self._edge(dominating_definition, definition, {Feature.following_definitions: 1})
-            for variable_1, variable_2 in product(lhs.variable_counts, rhs.variable_counts):
-                yield self._edge(variable_1, variable_2, self._assignment_features(lhs, rhs, variable_2))
+            # all variables of the destination, also p of *p = a
+            lhs_variables = dict.fromkeys(
+                expression for expression in assignment.destination.subexpressions() if isinstance(expression, Variable)
+            )
+            for variable_1, variable_2 in product(lhs_variables, rhs_expression_info.variable_counts):
+                yield self._edge(variable_1, variable_2, self._assignment_features(definition is not None, rhs_expression_info, variable_2))
         for copies in variables_copied_from.values():
             for variable_1, variable_2 in combinations(copies, 2):  # two copies of the same variable
                 yield self._edge(variable_1, variable_2, {Feature.same_rhs_source: 1})
@@ -181,15 +167,13 @@ class ConditionalAttributeHelper:
         while stack:
             basic_block, inherited_definitions = stack.pop()
             last_definition = dict(inherited_definitions)
-            for instruction in basic_block:
-                if not isinstance(instruction, Assignment):
-                    continue
+            for instruction in (instruction for instruction in basic_block if isinstance(instruction, Assignment)):
                 definition = self._defined_variable(instruction)
                 if definition is None:
                     yield instruction, None
-                    continue
-                yield instruction, last_definition.get(definition.name)
-                last_definition[definition.name] = definition
+                else:
+                    yield instruction, last_definition.get(definition.name)
+                    last_definition[definition.name] = definition
             for child in dominator_tree.get_successors(basic_block):
                 stack.append((child, last_definition))
 
@@ -202,10 +186,8 @@ class ConditionalAttributeHelper:
         return destination if isinstance(destination, Variable) else None
 
     def _get_expression_info(self, expression: Expression) -> ExpressionInfo:
-        """Count the variables and constants of the given expression and check it for operations that weaken a dependency."""
+        """Count the variables and constants of the given rhs and find how each variable is used."""
         constant_count = 0
-        has_bad_operation_strong = False
-        has_bad_operation_mid = False
         variable_counts: Dict[Variable, int] = {}
         for subexpression in expression.subexpressions():
             if isinstance(subexpression, Variable):
@@ -214,14 +196,8 @@ class ConditionalAttributeHelper:
                 constant_count += 1
             if isinstance(subexpression, Call) and isinstance(subexpression.function, FunctionSymbol):
                 constant_count -= 1
-            if isinstance(subexpression, Operation) and subexpression.operation not in self._GOOD_OPERATIONS:
-                has_bad_operation_strong = True
-            if isinstance(subexpression, Operation) and subexpression.operation in self._BAD_OPERATIONS:
-                has_bad_operation_mid = True
         use_kinds, variables_below_operations = self._get_use_kinds(expression)
-        return ExpressionInfo(
-            constant_count, use_kinds, variables_below_operations, has_bad_operation_strong, has_bad_operation_mid, variable_counts
-        )
+        return ExpressionInfo(variable_counts, constant_count, use_kinds, variables_below_operations)
 
     def _get_use_kinds(self, expression: Expression) -> Tuple[Dict[Variable, Set[Feature]], Set[Variable]]:
         """
@@ -259,8 +235,12 @@ class ConditionalAttributeHelper:
                 vector[feature] = 1
         return (variable_1, variable_2), vector
 
-    def _assignment_features(self, lhs: ExpressionInfo, rhs: ExpressionInfo, rhs_variable: Variable) -> FeatureVector:
-        """Return the assignment features of the pair (lhs variable, rhs_variable): use kinds, usage_n, is_strong, is_mid, def_by_usage."""
+    def _assignment_features(self, defines_variable: bool, rhs: ExpressionInfo, rhs_variable: Variable) -> FeatureVector:
+        """
+        Return the assignment features of the pair (lhs variable, rhs_variable): use kinds, usage_n, is_strong, is_mid, def_by_usage.
+
+        is_strong, is_mid and def_by_usage need a variable as destination (x = ..., not *p = ...).
+        """
         vector: FeatureVector = dict.fromkeys(rhs.use_kinds[rhs_variable], 1)
         if len(rhs.variable_counts) <= 9:
             vector[Feature.usage(len(rhs.variable_counts))] = 1
@@ -269,7 +249,7 @@ class ConditionalAttributeHelper:
             (Feature.is_mid, self._is_mid),
             (Feature.def_by_usage, self._def_by_usage),
         ):
-            if check(lhs, rhs, rhs_variable):
+            if defines_variable and check(rhs, rhs_variable):
                 vector[feature] = 1
         return vector
 
@@ -277,28 +257,26 @@ class ConditionalAttributeHelper:
         return (variable_1, variable_2) in self._phi_pairs
 
     @staticmethod
-    def _is_strong(lhs: ExpressionInfo, rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
+    def _is_strong(rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
         return (
             len(rhs.variable_counts) == 1
             and rhs.variable_counts[rhs_variable] == 1
             and rhs.constant_count == 0
             and rhs_variable not in rhs.variables_below_operations
-            and not lhs.has_bad_operation_strong
         )
 
     @staticmethod
-    def _is_mid(lhs: ExpressionInfo, rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
+    def _is_mid(rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
         return (
             len(rhs.variable_counts) == 1
             and rhs.variable_counts[rhs_variable] == 1
             and rhs.constant_count == 1
             and rhs.use_kinds[rhs_variable] == {Feature.use_direct}
-            and not lhs.has_bad_operation_mid
         )
 
     @staticmethod
-    def _def_by_usage(lhs: ExpressionInfo, rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
-        return len(rhs.variable_counts) == 1 and rhs.use_kinds[rhs_variable] == {Feature.use_direct} and not lhs.has_bad_operation_mid
+    def _def_by_usage(rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
+        return len(rhs.variable_counts) == 1 and rhs.use_kinds[rhs_variable] == {Feature.use_direct}
 
     @staticmethod
     def _same_base_name(variable_1: Variable, variable_2: Variable) -> bool:
