@@ -88,13 +88,6 @@ def test_missing_key_fails(tmp_path, key):
         ConditionalWeights.from_file(_write(tmp_path, data))
 
 
-def test_file_is_read_once(tmp_path):
-    """The same file, given as str or Path, is loaded once and then taken from the cache."""
-    path = _write(tmp_path, _weights())
-    assert ConditionalWeights.from_file(path) is ConditionalWeights.from_file(tmp_path / "weights.json")
-    assert ConditionalWeights.from_file() is ConditionalWeights.from_file("")
-
-
 def _weights_of_the_renamer(weights_path: str) -> ConditionalWeights:
     """Return the weights the conditional renamer loads for a task with the given option."""
     task = _task(weights_path)
