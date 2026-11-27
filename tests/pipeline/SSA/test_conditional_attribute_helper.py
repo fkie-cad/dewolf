@@ -111,6 +111,28 @@ def test_same_source_needs_a_variable_destination():
     assert same_source_pairs == [(copy_1, copy_2)]
 
 
+def test_same_source_needs_a_plain_copy():
+    """x = (int)(short) a and y = (int) a have the same type but not the same value, so only the plain copies q = a and r = a pair up."""
+    copy_1, copy_2 = Variable("q", INT, 0), Variable("r", INT, 0)
+    short_cast = UnaryOperation(OperationType.cast, [UnaryOperation(OperationType.cast, [ARGUMENT], Integer.int16_t())], INT)
+    cfg = ControlFlowGraph()
+    cfg.add_node(
+        BasicBlock(
+            0,
+            [
+                Assignment(RESULT, short_cast),
+                Assignment(OTHER, UnaryOperation(OperationType.cast, [ARGUMENT], INT)),
+                Assignment(copy_1, ARGUMENT),
+                Assignment(copy_2, ARGUMENT),
+            ],
+        )
+    )
+    same_source_pairs = [
+        pair for pair, vector in ConditionalAttributeHelper(set()).iter_edge_data(cfg) if Feature.same_rhs_source in vector
+    ]
+    assert same_source_pairs == [(copy_1, copy_2)]
+
+
 @pytest.mark.parametrize(
     "value, variable, expected",
     [

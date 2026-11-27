@@ -2,6 +2,7 @@
 Feature vectors of the candidate variable pairs of the conditional out-of-SSA.
 """
 
+from __future__ import annotations
 from collections import defaultdict
 from enum import Enum
 from itertools import combinations, permutations, product
@@ -51,7 +52,7 @@ class Feature(Enum):
     same_rhs_source = "same_rhs_source"  # both variables are defined as copies of the same variable
 
     @staticmethod
-    def usage(number_of_variables: int) -> "Feature":
+    def usage(number_of_variables: int) -> Feature:
         """Return usage_n for n = number_of_variables (1 to 9)."""
         return Feature(f"usage_{number_of_variables}")
 
@@ -175,18 +176,13 @@ class ConditionalAttributeHelper:
             - same source:           x = a; y = a         -> (x, y)
         A pair may occur several times, with different vectors.
         """
-        # source variable -> the variables defined as a copy of it (casts allowed): x = a, y = (int) a
+        # source variable -> the variables defined as a plain copy of it: x = a, y = a
         same_source_definitions: DefaultDict[Variable, List[Variable]] = defaultdict(list)
         for assignment, last_definition in self._assignments_with_dominating_definitions(cfg):
             lhs = self._get_expression_info(assignment.destination)
             rhs = self._get_expression_info(assignment.value)
-            if (
-                not lhs.has_bad_operation_strong
-                and not rhs.has_bad_operation_strong
-                and len(lhs.variable_counts) == 1
-                and len(rhs.variable_counts) == 1
-            ):
-                same_source_definitions[next(iter(rhs.variable_counts))].append(next(iter(lhs.variable_counts)))
+            if not lhs.has_bad_operation_strong and isinstance(assignment.value, Variable) and len(lhs.variable_counts) == 1:
+                same_source_definitions[assignment.value].append(next(iter(lhs.variable_counts)))
             if not lhs.has_bad_operation_strong and len(lhs.variable_counts) == 1:
                 definition = next(iter(lhs.variable_counts))
                 previous_definition = last_definition.get(definition.name)
