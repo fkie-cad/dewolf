@@ -416,9 +416,7 @@ class ConditionalVariableRenamer(VariableRenamer):
 
         :param cfg: The control flow graph from which the dependency graph is derived.
         """
-        dependency_graph = dependency_graph_from_cfg(
-            cfg, self.coefficients, self.intercept, self.phi_pairs, self.interference_graph, self.min_kept_score
-        )
+        dependency_graph = dependency_graph_from_cfg(cfg, self.coefficients, self.intercept, self.phi_pairs, self.min_kept_score)
         dependency_graph = self.merge_contracted_variables(dependency_graph)
         dependency_graph = self.create_variable_classes(dependency_graph)
         self._create_renaming_map(self._extract_classes(dependency_graph))
