@@ -103,7 +103,7 @@ def get_phi_pairs(cfg: ControlFlowGraph) -> PhiPairs:
 class ExpressionInfo(NamedTuple):
     """Summary of the rhs of an assignment that the assignment features are computed from."""
 
-    variable_counts: Dict[Variable, int]  # variable -> number of occurrences
+    occurrences_per_variable: Dict[Variable, int]  # variable -> number of occurrences
     constant_count: int  # the callee of a call is not a constant
     use_kinds: Dict[Variable, Set[Feature]]  # variable -> use-kind features of the operations on the paths to its occurrences
     variables_below_operations: Set[Variable]  # variables with an operation other than a cast on the path to an occurrence
@@ -148,7 +148,7 @@ class ConditionalAttributeHelper:
                 yield self._edge(dominating_definition, definition, {Feature.dominating_definition: 1})
             # all variables of the destination, also p of *p = a
             lhs_variables = assignment.destination.requirements
-            for variable_1, variable_2 in product(lhs_variables, rhs_expression_info.variable_counts):
+            for variable_1, variable_2 in product(lhs_variables, rhs_expression_info.occurrences_per_variable):
                 yield self._edge(
                     variable_1,
                     variable_2,
@@ -192,16 +192,16 @@ class ConditionalAttributeHelper:
     def _get_expression_info(self, expression: Expression) -> ExpressionInfo:
         """Count the variables and constants of the given rhs and find how each variable is used."""
         constant_count = 0
-        variable_counts: Dict[Variable, int] = {}
+        occurrences_per_variable: Dict[Variable, int] = {}
         for subexpression in expression.subexpressions():
             if isinstance(subexpression, Variable):
-                variable_counts[subexpression] = variable_counts.get(subexpression, 0) + 1
+                occurrences_per_variable[subexpression] = occurrences_per_variable.get(subexpression, 0) + 1
             elif isinstance(subexpression, Constant):
                 constant_count += 1
             if isinstance(subexpression, Call) and isinstance(subexpression.function, FunctionSymbol):
                 constant_count -= 1
         use_kinds, variables_below_operations = self._get_use_kinds(expression)
-        return ExpressionInfo(variable_counts, constant_count, use_kinds, variables_below_operations)
+        return ExpressionInfo(occurrences_per_variable, constant_count, use_kinds, variables_below_operations)
 
     def _get_use_kinds(self, expression: Expression) -> Tuple[Dict[Variable, Set[Feature]], Set[Variable]]:
         """
@@ -246,8 +246,8 @@ class ConditionalAttributeHelper:
         is_strong, is_mid and def_by_usage need a variable as destination (x = ..., not *p = ... or the contraction (byte) eax = ...).
         """
         vector: FeatureVector = dict.fromkeys(rhs.use_kinds[rhs_variable], 1)
-        if len(rhs.variable_counts) <= 9:
-            vector[Feature.usage(len(rhs.variable_counts))] = 1
+        if len(rhs.occurrences_per_variable) <= 9:
+            vector[Feature.usage(len(rhs.occurrences_per_variable))] = 1
         for feature, check in (
             (Feature.is_strong, self._is_strong),
             (Feature.is_mid, self._is_mid),
@@ -263,8 +263,8 @@ class ConditionalAttributeHelper:
     @staticmethod
     def _is_strong(rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
         return (
-            len(rhs.variable_counts) == 1
-            and rhs.variable_counts[rhs_variable] == 1
+            len(rhs.occurrences_per_variable) == 1
+            and rhs.occurrences_per_variable[rhs_variable] == 1
             and rhs.constant_count == 0
             and rhs_variable not in rhs.variables_below_operations
         )
@@ -272,15 +272,15 @@ class ConditionalAttributeHelper:
     @staticmethod
     def _is_mid(rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
         return (
-            len(rhs.variable_counts) == 1
-            and rhs.variable_counts[rhs_variable] == 1
+            len(rhs.occurrences_per_variable) == 1
+            and rhs.occurrences_per_variable[rhs_variable] == 1
             and rhs.constant_count == 1
             and rhs.use_kinds[rhs_variable] == {Feature.use_direct}
         )
 
     @staticmethod
     def _def_by_usage(rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
-        return len(rhs.variable_counts) == 1 and rhs.use_kinds[rhs_variable] == {Feature.use_direct}
+        return len(rhs.occurrences_per_variable) == 1 and rhs.use_kinds[rhs_variable] == {Feature.use_direct}
 
     @staticmethod
     def _same_base_name(variable_1: Variable, variable_2: Variable) -> bool:
