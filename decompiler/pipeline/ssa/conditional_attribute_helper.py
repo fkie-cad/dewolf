@@ -7,8 +7,9 @@ from __future__ import annotations
 from collections import defaultdict
 from enum import Enum
 from itertools import combinations, permutations, product
-from typing import DefaultDict, Dict, Iterator, List, NamedTuple, Set, Tuple
+from typing import DefaultDict, Dict, Iterator, List, NamedTuple, Optional, Set, Tuple
 
+from decompiler.structures.graphs.basicblock import BasicBlock
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo.expressions import Constant, Expression, FunctionSymbol, GlobalVariable, Variable
@@ -152,44 +153,52 @@ class ConditionalAttributeHelper:
         A pair may occur several times, with different vectors.
         """
         # variable -> the variables defined as a plain copy of it: x = a, y = a  ->  variables_copied_from[a] == [x, y]
-        # After the Phi lifting, a may have several definitions, so two copies do not necessarily have the same value.
         variables_copied_from: DefaultDict[Variable, List[Variable]] = defaultdict(list)
-        for assignment, last_definition in self._assignments_with_dominating_definitions(cfg):
+        for assignment, dominating_definition in self._assignments_with_dominating_definition(cfg):
             lhs = self._get_expression_info(assignment.destination)
             rhs = self._get_expression_info(assignment.value)
-            if not lhs.has_bad_operation_strong and isinstance(assignment.value, Variable) and len(lhs.variable_counts) == 1:
-                variables_copied_from[assignment.value].append(next(iter(lhs.variable_counts)))
-            if not lhs.has_bad_operation_strong and len(lhs.variable_counts) == 1:
-                definition = next(iter(lhs.variable_counts))
-                previous_definition = last_definition.get(definition.name)
-                last_definition[definition.name] = definition
-                if previous_definition is not None:
-                    yield self._edge(previous_definition, definition, {Feature.following_definitions: 1})
+            definition = self._defined_variable(assignment)
+            if definition is not None and isinstance(assignment.value, Variable):
+                variables_copied_from[assignment.value].append(definition)
+            if dominating_definition is not None:
+                yield self._edge(dominating_definition, definition, {Feature.following_definitions: 1})
             for variable_1, variable_2 in product(lhs.variable_counts, rhs.variable_counts):
                 yield self._edge(variable_1, variable_2, self._assignment_features(lhs, rhs, variable_2))
         for copies in variables_copied_from.values():
             for variable_1, variable_2 in combinations(copies, 2):  # two copies of the same variable
                 yield self._edge(variable_1, variable_2, {Feature.same_rhs_source: 1})
 
-    @staticmethod
-    def _assignments_with_dominating_definitions(cfg: ControlFlowGraph) -> Iterator[Tuple[Assignment, Dict[str, Variable]]]:
+    def _assignments_with_dominating_definition(self, cfg: ControlFlowGraph) -> Iterator[Tuple[Assignment, Optional[Variable]]]:
         """
-        Yield every assignment in dominator-tree order, together with the last dominating definition per variable name.
+        Yield every assignment in dominator-tree order, with the last dominating definition of the name it defines (or None).
 
-        The caller updates the dict; changes are only visible to blocks dominated by the current one.
+        y#1 = ...; y#2 = ...  ->  (y#1 = ..., None), (y#2 = ..., y#1)
         """
         if not cfg.nodes:  # an empty function has nothing to rename
             return
         dominator_tree = cfg.dominator_tree
-        stack = [(cfg.root, {})]
+        stack: List[Tuple[BasicBlock, Dict[str, Variable]]] = [(cfg.root, {})]
         while stack:
             basic_block, inherited_definitions = stack.pop()
             last_definition = dict(inherited_definitions)
             for instruction in basic_block:
-                if isinstance(instruction, Assignment):
-                    yield instruction, last_definition
+                if not isinstance(instruction, Assignment):
+                    continue
+                definition = self._defined_variable(instruction)
+                if definition is None:
+                    yield instruction, None
+                    continue
+                yield instruction, last_definition.get(definition.name)
+                last_definition[definition.name] = definition
             for child in dominator_tree.get_successors(basic_block):
                 stack.append((child, last_definition))
+
+    def _defined_variable(self, assignment: Assignment) -> Optional[Variable]:
+        """Return the variable the assignment defines: exactly one variable on the lhs and no operation except casts, else None."""
+        lhs = self._get_expression_info(assignment.destination)
+        if lhs.has_bad_operation_strong or len(lhs.variable_counts) != 1:
+            return None
+        return next(iter(lhs.variable_counts))
 
     def _get_expression_info(self, expression: Expression) -> ExpressionInfo:
         """Count the variables and constants of the given expression and check it for operations that weaken a dependency."""
