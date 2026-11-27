@@ -379,17 +379,16 @@ class ConditionalVariableRenamer(VariableRenamer):
         self,
         task: DecompilerTask,
         interference_graph: InterferenceGraph,
-        weights: ConditionalWeights,
         phi_pairs: PhiPairs,
     ):
         """
         :param task: The decompiler task whose variables we want to rename.
         :param interference_graph: The interference graph of the control flow graph of the task.
-        :param weights: The linear model that scores variable pairs, the strategy of create_variable_classes and min_kept_score.
         :param phi_pairs: The ordered pairs of variables that co-occurred in a phi function, see get_phi_pairs.
         """
         super().__init__(task, interference_graph.copy())
-        self.weights = weights
+        # The linear model that scores variable pairs, the strategy of create_variable_classes and min_kept_score.
+        self.weights = ConditionalWeights.from_file(task.options.getstring("out-of-ssa-translation.conditional_weights", fallback=""))
         self.phi_pairs = phi_pairs
         self.corrected_interference_pairs = 0
         # The renamer works on the given, uncontracted graph (the base class contracted a copy).
