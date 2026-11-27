@@ -154,14 +154,13 @@ class ConditionalAttributeHelper:
             if dominating_definition is not None:
                 yield (dominating_definition, definition), {Feature.dominating_definition: 1}
             # all variables of the destination, also p of *p = a
-            lhs_variables = assignment.destination.requirements
-            for variable_1, variable_2 in product(lhs_variables, rhs_expression_info.occurrences_per_variable):
-                yield (variable_1, variable_2), self._assignment_features(
-                    isinstance(assignment.destination, Variable), rhs_expression_info, variable_2
+            for lhs_variable, rhs_variable in product(assignment.destination.requirements, rhs_expression_info.occurrences_per_variable):
+                yield (lhs_variable, rhs_variable), self._assignment_features(
+                    isinstance(assignment.destination, Variable), rhs_expression_info, rhs_variable
                 )
         for copies in variables_copied_from.values():
-            for variable_1, variable_2 in combinations(copies, 2):  # two copies of the same variable
-                yield (variable_1, variable_2), {Feature.same_rhs_source: 1}
+            for lhs_variable, rhs_variable in combinations(copies, 2):  # two copies of the same variable
+                yield (lhs_variable, rhs_variable), {Feature.same_rhs_source: 1}
 
     def _assignments_with_dominating_definition(self, cfg: ControlFlowGraph) -> Iterator[Tuple[Assignment, Optional[Variable]]]:
         """
@@ -205,14 +204,15 @@ class ConditionalAttributeHelper:
         stack: List[Expression] = [expression]
         while stack:
             subexpression = stack.pop()
-            if isinstance(subexpression, Variable):  # not into a variable: a global variable has its initial value as child
-                occurrences_per_variable[subexpression] = occurrences_per_variable.get(subexpression, 0) + 1
-                continue
-            if isinstance(subexpression, Constant):
-                constant_count += 1
-            if isinstance(subexpression, Call) and isinstance(subexpression.function, FunctionSymbol):
-                constant_count -= 1
-            stack.extend(subexpression)
+            match subexpression:
+                case Variable():  # not into a variable: a global variable has its initial value as child
+                    occurrences_per_variable[subexpression] = occurrences_per_variable.get(subexpression, 0) + 1
+                case Constant():
+                    constant_count += 1
+                case Call(function=FunctionSymbol()):  # the callee is no constant
+                    stack.extend(subexpression.parameters)
+                case _:
+                    stack.extend(subexpression)
         return ExpressionInfo(
             occurrences_per_variable, constant_count, self._use_kinds_per_variable(expression), self._without_casts(expression)
         )
