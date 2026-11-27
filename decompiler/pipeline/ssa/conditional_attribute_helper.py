@@ -14,7 +14,7 @@ from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo.expressions import Constant, Expression, FunctionSymbol, GlobalVariable, Variable
 from decompiler.structures.pseudo.instructions import Assignment, Phi
-from decompiler.structures.pseudo.operations import Call, Operation, OperationType
+from decompiler.structures.pseudo.operations import Call, Operation, OperationType, UnaryOperation
 
 PhiPairs = Set[Tuple[Variable, Variable]]
 
@@ -193,12 +193,13 @@ class ConditionalAttributeHelper:
             for child in dominator_tree.get_successors(basic_block):
                 stack.append((child, last_definition))
 
-    def _defined_variable(self, assignment: Assignment) -> Optional[Variable]:
-        """Return the variable the assignment defines: exactly one variable on the lhs and no operation except casts, else None."""
-        lhs = self._get_expression_info(assignment.destination)
-        if lhs.has_bad_operation_strong or len(lhs.variable_counts) != 1:
-            return None
-        return next(iter(lhs.variable_counts))
+    @staticmethod
+    def _defined_variable(assignment: Assignment) -> Optional[Variable]:
+        """Return the variable the assignment defines, also through casts: x = ..., (int) x = ...; else None (*p = ..., a.b = ...)."""
+        destination = assignment.destination
+        while isinstance(destination, UnaryOperation) and destination.operation == OperationType.cast:
+            destination = destination.operand
+        return destination if isinstance(destination, Variable) else None
 
     def _get_expression_info(self, expression: Expression) -> ExpressionInfo:
         """Count the variables and constants of the given expression and check it for operations that weaken a dependency."""
