@@ -232,7 +232,7 @@ class ConditionalAttributeHelper:
             if isinstance(subexpression, Variable):
                 if kinds_on_path:
                     use_kinds_per_variable[subexpression].update(kinds_on_path)
-                else:  # only arithmetic and casts on the path
+                else:
                     use_kinds_per_variable[subexpression].add(Feature.use_direct)
             elif isinstance(subexpression, Operation):
                 kinds = kinds_on_path
@@ -259,7 +259,7 @@ class ConditionalAttributeHelper:
 
         is_strong, is_mid and def_by_usage need a variable as destination (x = ..., not *p = ... or the contraction (byte) eax = ...).
         """
-        vector: FeatureVector = dict.fromkeys(rhs.use_kinds_per_variable[rhs_variable], 1)
+        vector: FeatureVector = {feature: 1 for feature in rhs.use_kinds_per_variable[rhs_variable]}
         if len(rhs.occurrences_per_variable) <= 9:
             vector[Feature.usage(len(rhs.occurrences_per_variable))] = 1
         for feature, check in (
