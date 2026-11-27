@@ -65,14 +65,9 @@ def cannot_share_name(interference_graph: InterferenceGraph, variable_1: Variabl
         variable_1.is_aliased and variable_2.is_aliased and variable_1.name != variable_2.name
     ):
         return True
-    if isinstance(variable_1, GlobalVariable) != isinstance(variable_2, GlobalVariable):
+    if isinstance(variable_1, GlobalVariable) != isinstance(variable_2, GlobalVariable) or (isinstance(variable_1, GlobalVariable) and isinstance(variable_2, GlobalVariable) and variable_1.name != variable_2.name):
         return True
-    if isinstance(variable_1, GlobalVariable) and isinstance(variable_2, GlobalVariable) and variable_1.name != variable_2.name:
-        return True
-    if variable_1.type != variable_2.type:
-        # The renamer only merges variables of identical type (a class has one type), also if the sizes agree.
-        return True
-    return False
+    return variable_1.type != variable_2.type # The renamer only merges variables of identical type
 
 
 def get_phi_pairs(cfg: ControlFlowGraph) -> PhiPairs:
@@ -134,11 +129,7 @@ class ExpressionInfo(NamedTuple):
 class AbstractAttributeHelper(ABC):
     """Feature extraction for variable pairs, shared by the renamer and external training code."""
 
-    _GOOD_OPERATIONS = frozenset(
-        {
-            OperationType.cast,
-        }
-    )
+    _GOOD_OPERATIONS = frozenset({OperationType.cast})
 
     _BAD_OPERATIONS = frozenset(
         {
