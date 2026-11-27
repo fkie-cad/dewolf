@@ -39,6 +39,7 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
         self._int_repr_scope: int = task.options.getint("code-generator.int_representation_scope", fallback=256)
         self._neg_hex_as_twos_complement: bool = task.options.getboolean("code-generator.negative_hex_as_twos_complement", fallback=True)
         self._aggressive_array_detection: bool = task.options.getboolean("code-generator.aggressive_array_detection", fallback=False)
+        self._simplify_branches: bool = task.options.getboolean("code-generator.simplify_branches", fallback=True)
         self._preferred_true_branch: str = task.options.getstring("code-generator.preferred_true_branch", fallback="none")
         self.task = task
 
@@ -69,10 +70,17 @@ class CodeVisitor(ASTVisitorInterface, CExpressionGenerator):
     def visit_condition_node(self, node: ast_nodes.ConditionNode) -> str:
         """Generate code for a conditional."""
         true_str = self.visit(node.true_branch_child)
+        if self._simplify_branches and node.condition.is_true:
+            return true_str
         if node.false_branch is None:
+            if self._simplify_branches and (node.condition.is_false or not true_str):
+                return ""
             return f"if ({self._condition_string(node.condition)}) {{{true_str}}}"
-
         false_str = self.visit(node.false_branch_child)
+        if self._simplify_branches and node.condition.is_false:
+            return false_str
+        if self._simplify_branches and not false_str:
+            return f"if ({self._condition_string(node.condition)}) {{{true_str}}}"
 
         condition = node.condition
         true_child = node.true_branch_child
