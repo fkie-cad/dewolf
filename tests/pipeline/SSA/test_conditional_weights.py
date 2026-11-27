@@ -18,8 +18,7 @@ NAMES = [feature.value for feature in Feature]
 
 def _weights(**changes) -> dict:
     data = {
-        "features": NAMES,
-        "coefficients": [float(i) for i in range(len(NAMES))],
+        "coefficients": {name: float(i) for i, name in enumerate(NAMES)},
         "intercept": -1.5,
         "strategy": 3,
         "min_kept_score": 0.25,
@@ -46,7 +45,7 @@ def _task(weights_path: str = "") -> DecompilerTask:
 
 def test_bundled_file_matches_features():
     with open(DEFAULT_WEIGHTS_FILE) as file:
-        assert json.load(file)["features"] == NAMES
+        assert list(json.load(file)["coefficients"]) == NAMES
     assert set(ConditionalWeights.from_file().coefficients) == set(Feature)
 
 
@@ -63,23 +62,12 @@ def test_min_kept_score_null_is_off(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "features",
-    [NAMES[:-1], NAMES + ["new_feature"], NAMES[:-1] + [NAMES[0]], []],
+    "names",
+    [NAMES[:-1], NAMES + ["new_feature"], []],
 )
-def test_feature_mismatch_fails(tmp_path, features):
+def test_missing_or_unknown_feature_fails(tmp_path, names):
     with pytest.raises(ValueError):
-        ConditionalWeights.from_file(_write(tmp_path, _weights(features=features)))
-
-
-def test_feature_order_is_free(tmp_path):
-    reversed_names = list(reversed(NAMES))
-    weights = ConditionalWeights.from_file(_write(tmp_path, _weights(features=reversed_names)))
-    assert weights.coefficients == {Feature(name): float(i) for i, name in enumerate(reversed_names)}
-
-
-def test_coefficient_count_mismatch_fails(tmp_path):
-    with pytest.raises(ValueError):
-        ConditionalWeights.from_file(_write(tmp_path, _weights(coefficients=[1.0])))
+        ConditionalWeights.from_file(_write(tmp_path, _weights(coefficients={name: 1.0 for name in names})))
 
 
 class _RecordingRenamer(out_of_ssa_module.ConditionalVariableRenamer):

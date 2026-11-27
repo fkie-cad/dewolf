@@ -31,9 +31,8 @@ class ConditionalWeights:
         - None or "" -> the default file
 
         Format (a JSON object):
-            - features: the names of conditional_attribute_helper.Feature, each exactly once (in any order),
-              otherwise a ValueError is raised.
-            - coefficients: one number per feature, in the order of features.
+            - coefficients: the coefficient of each conditional_attribute_helper.Feature, keyed by its name
+              (missing or unknown names raise a ValueError).
             - intercept: number.
             - strategy: how ConditionalVariableRenamer.create_variable_classes splits the dependency graph (0-4).
             - min_kept_score: lower bound for the scores of kept dependency-graph edges, or null (no lower bound).
@@ -42,15 +41,14 @@ class ConditionalWeights:
         path = Path(path) if path else DEFAULT_WEIGHTS_FILE
         with open(path) as file:
             data = json.load(file)
-        names = list(data.get("features", ()))
-        expected_names = [feature.value for feature in Feature]
-        if sorted(names) != sorted(expected_names):
-            raise ValueError(f"Conditional out-of-SSA weights file {path}: features {names} do not match {expected_names}")
-        if len(data["coefficients"]) != len(names):
+        names = set(data["coefficients"])
+        expected_names = {feature.value for feature in Feature}
+        if names != expected_names:
             raise ValueError(
-                f"Conditional out-of-SSA weights file {path}: expected {len(names)} coefficients, got {len(data['coefficients'])}"
+                f"Conditional out-of-SSA weights file {path}: missing features {sorted(expected_names - names)}, "
+                f"unknown features {sorted(names - expected_names)}"
             )
-        coefficients = {Feature(name): float(coefficient) for name, coefficient in zip(names, data["coefficients"])}
+        coefficients = {Feature(name): float(coefficient) for name, coefficient in data["coefficients"].items()}
         min_kept_score = data.get("min_kept_score")
         return cls(
             coefficients=coefficients,
