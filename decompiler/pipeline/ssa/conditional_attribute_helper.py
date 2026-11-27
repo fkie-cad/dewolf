@@ -25,8 +25,8 @@ class Feature(Enum):
     The features of a candidate variable pair; the weights file names them by their value.
 
     There are three groups, the comment of each feature starts with its group:
-        - pair:       depends only on the two variables, set for every pair (see _PAIR_CHECKS)
-        - assignment: depends on the assignment of the pair, only for assignment pairs (see _ASSIGNMENT_CHECKS)
+        - pair:       depends only on the two variables, set for every pair (see ConditionalAttributeHelper._edge)
+        - assignment: depends on the assignment of the pair, only for assignment pairs (see ConditionalAttributeHelper._assignment_features)
         - kind:       marks the kind of the pair; an assignment pair has no kind feature
     The member order is the column order of the training data, so it is not grouped.
     "rhs variable" is the variable of the pair that occurs in the rhs of the assignment.
@@ -98,42 +98,6 @@ def get_phi_pairs(cfg: ControlFlowGraph) -> PhiPairs:
     return phi_pairs
 
 
-# The use kind that an operation adds to every variable below it; all other operations are transparent.
-_USE_KIND_OF_OPERATION = {
-    OperationType.call: Feature.use_call,
-    OperationType.dereference: Feature.use_memory,
-    OperationType.field: Feature.use_memory,
-    OperationType.member_access: Feature.use_memory,
-    OperationType.pointer: Feature.use_memory,  # unused by the frontend; a pointer access is a memory access
-    OperationType.address: Feature.use_address,
-}
-
-
-def _get_use_kinds(expression: Expression) -> Tuple[Dict[Variable, Set[Feature]], Set[Variable]]:
-    """
-    Return the use kinds per variable and the variables that have an operation other than a cast on their path.
-
-    Every kind of operation on the path from the root to an occurrence is part of the set, an occurrence without any such operation is
-    a direct use. The sets of several occurrences are united.
-    """
-    use_kinds: Dict[Variable, Set[Feature]] = {}
-    variables_below_operations: Set[Variable] = set()
-    stack = [(expression, frozenset(), False)]
-    while stack:
-        subexpression, path_kinds, below_operation = stack.pop()
-        if isinstance(subexpression, Variable):
-            use_kinds.setdefault(subexpression, set()).update(path_kinds or {Feature.use_direct})
-            if below_operation:
-                variables_below_operations.add(subexpression)
-        elif isinstance(subexpression, Operation):
-            kinds = path_kinds
-            if subexpression.operation in _USE_KIND_OF_OPERATION:
-                kinds = path_kinds | {_USE_KIND_OF_OPERATION[subexpression.operation]}
-            below = below_operation or subexpression.operation != OperationType.cast
-            stack.extend((operand, kinds, below) for operand in subexpression)
-    return use_kinds, variables_below_operations
-
-
 class ExpressionInfo(NamedTuple):
     """Summary of an expression that the feature vectors are computed from."""
 
@@ -143,52 +107,6 @@ class ExpressionInfo(NamedTuple):
     has_bad_operation_strong: bool
     has_bad_operation_mid: bool
     variable_counts: Dict[Variable, int]  # variable -> number of occurrences
-
-
-def _is_strong(lhs: ExpressionInfo, rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
-    return (
-        len(rhs.variable_counts) == 1
-        and rhs.variable_counts[rhs_variable] == 1
-        and rhs.constant_count == 0
-        and rhs_variable not in rhs.variables_below_operations
-        and not lhs.has_bad_operation_strong
-    )
-
-
-def _is_mid(lhs: ExpressionInfo, rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
-    return (
-        len(rhs.variable_counts) == 1
-        and rhs.variable_counts[rhs_variable] == 1
-        and rhs.constant_count == 1
-        and rhs.use_kinds[rhs_variable] == {Feature.use_direct}
-        and not lhs.has_bad_operation_mid
-    )
-
-
-def _def_by_usage(lhs: ExpressionInfo, rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
-    return len(rhs.variable_counts) == 1 and rhs.use_kinds[rhs_variable] == {Feature.use_direct} and not lhs.has_bad_operation_mid
-
-
-def _same_base_name(variable_1: Variable, variable_2: Variable) -> bool:
-    return variable_1.name == variable_2.name
-
-
-def _same_storage(variable_1: Variable, variable_2: Variable) -> bool:
-    provenance_1, provenance_2 = variable_1.provenance, variable_2.provenance
-    return (
-        provenance_1 is not None
-        and provenance_2 is not None
-        and provenance_1.source_type is not None
-        and provenance_1.storage is not None
-        and provenance_1.source_type == provenance_2.source_type
-        and provenance_1.storage == provenance_2.storage
-    )
-
-
-# The boolean assignment features, each checked for (lhs, rhs, rhs variable). use_* and usage_n are groups, see _assignment_features.
-_ASSIGNMENT_CHECKS = {Feature.is_strong: _is_strong, Feature.is_mid: _is_mid, Feature.def_by_usage: _def_by_usage}
-# The pair features, each checked for (variable_1, variable_2). same_phi needs the Phi pairs, see ConditionalAttributeHelper._same_phi.
-_PAIR_CHECKS = {Feature.same_base_name: _same_base_name, Feature.same_storage: _same_storage}
 
 
 class ConditionalAttributeHelper:
@@ -208,6 +126,16 @@ class ConditionalAttributeHelper:
             OperationType.member_access,
         }
     )
+
+    # The use kind that an operation adds to every variable below it; all other operations are transparent.
+    _USE_KIND_OF_OPERATION = {
+        OperationType.call: Feature.use_call,
+        OperationType.dereference: Feature.use_memory,
+        OperationType.field: Feature.use_memory,
+        OperationType.member_access: Feature.use_memory,
+        OperationType.pointer: Feature.use_memory,  # unused by the frontend; a pointer access is a memory access
+        OperationType.address: Feature.use_address,
+    }
 
     def __init__(self, phi_pairs: PhiPairs) -> None:
         """:param phi_pairs: The ordered pairs of variables that co-occur in a phi function, see get_phi_pairs."""
@@ -242,49 +170,8 @@ class ConditionalAttributeHelper:
             for variable_1, variable_2 in combinations(definitions, 2):
                 yield self._edge(variable_1, variable_2, {Feature.same_rhs_source: 1})
 
-    def _edge(self, variable_1: Variable, variable_2: Variable, features: FeatureVector) -> Tuple[VariablePair, FeatureVector]:
-        """Return the pair with the given kind or assignment features plus the pair features, which every pair gets."""
-        pair_features = {feature: 1 for feature, check in _PAIR_CHECKS.items() if check(variable_1, variable_2)}
-        if self._same_phi(variable_1, variable_2):
-            pair_features[Feature.same_phi] = 1
-        return (variable_1, variable_2), {**features, **pair_features}
-
-    def _same_phi(self, variable_1: Variable, variable_2: Variable) -> bool:
-        return (variable_1, variable_2) in self._phi_pairs
-
-    def _assignment_features(self, lhs: ExpressionInfo, rhs: ExpressionInfo, rhs_variable: Variable) -> FeatureVector:
-        """Return the assignment features of the pair (lhs variable, rhs_variable): use kinds, usage_n and _ASSIGNMENT_CHECKS."""
-        vector: FeatureVector = dict.fromkeys(rhs.use_kinds[rhs_variable], 1)
-        if len(rhs.variable_counts) <= 9:
-            vector[Feature.usage(len(rhs.variable_counts))] = 1
-        for feature, check in _ASSIGNMENT_CHECKS.items():
-            if check(lhs, rhs, rhs_variable):
-                vector[feature] = 1
-        return vector
-
-    def _get_expression_info(self, expression: Expression) -> ExpressionInfo:
-        """Count the variables and constants of the given expression and check it for operations that weaken a dependency."""
-        constant_count = 0
-        has_bad_operation_strong = False
-        has_bad_operation_mid = False
-        variable_counts: Dict[Variable, int] = {}
-        for subexpression in expression.subexpressions():
-            if isinstance(subexpression, Variable):
-                variable_counts[subexpression] = variable_counts.get(subexpression, 0) + 1
-            elif isinstance(subexpression, Constant):
-                constant_count += 1
-            if isinstance(subexpression, Call) and isinstance(subexpression.function, FunctionSymbol):
-                constant_count -= 1
-            if isinstance(subexpression, Operation) and subexpression.operation not in self._GOOD_OPERATIONS:
-                has_bad_operation_strong = True
-            if isinstance(subexpression, Operation) and subexpression.operation in self._BAD_OPERATIONS:
-                has_bad_operation_mid = True
-        use_kinds, variables_below_operations = _get_use_kinds(expression)
-        return ExpressionInfo(
-            constant_count, use_kinds, variables_below_operations, has_bad_operation_strong, has_bad_operation_mid, variable_counts
-        )
-
-    def _assignments_with_dominating_definitions(self, cfg: ControlFlowGraph) -> Iterator[Tuple[Assignment, Dict[str, Variable]]]:
+    @staticmethod
+    def _assignments_with_dominating_definitions(cfg: ControlFlowGraph) -> Iterator[Tuple[Assignment, Dict[str, Variable]]]:
         """
         Yield every assignment in dominator-tree order, together with the last dominating definition per variable name.
 
@@ -302,3 +189,120 @@ class ConditionalAttributeHelper:
                     yield instruction, last_definition
             for child in dominator_tree.get_successors(basic_block):
                 stack.append((child, last_definition))
+
+    @classmethod
+    def _get_expression_info(cls, expression: Expression) -> ExpressionInfo:
+        """Count the variables and constants of the given expression and check it for operations that weaken a dependency."""
+        constant_count = 0
+        has_bad_operation_strong = False
+        has_bad_operation_mid = False
+        variable_counts: Dict[Variable, int] = {}
+        for subexpression in expression.subexpressions():
+            if isinstance(subexpression, Variable):
+                variable_counts[subexpression] = variable_counts.get(subexpression, 0) + 1
+            elif isinstance(subexpression, Constant):
+                constant_count += 1
+            if isinstance(subexpression, Call) and isinstance(subexpression.function, FunctionSymbol):
+                constant_count -= 1
+            if isinstance(subexpression, Operation) and subexpression.operation not in cls._GOOD_OPERATIONS:
+                has_bad_operation_strong = True
+            if isinstance(subexpression, Operation) and subexpression.operation in cls._BAD_OPERATIONS:
+                has_bad_operation_mid = True
+        use_kinds, variables_below_operations = cls._get_use_kinds(expression)
+        return ExpressionInfo(
+            constant_count, use_kinds, variables_below_operations, has_bad_operation_strong, has_bad_operation_mid, variable_counts
+        )
+
+    @classmethod
+    def _get_use_kinds(cls, expression: Expression) -> Tuple[Dict[Variable, Set[Feature]], Set[Variable]]:
+        """
+        Return the use kinds per variable and the variables that have an operation other than a cast on their path.
+
+        Every kind of operation on the path from the root to an occurrence is part of the set, an occurrence without any such operation
+        is a direct use. The sets of several occurrences are united.
+        """
+        use_kinds: Dict[Variable, Set[Feature]] = {}
+        variables_below_operations: Set[Variable] = set()
+        stack = [(expression, frozenset(), False)]
+        while stack:
+            subexpression, path_kinds, below_operation = stack.pop()
+            if isinstance(subexpression, Variable):
+                use_kinds.setdefault(subexpression, set()).update(path_kinds or {Feature.use_direct})
+                if below_operation:
+                    variables_below_operations.add(subexpression)
+            elif isinstance(subexpression, Operation):
+                kinds = path_kinds
+                if subexpression.operation in cls._USE_KIND_OF_OPERATION:
+                    kinds = path_kinds | {cls._USE_KIND_OF_OPERATION[subexpression.operation]}
+                below = below_operation or subexpression.operation != OperationType.cast
+                stack.extend((operand, kinds, below) for operand in subexpression)
+        return use_kinds, variables_below_operations
+
+    def _edge(self, variable_1: Variable, variable_2: Variable, features: FeatureVector) -> Tuple[VariablePair, FeatureVector]:
+        """Return the pair with the given kind or assignment features plus the pair features, which every pair gets."""
+        vector = dict(features)
+        for feature, check in (
+            (Feature.same_base_name, self._same_base_name),
+            (Feature.same_storage, self._same_storage),
+            (Feature.same_phi, self._same_phi),
+        ):
+            if check(variable_1, variable_2):
+                vector[feature] = 1
+        return (variable_1, variable_2), vector
+
+    def _assignment_features(self, lhs: ExpressionInfo, rhs: ExpressionInfo, rhs_variable: Variable) -> FeatureVector:
+        """Return the assignment features of the pair (lhs variable, rhs_variable): use kinds, usage_n, is_strong, is_mid, def_by_usage."""
+        vector: FeatureVector = dict.fromkeys(rhs.use_kinds[rhs_variable], 1)
+        if len(rhs.variable_counts) <= 9:
+            vector[Feature.usage(len(rhs.variable_counts))] = 1
+        for feature, check in (
+            (Feature.is_strong, self._is_strong),
+            (Feature.is_mid, self._is_mid),
+            (Feature.def_by_usage, self._def_by_usage),
+        ):
+            if check(lhs, rhs, rhs_variable):
+                vector[feature] = 1
+        return vector
+
+    def _same_phi(self, variable_1: Variable, variable_2: Variable) -> bool:
+        return (variable_1, variable_2) in self._phi_pairs
+
+    @staticmethod
+    def _is_strong(lhs: ExpressionInfo, rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
+        return (
+            len(rhs.variable_counts) == 1
+            and rhs.variable_counts[rhs_variable] == 1
+            and rhs.constant_count == 0
+            and rhs_variable not in rhs.variables_below_operations
+            and not lhs.has_bad_operation_strong
+        )
+
+    @staticmethod
+    def _is_mid(lhs: ExpressionInfo, rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
+        return (
+            len(rhs.variable_counts) == 1
+            and rhs.variable_counts[rhs_variable] == 1
+            and rhs.constant_count == 1
+            and rhs.use_kinds[rhs_variable] == {Feature.use_direct}
+            and not lhs.has_bad_operation_mid
+        )
+
+    @staticmethod
+    def _def_by_usage(lhs: ExpressionInfo, rhs: ExpressionInfo, rhs_variable: Variable) -> bool:
+        return len(rhs.variable_counts) == 1 and rhs.use_kinds[rhs_variable] == {Feature.use_direct} and not lhs.has_bad_operation_mid
+
+    @staticmethod
+    def _same_base_name(variable_1: Variable, variable_2: Variable) -> bool:
+        return variable_1.name == variable_2.name
+
+    @staticmethod
+    def _same_storage(variable_1: Variable, variable_2: Variable) -> bool:
+        provenance_1, provenance_2 = variable_1.provenance, variable_2.provenance
+        return (
+            provenance_1 is not None
+            and provenance_2 is not None
+            and provenance_1.source_type is not None
+            and provenance_1.storage is not None
+            and provenance_1.source_type == provenance_2.source_type
+            and provenance_1.storage == provenance_2.storage
+        )
