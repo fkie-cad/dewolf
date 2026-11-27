@@ -180,7 +180,12 @@ class ConditionalAttributeHelper:
         for assignment, last_definition in self._assignments_with_dominating_definitions(cfg):
             lhs = self._get_expression_info(assignment.destination)
             rhs = self._get_expression_info(assignment.value)
-            if not rhs.has_bad_operation_strong and len(rhs.variable_counts) == 1 and len(lhs.variable_counts) == 1:
+            if (
+                not lhs.has_bad_operation_strong
+                and not rhs.has_bad_operation_strong
+                and len(lhs.variable_counts) == 1
+                and len(rhs.variable_counts) == 1
+            ):
                 same_source_definitions[next(iter(rhs.variable_counts))].append(next(iter(lhs.variable_counts)))
             if not lhs.has_bad_operation_strong and len(lhs.variable_counts) == 1:
                 definition = next(iter(lhs.variable_counts))

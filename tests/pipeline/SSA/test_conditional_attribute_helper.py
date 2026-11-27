@@ -91,6 +91,26 @@ def test_use_kinds_are_zero_for_other_pairs():
             assert not any(feature in vector for feature in USE_KINDS)
 
 
+def test_same_source_needs_a_variable_destination():
+    """*p = a and q = a do not define p and q as copies of a, only q = a and r = a do."""
+    copy_1, copy_2 = Variable("q", INT, 0), Variable("r", INT, 0)
+    cfg = ControlFlowGraph()
+    cfg.add_node(
+        BasicBlock(
+            0,
+            [
+                Assignment(UnaryOperation(OperationType.dereference, [POINTER], INT), ARGUMENT),
+                Assignment(copy_1, ARGUMENT),
+                Assignment(copy_2, ARGUMENT),
+            ],
+        )
+    )
+    same_source_pairs = [
+        pair for pair, vector in ConditionalAttributeHelper(set()).iter_edge_data(cfg) if Feature.same_rhs_source in vector
+    ]
+    assert same_source_pairs == [(copy_1, copy_2)]
+
+
 @pytest.mark.parametrize(
     "value, variable, expected",
     [
