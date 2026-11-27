@@ -11,7 +11,7 @@ from typing import DefaultDict, Dict, Iterable, Iterator, List, Optional, Set, T
 
 import networkx as nx
 import numpy as np
-from decompiler.pipeline.ssa.conditional_attribute_helper import PhiPairs
+from decompiler.pipeline.ssa.conditional_attribute_helper import Feature, PhiPairs
 from decompiler.pipeline.ssa.dependency_graph import DependencyNode, dependency_graph_from_cfg
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
@@ -378,7 +378,7 @@ class ConditionalVariableRenamer(VariableRenamer):
         self,
         task: DecompilerTask,
         interference_graph: InterferenceGraph,
-        coefficients: List[float],
+        coefficients: Dict[Feature, float],
         intercept: float,
         phi_pairs: PhiPairs,
         strategy: int = 0,
@@ -387,7 +387,7 @@ class ConditionalVariableRenamer(VariableRenamer):
         """
         :param task: The decompiler task whose variables we want to rename.
         :param interference_graph: The interference graph of the control flow graph of the task.
-        :param coefficients: The coefficients of the linear model that scores variable pairs, one per feature.
+        :param coefficients: The coefficients of the linear model that scores variable pairs, per feature.
         :param intercept: The intercept of the linear model.
         :param phi_pairs: The ordered pairs of variables that co-occurred in a phi function, see get_phi_pairs.
         :param strategy: How the dependency graph is split into variable classes, see create_variable_classes.

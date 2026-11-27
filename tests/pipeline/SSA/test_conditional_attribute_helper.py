@@ -1,17 +1,7 @@
 """Tests for the feature vectors of the conditional out-of-SSA mode."""
 
 import pytest
-from decompiler.pipeline.ssa.conditional_attribute_helper import (
-    INDEX_DEF_BY_USAGE,
-    INDEX_IS_MID,
-    INDEX_IS_STRONG,
-    INDEX_USE_ADDRESS,
-    INDEX_USE_CALL,
-    INDEX_USE_DIRECT,
-    INDEX_USE_MEMORY,
-    ConditionalAttributeHelper,
-    get_phi_pairs,
-)
+from decompiler.pipeline.ssa.conditional_attribute_helper import ConditionalAttributeHelper, Feature, get_phi_pairs
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.pseudo import (
     Assignment,
@@ -35,7 +25,8 @@ RESULT = Variable("x", INT, 0)
 POINTER = Variable("p", Pointer(INT), 0)
 NODE = Variable("n", Pointer(INT), 0)
 FUNCTION_POINTER = Variable("fp", Pointer(INT), 0)
-USE_INDICES = (INDEX_USE_DIRECT, INDEX_USE_CALL, INDEX_USE_MEMORY, INDEX_USE_ADDRESS)
+USE_KINDS = (Feature.use_direct, Feature.use_call, Feature.use_memory, Feature.use_address)
+STRONG_MID_DEF_BY_USAGE = (Feature.is_strong, Feature.is_mid, Feature.def_by_usage)
 DIRECT, CALL, MEMORY, ADDRESS = (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1)
 
 
@@ -51,12 +42,12 @@ def _vectors(value, destination=RESULT) -> dict:
     """Return the feature vector of each pair (destination, rhs variable) for the assignment destination = value."""
     cfg = ControlFlowGraph()
     cfg.add_node(BasicBlock(0, [Assignment(destination, value)]))
-    return {pair[1]: vector for vector, pair in ConditionalAttributeHelper(get_phi_pairs(cfg)).iter_edge_data(cfg)}
+    return {pair[1]: vector for pair, vector in ConditionalAttributeHelper(get_phi_pairs(cfg)).iter_edge_data(cfg)}
 
 
 def _use_kinds(value) -> dict:
     """Return the four use-kind entries of each pair (x, rhs variable) for the assignment x = value."""
-    return {variable: tuple(vector[index] for index in USE_INDICES) for variable, vector in _vectors(value).items()}
+    return {variable: tuple(vector.get(feature, 0) for feature in USE_KINDS) for variable, vector in _vectors(value).items()}
 
 
 @pytest.mark.parametrize(
@@ -79,7 +70,10 @@ def _use_kinds(value) -> dict:
         ),
         (BinaryOperation(OperationType.member_access, [NODE, Constant(8, INT)], INT), {NODE: MEMORY}),
         (Call(FUNCTION_POINTER, [ARGUMENT], INT), {FUNCTION_POINTER: CALL, ARGUMENT: CALL}),
-        (Call(UnaryOperation(OperationType.dereference, [FUNCTION_POINTER], INT), [ARGUMENT], INT), {FUNCTION_POINTER: (0, 1, 1, 0), ARGUMENT: CALL}),
+        (
+            Call(UnaryOperation(OperationType.dereference, [FUNCTION_POINTER], INT), [ARGUMENT], INT),
+            {FUNCTION_POINTER: (0, 1, 1, 0), ARGUMENT: CALL},
+        ),
     ],
 )
 def test_use_kinds(value, expected):
@@ -92,9 +86,9 @@ def test_use_kinds_are_zero_for_other_pairs():
     first, second, third = Variable("y", INT, 0), Variable("y", INT, 1), Variable("y", INT, 2)
     cfg = ControlFlowGraph()
     cfg.add_node(BasicBlock(0, [Assignment(second, _call(first)), Assignment(third, _call(second))]))
-    for vector, _ in ConditionalAttributeHelper(get_phi_pairs(cfg)).iter_edge_data(cfg):
-        if vector[-2] or vector[-1]:
-            assert [vector[index] for index in USE_INDICES] == [0, 0, 0, 0]
+    for _, vector in ConditionalAttributeHelper(get_phi_pairs(cfg)).iter_edge_data(cfg):
+        if Feature.following_definitions in vector or Feature.same_rhs_source in vector:
+            assert not any(feature in vector for feature in USE_KINDS)
 
 
 @pytest.mark.parametrize(
@@ -120,21 +114,23 @@ def test_use_kinds_are_zero_for_other_pairs():
 def test_strong_mid_and_def_by_usage_depend_on_the_rhs_variable(value, variable, expected):
     """is_strong, is_mid and def_by_usage look at the use of the pair's rhs variable and need exactly one rhs variable."""
     vector = _vectors(value)[variable]
-    assert (vector[INDEX_IS_STRONG], vector[INDEX_IS_MID], vector[INDEX_DEF_BY_USAGE]) == expected
+    assert tuple(vector.get(feature, 0) for feature in STRONG_MID_DEF_BY_USAGE) == expected
 
 
 def test_def_by_usage_with_repeated_direct_uses():
     """x = a * 2 + a - 3 has one variable with direct uses only: def_by_usage but neither strong nor mid."""
-    value = BinaryOperation(OperationType.minus, [_plus(BinaryOperation(OperationType.multiply, [ARGUMENT, Constant(2, INT)]), ARGUMENT), Constant(3, INT)])
+    value = BinaryOperation(
+        OperationType.minus, [_plus(BinaryOperation(OperationType.multiply, [ARGUMENT, Constant(2, INT)]), ARGUMENT), Constant(3, INT)]
+    )
     vector = _vectors(value)[ARGUMENT]
-    assert (vector[INDEX_IS_STRONG], vector[INDEX_IS_MID], vector[INDEX_DEF_BY_USAGE]) == (0, 0, 1)
+    assert tuple(vector.get(feature, 0) for feature in STRONG_MID_DEF_BY_USAGE) == (0, 0, 1)
 
 
 def test_lhs_bad_operation_still_clears_the_vector():
     """The lhs checks stay: a dereferenced destination clears is_strong, is_mid and def_by_usage."""
     destination = UnaryOperation(OperationType.dereference, [POINTER], INT)
     vector = _vectors(ARGUMENT, destination)[ARGUMENT]
-    assert (vector[INDEX_IS_STRONG], vector[INDEX_IS_MID], vector[INDEX_DEF_BY_USAGE]) == (0, 0, 0)
+    assert tuple(vector.get(feature, 0) for feature in STRONG_MID_DEF_BY_USAGE) == (0, 0, 0)
 
 
 @pytest.mark.parametrize(

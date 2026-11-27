@@ -1,5 +1,5 @@
 {
-    "description": "Weights of the conditional out-of-SSA renaming (logistic regression over variable-pair features). The score of a variable pair is intercept + sum(coefficient * feature); pairs with score > 0 become edges of the dependency graph. 'features' must match the feature order of decompiler/pipeline/ssa/conditional_attribute_helper.py. 'strategy' selects how ConditionalVariableRenamer.create_variable_classes splits the dependency graph (4 = greedy merging). 'min_kept_score' is a lower bound for the scores of kept edges (null = no lower bound).",
+    "description": "Weights of the conditional out-of-SSA renaming (logistic regression over variable-pair features). The score of a variable pair is intercept + sum(coefficient * feature); pairs with score > 0 become edges of the dependency graph. 'features' must name each Feature of decompiler/pipeline/ssa/conditional_attribute_helper.py exactly once. 'strategy' selects how ConditionalVariableRenamer.create_variable_classes splits the dependency graph (4 = greedy merging). 'min_kept_score' is a lower bound for the scores of kept edges (null = no lower bound).",
     "features": [
         "is_strong",
         "is_mid",

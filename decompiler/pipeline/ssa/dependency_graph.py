@@ -1,8 +1,8 @@
 """Module for constructing the weighted dependency graph of the conditional out-of-SSA renaming."""
 
-from typing import Iterator, List, Optional, Tuple
+from typing import Dict, Iterator, Optional, Tuple
 
-from decompiler.pipeline.ssa.conditional_attribute_helper import ConditionalAttributeHelper, PhiPairs, cannot_share_name
+from decompiler.pipeline.ssa.conditional_attribute_helper import ConditionalAttributeHelper, Feature, PhiPairs, cannot_share_name
 from decompiler.structures.graphs.cfg import ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
 from decompiler.structures.pseudo.expressions import Variable
@@ -22,7 +22,7 @@ def _collect_variables(cfg: ControlFlowGraph) -> Iterator[Variable]:
 
 def dependency_graph_from_cfg(
     cfg: ControlFlowGraph,
-    coefficients: List[float],
+    coefficients: Dict[Feature, float],
     intercept: float,
     phi_pairs: PhiPairs,
     interference_graph: InterferenceGraph,
@@ -40,8 +40,8 @@ def dependency_graph_from_cfg(
         dependency_graph.add_node((variable,))
 
     helper = ConditionalAttributeHelper(phi_pairs)
-    for vector, (variable_1, variable_2) in helper.iter_edge_data(cfg):
-        score = sum(coefficient * feature for coefficient, feature in zip(coefficients, vector)) + intercept
+    for (variable_1, variable_2), vector in helper.iter_edge_data(cfg):
+        score = sum(coefficients[feature] * vector.get(feature, 0) for feature in Feature) + intercept
         if score <= 0 or cannot_share_name(interference_graph, variable_1, variable_2):
             continue
         if min_kept_score is not None:

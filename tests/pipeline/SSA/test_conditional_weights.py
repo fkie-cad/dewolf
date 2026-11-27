@@ -3,7 +3,7 @@
 import json
 
 import pytest
-from decompiler.pipeline.ssa.conditional_attribute_helper import FEATURES, cannot_share_name
+from decompiler.pipeline.ssa.conditional_attribute_helper import Feature, cannot_share_name
 from decompiler.pipeline.ssa.conditional_out_of_SSA import BUNDLED_WEIGHTS_FILE, ConditionalOutOfSSA, load_conditional_weights
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
@@ -11,11 +11,13 @@ from decompiler.structures.pseudo import Assignment, Constant, Integer, Return, 
 from decompiler.task import DecompilerTask
 from decompiler.util.options import Options
 
+NAMES = [feature.value for feature in Feature]
+
 
 def _weights(**changes) -> dict:
     data = {
-        "features": list(FEATURES),
-        "coefficients": [float(i) for i in range(len(FEATURES))],
+        "features": NAMES,
+        "coefficients": [float(i) for i in range(len(NAMES))],
         "intercept": -1.5,
         "strategy": 3,
         "min_kept_score": 0.25,
@@ -41,14 +43,13 @@ def _task(weights_path: str = "") -> DecompilerTask:
 
 def test_bundled_file_matches_features():
     with open(BUNDLED_WEIGHTS_FILE) as file:
-        assert tuple(json.load(file)["features"]) == FEATURES
-    weights = load_conditional_weights()
-    assert len(weights.coefficients) == len(FEATURES)
+        assert json.load(file)["features"] == NAMES
+    assert set(load_conditional_weights().coefficients) == set(Feature)
 
 
 def test_load_weights_file(tmp_path):
     weights = load_conditional_weights(_write(tmp_path, _weights()))
-    assert weights.coefficients == [float(i) for i in range(len(FEATURES))]
+    assert weights.coefficients == {feature: float(i) for i, feature in enumerate(Feature)}
     assert weights.intercept == -1.5
     assert weights.strategy == 3
     assert weights.min_kept_score == 0.25
@@ -60,11 +61,17 @@ def test_min_kept_score_null_is_off(tmp_path):
 
 @pytest.mark.parametrize(
     "features",
-    [list(reversed(FEATURES)), list(FEATURES)[:-1], list(FEATURES) + ["new_feature"], []],
+    [NAMES[:-1], NAMES + ["new_feature"], NAMES[:-1] + [NAMES[0]], []],
 )
 def test_feature_mismatch_fails(tmp_path, features):
     with pytest.raises(ValueError):
         load_conditional_weights(_write(tmp_path, _weights(features=features)))
+
+
+def test_feature_order_is_free(tmp_path):
+    reversed_names = list(reversed(NAMES))
+    weights = load_conditional_weights(_write(tmp_path, _weights(features=reversed_names)))
+    assert weights.coefficients == {Feature(name): float(i) for i, name in enumerate(reversed_names)}
 
 
 def test_coefficient_count_mismatch_fails(tmp_path):
