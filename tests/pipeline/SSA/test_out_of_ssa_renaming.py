@@ -1,7 +1,7 @@
 """Pytest for renaming SSA-variables to non-SSA-variables."""
 
 from decompiler.pipeline.ssa.conditional_attribute_helper import get_phi_pairs
-from decompiler.pipeline.ssa.conditional_weights import load_conditional_weights
+from decompiler.pipeline.ssa.conditional_weights import ConditionalWeights
 from decompiler.pipeline.ssa.phi_lifting import PhiFunctionLifter
 from decompiler.pipeline.ssa.variable_renaming import (
     ConditionalVariableRenamer,
@@ -801,7 +801,7 @@ def test_minimal_renaming_relation(graph_with_relation, variable):
 
 def _conditional_renamer(task, interference_graph: InterferenceGraph) -> ConditionalVariableRenamer:
     """The conditional renamer with the bundled default weights."""
-    return ConditionalVariableRenamer(task, interference_graph, load_conditional_weights(), get_phi_pairs(task.graph))
+    return ConditionalVariableRenamer(task, interference_graph, ConditionalWeights.from_file(), get_phi_pairs(task.graph))
 
 
 def test_conditional_renaming_relation(graph_with_relation):

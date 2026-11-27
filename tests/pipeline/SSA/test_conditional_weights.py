@@ -5,7 +5,7 @@ import json
 import decompiler.pipeline.ssa.outofssatranslation as out_of_ssa_module
 import pytest
 from decompiler.pipeline.ssa.conditional_attribute_helper import Feature, cannot_share_name
-from decompiler.pipeline.ssa.conditional_weights import BUNDLED_WEIGHTS_FILE, load_conditional_weights
+from decompiler.pipeline.ssa.conditional_weights import DEFAULT_WEIGHTS_FILE, ConditionalWeights
 from decompiler.pipeline.ssa.outofssatranslation import OutOfSsaTranslation
 from decompiler.structures.graphs.cfg import BasicBlock, ControlFlowGraph
 from decompiler.structures.interferencegraph import InterferenceGraph
@@ -45,13 +45,13 @@ def _task(weights_path: str = "") -> DecompilerTask:
 
 
 def test_bundled_file_matches_features():
-    with open(BUNDLED_WEIGHTS_FILE) as file:
+    with open(DEFAULT_WEIGHTS_FILE) as file:
         assert json.load(file)["features"] == NAMES
-    assert set(load_conditional_weights().coefficients) == set(Feature)
+    assert set(ConditionalWeights.from_file().coefficients) == set(Feature)
 
 
 def test_load_weights_file(tmp_path):
-    weights = load_conditional_weights(_write(tmp_path, _weights()))
+    weights = ConditionalWeights.from_file(_write(tmp_path, _weights()))
     assert weights.coefficients == {feature: float(i) for i, feature in enumerate(Feature)}
     assert weights.intercept == -1.5
     assert weights.strategy == 3
@@ -59,7 +59,7 @@ def test_load_weights_file(tmp_path):
 
 
 def test_min_kept_score_null_is_off(tmp_path):
-    assert load_conditional_weights(_write(tmp_path, _weights(min_kept_score=None))).min_kept_score is None
+    assert ConditionalWeights.from_file(_write(tmp_path, _weights(min_kept_score=None))).min_kept_score is None
 
 
 @pytest.mark.parametrize(
@@ -68,18 +68,18 @@ def test_min_kept_score_null_is_off(tmp_path):
 )
 def test_feature_mismatch_fails(tmp_path, features):
     with pytest.raises(ValueError):
-        load_conditional_weights(_write(tmp_path, _weights(features=features)))
+        ConditionalWeights.from_file(_write(tmp_path, _weights(features=features)))
 
 
 def test_feature_order_is_free(tmp_path):
     reversed_names = list(reversed(NAMES))
-    weights = load_conditional_weights(_write(tmp_path, _weights(features=reversed_names)))
+    weights = ConditionalWeights.from_file(_write(tmp_path, _weights(features=reversed_names)))
     assert weights.coefficients == {Feature(name): float(i) for i, name in enumerate(reversed_names)}
 
 
 def test_coefficient_count_mismatch_fails(tmp_path):
     with pytest.raises(ValueError):
-        load_conditional_weights(_write(tmp_path, _weights(coefficients=[1.0])))
+        ConditionalWeights.from_file(_write(tmp_path, _weights(coefficients=[1.0])))
 
 
 class _RecordingRenamer(out_of_ssa_module.ConditionalVariableRenamer):
@@ -101,12 +101,12 @@ def _weights_reaching_the_renamer(monkeypatch, weights_path: str):
 
 
 def test_empty_option_uses_bundled_file(monkeypatch):
-    assert _weights_reaching_the_renamer(monkeypatch, "") == [load_conditional_weights(BUNDLED_WEIGHTS_FILE)]
+    assert _weights_reaching_the_renamer(monkeypatch, "") == [ConditionalWeights.from_file(DEFAULT_WEIGHTS_FILE)]
 
 
 def test_option_path_overrides_bundled_file(monkeypatch, tmp_path):
     path = _write(tmp_path, _weights())
-    assert _weights_reaching_the_renamer(monkeypatch, path) == [load_conditional_weights(path)]
+    assert _weights_reaching_the_renamer(monkeypatch, path) == [ConditionalWeights.from_file(path)]
 
 
 def test_cannot_share_name_raises_on_missing_type():
